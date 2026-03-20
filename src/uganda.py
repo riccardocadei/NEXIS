@@ -45,11 +45,16 @@ def load_image(key, img_dir):
 
 def geo_label(key, df):
     """Parish name + coordinates for a given geo_long_lat_key."""
-    rows = df[df['geo_long_lat_key'] == key].dropna(subset=['PNAME_VALUE'])
-    if len(rows):
-        r = rows.iloc[0]
-        return f"{r['PNAME_VALUE']}\n({r['geo_long_center']:.2f}°E, {r['geo_lat_center']:.2f}°N)"
-    return f'Key {key}'
+    rows = df[df['geo_long_lat_key'] == key]
+    if not len(rows):
+        return f'Key {key}'
+    r = rows.iloc[0]
+    coords = f"({r['geo_long_center']:.2f}°E, {r['geo_lat_center']:.2f}°N)"
+    if 'PNAME_VALUE' in df.columns:
+        named = rows.dropna(subset=['PNAME_VALUE'])
+        if len(named):
+            return f"{named.iloc[0]['PNAME_VALUE']}\n{coords}"
+    return f'Key {key}\n{coords}'
 
 
 # ── Mapping ───────────────────────────────────────────────────────────────────
