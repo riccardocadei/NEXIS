@@ -10,6 +10,7 @@ import pandas as pd
 import geopandas as gpd
 from geodatasets import get_path
 from scipy import stats
+from scipy.linalg import lstsq
 from shapely.geometry import box
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -151,3 +152,93 @@ def compute_cate(df_sub, col, label_map=None):
         rows.append({'label': label, 'cate': cate, 'se': se,
                      'n1': len(y1), 'n0': len(y0)})
     return pd.DataFrame(rows)
+
+
+def plot_districts(df, uganda_gdf, neighbors, lakes_c, ax=None):
+    """Plot experimental sites colored by district on the Uganda basemap.
+    Sites in the Karamoja region are highlighted with an extra ring marker."""
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+
+    need_cols = ['geo_long_center', 'geo_lat_center', 'district']
+    sites = (
+        df.dropna(subset=need_cols)
+          .drop_duplicates('geo_long_lat_key')
+          [['geo_long_lat_key', 'geo_long_center', 'geo_lat_center',
+            'district', 'karamojan_district']]
+          .copy()
+    )
+    sites['karamojan_district'] = sites['karamojan_district'].fillna(0)
+
+    districts = sorted(sites['district'].unique())
+    cmap    = cm.get_cmap('tab20', len(districts))
+    d_color = {d: cmap(i) for i, d in enumerate(districts)}
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(8, 8))
+
+    draw_base(ax, uganda_gdf, neighbors, lakes_c)
+    for d, grp in sites.groupby('district'):
+        ax.scatter(grp['geo_long_center'], grp['geo_lat_center'],
+                   color=d_color[d], s=30, label=d, zorder=5,
+                   edgecolors='white', linewidths=0.3, alpha=0.9)
+        cx, cy = grp['geo_long_center'].mean(), grp['geo_lat_center'].mean()
+        ax.text(cx, cy, d, fontsize=5.5, ha='center', va='bottom',
+                color=d_color[d], zorder=6,
+                bbox=dict(boxstyle='round,pad=0.1', fc='white', alpha=0.5, lw=0))
+
+    # Overlay Karamoja ring
+    kara = sites[sites['karamojan_district'] == 1]
+    if len(kara):
+        ax.scatter(kara['geo_long_center'], kara['geo_lat_center'],
+                   s=90, facecolors='none', edgecolors='#c0392b',
+                   linewidths=1.4, zorder=7, label='Karamoja region')
+
+    ax.set_title(f'Experimental sites by district  ({len(districts)} districts)\n'
+                 f'red ring = Karamoja region', fontsize=10)
+    return ax
+
+
+def w_interaction_tests(df, alpha=0.05):
+    """Marginal T×W interaction tests for all W covariates.
+
+    For each W_k tests H0: γ=0 in Y ~ 1 + T + W_k + T*W_k via OLS t-test.
+    lang_group and district are one-hot encoded and each dummy is tested separately.
+
+    Returns a DataFrame sorted by p-value with columns:
+        W, γ (T×W), p-value, sig (bool, Bonferroni-corrected at alpha / n_cols).
+    """
+    sub = df.dropna(subset=['Y', 'T']).copy()
+
+    numeric_w = ['age', 'female', 'father_educ', 'mother_educ',
+                 'group_female', 'karamojan_district']
+    numeric_w = [c for c in numeric_w if c in sub.columns]
+    rename_map = {'karamojan_district': 'region_karamojan'}
+
+    cat_dummies = pd.concat(
+        [pd.get_dummies(sub[c], prefix=c).astype(float)
+         for c in ('lang_group', 'district') if c in sub.columns],
+        axis=1,
+    )
+    W_df  = pd.concat([sub[numeric_w].astype(float), cat_dummies], axis=1)
+    W_df  = W_df.rename(columns=rename_map)
+    mask  = ~np.isnan(W_df.values).any(axis=1)
+    Y     = sub['Y'].values[mask]
+    T     = sub['T'].values[mask]
+    W_arr = W_df.values[mask]
+
+    gate = alpha / W_arr.shape[1]
+    rows = []
+    for j, name in enumerate(W_df.columns):
+        w = W_arr[:, j]
+        w = (w - w.mean()) / (w.std() + 1e-12)
+        X = np.column_stack([np.ones(len(Y)), T, w, T * w])
+        beta, _, _, _ = lstsq(X, Y)
+        resid = Y - X @ beta
+        s2    = (resid @ resid) / (len(Y) - 4)
+        se    = np.sqrt(s2 * np.diag(np.linalg.pinv(X.T @ X)))
+        t     = beta[3] / (se[3] + 1e-300)
+        p     = float(2 * stats.t.sf(abs(t), df=len(Y) - 4))
+        rows.append({'W': name, 'γ (T×W)': float(beta[3]), 'p-value': p, 'sig': p <= gate})
+
+    return pd.DataFrame(rows).sort_values('p-value'), gate

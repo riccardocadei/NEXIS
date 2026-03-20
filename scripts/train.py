@@ -12,8 +12,8 @@ Pipeline
 
 Usage
 -----
-    python train.py [--model dinov2_vitb14] [--hidden-dim 3072]
-                    [--l1-coeff 1e-3] [--epochs 100] [--force-reextract]
+    python train.py [--model dinov2] [--hidden-dim 3072]
+                    [--l1-coeff 2.0] [--epochs 100] [--overwrite]
 """
 
 import argparse
@@ -28,27 +28,29 @@ import torch
 ROOT     = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data" / "uganda"
 IMG_DIR  = DATA_DIR / "Uganda2000_processed"
-OUT_DIR  = ROOT / "results" / "uganda"
-OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 sys.path.insert(0, str(ROOT / "src"))
-from embeddings import UgandaSatelliteDataset, embed_uganda_sites
+from embeddings import UgandaSatelliteDataset, embed_uganda_sites, MODEL_REGISTRY
 from sae import SAE, SAETrainConfig, train_sae, get_features
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--model",          default="dinov2_vitb14",
-                   choices=["dinov2_vits14","dinov2_vitb14","dinov2_vitl14"])
+    p.add_argument("--model",          default="dinov2",
+                   choices=list(MODEL_REGISTRY))
     p.add_argument("--hidden-dim",     type=int,   default=3072,
                    help="SAE hidden dimension (default 4× DINOv2-B = 3072)")
     p.add_argument("--l1-coeff",       type=float, default=1e-3)
     p.add_argument("--epochs",         type=int,   default=100)
-    p.add_argument("--batch-size",     type=int,   default=2048,
+    p.add_argument("--batch-size",          type=int,   default=2048,
                    help="SAE training batch size (patch tokens, not images)")
-    p.add_argument("--force-reextract", action="store_true",
-                   help="Re-run DINOv2 extraction even if cache exists")
+    p.add_argument("--extract-batch-size", type=int,   default=16,
+                   help="DINOv2 extraction batch size (images per forward pass)")
+    p.add_argument("--num-workers",         type=int,   default=4,
+                   help="DataLoader workers for DINOv2 extraction")
+    p.add_argument("--overwrite", action="store_true",
+                   help="Re-extract embeddings and overwrite all cached results.")
     return p.parse_args()
 
 
@@ -66,7 +68,9 @@ def load_keys():
 
 
 def extract_or_load_patches(keys: list[int], cache_path: Path,
-                             model_name: str, force: bool) -> tuple[np.ndarray, list[int]]:
+                             model_name: str, force: bool,
+                             batch_size: int = 16,
+                             num_workers: int = 4) -> tuple[np.ndarray, list[int]]:
     """Return patch embeddings (N_sites, 256, d) and the valid key list."""
     if cache_path.exists() and not force:
         print(f"Loading cached patch embeddings from {cache_path}")
@@ -77,8 +81,8 @@ def extract_or_load_patches(keys: list[int], cache_path: Path,
     embeddings, valid_keys = embed_uganda_sites(
         IMG_DIR, keys,
         model_name=model_name,
-        batch_size=4,       # each image loads 3 large CSVs; keep low
-        num_workers=0,
+        batch_size=batch_size,
+        num_workers=num_workers,
         mode="patch",
     )
     np.savez_compressed(cache_path, embeddings=embeddings, keys=np.array(valid_keys))
@@ -95,6 +99,9 @@ def mean_pool_patches(patch_emb: np.ndarray) -> np.ndarray:
 def main():
     args = parse_args()
 
+    OUT_DIR = ROOT / "results" / "uganda" / f"{args.model}_{args.hidden_dim}"
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
     # ── 1. Keys ───────────────────────────────────────────────────────────────
     all_keys, exp_keys = load_keys()
     print(f"All Uganda sites: {len(all_keys)}  |  Experimental: {len(exp_keys)}")
@@ -102,7 +109,8 @@ def main():
     # ── 2. Extract DINOv2 patch embeddings (cached) ───────────────────────────
     cache_path = OUT_DIR / f"patch_embeddings_{args.model}.npz"
     all_patch_emb, all_valid_keys = extract_or_load_patches(
-        all_keys, cache_path, args.model, args.force_reextract
+        all_keys, cache_path, args.model, args.overwrite,
+        args.extract_batch_size, args.num_workers,
     )
     # all_patch_emb: (N_all, 256, d)
     print(f"Patch embeddings shape: {all_patch_emb.shape}")

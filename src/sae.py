@@ -27,6 +27,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
+try:
+    from tqdm import tqdm as _tqdm
+    def _progress(it, **kw): return _tqdm(it, **kw)
+except ImportError:
+    def _progress(it, **kw): return it
+
 
 # ---------------------------------------------------------------------------
 # Model
@@ -196,7 +202,9 @@ def train_sae(
 
     # --- Training loop ---
     epoch_losses: list[dict] = []
-    for epoch in range(cfg.num_epochs):
+    pbar = _progress(range(cfg.num_epochs), desc="SAE training", unit="epoch",
+                     dynamic_ncols=True)
+    for epoch in pbar:
         batch_metrics: list[dict] = []
         for (batch,) in loader:
             optimiser.zero_grad()
@@ -213,12 +221,13 @@ def train_sae(
         epoch_losses.append(avg)
 
         if cfg.log_every and (epoch % cfg.log_every == 0 or epoch == cfg.num_epochs - 1):
-            print(
-                f"Epoch {epoch:4d}/{cfg.num_epochs} | "
-                f"recon={avg['recon_loss']:.4f}  "
-                f"sparsity={avg['sparsity_loss']:.4f}  "
-                f"L0={avg['l0']:.1f}"
-            )
+            msg = (f"recon={avg['recon_loss']:.4f}  "
+                   f"sparsity={avg['sparsity_loss']:.4f}  "
+                   f"L0={avg['l0']:.1f}")
+            if hasattr(pbar, "set_postfix_str"):
+                pbar.set_postfix_str(msg)
+            else:
+                print(f"Epoch {epoch:4d}/{cfg.num_epochs} | {msg}")
 
     return SAETrainResult(
         sae=sae.cpu(),

@@ -1,10 +1,14 @@
 """
-DINOv2 feature extraction for image datasets.
+Vision feature extraction for satellite image datasets.
+
+Supports two backends:
+  torchhub  — Meta's facebookresearch/dinov2 hub models (14×14 patches)
+  hf        — HuggingFace AutoModel (DINOv2 variants + DINOv3, 14×14 or 16×16 patches)
 
 Two extraction modes:
-  mode='cls'   → one 768-d vector per image  (N, d)
-  mode='patch' → one vector per 14×14 patch  (N, n_patches, d)
-                 ViT-B/14 on 224×224 gives 256 patches per image.
+  mode='cls'   → one d-dim vector per image  (N, d)
+  mode='patch' → one vector per patch token  (N, n_patches, d)
+                 ViT-B/14 → 256 patches on 224²; ViT-B/16 → 196 patches on 224²
 
 For the Uganda satellite data use UgandaSatelliteDataset, which reads the
 per-band CSV files, builds the false-color composite, and normalizes using
@@ -22,16 +26,46 @@ from PIL import Image
 from pathlib import Path
 from typing import Literal, Union
 
+from concurrent.futures import ThreadPoolExecutor
 
-# Embedding dimensionality for each DINOv2 variant
-DINO_DIMS = {
-    "dinov2_vits14": 384,
-    "dinov2_vitb14": 768,
-    "dinov2_vitl14": 1024,
-    "dinov2_vitg14": 1536,
+try:
+    from tqdm import tqdm as _tqdm
+    def _progress(it, **kw): return _tqdm(it, **kw)
+except ImportError:
+    def _progress(it, **kw): return it
+
+
+# ---------------------------------------------------------------------------
+# Model registry
+# ---------------------------------------------------------------------------
+
+# Maps short name → (backend, identifier, embed_dim)
+# backend  : "torchhub" or "hf"
+# identifier: model_name for torchhub, HF repo id for hf
+MODEL_REGISTRY: dict[str, tuple[str, str, int]] = {
+    # ── HuggingFace DINOv2 (14×14 patches → 256 patches on 224²) ─────────
+    "dinov2":       ("hf", "facebook/dinov2-base",                          768),
+    "dinov2_large": ("hf", "facebook/dinov2-large",                        1024),
+    # ── HuggingFace DINOv3 (16×16 patches → 196 patches on 224²) ─────────
+    "dinov3":       ("hf", "facebook/dinov3-vitb16-pretrain-lvd1689m",      768),
+    "dinov3_large": ("hf", "facebook/dinov3-vitl16-pretrain-lvd1689m",     1024),
 }
 
-# Standard ImageNet normalization (used by ImageFolderFlat / generic images)
+# Backwards-compat alias used by older code
+DINO_DIMS = {k: v[2] for k, v in MODEL_REGISTRY.items()}
+
+
+def model_embed_dim(model_name: str) -> int:
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(f"Unknown model '{model_name}'. "
+                         f"Known: {list(MODEL_REGISTRY)}")
+    return MODEL_REGISTRY[model_name][2]
+
+
+# ---------------------------------------------------------------------------
+# Standard transforms
+# ---------------------------------------------------------------------------
+
 _IMAGENET_NORM = transforms.Normalize(
     mean=(0.485, 0.456, 0.406),
     std=(0.229, 0.224, 0.225),
@@ -46,11 +80,32 @@ _RESIZE_CROP = transforms.Compose([
 _DINO_TRANSFORM = transforms.Compose([*_RESIZE_CROP.transforms, _IMAGENET_NORM])
 
 
-def load_dinov2(model_name: str = "dinov2_vitb14", device: str | None = None) -> torch.nn.Module:
-    """Load a pretrained DINOv2 model from torch.hub."""
+# ---------------------------------------------------------------------------
+# Model loading
+# ---------------------------------------------------------------------------
+
+def load_model(model_name: str, device: str | None = None) -> torch.nn.Module:
+    """Load a pretrained vision backbone by registry name.
+
+    Attaches two attributes to the returned model:
+      _backend        : "torchhub" or "hf"
+      _n_prefix_tokens: number of non-patch tokens before the first patch token
+                        in last_hidden_state (CLS + any register tokens).
+                        Only meaningful for "hf" backend.
+    """
     if device is None:
         device = _auto_device()
-    model = torch.hub.load("facebookresearch/dinov2", model_name, pretrained=True)
+
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(f"Unknown model '{model_name}'. "
+                         f"Known: {list(MODEL_REGISTRY)}")
+
+    backend, identifier, _ = MODEL_REGISTRY[model_name]
+
+    from transformers import AutoModel
+    model = AutoModel.from_pretrained(identifier)
+    n_registers = getattr(model.config, "num_register_tokens", 0)
+    model._n_prefix_tokens = 1 + n_registers   # CLS + optional register tokens
     model.eval().to(device)
     return model
 
@@ -104,12 +159,6 @@ class UgandaSatelliteDataset(Dataset):
     Pixels with value ≥ FILL_THRESHOLD are masked (no-data).
     Each band is percentile-stretched to [0, 1] independently.
     Channels are stacked as false-color: NIR→R, Green→G, SWIR→B.
-
-    Args:
-        img_dir: Directory containing the GeoKey CSV files.
-        keys: List of integer site keys to include.
-        transform: Torchvision transform applied after building the PIL image.
-                   Use make_uganda_transform() with data-derived stats.
     """
 
     FILL_THRESHOLD = 5000
@@ -120,16 +169,35 @@ class UgandaSatelliteDataset(Dataset):
         img_dir: Union[str, Path],
         keys: list[int],
         transform=None,
+        preload_workers: int = 0,
     ):
         self.img_dir = Path(img_dir)
         self.transform = transform
         self.keys = [k for k in keys if self._has_all_bands(k)]
         dropped = len(keys) - len(self.keys)
         if dropped:
-            print(f"UgandaSatelliteDataset: skipped {dropped}/{len(keys)} keys with missing band files")
+            print(f"UgandaSatelliteDataset: skipped {dropped}/{len(keys)} keys "
+                  f"with missing band files")
+
+        self._cache: dict[int, np.ndarray] | None = None
+        if preload_workers > 0:
+            print(f"Preloading {len(self.keys)} sites from NFS "
+                  f"({preload_workers} threads)...")
+            def _load(key):
+                return key, self._build_array(key)
+            with ThreadPoolExecutor(max_workers=preload_workers) as ex:
+                results = list(_progress(
+                    ex.map(_load, self.keys),
+                    total=len(self.keys), desc="preload", unit="site",
+                ))
+            self._cache = dict(results)
+            print(f"Preload complete — "
+                  f"{sum(v.nbytes for v in self._cache.values()) / 1e6:.0f} MB in RAM")
 
     def _has_all_bands(self, key: int) -> bool:
-        return all((self.img_dir / f"GeoKey{key}_BAND{b}.csv").exists() for b in [1, 2, 3])
+        return all(
+            (self.img_dir / f"GeoKey{key}_BAND{b}.csv").exists() for b in [1, 2, 3]
+        )
 
     def _load_stretched(self, key: int, band: int) -> np.ndarray:
         arr = pd.read_csv(
@@ -140,17 +208,20 @@ class UgandaSatelliteDataset(Dataset):
         lo = np.percentile(valid, self.PCT_LO)
         hi = np.percentile(valid, self.PCT_HI)
         s = np.clip((arr - lo) / (hi - lo + 1e-8), 0.0, 1.0)
-        s[np.isnan(arr)] = 0.0   # fill pixels → black
+        s[np.isnan(arr)] = 0.0
         return s
+
+    def _build_array(self, key: int) -> np.ndarray:
+        """Return (H, W, 3) float32 false-color array for one site."""
+        channels = [self._load_stretched(key, b) for b in [2, 1, 3]]
+        return np.stack(channels, axis=-1)
 
     def __len__(self) -> int:
         return len(self.keys)
 
     def __getitem__(self, idx: int):
         key = self.keys[idx]
-        # False-color composite: NIR(B2)→R, Green(B1)→G, SWIR(B3)→B
-        channels = [self._load_stretched(key, b) for b in [2, 1, 3]]
-        img_arr = np.stack(channels, axis=-1)                  # (H, W, 3) float32 in [0, 1]
+        img_arr = self._cache[key] if self._cache is not None else self._build_array(key)
         img = Image.fromarray((img_arr * 255).astype(np.uint8))
         if self.transform:
             img = self.transform(img)
@@ -166,34 +237,30 @@ def compute_dataset_stats(
     batch_size: int = 16,
     num_workers: int = 0,
 ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-    """Compute per-channel mean and std from the dataset (after resize/crop, before normalize).
-
-    Returns:
-        mean: (R_mean, G_mean, B_mean)
-        std:  (R_std,  G_std,  B_std)
-    """
+    """Compute per-channel mean and std from the dataset (after resize/crop)."""
     prep = transforms.Compose([
         transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.CenterCrop(224),
-        transforms.ToTensor(),   # → float32 in [0, 1]
+        transforms.ToTensor(),
     ])
     original_transform = dataset.transform
     dataset.transform = prep
 
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    channel_sum   = torch.zeros(3)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                        num_workers=num_workers)
+    channel_sum    = torch.zeros(3)
     channel_sum_sq = torch.zeros(3)
     n_pixels = 0
 
     for imgs, _ in loader:
-        # imgs: (B, 3, H, W)
         b, c, h, w = imgs.shape
         channel_sum    += imgs.sum(dim=(0, 2, 3))
         channel_sum_sq += (imgs ** 2).sum(dim=(0, 2, 3))
         n_pixels       += b * h * w
 
     mean = (channel_sum / n_pixels).tolist()
-    std  = ((channel_sum_sq / n_pixels - torch.tensor(mean) ** 2).clamp(min=0).sqrt()).tolist()
+    std  = ((channel_sum_sq / n_pixels - torch.tensor(mean) ** 2)
+            .clamp(min=0).sqrt()).tolist()
 
     dataset.transform = original_transform
     return tuple(mean), tuple(std)
@@ -203,7 +270,7 @@ def make_uganda_transform(
     mean: tuple[float, float, float],
     std: tuple[float, float, float],
 ) -> transforms.Compose:
-    """Build the standard resize→crop→normalize transform with data-derived stats."""
+    """Resize → crop → normalize with data-derived stats."""
     return transforms.Compose([
         transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.CenterCrop(224),
@@ -226,25 +293,21 @@ def extract_embeddings(
     mode: Literal["cls", "patch"] = "cls",
     verbose: bool = True,
 ) -> np.ndarray:
-    """Run the dataset through DINOv2 and return embeddings.
+    """Run the dataset through a vision backbone and return embeddings.
+
+    Handles both torchhub DINOv2 (forward_features API) and HuggingFace
+    models (last_hidden_state API) transparently via model._backend.
 
     Args:
-        dataset: PyTorch Dataset returning (image_tensor, *metadata).
-        model: DINOv2 model (from load_dinov2).
-        batch_size: Images per forward pass.
-        num_workers: DataLoader workers.
-        device: Inference device.
-        mode: 'cls'   → (N, d) one vector per image.
-              'patch' → (N, n_patches, d) one vector per 14×14 patch.
-                        For ViT-B/14 on 224×224 input: n_patches = 256.
-                        Flatten to (N*256, d) before passing to SAE.
-        verbose: Print progress.
-
-    Returns:
-        Float32 array of shape (N, d) or (N, n_patches, d).
+        mode: 'cls'   → (N, d)
+              'patch' → (N, n_patches, d)
+                        14×14 patch model on 224² → n_patches=256
+                        16×16 patch model on 224² → n_patches=196
     """
     if device is None:
         device = _auto_device()
+
+    n_prefix = getattr(model, "_n_prefix_tokens", 1)  # CLS + optional registers
 
     loader = DataLoader(
         dataset,
@@ -255,22 +318,20 @@ def extract_embeddings(
     )
 
     all_embeds = []
-    for i, batch in enumerate(loader):
+    bar = _progress(loader, desc=f"embed-{mode}", unit="batch",
+                    disable=not verbose, dynamic_ncols=True)
+    for batch in bar:
         imgs = batch[0] if isinstance(batch, (list, tuple)) else batch
         imgs = imgs.to(device, non_blocking=True)
 
-        feats = model.forward_features(imgs)
-
+        # HuggingFace: last_hidden_state shape = (B, n_prefix + n_patches, d)
+        hs = model(pixel_values=imgs).last_hidden_state
         if mode == "cls":
-            out = feats["x_norm_clstoken"]          # (B, d)
+            out = hs[:, 0, :]           # (B, d)
         else:
-            out = feats["x_norm_patchtokens"]        # (B, n_patches, d)
+            out = hs[:, n_prefix:, :]   # (B, n_patches, d)
 
         all_embeds.append(out.cpu().float().numpy())
-
-        if verbose and i % 10 == 0:
-            n_done = min((i + 1) * batch_size, len(dataset))
-            print(f"  [{n_done}/{len(dataset)}] batch {i+1}/{len(loader)}")
 
     return np.concatenate(all_embeds, axis=0)
 
@@ -288,18 +349,14 @@ def embed_image_folder(
     mode: Literal["cls", "patch"] = "cls",
     verbose: bool = True,
 ) -> tuple[np.ndarray, list[str]]:
-    """Embed all images in a folder with DINOv2.
-
-    Returns:
-        embeddings: (N, d) or (N, n_patches, d).
-        paths: List of N file path strings.
-    """
+    """Embed all images in a folder."""
     if device is None:
         device = _auto_device()
     dataset = ImageFolderFlat(root)
-    model   = load_dinov2(model_name, device=device)
+    model   = load_model(model_name, device=device)
     if verbose:
-        print(f"Extracting {model_name} [{mode}] embeddings for {len(dataset)} images on {device}...")
+        print(f"Extracting {model_name} [{mode}] embeddings "
+              f"for {len(dataset)} images on {device}...")
     embeddings = extract_embeddings(dataset, model, batch_size=batch_size,
                                     num_workers=num_workers, device=device,
                                     mode=mode, verbose=verbose)
@@ -316,41 +373,30 @@ def embed_uganda_sites(
     mode: Literal["cls", "patch"] = "patch",
     verbose: bool = True,
 ) -> tuple[np.ndarray, list[int]]:
-    """Full pipeline: Uganda CSV bands → DINOv2 → embeddings.
+    """Full pipeline: Uganda CSV bands → vision backbone → embeddings.
 
     Computes data-derived normalization stats before extraction.
-
-    Args:
-        img_dir: Directory containing GeoKey CSV files.
-        keys: Site keys to embed.
-        model_name: DINOv2 variant.
-        batch_size: Images per forward pass (keep small; each image loads 3 CSVs).
-        num_workers: DataLoader workers.
-        device: Inference device.
-        mode: 'cls' → (N, d).  'patch' → (N, 256, d), flatten before SAE.
-        verbose: Print progress.
-
-    Returns:
-        embeddings: Float32 array of shape (N, d) or (N, n_patches, d).
-        valid_keys: Site keys actually embedded (those with all 3 band files present).
+    Works with any model in MODEL_REGISTRY (torchhub or HuggingFace).
     """
     if device is None:
         device = _auto_device()
 
-    # Build dataset without normalization to compute stats
-    dataset = UgandaSatelliteDataset(img_dir, keys, transform=None)
+    dataset = UgandaSatelliteDataset(img_dir, keys, transform=None,
+                                     preload_workers=num_workers)
 
     if verbose:
         print(f"Computing per-channel stats from {len(dataset)} sites...")
     mean, std = compute_dataset_stats(dataset, batch_size=batch_size)
     if verbose:
-        print(f"  mean={tuple(f'{v:.3f}' for v in mean)}  std={tuple(f'{v:.3f}' for v in std)}")
+        print(f"  mean={tuple(f'{v:.3f}' for v in mean)}  "
+              f"std={tuple(f'{v:.3f}' for v in std)}")
 
     dataset.transform = make_uganda_transform(mean, std)
 
-    model = load_dinov2(model_name, device=device)
+    model = load_model(model_name, device=device)
     if verbose:
-        print(f"Extracting {model_name} [{mode}] embeddings for {len(dataset)} sites on {device}...")
+        print(f"Extracting {model_name} [{mode}] embeddings "
+              f"for {len(dataset)} sites on {device}...")
 
     embeddings = extract_embeddings(dataset, model, batch_size=batch_size,
                                     num_workers=num_workers, device=device,
