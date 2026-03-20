@@ -1,7 +1,11 @@
 __pycache__/
-*.py[cod]
-*.egg-info/
-.ipynb_checkpoints/
-.DS_Store
-*.pdf
+.claude
+
+**.npz
+**.pt
+
 data/
+logs/
+results/
+
+
