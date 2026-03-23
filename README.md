@@ -1,10 +1,10 @@
 # Generalised Heterogeneous Treatment Effect (HTE) Identification
 
-**TL;DR:** Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.
+**TL;DR:** *Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.*
 
-Understanding *why* treatment effects vary across individuals is a fundamental challenge in causal inference. Standard methods predict effect variation but cannot reliably identify **which specific features** actually drive the heterogeneity, nor do they offer statistical guarantees. To address this, we introduce **NEMS** (Neural Effect Modifier Search): a framework providing a powerful **hypothesis generation component**. It sequentially tests and selects genuine effect modifiers from a vast pool of candidates while strictly controlling the family-wise error rate (FWER).
+Understanding *why* treatment effects vary across individuals is a fundamental challenge in causal inference. Standard methods predict effect variation but cannot reliably identify which specific features actually drive the heterogeneity, nor do they offer statistical guarantees. To address this, we introduce **NEMS** (Neural Effect Modifier Search): a framework providing a powerful **hypothesis generation** component. It sequentially tests and selects genuine effect modifiers from a vast pool of candidates while strictly controlling the family-wise error rate (FWER).
 
-Our approach is uniquely **generalised**: the input feature space $X$ is unrestricted and can freely combine (i) complex, high-dimensional pre-treatment measurements such as representations from foundation models (satellite imagery, medical imaging), and (ii) interpretable prior variables (demographics, administrative records). By linking **mechanistic interpretability** with causal discovery, NEMS bridges the gap between opaque deep learning features and statistically rigorous hypothesis generation.
+Our approach is generalised in the sense that the input feature space is unrestricted and can freely combine (i) complex, high-dimensional pre-treatment measurements such as representations from foundation models (satellite imagery, medical imaging), and (ii) interpretable prior variables (demographics, administrative records). By linking mechanistic interpretability with causal inference, NEMS bridges the gap between opaque deep learning features and statistically rigorous hypothesis generation.
 
 ### Problem setup
 
@@ -27,7 +27,7 @@ NEMS screens the combined candidate set for treatment effect modification, condi
 <td valign="middle" align="center" width="38%">
 <img src="assets/causal_model.png" width="260" alt="Causal model: observed nodes T, Y, X in grey; modifier W in white"/>
 <br/>
-<sub><b>Causal model.</b> Modifiers <b>W</b> (latent or partially observed) drive both the observed pre-treatment proxy <b>X</b> and heterogeneous response to treatment <b>T</b> on outcome <b>Y</b>.</sub>
+<sub><b>Causal model:</b> Some pre-treatment variables <b>W</b>, latent (entangled in a complex measurement <b>X</b>) or partially observed, drive the heterogeneous response to treatment <b>T</b> on outcome <b>Y</b>.</sub>
 </td>
 </tr>
 </table>
@@ -43,12 +43,12 @@ A concrete instantiation pairs randomised experiments with satellite imagery: gi
 Given an RCT or observational dataset $(Y, T, Z)$, NEMS iteratively selects a feature or neuron $j$ by testing the conditional interaction hypothesis:
 
 $$
-\mathcal{H}_0(j \mid S) : \gamma_j = 0 \quad \text{in} \quad Y \sim 1 + T + Z_S + T \cdot Z_S + Z_j + T \cdot Z_j
+\mathcal{H}_0(j \mid S) : \quad \gamma_j = 0 \quad \text{in} \quad Y \sim 1 + T + Z_S + T \cdot Z_S + Z_j + T \cdot Z_j
 $$
 
 Here, the null hypothesis $\mathcal{H}_0$ conditions on the already-selected set $S$. At each step, a Bonferroni gate is conservatively applied uniformly over all remaining candidates. This sequentially narrows the search and guarantees tight control over the family-wise error rate throughout the feature selection process. Selection automatically halts when no remaining candidate effectively clears the gated significance threshold.
 
-The procedure is distinctively designed for high-dimensional regimes
+The procedure is distinctively designed for high-dimensional regimes.
 
 ```python
 from src import nems_select
@@ -56,21 +56,6 @@ from src import nems_select
 result = nems_select(y=Y, t=T, z=Z, alpha=0.05)
 print(result.selected)   # list of selected neuron indices
 ```
-
----
-
-## Related work
-
-Past works applying satellite imagery to characterise effect heterogenity (like Jerzak et al.) typically depend on black-box CATE estimators. NEMS addresses critical deficiencies in broad estimator approaches:
-
-| Method | Goal | Multiple-testing guarantee | $p \gg n$ regime | Interpretability |
-|--------|------|---------------------------|-------------------|------------------|
-| **Jerzak et al. (2023)** | Predict CATE surface | None | Regularised | Raw dimensions |
-| **Causal Forests / X-Learner** | Predict CATE surface | None | Tree splitting / Regularised | Raw covariates |
-| **Causal Rule Ensembles (CRE)** | Select effect modifiers | Asymptotic / Post-hoc | Regularised | Extracted Rules |
-| **NEMS (Ours)** | **Select effect modifiers** | **FWER controlled sequentially** | **Sequential conditional testing** | **SAE neurons + VLM labels** |
-
-Generic CATE models estimate an average full effect but explicitly *cannot select* or identify the underlying features driving heterogeneity in high-dimensional scenarios. On the other hand, rule-based screening methods test each candidate marginally, inherently inflating false discovery rates amongst correlated features. NEMS overcomes this by iteratively screening each candidate conditionally while scaling naturally to learned high-dimensional features like foundational vision embedding elements and SAE neurons.
 
 ---
 
