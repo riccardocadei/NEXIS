@@ -2,17 +2,17 @@
 
 **Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.**
 
-Treatment effects vary across individuals, but understanding *why* is harder than estimating *that* they do. Standard CATE estimators produce a predicted-effect surface without identifying *which features* drive heterogeneity, and without statistical guarantees on selection. **NEMS** addresses a more fundamental goal: **testing and selecting the drivers of effect heterogeneity** — the pre-treatment features that are genuine effect modifiers — while controlling the family-wise error rate.
+Treatment effects vary across individuals, but understanding *why* is harder than estimating *that* they do. Standard CATE estimators produce a predicted-effect surface without identifying *which features* drive heterogeneity, and without statistical guarantees on selection. Our proposed framework introduces a powerful **hypothesis generation component**, allowing researchers to discover novel effect modifiers from high-dimensional data. **NEMS** is the core algorithm used to select among these different candidate modifiers from various sources (whether raw, processed, or learned representations) while controlling the family-wise error rate.
 
-The approach is **generalised** in a precise sense. The input feature space **X** is not restricted to a single source: it can simultaneously include (i) complex, high-dimensional pre-treatment measurements such as learned representations from foundation models (satellite imagery, genomic profiles, medical imaging), and (ii) interpretable measured pre-treatment variables the researcher already has — demographic covariates, survey responses, administrative records, or any domain-knowledge priors. NEMS provides a unified, multiply-tested screen over this combined space, regardless of whether features come from deep models or from prior knowledge.
+The approach is **generalised** in a precise sense. The input feature space **X** is not restricted to a single source: it can simultaneously include (i) complex, high-dimensional pre-treatment measurements such as learned representations from foundation models (satellite imagery, genomic profiles, medical imaging), and (ii) interpretable measured pre-treatment variables the researcher already has — demographic covariates, survey responses, administrative records, or any domain-knowledge priors. By establishing a high-level link with **mechanistic interpretability**, our framework bridges the gap between deep learning features and causal hypothesis generation. NEMS provides a unified, multiply-tested screen over this combined space, regardless of whether features come from deep models or from prior knowledge.
 
 ### Problem setup
 
 <table>
 <tr>
-<td valign="top" width="62%">
+<td valign="middle" width="62%">
 
-Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. We posit a set of *latent* effect-modification factors **W** — unobserved, but manifesting in both **X** and the heterogeneous response to treatment (see figure).
+Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. We posit a set of effect-modification factors **W** — which can be *latent* or *partially observed* — manifesting in both **X** and the heterogeneous response to treatment (see figure).
 
 The pre-treatment input **X** is the union of two complementary sources:
 
@@ -21,13 +21,13 @@ The pre-treatment input **X** is the union of two complementary sources:
 
 NEMS screens the combined candidate set for treatment effect modification, conditioning each new test on the features already selected and applying a Bonferroni gate, so that FWER is controlled throughout regardless of the total number of candidates.
 
-*Shaded nodes are observed; the white node **W** is unobserved.*
+*Shaded nodes are observed; the node **W** can be latent or partially observed.*
 
 </td>
-<td valign="top" align="center" width="38%">
-<img src="assets/causal_model.png" width="260" alt="Causal model: observed nodes T, Y, X in grey; latent modifier W in white"/>
+<td valign="middle" align="center" width="38%">
+<img src="assets/causal_model.png" width="260" alt="Causal model: observed nodes T, Y, X in grey; modifier W in white"/>
 <br/>
-<sub><b>Causal model.</b> Latent modifiers <b>W</b> drive both the observed pre-treatment proxy <b>X</b> and heterogeneous response to treatment <b>T</b> on outcome <b>Y</b>.</sub>
+<sub><b>Causal model.</b> Modifiers <b>W</b> (latent or partially observed) drive both the observed pre-treatment proxy <b>X</b> and heterogeneous response to treatment <b>T</b> on outcome <b>Y</b>.</sub>
 </td>
 </tr>
 </table>
@@ -47,6 +47,31 @@ H0(j | S) : γ_j = 0   in   Y ~ 1 + T + Z_S + T·Z_S + Z_j + T·Z_j
 ```
 
 conditioning on the already-selected set `S`. At each step a Bonferroni gate is applied over all remaining candidates, so the family-wise error rate is controlled throughout. Selection stops when no remaining neuron clears the gate.
+
+```latex
+\begin{algorithm}[h]
+\caption{Neural Effect Modifier Search (NEMS)}
+\label{alg:nems}
+\begin{algorithmic}[1]
+\State \textbf{Input:} $\{(\bm{X}_i,T_i,Y_i)\}_{i=1}^n$, representation map $\phi$, level $\alpha$
+\State Compute $\bm{Z}_i \gets \phi(\bm{X}_i) \in \mathbb{R}^m$ for all $i$
+\State Initialize $S \gets \emptyset$
+\While{true}
+    \State $M \gets [m] \setminus S$
+    \For{$j \in M$}
+        \State Compute $p_j(S)$ for Equation~\ref{eq:null_z}
+    \EndFor
+    \State $j^* \gets \arg\min_{j \in M} p_j(S)$
+    \If{$p_{j^*}(S) \le \frac{\alpha}{|M|}$}
+        \State $S \gets S \cup \{j^*\}$
+    \Else
+        \State \textbf{break}
+    \EndIf
+\EndWhile
+\State \textbf{Output:} Selected set $S$
+\end{algorithmic}
+\end{algorithm}
+```
 
 The procedure is designed for the high-dimensional regime (`p >> n`) where a naïve interaction screen would produce far too many false discoveries. By conditioning on the growing selected set and gating with Bonferroni, NEMS achieves valid sequential selection without requiring post-hoc adjustment.
 
