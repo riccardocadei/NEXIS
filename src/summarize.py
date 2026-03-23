@@ -165,6 +165,8 @@ def parse_args():
     p.add_argument("--sae-dim",     type=int, default=3072)
     p.add_argument("--outcome",     default="log_skilled_hours",
                    help="Outcome alias or CSV column name (must match what was passed to analyze.py).")
+    p.add_argument("--pipeline",    default="qwen", choices=["qwen", "geochat"],
+                   help="Which interpretation pipeline's output to use.")
     return p.parse_args()
 
 
@@ -184,7 +186,7 @@ def main():
     interp_map      = {}   # feature_idx -> full description sentence
     vlm_label_map   = {}   # feature_idx -> short 2-6 word label
     confidence_map  = {}   # feature_idx -> low | medium | high
-    interp_path = OUT_DIR / "interpretations.json"
+    interp_path = OUT_DIR / args.pipeline / "interpretations.json"
     if interp_path.exists():
         with open(interp_path) as f:
             for entry in json.load(f):
@@ -314,12 +316,15 @@ def main():
             for r in results
         ],
     }
-    out_path = OUT_DIR / "summary.json"
+    pipeline_dir = OUT_DIR / args.pipeline
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    out_path = pipeline_dir / "summary.json"
     with open(out_path, "w") as f:
         json.dump(summary, f, indent=2)
     print(f"Saved → {out_path}")
 
-    _llm_narrative(summary, results, ate, ate_se, ate_p, OUT_DIR, args.outcome)
+    _llm_narrative(summary, results, ate, ate_se, ate_p, OUT_DIR, args.outcome,
+                   pipeline=args.pipeline)
 
 
 # ── Markdown table + narrative ────────────────────────────────────────────────
@@ -334,7 +339,7 @@ def _clean_label(label: str, vlm_label: str | None) -> str:
 
 
 def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
-                   outcome: str = "Yobs"):
+                   outcome: str = "Yobs", pipeline: str = "qwen"):
     """Write a deterministic markdown summary table and templated narrative."""
 
     model_name = out_dir.name
@@ -430,7 +435,7 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
     print()
     print(narrative)
 
-    narrative_path = out_dir / "narrative.md"
+    narrative_path = out_dir / pipeline / "narrative.md"
     with open(narrative_path, "w") as f:
         f.write(f"# NEMS Results: {model_name}\n\n")
         f.write(f"**ATE = {ate:+.4f}{ate_sig}**  "

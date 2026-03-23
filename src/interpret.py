@@ -109,6 +109,235 @@ def unload_model(model):
         torch.cuda.empty_cache()
 
 
+# ── GeoChat pipeline — Stage 1: per-image RS captioning ───────────────────────
+
+_DESCRIPTIONS_DIR = ROOT / "data" / "uganda"
+
+GEOCHAT_DESCRIBE_PROMPT = (
+    "This is a false-colour Landsat ETM+ pan-sharpened satellite image of northern Uganda "
+    "(year ~2000). Band mapping: NIR→Red channel, Green→Green channel, SWIR→Blue channel. "
+    "The tile covers approximately 5×5 km at ~14 m/pixel native resolution.\n\n"
+    "Colour guide:\n"
+    "• Bright red/magenta = dense healthy vegetation (woodland, vigorous crops)\n"
+    "• Dark red/maroon = burn scar or sparse post-fire regrowth\n"
+    "• Tan/pinkish-brown = bare soil, dry fallow, degraded land\n"
+    "• Smooth bounded pale patches = cultivated fields\n"
+    "• Dark blue/near-black = open water (river, lake, reservoir)\n"
+    "• Dark olive = wetland, papyrus swamp, seasonally flooded valley bottom\n"
+    "• Grey/white = settlement, roads, compacted ground\n"
+    "• Pale mauve/white outcrops = laterite hardpan (infertile)\n\n"
+    "Describe the land cover in this image in 2–4 sentences. Focus on: "
+    "water bodies, vegetation density and pattern, settlements, roads, "
+    "bare or degraded soil, burn scars, and crop field geometry. Be specific and factual."
+)
+
+
+def _desc_cache_path(geochat_model_name: str) -> Path:
+    slug = geochat_model_name.replace("/", "_").replace("-", "_")
+    return _DESCRIPTIONS_DIR / f"site_descriptions_{slug}.json"
+
+
+def _save_desc_cache(cache_path: Path, model_name: str, descriptions: dict) -> None:
+    with open(cache_path, "w") as f:
+        json.dump({"model": model_name, "descriptions": descriptions}, f)
+
+
+def load_geochat(model_name: str = "MBZUAI/geochat-7b", quantize: bool = False):
+    """Load GeoChat (LLaVA-based) for single-image remote-sensing description."""
+    import torch
+    from transformers import AutoProcessor, LlavaForConditionalGeneration
+    print(f"  Loading GeoChat: {model_name} ...")
+    processor = AutoProcessor.from_pretrained(model_name)
+    kwargs = dict(torch_dtype=torch.float16, device_map="auto")
+    if quantize:
+        from transformers import BitsAndBytesConfig
+        kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
+        kwargs.pop("torch_dtype", None)
+        print("  (4-bit quantization enabled)")
+    model = LlavaForConditionalGeneration.from_pretrained(model_name, **kwargs)
+    model.eval()
+    return model, processor
+
+
+def describe_image_geochat(model, processor, img: "Image.Image") -> str:
+    """Return a 2–4 sentence land-cover description for one RS image via GeoChat."""
+    import torch
+    prompt = f"USER: <image>\n{GEOCHAT_DESCRIBE_PROMPT}\nASSISTANT:"
+    inputs = processor(text=prompt, images=img, return_tensors="pt").to(model.device)
+    with torch.no_grad():
+        out_ids = model.generate(**inputs, max_new_tokens=150, do_sample=False,
+                                 temperature=None, top_p=None, top_k=None)
+    generated = out_ids[0][inputs["input_ids"].shape[1]:]
+    return processor.decode(generated, skip_special_tokens=True).strip()
+
+
+def load_or_build_descriptions(
+    geochat_model, geochat_processor,
+    all_keys: list,
+    model_name: str,
+    force_rebuild: bool = False,
+) -> dict:
+    """Return {str(key): description} for all keys, building missing entries with GeoChat."""
+    cache_path = _desc_cache_path(model_name)
+    cache: dict = {}
+    if cache_path.exists() and not force_rebuild:
+        with open(cache_path) as f:
+            data = json.load(f)
+        if data.get("model") == model_name:
+            cache = data.get("descriptions", {})
+            print(f"  Loaded {len(cache)} cached site descriptions from {cache_path.name}")
+
+    missing = [k for k in all_keys if str(k) not in cache]
+    if missing:
+        print(f"  Running GeoChat on {len(missing)} new site(s) ...")
+        for i, key in enumerate(missing):
+            img = load_site_image(int(key))
+            cache[str(key)] = describe_image_geochat(geochat_model, geochat_processor, img) \
+                              if img is not None else ""
+            if (i + 1) % 50 == 0 or (i + 1) == len(missing):
+                print(f"    {i + 1}/{len(missing)}")
+                _save_desc_cache(cache_path, model_name, cache)
+        print(f"  Descriptions saved → {cache_path.name}")
+    return cache
+
+
+# ── GeoChat pipeline — Stage 2: text-LLM contrastive aggregation ──────────────
+
+def load_text_model(model_name: str, quantize: bool = False):
+    """Load a text-only instruction-tuned LLM for description aggregation."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    print(f"  Loading text model: {model_name} ...")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    kwargs = dict(torch_dtype=torch.bfloat16, device_map="auto")
+    if quantize:
+        from transformers import BitsAndBytesConfig
+        kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
+        kwargs.pop("torch_dtype", None)
+        print("  (4-bit quantization enabled)")
+    model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
+    model.eval()
+    return model, tokenizer
+
+
+def aggregate_descriptions_llm(
+    model, tokenizer,
+    feat_idx: int,
+    top_descriptions:    "list[tuple[int, float, str]]",   # (key, act, desc)
+    bottom_descriptions: "list[tuple[int, float, str]]",
+    prior_concepts: list = (),
+    max_act: float = 1.0,
+    n_total_sites: int = None,
+    n_nonzero: int = None,
+    max_act_percentile: int = None,
+) -> dict:
+    """Stage-2: text LLM finds the distinguishing concept from GeoChat descriptions."""
+    import torch
+
+    group_a = "\n".join(
+        f"  A{i+1} [{act:.4f} ({100*act/max_act:.0f}% of max)]: {desc or '(no description)'}"
+        for i, (_, act, desc) in enumerate(top_descriptions)
+    )
+    group_b = "\n".join(
+        f"  B{i+1} [{act:.4f}]: {desc or '(no description)'}"
+        for i, (_, act, desc) in enumerate(bottom_descriptions)
+    )
+
+    if prior_concepts:
+        prior_lines = "\n".join(
+            f"  • Feature {p['feature']} — \"{p.get('label', 'unknown')}\""
+            + (f": {d}" if (d := (p.get('activated_concept') or p.get('description', ''))) else "")
+            for p in prior_concepts
+        )
+        exclusion_block = (
+            f"\nBANNED CONCEPTS (already identified — do NOT repeat or paraphrase):\n"
+            f"{prior_lines}\n"
+        )
+    else:
+        exclusion_block = ""
+
+    signal_parts = []
+    if max_act_percentile is not None and max_act_percentile <= 40:
+        signal_parts.append(
+            f"ACTIVATION STRENGTH: peak={max_act:.4f}, bottom-{max_act_percentile}% of all "
+            f"SAE features — {'extremely' if max_act_percentile <= 20 else 'below-average'} weak."
+        )
+    if n_total_sites and n_nonzero:
+        pct_nz = 100 * n_nonzero / n_total_sites
+        if pct_nz < 30:
+            signal_parts.append(
+                f"SPARSITY: {n_nonzero}/{n_total_sites} sites ({pct_nz:.1f}%) non-zero "
+                f"— {'rare niche' if pct_nz < 10 else 'moderately sparse'} feature."
+            )
+    signal_note = ("\n" + "\n".join(signal_parts) + "\n") if signal_parts else ""
+
+    prompt = (
+        STUDY_CONTEXT + "\n\n"
+        "The following land-cover descriptions were generated by GeoChat (a remote-sensing "
+        f"vision model) for two groups of satellite image sites (SAE feature #{feat_idx}).\n\n"
+        f"Group A — HIGH activation ({len(top_descriptions)} sites, strongest→weakest):\n"
+        f"{group_a}\n\n"
+        f"Group B — LOW activation ({len(bottom_descriptions)} sites):\n"
+        f"{group_b}\n"
+        f"{exclusion_block}"
+        f"{signal_note}\n"
+        "TASK: Based solely on these descriptions, identify the ONE land-cover or landscape "
+        "property that systematically distinguishes Group A from Group B.\n"
+        "Work through these cues in order; stop at the first clear asymmetry:\n"
+        "  1. Open water / wetland\n"
+        "  2. Burn scars\n"
+        "  3. Bare soil / cropland geometry\n"
+        "  4. Settlement and road infrastructure\n"
+        "  5. Vegetation spatial structure (only if 1–4 are symmetric)\n\n"
+        "Answer in this EXACT format (four lines, no extra text):\n"
+        "Active description: <5–15 words for what HIGH-activation sites have>\n"
+        "Inactive description: <5–15 words for what LOW-activation sites have or lack>\n"
+        "Label: <2–6 word label for the distinguishing concept>\n"
+        "Confidence: <low|medium|high>"
+    )
+
+    messages = [{"role": "user", "content": prompt}]
+    try:
+        text = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+    except Exception:
+        text = prompt
+    inputs = tokenizer(text, return_tensors="pt").to(model.device)
+
+    with torch.no_grad():
+        out_ids = model.generate(**inputs, max_new_tokens=200, do_sample=False,
+                                 temperature=None, top_p=None, top_k=None)
+    generated = out_ids[0][inputs["input_ids"].shape[1]:]
+    raw = tokenizer.decode(generated, skip_special_tokens=True).strip()
+
+    result = {
+        "feature":             feat_idx,
+        "raw":                 raw,
+        "top_keys":            [k for k, _, _ in top_descriptions],
+        "bottom_keys":         [k for k, _, _ in bottom_descriptions],
+        "top_acts":            [a for _, a, _ in top_descriptions],
+        "bottom_acts":         [a for _, a, _ in bottom_descriptions],
+        "top_descriptions":    [d for _, _, d in top_descriptions],
+        "bottom_descriptions": [d for _, _, d in bottom_descriptions],
+    }
+    key_map = {
+        "Active description": "activated_concept",
+        "Inactive description": "not_activated_concept",
+        "Label": "label",
+        "Confidence": "confidence",
+    }
+    for line in raw.splitlines():
+        for prefix, field in key_map.items():
+            if line.strip().startswith(f"{prefix}:"):
+                value = line.split(":", 1)[1].strip()
+                if field in {"activated_concept", "not_activated_concept"}:
+                    value = value.lower().rstrip(". ")
+                result[field] = value
+    result.setdefault("label", "unknown")
+    result.setdefault("confidence", "low")
+    return result
+
 
 # ── VLM stage: direct multi-image contrast ────────────────────────────────────
 #
@@ -144,7 +373,7 @@ False-colour Landsat ETM+ composites, ~5 × 5 km footprint per tile.
 · Tan / brown        = bare or degraded soil, low vegetation, dry season crops
 · Dark blue / black  = open water (lakes, rivers, wetlands)
 · Grey / cyan        = settlements, roads, built-up impervious surfaces
-Resolution: ~28 m/pixel. Images are 224 × 224 px (≈ 6 km²).
+Native resolution: ~14 m/pixel (ETM+ pan-sharpened); presented to model at 224 × 224 px (~22 m/pixel effective, ≈ 25 km²).
 
 ECONOMICALLY RELEVANT VISUAL PROPERTIES TO CONSIDER
 The following landscape features have known links to rural programme outcomes:
@@ -204,11 +433,9 @@ def contrast_groups_vlm(
     """
     import torch
 
-    content = [{"type": "text", "text":
-        f"You are analysing false-colour Landsat satellite imagery of northern Uganda "
-        f"(year ~2000, NIR→Red / Green→Green / SWIR→Blue composite).  "
-        f"Each tile covers ~5×5 km at ~28 m/pixel.\n\n"
-        f"Colour guide for THIS composite:\n"
+    content = [{"type": "text", "text": STUDY_CONTEXT + "\n\n"},
+               {"type": "text", "text":
+        f"Detailed colour guide for THIS composite (NIR→Red / Green→Green / SWIR→Blue):\n"
         f"  • Bright red / magenta   = dense healthy vegetation (high NIR) — "
         f"woodland, gallery forest, vigorous crops\n"
         f"  • Dark red / maroon      = burn scar or sparse regrowth after fire "
@@ -432,11 +659,16 @@ def interpret_outcome(
     model_dir: Path,
     site_feats: "np.ndarray",
     site_keys: "np.ndarray",
-    vlm_model, vlm_processor,
-    k: int,
-    min_activation: float,
-    sae_dim: int,
-    vlm_model_name: str = "",
+    pipeline: str,                                      # "qwen" | "geochat"
+    vlm_model=None,         vlm_processor=None,         # qwen
+    site_descriptions: dict = None,                     # geochat: {str(key): desc}
+    text_model=None,        text_tokenizer=None,        # geochat
+    geochat_model_name: str = "",                       # geochat
+    text_model_name: str = "",                          # geochat
+    k: int = 10,
+    min_activation: float = 0.001,
+    sae_dim: int = 3072,
+    vlm_model_name: str = "",                           # qwen
 ) -> bool:
     """Interpret all NEMS-selected SAE features for one outcome.
 
@@ -499,17 +731,24 @@ def interpret_outcome(
               f"top={fg['top_acts'][0]:.3f}..{fg['top_acts'][-1]:.3f}  "
               f"bottom={fg['bottom_acts'][0]:.3f}..{fg['bottom_acts'][-1]:.3f}")
 
-        top_imgs, top_keys, top_acts       = load_group(fg["top_keys"],   fg["top_acts"])
-        bottom_imgs, bottom_keys, bot_acts = load_group(fg["bottom_keys"], fg["bottom_acts"])
-
-        if not top_imgs or not bottom_imgs:
-            print("      (skipped: could not load images)")
-            continue
+        if pipeline == "qwen":
+            top_imgs, top_keys, top_acts       = load_group(fg["top_keys"],   fg["top_acts"])
+            bottom_imgs, bottom_keys, bot_acts = load_group(fg["bottom_keys"], fg["bottom_acts"])
+            if not top_imgs or not bottom_imgs:
+                print("      (skipped: could not load images)")
+                continue
+        else:  # geochat — descriptions already cached; no image loading needed
+            top_imgs, bottom_imgs = [], []
+            top_keys,  top_acts   = fg["top_keys"],    fg["top_acts"]
+            bottom_keys, bot_acts = fg["bottom_keys"], fg["bottom_acts"]
 
         max_act           = fg["top_acts"][0]
         feat_acts         = site_feats[:, feat_idx]
         n_nonzero         = int(np.sum(feat_acts > 0))
         max_act_pct       = int(np.mean(all_max_acts <= max_act) * 100)
+
+        model_label = vlm_model_name if pipeline == "qwen" \
+                      else f"{geochat_model_name}+{text_model_name}"
 
         if max_act < min_activation:
             print(f"      (skipped: max activation {max_act:.4f} < threshold {min_activation})")
@@ -519,25 +758,42 @@ def interpret_outcome(
                 "activated_concept": f"Max activation {max_act:.4f} below threshold.",
                 "not_activated_concept": "",
                 "confidence": "low",
-                "vlm_model": vlm_model_name,
+                "vlm_model": model_label,
+                "pipeline": pipeline,
                 "raw": "",
                 "top_keys": fg["top_keys"], "bottom_keys": fg["bottom_keys"],
                 "top_acts": fg["top_acts"], "bottom_acts": fg["bottom_acts"],
             })
             continue
 
-        result = contrast_groups_vlm(
-            vlm_model, vlm_processor,
-            feat_idx,
-            top_imgs, top_keys, top_acts,
-            bottom_imgs, bottom_keys, bot_acts,
-            prior_concepts=interpretations,
-            max_act=max_act,
-            n_total_sites=n_total_sites,
-            n_nonzero=n_nonzero,
-            max_act_percentile=max_act_pct,
-        )
-        result["vlm_model"] = vlm_model_name
+        if pipeline == "qwen":
+            result = contrast_groups_vlm(
+                vlm_model, vlm_processor,
+                feat_idx,
+                top_imgs, top_keys, top_acts,
+                bottom_imgs, bottom_keys, bot_acts,
+                prior_concepts=interpretations,
+                max_act=max_act,
+                n_total_sites=n_total_sites,
+                n_nonzero=n_nonzero,
+                max_act_percentile=max_act_pct,
+            )
+        else:  # geochat
+            top_descs    = [(k, a, site_descriptions.get(str(k), ""))
+                            for k, a in zip(top_keys, top_acts)]
+            bottom_descs = [(k, a, site_descriptions.get(str(k), ""))
+                            for k, a in zip(bottom_keys, bot_acts)]
+            result = aggregate_descriptions_llm(
+                text_model, text_tokenizer,
+                feat_idx, top_descs, bottom_descs,
+                prior_concepts=interpretations,
+                max_act=max_act,
+                n_total_sites=n_total_sites,
+                n_nonzero=n_nonzero,
+                max_act_percentile=max_act_pct,
+            )
+        result["vlm_model"] = model_label
+        result["pipeline"]  = pipeline
 
         dup = _label_is_duplicate(result.get("label", ""), interpretations)
         if dup:
@@ -553,7 +809,9 @@ def interpret_outcome(
                  if result.get('not_activated_concept') else "")
               + "\n")
 
-    out_path = out_dir / "interpretations.json"
+    pipeline_dir = out_dir / pipeline
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    out_path = pipeline_dir / "interpretations.json"
     with open(out_path, "w") as f:
         json.dump(interpretations, f, indent=2)
     print(f"  [{outcome}] Saved -> {out_path}")
@@ -581,10 +839,17 @@ def parse_args():
                    help="Images per group shown to VLM (top / bottom).")
     p.add_argument("--min-activation", type=float, default=0.001,
                    help="Skip features whose max activation is below this threshold.")
-    p.add_argument("--vlm-model",    default="Qwen/Qwen2.5-VL-72B-Instruct",
-                   help="HuggingFace model ID for the vision-language model.")
+    p.add_argument("--pipeline", choices=["qwen", "geochat"], default="qwen",
+                   help="Interpretation pipeline: 'qwen' (direct VLM contrast) or "
+                        "'geochat' (GeoChat per-image captions + text LLM aggregation).")
+    p.add_argument("--vlm-model",     default="Qwen/Qwen2.5-VL-72B-Instruct",
+                   help="[qwen] HuggingFace VLM model ID.")
+    p.add_argument("--geochat-model", default="MBZUAI/geochat-7b",
+                   help="[geochat] GeoChat model for stage-1 image captioning.")
+    p.add_argument("--text-model",    default="Qwen/Qwen2.5-72B-Instruct",
+                   help="[geochat] Text LLM for stage-2 contrastive aggregation.")
     p.add_argument("--quantize", action="store_true",
-                   help="Load model in 4-bit (requires bitsandbytes). ~4 GB vs ~14 GB VRAM.")
+                   help="Load model(s) in 4-bit (requires bitsandbytes).")
     p.add_argument("--seed",         type=int, default=42)
     p.add_argument("--outcome",      default=None,
                    help="Single outcome alias (legacy; use --outcomes for multiple).")
@@ -615,9 +880,10 @@ def main():
     # Skip outcomes whose output already exists unless --overwrite
     to_run = []
     for outcome in outcomes:
-        out_path = MODEL_DIR / outcome / "interpretations.json"
+        out_path = MODEL_DIR / outcome / args.pipeline / "interpretations.json"
         if not args.overwrite and out_path.exists():
-            print(f"  [{outcome}] Skipping (interpretations.json exists; use --overwrite to redo)")
+            print(f"  [{outcome}] Skipping ({args.pipeline}/interpretations.json exists; "
+                  f"use --overwrite to redo)")
         else:
             to_run.append(outcome)
 
@@ -630,21 +896,47 @@ def main():
     site_feats = site_data["site_features"]
     site_keys  = site_data["site_keys"]
 
-    # Load VLM once for all outcomes
-    print(f"\nLoading VLM: {args.vlm_model}  (will be reused for {len(to_run)} outcome(s))")
-    vlm_model, vlm_processor = load_vlm(args.vlm_model, quantize=args.quantize)
+    # Load model(s) based on chosen pipeline
+    print(f"\nPipeline: {args.pipeline}  ({len(to_run)} outcome(s))")
+    if args.pipeline == "qwen":
+        print(f"  VLM: {args.vlm_model}")
+        vlm_model, vlm_processor = load_vlm(args.vlm_model, quantize=args.quantize)
+        site_descriptions = text_model = text_tokenizer = None
+    else:  # geochat
+        print(f"  Stage 1 (GeoChat): {args.geochat_model}")
+        geochat_model, geochat_processor = load_geochat(args.geochat_model,
+                                                         quantize=args.quantize)
+        # Build / update description cache for every site in the dataset
+        all_keys = site_keys.tolist()
+        site_descriptions = load_or_build_descriptions(
+            geochat_model, geochat_processor, all_keys,
+            model_name=args.geochat_model,
+            force_rebuild=args.overwrite,
+        )
+        unload_model(geochat_model)
+        del geochat_processor
+        gc.collect()
+
+        print(f"  Stage 2 (text LLM): {args.text_model}")
+        text_model, text_tokenizer = load_text_model(args.text_model, quantize=args.quantize)
+        vlm_model = vlm_processor = None
     print()
 
     for outcome in to_run:
         print(f"── {outcome} {'─' * max(0, 55 - len(outcome))}")
         interpret_outcome(
             outcome, MODEL_DIR, site_feats, site_keys,
-            vlm_model, vlm_processor,
+            pipeline=args.pipeline,
+            vlm_model=vlm_model,            vlm_processor=vlm_processor,
+            site_descriptions=site_descriptions,
+            text_model=text_model,          text_tokenizer=text_tokenizer,
+            geochat_model_name=args.geochat_model,
+            text_model_name=args.text_model,
             k=args.k, min_activation=args.min_activation, sae_dim=args.sae_dim,
             vlm_model_name=args.vlm_model,
         )
 
-    unload_model(vlm_model)
+    unload_model(vlm_model if args.pipeline == "qwen" else text_model)
 
 
 if __name__ == "__main__":

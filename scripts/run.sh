@@ -45,8 +45,11 @@
 #   --alpha=0.05  --max-steps=20  --l1-coeff=2.0
 #   --no-w-candidates  --w-priority  --district-dummies  --group-level
 #
-# VLM:
-#   --vlm-model=MODEL_ID    (default: Qwen/Qwen2-VL-7B-Instruct)
+# VLM / interpretation:
+#   --vlm-model=MODEL_ID    (default: Qwen/Qwen2-VL-7B-Instruct)  [qwen pipeline]
+#   --geochat-model=ID      (default: MBZUAI/geochat-7b)           [geochat pipeline]
+#   --text-model=ID         (default: Qwen/Qwen2.5-72B-Instruct)   [geochat pipeline]
+#   --pipelines=qwen,geochat  which interpretation pipelines to run (default: both)
 #   --quantize              4-bit quantization (~4 GB VRAM vs ~14 GB)
 
 set -euo pipefail
@@ -82,6 +85,9 @@ MAX_STEPS="20"
 ANALYZE_EXTRA_ARGS=""
 INTERPRET_EXTRA_ARGS=""
 VLM_MODEL="Qwen/Qwen2-VL-7B-Instruct"
+GEOCHAT_MODEL="MBZUAI/geochat-7b"
+TEXT_MODEL="Qwen/Qwen2.5-72B-Instruct"
+PIPELINES_ARG="qwen,geochat"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 for arg in "$@"; do
@@ -127,6 +133,9 @@ for arg in "$@"; do
     # interpret flags
     --quantize)          INTERPRET_EXTRA_ARGS="$INTERPRET_EXTRA_ARGS --quantize" ;;
     --vlm-model=*)       VLM_MODEL="${arg#--vlm-model=}" ;;
+    --geochat-model=*)   GEOCHAT_MODEL="${arg#--geochat-model=}" ;;
+    --text-model=*)      TEXT_MODEL="${arg#--text-model=}" ;;
+    --pipelines=*)       PIPELINES_ARG="${arg#--pipelines=}" ;;
 
     *) echo "Unknown flag: $arg" >&2; exit 1 ;;
   esac
@@ -234,37 +243,43 @@ run_summarize_plot() {
   local OUT_DIR="$PROJECT_ROOT/results/uganda/${MODEL}_${HIDDEN_DIM}"
   local TAG="[$MODEL | $OUTCOME]"
 
-  if has_step summarize; then
-    if should_run summarize "$OUT_DIR/${OUTCOME}/summary.json"; then
-      echo "-- $TAG Step 4: Results summary (ATE + CATE/GATE) -----------"
-      $PYTHON "$SCRIPTS/summarize.py" \
-        --embed-model "$MODEL"        \
-        --sae-dim     "$HIDDEN_DIM"   \
-        --outcome     "$OUTCOME"
-    else
-      echo "-- $TAG Step 4: Skipping (${OUTCOME}/summary.json exists)"
-    fi
-    echo ""
-  fi
+  IFS=',' read -ra PIPELINES <<< "$PIPELINES_ARG"
 
-  if has_step plot; then
-    if should_run plot "$OUT_DIR/${OUTCOME}/feature_images.png"; then
-      echo "-- $TAG Step 5: Feature image plots -------------------------"
-      $PYTHON "$SCRIPTS/plot_features.py" \
-        --embed-model "$MODEL"            \
-        --sae-dim     "$HIDDEN_DIM"       \
-        --k 8                             \
-        --outcome     "$OUTCOME"
-    else
-      echo "-- $TAG Step 5: Skipping (${OUTCOME}/feature_images.png exists)"
+  for PIPELINE in "${PIPELINES[@]}"; do
+    if has_step summarize; then
+      if should_run summarize "$OUT_DIR/${OUTCOME}/${PIPELINE}/summary.json"; then
+        echo "-- $TAG Step 4 ($PIPELINE): Results summary ----------------"
+        $PYTHON "$SCRIPTS/summarize.py" \
+          --embed-model "$MODEL"        \
+          --sae-dim     "$HIDDEN_DIM"   \
+          --outcome     "$OUTCOME"      \
+          --pipeline    "$PIPELINE"
+      else
+        echo "-- $TAG Step 4 ($PIPELINE): Skipping (${PIPELINE}/summary.json exists)"
+      fi
+      echo ""
     fi
-    echo ""
-  fi
+
+    if has_step plot; then
+      if should_run plot "$OUT_DIR/${OUTCOME}/${PIPELINE}/summary_illustration.png"; then
+        echo "-- $TAG Step 5 ($PIPELINE): Feature image plots ------------"
+        $PYTHON "$SCRIPTS/plot_features.py" \
+          --embed-model "$MODEL"            \
+          --sae-dim     "$HIDDEN_DIM"       \
+          --k 8                             \
+          --outcome     "$OUTCOME"          \
+          --pipeline    "$PIPELINE"
+      else
+        echo "-- $TAG Step 5 ($PIPELINE): Skipping (${PIPELINE}/summary_illustration.png exists)"
+      fi
+      echo ""
+    fi
+  done
 }
 
-# run_interpret_serial MODEL_KEY  — VLM step: one call per model, all outcomes at once.
-# The VLM is loaded once and reused across outcomes (bottleneck is loading, not inference).
-# Must NOT be parallelized — single GPU, 7B model.
+# run_interpret_serial MODEL_KEY  — interpretation step: runs each pipeline in sequence.
+# Each pipeline loads its model(s) once and processes all outcomes before unloading.
+# Must NOT be parallelized — single GPU.
 run_interpret_serial() {
   local MODEL_KEY=$1
   local MODEL HIDDEN_DIM EPOCHS EXTRACT_BATCH SAE_BATCH
@@ -275,35 +290,55 @@ run_interpret_serial() {
 
   if ! has_step interpret; then return; fi
 
-  # Collect outcomes that need interpretation
-  local OUTCOMES_TO_RUN=()
-  for OUTCOME in "${OUTCOMES[@]}"; do
-    if should_run interpret "$OUT_DIR/${OUTCOME}/interpretations.json"; then
-      OUTCOMES_TO_RUN+=("$OUTCOME")
-    else
-      echo "-- $TAG [$OUTCOME] Step 3: Skipping (interpretations.json exists)"
-    fi
-  done
-
-  if [ "${#OUTCOMES_TO_RUN[@]}" -eq 0 ]; then
-    echo "-- $TAG Step 3: All outcomes already interpreted"
-    return
-  fi
-
-  local OUTCOMES_CSV
-  OUTCOMES_CSV=$(IFS=','; echo "${OUTCOMES_TO_RUN[*]}")
-  echo "-- $TAG Step 3: VLM interpretation (${#OUTCOMES_TO_RUN[@]} outcomes, VLM loaded once)"
+  IFS=',' read -ra PIPELINES <<< "$PIPELINES_ARG"
   $PYTHON -m pip install -q accelerate bitsandbytes || true
-  $PYTHON "$SCRIPTS/interpret.py" \
-    --embed-model "$MODEL"        \
-    --sae-dim     "$HIDDEN_DIM"   \
-    --k 10                        \
-    --vlm-model   "$VLM_MODEL"    \
-    --outcomes    "$OUTCOMES_CSV" \
-    $(has_overwrite interpret && echo "--overwrite") \
-    $INTERPRET_EXTRA_ARGS         \
-  || echo "  WARNING: interpret.py failed. NEMS results are still saved."
-  echo ""
+
+  for PIPELINE in "${PIPELINES[@]}"; do
+    # Collect outcomes that need this pipeline's interpretation
+    local OUTCOMES_TO_RUN=()
+    for OUTCOME in "${OUTCOMES[@]}"; do
+      if should_run interpret "$OUT_DIR/${OUTCOME}/${PIPELINE}/interpretations.json"; then
+        OUTCOMES_TO_RUN+=("$OUTCOME")
+      else
+        echo "-- $TAG [$OUTCOME] Step 3 ($PIPELINE): Skipping (${PIPELINE}/interpretations.json exists)"
+      fi
+    done
+
+    if [ "${#OUTCOMES_TO_RUN[@]}" -eq 0 ]; then
+      echo "-- $TAG Step 3 ($PIPELINE): All outcomes already interpreted"
+      continue
+    fi
+
+    local OUTCOMES_CSV
+    OUTCOMES_CSV=$(IFS=','; echo "${OUTCOMES_TO_RUN[*]}")
+    echo "-- $TAG Step 3 ($PIPELINE): ${#OUTCOMES_TO_RUN[@]} outcome(s)"
+
+    if [ "$PIPELINE" = "qwen" ]; then
+      $PYTHON "$SCRIPTS/interpret.py" \
+        --pipeline    qwen            \
+        --embed-model "$MODEL"        \
+        --sae-dim     "$HIDDEN_DIM"   \
+        --k 10                        \
+        --vlm-model   "$VLM_MODEL"    \
+        --outcomes    "$OUTCOMES_CSV" \
+        $(has_overwrite interpret && echo "--overwrite") \
+        $INTERPRET_EXTRA_ARGS         \
+      || echo "  WARNING: interpret.py (qwen) failed."
+    else
+      $PYTHON "$SCRIPTS/interpret.py" \
+        --pipeline      geochat         \
+        --embed-model   "$MODEL"        \
+        --sae-dim       "$HIDDEN_DIM"   \
+        --k 10                          \
+        --geochat-model "$GEOCHAT_MODEL" \
+        --text-model    "$TEXT_MODEL"   \
+        --outcomes      "$OUTCOMES_CSV" \
+        $(has_overwrite interpret && echo "--overwrite") \
+        $INTERPRET_EXTRA_ARGS           \
+      || echo "  WARNING: interpret.py (geochat) failed."
+    fi
+    echo ""
+  done
 }
 
 _run_parallel() {

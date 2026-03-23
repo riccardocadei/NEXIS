@@ -700,7 +700,8 @@ def _draw_boxes(fig, spans, rows, ratios, gs_top, gs_bot, gs_left, gs_right, fig
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_hours"):
+def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_hours",
+                        pipeline="qwen"):
     csv_col   = resolve_outcome(outcome)
     model_dir = ROOT / "results" / "uganda" / f"{embed_model}_{sae_dim}"
     out_dir   = model_dir / outcome
@@ -712,9 +713,10 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
     with open(nems_path) as f:
         nems_out = json.load(f)
 
+    pipeline_dir = out_dir / pipeline
     gate_map, ate_est = {}, float("nan")
-    if (out_dir / "summary.json").exists():
-        with open(out_dir / "summary.json") as f:
+    if (pipeline_dir / "summary.json").exists():
+        with open(pipeline_dir / "summary.json") as f:
             summ = json.load(f)
         for em in summ.get("effect_modifiers", []):
             gate_map[em["label"]] = em
@@ -749,7 +751,7 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
 
     # Load structured VLM interpretations (activated / not_activated concepts + model name)
     interp_full_map = {}   # feat_idx (int) -> {activated_concept, not_activated_concept, vlm_model, ...}
-    interp_path = out_dir / "interpretations.json"
+    interp_path = pipeline_dir / "interpretations.json"
     if interp_path.exists():
         with open(interp_path) as f:
             for entry in json.load(f):
@@ -941,7 +943,8 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
 
     _draw_boxes(fig, spans, rows, ratios, GS_TOP, GS_BOT, GS_L, GS_R, fig_h=fig_h)
 
-    out_path = out_dir / "summary_illustration.png"
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    out_path = pipeline_dir / "summary_illustration.png"
     plt.savefig(out_path, dpi=300, bbox_inches="tight",
                 facecolor=C["bg"], edgecolor="none")
     print(f"  Saved → {out_path}")
@@ -956,6 +959,8 @@ def main():
     p.add_argument("--sae-dim", type=int, default=3072)
     p.add_argument("--k", type=int, default=8)
     p.add_argument("--outcome", default="log_skilled_hours")
+    p.add_argument("--pipeline", default="qwen", choices=["qwen", "geochat"],
+                   help="Which interpretation pipeline's output to use.")
     p.add_argument("--all", action="store_true")
     args = p.parse_args()
     df_rct = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
@@ -973,7 +978,7 @@ def main():
         triples = [(args.embed_model, args.sae_dim, args.outcome)]
     for model, dim, outcome in triples:
         print(f"Plotting {model}_{dim}/{outcome} …")
-        plot_model_features(model, dim, args.k, df_rct, outcome)
+        plot_model_features(model, dim, args.k, df_rct, outcome, pipeline=args.pipeline)
 
 if __name__ == "__main__":
     main()
