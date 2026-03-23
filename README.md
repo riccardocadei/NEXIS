@@ -1,33 +1,36 @@
 # Generalised Heterogeneous Treatment Effect (HTE) Identification
 
-**Identifying drivers of treatment effect heterogeneity from high-dimensional pre-treatment data.**
+**Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.**
 
-Treatment effects vary across individuals — but detecting *which features* drive this heterogeneity is challenging when you have thousands of candidate variables. **NEMS** is a method for identifying effect modifiers (features that predict differential treatment response) from high-dimensional pre-treatment data, while controlling the family-wise error rate. It is designed for the regime where [features >> samples], where naive interaction screening fails.
+Treatment effects vary across individuals, but understanding *why* is harder than estimating *that* they do. Standard CATE estimators produce a predicted-effect surface without identifying *which features* drive heterogeneity, and without statistical guarantees on selection. **NEMS** addresses a more fundamental goal: **testing and selecting the drivers of effect heterogeneity** — the pre-treatment features that are genuine effect modifiers — while controlling the family-wise error rate.
+
+The approach is **generalised** in a precise sense. The input feature space **X** is not restricted to a single source: it can simultaneously include (i) complex, high-dimensional pre-treatment measurements such as learned representations from foundation models (satellite imagery, genomic profiles, medical imaging), and (ii) interpretable measured pre-treatment variables the researcher already has — demographic covariates, survey responses, administrative records, or any domain-knowledge priors. NEMS provides a unified, multiply-tested screen over this combined space, regardless of whether features come from deep models or from prior knowledge.
 
 ### Problem setup
 
-Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X** (e.g. satellite imagery embeddings, genomic profiles, or any high-dimensional proxy). We posit a set of *latent* effect-modification factors **W** that are not directly observed but manifest in both **X** and the heterogeneous response to treatment:
+<table>
+<tr>
+<td valign="top" width="62%">
 
-```mermaid
-graph TD
-    X(["X  ·  pre-treatment obs."])
-    W(["W  ·  latent modifiers"])
-    T(["T  ·  treatment"])
-    Y(["Y  ·  outcome"])
+Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. We posit a set of *latent* effect-modification factors **W** — unobserved, but manifesting in both **X** and the heterogeneous response to treatment (see figure).
 
-    W --> X
-    W --> Y
-    T --> Y
+The pre-treatment input **X** is the union of two complementary sources:
 
-    style X fill:#d3d3d3,stroke:#333,color:#000
-    style T fill:#d3d3d3,stroke:#333,color:#000
-    style Y fill:#d3d3d3,stroke:#333,color:#000
-    style W fill:#ffffff,stroke:#333,color:#000
-```
+- **Complex measurements** — high-dimensional representations extracted from raw data (satellite imagery, sensor readings, omics), typically via a foundation model + Sparse Autoencoder, yielding thousands of candidate neurons
+- **Interpretable priors** — measured baseline variables the researcher already has (demographics, survey items, administrative records), entered directly as additional candidates
 
-*Shaded nodes are observed; the white node **W** is unobserved. Pre-treatment data **X** is a (potentially high-dimensional) proxy for the latent effect modifiers **W**, which also determine how units respond differentially to treatment.*
+NEMS screens the combined candidate set for treatment effect modification, conditioning each new test on the features already selected and applying a Bonferroni gate, so that FWER is controlled throughout regardless of the total number of candidates.
 
-The goal is to identify the drivers of effect heterogeneity — that is, to recover informative proxies for **W** from the available data. In practice, the inputs to NEMS are not limited to a single high-dimensional source: **X** can combine learned representations (e.g. Sparse Autoencoder neurons extracted from a vision model) with interpretable measured pre-treatment variables that the researcher already has — demographic covariates, survey responses, administrative records, or any other baseline variables believed to be informative about effect modification. NEMS thus provides a unified, multiply-tested screen over this combined feature space, regardless of whether features come from deep models or from domain knowledge.
+*Shaded nodes are observed; the white node **W** is unobserved.*
+
+</td>
+<td valign="top" align="center" width="38%">
+<img src="assets/causal_model.png" width="260" alt="Causal model: observed nodes T, Y, X in grey; latent modifier W in white"/>
+<br/>
+<sub><b>Causal model.</b> Latent modifiers <b>W</b> drive both the observed pre-treatment proxy <b>X</b> and heterogeneous response to treatment <b>T</b> on outcome <b>Y</b>.</sub>
+</td>
+</tr>
+</table>
 
 ### Motivating example — Uganda Youth Opportunities Programme
 
@@ -127,8 +130,9 @@ scripts/
   run.sh           # full pipeline (embedding → SAE → NEMS → interpret → summarize → plot)
   reanalyze.sh     # re-run analysis steps only (skips embedding/SAE training)
 
-papers/
+assets/
   aistats26-workshop.pdf  # NEMS workshop paper (AISTATS 2026)
+  causal_model.png        # causal DAG figure used in README
 
 results/
   uganda/
@@ -145,7 +149,7 @@ data/              # real-world datasets (not tracked by git)
 
 ## Citation
 
-If you use NEMS, please cite our paper (see [papers/aistats26-workshop.pdf](papers/aistats26-workshop.pdf)):
+If you use NEMS, please cite our paper (see [assets/aistats26-workshop.pdf](assets/aistats26-workshop.pdf)):
 
 ```bibtex
 @article{nems2025,
