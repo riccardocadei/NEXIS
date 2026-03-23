@@ -46,6 +46,27 @@ OUTCOME_ALIASES: dict[str, str] = {
 
 ALL_OUTCOMES = list(OUTCOME_ALIASES)
 
+# Clean display names for outcomes (used in plot titles, narrative headers, etc.)
+OUTCOME_DISPLAY: dict[str, str] = {
+    "log_skilled_hours":  "log skilled labor hours",
+    "skilled_employed":   "skilled employment (any)",
+    "skilled_fulltime":   "full-time skilled employment",
+    "employ_hours":       "total employment hours",
+    "log_training_hours": "log vocational training hours",
+    "log_earnings":       "log cash earnings",
+    "log_biz_assets":     "log business asset value",
+    "wealth_index":       "household wealth index",
+    "wellbeing":          "subjective wellbeing",
+}
+
+
+def outcome_display(name: str) -> str:
+    """Return a clean human-readable label for an outcome alias.
+
+    Falls back to replacing underscores with spaces if the alias is unknown.
+    """
+    return OUTCOME_DISPLAY.get(name, name.replace("_", " "))
+
 # ── W covariate display helpers ───────────────────────────────────────────────
 
 _STATIC_W = {

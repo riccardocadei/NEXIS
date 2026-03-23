@@ -20,7 +20,7 @@ DATA_DIR = ROOT / "data" / "uganda"
 IMG_DIR  = DATA_DIR / "Uganda2000_processed"
 sys.path.insert(0, str(ROOT / "src"))
 
-from uganda import load_image, resolve_outcome, load_basemap, draw_base, w_display
+from uganda import load_image, resolve_outcome, load_basemap, draw_base, w_display, outcome_display
 
 
 # ── Palette ────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ C = dict(
 )
 
 MIN_ACTIVATION = 0.01
-IMG_THUMB_PX   = 140
+IMG_THUMB_PX   = 300
 
 # Gray (#AAAAAA) → green (#27AE60) colormap for site maps
 _CMAP_GG = LinearSegmentedColormap.from_list("gray_green", ["#AAAAAA", "#27AE60"])
@@ -54,7 +54,7 @@ H_CHART = 1.48   # GATE + distribution charts
 H_TG    = 0.38   # gap between charts and first examples set
 H_ILBL  = 0.12   # image-group label banner (reduced)
 H_IMG   = 1.35   # image row
-H_GAP   = 0.46   # gap between feature boxes (tightened, still prevents overlap)
+H_GAP   = 0.10   # gap between feature boxes (~3.5 mm, fixed in absolute inches)
 
 
 
@@ -208,25 +208,24 @@ def _subtitle_str(gate, group, interpretable, vlm_lbl, label,
     if group == "SAE":
         if not interpretable:
             return "Low neuron activation — feature could not be interpreted"
-        gate_tag = f"   [Δ GATE = {diff:+.3f}]" if sig else ""
-        if activated_concept and not_activated_concept:
-            return (f"Active sites: {activated_concept}"
-                    f"   ·   Inactive sites: {not_activated_concept}{gate_tag}")
-        if activated_concept:
-            return f"Active sites: {activated_concept}{gate_tag}"
-        # fallback: no structured concepts available
         name = vlm_lbl or label
         if sig:
-            direction = "higher" if diff > 0 else "lower"
-            return f'Active sites show {direction} GATE (Δ={diff:+.3f}) — "{name}"'
-        return f'No significant GATE difference — "{name}"'
+            if diff > 0:
+                hi_desc = activated_concept or "active"
+                lo_desc = not_activated_concept or "inactive"
+            else:
+                hi_desc = not_activated_concept or "inactive"
+                lo_desc = activated_concept or "active"
+            return (f'Individuals located in {hi_desc} sites are characterized by higher GATE '
+                    f'than individuals in {lo_desc} sites (Δ={diff:+.3f})')
+        return f'No significant GATE difference between active and inactive sites — "{name}"'
     else:
         _, tick_lo, tick_hi = w_display(label)
         if sig:
-            direction = "higher" if diff > 0 else "lower"
-            return (f'{tick_hi} (vs {tick_lo}) show {direction} GATE '
-                    f'(Δ={diff:+.3f})')
-        return f'No significant GATE difference ({tick_hi} vs {tick_lo})'
+            hi_grp, lo_grp = (tick_hi, tick_lo) if diff > 0 else (tick_lo, tick_hi)
+            return (f'{hi_grp} individuals are characterized by higher GATE '
+                    f'than {lo_grp} individuals (Δ={diff:+.3f})')
+        return f'No significant GATE difference between {tick_hi} and {tick_lo} individuals'
 
 
 # ── Header ─────────────────────────────────────────────────────────────────────
@@ -328,11 +327,10 @@ def _render_gate_bars(ax, gate, group, ate_est, bg_color="white"):
     if not np.isnan(ate_est):
         ax.axhline(ate_est, color="#999999", lw=1.0, ls=":", zorder=1)
         trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
-        mid = (gate_lo + gate_hi) / 2
         ax.text(0.98, ate_est,
                 f" ATE={ate_est:+.3f}",
                 transform=trans, ha="right",
-                va="bottom" if ate_est >= mid else "top",
+                va="bottom",
                 fontsize=7, color="#999999", style="italic")
 
     for xi, (val, err, col) in enumerate(
@@ -512,6 +510,10 @@ def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
     if map_xlim is not None:
         ax.set_xlim(*map_xlim)
         ax.set_ylim(-1.4, 4.6)
+    # map_xlim is pre-computed to match the panel's width/height ratio, so
+    # aspect='auto' fills the full cell without geographic distortion and
+    # keeps the title aligned with neighbouring plots in the same row.
+    ax.set_aspect('auto')
     ax.set_xlabel(""); ax.set_ylabel("")
     ax.set_xticks([]); ax.set_yticks([])
 
@@ -521,7 +523,7 @@ def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
                              edgecolors="#555555", alpha=0.95)
         # Add colorbar to show activation ratio scale
         import matplotlib.pyplot as plt
-        cbar = plt.colorbar(scatter, ax=ax, label="Activation ratio",
+        cbar = plt.colorbar(scatter, ax=ax,
                            fraction=0.046, pad=0.04, shrink=0.8)
         cbar.ax.tick_params(labelsize=7)
 
@@ -599,6 +601,10 @@ def _render_w_site_map(ax, w_label, df_ind_sub, df_rct,
     if map_xlim is not None:
         ax.set_xlim(*map_xlim)
         ax.set_ylim(-1.4, 4.6)
+    # map_xlim is pre-computed to match the panel's width/height ratio, so
+    # aspect='auto' fills the full cell without geographic distortion and
+    # keeps the title aligned with neighbouring plots in the same row.
+    ax.set_aspect('auto')
     ax.set_xlabel(""); ax.set_ylabel("")
     ax.set_xticks([]); ax.set_yticks([])
 
@@ -608,7 +614,7 @@ def _render_w_site_map(ax, w_label, df_ind_sub, df_rct,
                              edgecolors="#555555", alpha=0.95)
         # Add colorbar to show the covariate value scale
         import matplotlib.pyplot as plt
-        cbar = plt.colorbar(scatter, ax=ax, label=w_label.replace("_", " "),
+        cbar = plt.colorbar(scatter, ax=ax,
                            fraction=0.046, pad=0.04, shrink=0.8)
         cbar.ax.tick_params(labelsize=7)
 
@@ -667,10 +673,13 @@ def _render_image(ax, key, act, border_col, df_rct, faded=False):
 
 # ── Feature box borders + light background ────────────────────────────────────
 
-def _draw_boxes(fig, spans, rows, ratios, gs_top, gs_bot, gs_left, gs_right):
+def _draw_boxes(fig, spans, rows, ratios, gs_top, gs_bot, gs_left, gs_right, fig_h=None):
     total   = sum(ratios)
     h_scale = (gs_top - gs_bot) / total
-    w_pad, h_pad = 0.005, 0.003
+    # keep inter-box gap constant at ~4 pt regardless of figure height
+    _fig_h  = fig_h if fig_h is not None else 10.0
+    w_pad   = 0.005
+    h_pad   = 1 / (72 * _fig_h)   # 1 pt in figure-fraction units
 
     for ri_start, ri_end in spans:
         row = rows[ri_start]
@@ -793,18 +802,26 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
     fig = plt.figure(figsize=(fig_w, fig_h), facecolor=C["bg"])
 
     # ── Figure title (two rows) ──────────────────────────────────────────────
-    outcome_clean = outcome.replace("_", " ").replace("log ", "log(").rstrip()
-    if "log(" in outcome_clean:
-        outcome_clean += ")"
+    outcome_clean = outcome_display(outcome)
     ate_str = f"   ·   ATE = {ate_est:+.4f}" if not np.isnan(ate_est) else ""
-    fig.text(0.50, 0.999,
+    # All vertical spacing expressed in absolute inches so layout is independent
+    # of figure height.
+    _TOP_MARGIN  = 0.05   # inches from top of figure to title baseline
+    _LINE_GAP    = 0.04   # inches between title baseline and subtitle top
+    _SUB_TO_BOX  = 0.10   # inches between subtitle baseline and first box top
+
+    title_y = 1.0 - _TOP_MARGIN / fig_h
+    sub_y   = title_y - (11 / 72 + _LINE_GAP) / fig_h   # 11 pt title font
+
+    fig.text(0.50, title_y,
              f"Uganda YOP RCT  ·  Outcome: {outcome_clean}{ate_str}",
              ha="center", va="top", fontsize=11, fontweight="bold", color="#222222")
-    fig.text(0.50, 0.984,
+    fig.text(0.50, sub_y,
              f"Encoder: {embed_model}  ·  SAE dim: {sae_dim}",
              ha="center", va="top", fontsize=9, fontweight="normal", color="#777777")
 
-    GS_TOP = 0.950; GS_BOT = 0.004
+    # GS_TOP sits _SUB_TO_BOX inches below the subtitle baseline (9 pt font).
+    GS_TOP = sub_y - (9 / 72 + _SUB_TO_BOX) / fig_h; GS_BOT = 0.004
     GS_L   = L_MARG / fig_w; GS_R = 1.0 - R_MARG / fig_w
     header_ax_w_in = fig_w * (GS_R - GS_L)
 
@@ -830,16 +847,15 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
             bg_col  = "#FDF2F2" if is_top else "#EBF5FB"
             ax.set_facecolor(bg_col); ax.axis("off")
             main_lbl = "Most Activated" if is_top else "Least Activated"
+            # Bold label left-anchored; concept right-anchored to avoid overlap
             ax.text(0.012, 0.5, main_lbl,
                     transform=ax.transAxes, color="black",
                     fontsize=8.0, fontweight="bold", va="center", ha="left")
             if concept:
-                # position description after the bold label (empirical x offset)
-                x_desc = 0.012 + len(main_lbl) * 0.0058 + 0.005
-                ax.text(x_desc, 0.5, f"— {concept}",
+                ax.text(0.988, 0.5, concept,
                         transform=ax.transAxes, color="#555555",
                         fontsize=7.5, fontweight="normal",
-                        style="italic", va="center", ha="left", clip_on=True)
+                        style="italic", va="center", ha="right", clip_on=True)
 
         elif kind == "header":
             rank += 1
@@ -923,10 +939,10 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
             else:
                 ax_mm.set_facecolor(C["bg"]); ax_mm.axis("off")
 
-    _draw_boxes(fig, spans, rows, ratios, GS_TOP, GS_BOT, GS_L, GS_R)
+    _draw_boxes(fig, spans, rows, ratios, GS_TOP, GS_BOT, GS_L, GS_R, fig_h=fig_h)
 
     out_path = out_dir / "summary_illustration.png"
-    plt.savefig(out_path, dpi=140, bbox_inches="tight",
+    plt.savefig(out_path, dpi=300, bbox_inches="tight",
                 facecolor=C["bg"], edgecolor="none")
     print(f"  Saved → {out_path}")
     plt.close(fig)

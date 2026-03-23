@@ -191,6 +191,9 @@ def contrast_groups_vlm(
     bottom_imgs: list, bottom_keys: list, bottom_acts: list,
     prior_concepts: list = (),
     max_act: float = 1.0,
+    n_total_sites: int = None,
+    n_nonzero: int = None,
+    max_act_percentile: int = None,
 ) -> dict:
     """Single VLM call: show top and bottom images together, ask for contrast.
 
@@ -221,24 +224,25 @@ def contrast_groups_vlm(
         f"IMPORTANT — nearly every tile in this savanna region contains red/pink "
         f"vegetation.  Overall redness is NOT a useful distinguishing feature.  "
         f"Focus on STRUCTURAL and LAND-COVER differences below.\n\n"
-        f"Group A — HIGH activation ({len(top_imgs)} images):\n"
+        f"Group A — HIGH activation ({len(top_imgs)} images, ordered strongest→weakest):\n"
     }]
-    for i, img in enumerate(top_imgs):
+    for i, (img, act) in enumerate(zip(top_imgs, top_acts)):
         content.append({"type": "image", "image": img})
-        content.append({"type": "text", "text": f"[A{i+1}] "})
+        pct = 100 * act / max_act if max_act > 0 else 0
+        content.append({"type": "text", "text": f"[A{i+1} — {act:.4f} ({pct:.0f}% of max)]\n"})
 
     content.append({"type": "text", "text":
         f"\n\nGroup B — LOW activation ({len(bottom_imgs)} images):\n"
     })
-    for i, img in enumerate(bottom_imgs):
+    for i, (img, act) in enumerate(zip(bottom_imgs, bottom_acts)):
         content.append({"type": "image", "image": img})
-        content.append({"type": "text", "text": f"[B{i+1}] "})
+        content.append({"type": "text", "text": f"[B{i+1} — {act:.4f}]\n"})
 
     # Build the task text, injecting prior-concept exclusions when applicable.
     if prior_concepts:
         prior_lines = "\n".join(
             f"  • Feature {p['feature']} — \"{p.get('label', 'unknown')}\""
-            + (f": {p['description']}" if p.get('description') else "")
+            + (f": {desc}" if (desc := (p.get('activated_concept') or p.get('description', ''))) else "")
             for p in prior_concepts
         )
         exclusion_block = (
@@ -254,16 +258,56 @@ def contrast_groups_vlm(
     else:
         exclusion_block = ""
 
-    weak_signal_note = (
-        f"\nNOTE: This feature has WEAK activation (max={max_act:.4f}).  "
-        f"The between-group contrast will be subtle.  Use this two-step strategy:\n"
-        f"  Step 1 — Study Group A images ONLY.  What do they share among themselves?  "
-        f"Look for any recurring micro-pattern, texture, or land-cover element that "
-        f"appears in most Group A tiles, however faint.\n"
-        f"  Step 2 — Check whether Group B tiles consistently LACK that element.  "
-        f"If yes, that is the concept.  If Group B also has it, move to the next cue.\n"
-        f"Set Confidence: low if nothing distinguishes the groups after this search.\n"
-    ) if max_act < 0.05 else ""
+    # ── Signal quality notes (items 2, 3, 4) ──────────────────────────────────
+    signal_parts = []
+
+    # Item 3: activation magnitude expressed as percentile rank
+    if max_act_percentile is not None:
+        if max_act_percentile <= 20:
+            signal_parts.append(
+                f"ACTIVATION STRENGTH: peak activation = {max_act:.4f}, "
+                f"bottom {max_act_percentile}% of all SAE features — an extremely weak signal.  "
+                f"Use the two-step strategy: (a) study Group A alone for any recurring "
+                f"micro-pattern, however faint; (b) confirm Group B consistently lacks it."
+            )
+        elif max_act_percentile <= 40:
+            signal_parts.append(
+                f"ACTIVATION STRENGTH: peak activation = {max_act:.4f}, "
+                f"bottom {max_act_percentile}% of all SAE features — a below-average signal.  "
+                f"Expect a subtle but real contrast."
+            )
+    elif max_act < 0.05:
+        signal_parts.append(
+            f"ACTIVATION STRENGTH: WEAK (max={max_act:.4f}).  "
+            f"Use the two-step strategy: (a) study Group A alone for any recurring "
+            f"micro-pattern; (b) confirm Group B consistently lacks it."
+        )
+
+    # Item 2: sparsity
+    if n_total_sites is not None and n_nonzero is not None:
+        pct_nz = 100 * n_nonzero / n_total_sites
+        if pct_nz < 10:
+            signal_parts.append(
+                f"SPARSITY: only {n_nonzero}/{n_total_sites} sites ({pct_nz:.1f}%) "
+                f"have non-zero activation — Group A are rare outliers.  "
+                f"Look for a niche land-cover signature present in very few landscapes, "
+                f"not a broad regional pattern."
+            )
+        elif pct_nz < 30:
+            signal_parts.append(
+                f"SPARSITY: {n_nonzero}/{n_total_sites} sites ({pct_nz:.1f}%) "
+                f"have non-zero activation — a moderately sparse feature."
+            )
+
+    # Item 4: gradient instruction
+    signal_parts.append(
+        f"GRADIENT: images within Group A are ordered by decreasing activation "
+        f"(A1 = strongest, percentages shown).  If a pattern is vivid in A1–A2 and "
+        f"fades toward A{len(top_imgs)}, that gradient IS the concept — describe what "
+        f"diminishes with activation strength."
+    )
+
+    weak_signal_note = ("\n" + "\n".join(signal_parts) + "\n") if signal_parts else ""
 
     content.append({"type": "text", "text":
         f"{exclusion_block}\n\n"
@@ -303,10 +347,21 @@ def contrast_groups_vlm(
         f"fine-grained speckled patchwork.  Texture and fragmentation matter; "
         f"overall redness does NOT.\n\n"
         f"  7. If nothing structurally differs, state that explicitly.\n\n"
-        f"Answer in this EXACT format (four lines, no extra text):\n"
-        f"Group A concept: <what Group A HAS or LACKS — cite the cue number and be specific>\n"
-        f"Group B contrast: <one sentence from Group B's perspective>\n"
-        f"Label: <2–6 words naming the concept, e.g. 'riparian wetland corridor' or "
+        f"NOTE ON PRIOR CONCEPTS: if this feature appears to detect the SAME landscape "
+        f"type as a banned concept but at finer spatial scale, rarer occurrence, or in "
+        f"a different seasonal/spectral state (e.g. 'narrow seasonal stream' vs a banned "
+        f"'perennial wetland corridor'), that IS a valid and distinct answer — describe "
+        f"the specific variant precisely.  Only fall back to "
+        f"'indistinguishable from prior concept' when you genuinely cannot find ANY "
+        f"meaningful distinction after working through all seven cues above.\n\n"
+        f"Answer in this EXACT format (four lines, no extra text).\n"
+        f"IMPORTANT: never write 'Group A', 'Group B', 'the first group', etc. — "
+        f"use only self-contained noun phrases that describe the landscape itself.\n\n"
+        f"Active description: <5–15 words describing what HIGH-activation sites HAVE, "
+        f"e.g. 'open water and wetland present' or 'dense burn scars near settlements'>\n"
+        f"Inactive description: <5–15 words describing what LOW-activation sites HAVE or LACK, "
+        f"e.g. 'no perennial water source, dry cropland only' or 'continuous dense vegetation cover'>\n"
+        f"Label: <2–6 words naming the distinguishing concept, e.g. 'riparian wetland corridor' or "
         f"'no perennial water source' — NEVER the bare word 'absent' alone>\n"
         f"Confidence: <low|medium|high>"
     })
@@ -321,7 +376,8 @@ def contrast_groups_vlm(
     ).to(model.device)
 
     with torch.no_grad():
-        output_ids = model.generate(**inputs, max_new_tokens=200, do_sample=False)
+        output_ids = model.generate(**inputs, max_new_tokens=200, do_sample=False,
+                                    temperature=None, top_p=None, top_k=None)
 
     generated = output_ids[0][inputs["input_ids"].shape[1]:]
     raw = processor.decode(generated, skip_special_tokens=True).strip()
@@ -335,20 +391,38 @@ def contrast_groups_vlm(
         "bottom_acts": list(bottom_acts),
     }
     key_map = {
-        "Group A concept": "activated_concept",    # what the neuron fires on
-        "Group B contrast": "not_activated_concept",  # what is present when the neuron is silent
+        "Active description": "activated_concept",
+        "Inactive description": "not_activated_concept",
         "Label": "label",
         "Confidence": "confidence",
     }
+    # Fields that should be normalised: lowercase, stripped of trailing punctuation
+    _normalise_fields = {"activated_concept", "not_activated_concept"}
     for line in raw.splitlines():
         for prefix, field in key_map.items():
             if line.strip().startswith(f"{prefix}:"):
-                result[field] = line.split(":", 1)[1].strip()
+                value = line.split(":", 1)[1].strip()
+                if field in _normalise_fields:
+                    value = value.lower().rstrip(". ")
+                result[field] = value
     if "label" not in result:
         result["label"] = "unknown"
     if "confidence" not in result:
         result["confidence"] = "low"
     return result
+
+
+# ── Duplicate-label guard ──────────────────────────────────────────────────────
+
+def _label_is_duplicate(new_label: str, prior_concepts: list, threshold: float = 0.8) -> dict | None:
+    """Return the first prior concept whose label is too similar to new_label, or None."""
+    from difflib import SequenceMatcher
+    new = new_label.lower().strip(" .")
+    for p in prior_concepts:
+        old = p.get("label", "").lower().strip(" .")
+        if old and SequenceMatcher(None, new, old).ratio() >= threshold:
+            return p
+    return None
 
 
 # ── Per-outcome interpretation ─────────────────────────────────────────────────
@@ -398,6 +472,10 @@ def interpret_outcome(
 
     print(f"  [{outcome}] {len(selected)} feature(s) to interpret")
 
+    # Precompute max activation per feature for percentile ranking (item 3)
+    all_max_acts = site_feats.max(axis=0)   # shape: (n_features,)
+    n_total_sites = site_feats.shape[0]
+
     # Build image groups for each selected feature
     feature_groups = []
     for feat_idx in selected:
@@ -428,7 +506,11 @@ def interpret_outcome(
             print("      (skipped: could not load images)")
             continue
 
-        max_act = fg["top_acts"][0]
+        max_act           = fg["top_acts"][0]
+        feat_acts         = site_feats[:, feat_idx]
+        n_nonzero         = int(np.sum(feat_acts > 0))
+        max_act_pct       = int(np.mean(all_max_acts <= max_act) * 100)
+
         if max_act < min_activation:
             print(f"      (skipped: max activation {max_act:.4f} < threshold {min_activation})")
             interpretations.append({
@@ -451,8 +533,19 @@ def interpret_outcome(
             bottom_imgs, bottom_keys, bot_acts,
             prior_concepts=interpretations,
             max_act=max_act,
+            n_total_sites=n_total_sites,
+            n_nonzero=n_nonzero,
+            max_act_percentile=max_act_pct,
         )
         result["vlm_model"] = vlm_model_name
+
+        dup = _label_is_duplicate(result.get("label", ""), interpretations)
+        if dup:
+            print(f"      [!] Label matches feature {dup['feature']} — marking indistinguishable")
+            result["label"]             = f"indistinguishable from feature {dup['feature']}"
+            result["activated_concept"] = f"Could not distinguish from: {dup.get('label', '')}"
+            result["confidence"]        = "low"
+
         interpretations.append(result)
         print(f"      [{result.get('confidence','?')}] {result.get('label','?')}:\n"
               f"        Fires on: {result.get('activated_concept', result.get('raw',''))[:140]}"
@@ -488,7 +581,7 @@ def parse_args():
                    help="Images per group shown to VLM (top / bottom).")
     p.add_argument("--min-activation", type=float, default=0.001,
                    help="Skip features whose max activation is below this threshold.")
-    p.add_argument("--vlm-model",    default="Qwen/Qwen2-VL-7B-Instruct",
+    p.add_argument("--vlm-model",    default="Qwen/Qwen2.5-VL-72B-Instruct",
                    help="HuggingFace model ID for the vision-language model.")
     p.add_argument("--quantize", action="store_true",
                    help="Load model in 4-bit (requires bitsandbytes). ~4 GB vs ~14 GB VRAM.")
