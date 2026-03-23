@@ -142,19 +142,148 @@ def _save_desc_cache(cache_path: Path, model_name: str, descriptions: dict) -> N
         json.dump({"model": model_name, "descriptions": descriptions}, f)
 
 
+def _remap_geochat_state_dict(state_dict: dict) -> dict:
+    """
+    Remap GeoChat (old LLaVA 1.5) weight keys to LlavaForConditionalGeneration format.
+
+    GeoChat was trained with the original LLaVA codebase (transformers 4.31) whose
+    weight layout differs from the transformers-integrated LlavaForConditionalGeneration:
+
+      model.embed_tokens.*            -> model.language_model.embed_tokens.*
+      model.layers.*                  -> model.language_model.layers.*
+      model.norm.*                    -> model.language_model.norm.*
+      lm_head.*                       -> lm_head.*  (unchanged)
+      model.mm_projector.0.*          -> model.multi_modal_projector.linear_1.*
+      model.mm_projector.2.*          -> model.multi_modal_projector.linear_2.*
+      model.vision_tower.vision_tower.* -> model.vision_tower.*
+      model.*.rotary_emb.inv_freq     -> dropped (computed on-the-fly in modern transformers)
+    """
+    new_sd = {}
+    for key, val in state_dict.items():
+        if "rotary_emb.inv_freq" in key:
+            continue  # not present in modern transformers LLaMA
+        if key.startswith("model.mm_projector."):
+            rest = key[len("model.mm_projector."):]
+            idx_str, _, param = rest.partition(".")
+            linear_n = int(idx_str) // 2 + 1  # 0 -> linear_1, 2 -> linear_2
+            new_key = f"model.multi_modal_projector.linear_{linear_n}.{param}"
+        elif key.startswith("model.vision_tower.vision_tower."):
+            new_key = "model.vision_tower." + key[len("model.vision_tower.vision_tower."):]
+        elif key.startswith("model."):
+            new_key = "model.language_model." + key[len("model."):]
+        else:
+            new_key = key  # lm_head.* unchanged
+        new_sd[new_key] = val
+    return new_sd
+
+
+def _get_geochat_remapped_dir(model_name: str) -> Path:
+    """
+    Return a persistent local directory holding LlavaForConditionalGeneration-compatible
+    weights remapped from GeoChat.  Builds it on first call (downloads ~13 GB once).
+    """
+    import json
+    import torch
+    from huggingface_hub import hf_hub_download
+    from transformers import LlavaConfig, LlamaConfig, CLIPVisionConfig
+
+    # Cache alongside this script so we only remap once
+    cache_dir = Path(__file__).parent.parent / "models" / "geochat_remapped"
+    sentinel = cache_dir / "config.json"
+    if sentinel.exists():
+        return cache_dir
+
+    print("  Remapping GeoChat weights to LlavaForConditionalGeneration format "
+          "(one-time setup, ~13 GB download) ...")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- load original config ---
+    cfg_path = hf_hub_download(model_name, "config.json")
+    with open(cfg_path) as f:
+        gc = json.load(f)
+
+    vision_tower = gc.get("mm_vision_tower", "openai/clip-vit-large-patch14-336")
+
+    # --- build LlavaConfig from flat GeoChat config ---
+    text_cfg = LlamaConfig(
+        hidden_size=gc["hidden_size"],
+        num_hidden_layers=gc["num_hidden_layers"],
+        num_attention_heads=gc["num_attention_heads"],
+        num_key_value_heads=gc.get("num_key_value_heads", gc["num_attention_heads"]),
+        intermediate_size=gc["intermediate_size"],
+        rms_norm_eps=gc.get("rms_norm_eps", 1e-5),
+        vocab_size=gc["vocab_size"],
+        max_position_embeddings=gc.get("max_position_embeddings", 4096),
+        pretraining_tp=gc.get("pretraining_tp", 1),
+    )
+    vision_cfg = CLIPVisionConfig.from_pretrained(vision_tower)
+    llava_config = LlavaConfig(text_config=text_cfg, vision_config=vision_cfg)
+    llava_config.save_pretrained(str(cache_dir))
+
+    # --- download + remap weights ---
+    index_path = hf_hub_download(model_name, "pytorch_model.bin.index.json")
+    with open(index_path) as f:
+        index = json.load(f)
+    weight_files = sorted(set(index["weight_map"].values()))
+
+    state_dict = {}
+    for i, fname in enumerate(weight_files, 1):
+        print(f"    Downloading shard {i}/{len(weight_files)}: {fname}")
+        fpath = hf_hub_download(model_name, fname)
+        shard = torch.load(fpath, map_location="cpu", weights_only=True)
+        state_dict.update(shard)
+
+    state_dict = _remap_geochat_state_dict(state_dict)
+
+    # --- validate: every expected key should be present ---
+    with torch.device("meta"):
+        dummy = __import__("transformers").LlavaForConditionalGeneration(llava_config)
+    expected = set(dummy.state_dict().keys())
+    missing = expected - set(state_dict.keys())
+    unexpected = set(state_dict.keys()) - expected
+    if missing:
+        import shutil
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        raise RuntimeError(
+            f"GeoChat weight remapping failed: {len(missing)} keys missing from "
+            f"remapped dict. Examples: {sorted(missing)[:5]}\n"
+            f"Unexpected keys: {sorted(unexpected)[:5]}"
+        )
+
+    print(f"  Saving remapped weights ({len(state_dict)} keys) ...")
+    from safetensors.torch import save_file
+    save_file(state_dict, str(cache_dir / "model.safetensors"))
+    return cache_dir
+
+
 def load_geochat(model_name: str = "MBZUAI/geochat-7b", quantize: bool = False):
     """Load GeoChat (LLaVA-based) for single-image remote-sensing description."""
+    import json
     import torch
-    from transformers import AutoProcessor, LlavaForConditionalGeneration
+    from huggingface_hub import hf_hub_download
+    from transformers import (LlavaProcessor, LlavaForConditionalGeneration,
+                              CLIPImageProcessor, AutoTokenizer)
     print(f"  Loading GeoChat: {model_name} ...")
-    processor = AutoProcessor.from_pretrained(model_name)
+
+    # Build processor from parts (GeoChat has no preprocessor_config.json)
+    cfg_path = hf_hub_download(model_name, "config.json")
+    with open(cfg_path) as f:
+        vision_tower = json.load(f).get("mm_vision_tower", "openai/clip-vit-large-patch14-336")
+    image_processor = CLIPImageProcessor.from_pretrained(vision_tower)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    processor = LlavaProcessor(image_processor=image_processor, tokenizer=tokenizer)
+
+    # Load remapped weights (downloaded + remapped once, then cached locally)
+    remapped_dir = _get_geochat_remapped_dir(model_name)
+
     kwargs = dict(torch_dtype=torch.float16, device_map="auto")
     if quantize:
         from transformers import BitsAndBytesConfig
         kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
         kwargs.pop("torch_dtype", None)
         print("  (4-bit quantization enabled)")
-    model = LlavaForConditionalGeneration.from_pretrained(model_name, **kwargs)
+
+    model = LlavaForConditionalGeneration.from_pretrained(str(remapped_dir), **kwargs)
     model.eval()
     return model, processor
 
@@ -602,6 +731,7 @@ def contrast_groups_vlm(
         text=[text], images=all_imgs, return_tensors="pt", padding=True
     ).to(model.device)
 
+    torch.cuda.empty_cache()
     with torch.no_grad():
         output_ids = model.generate(**inputs, max_new_tokens=200, do_sample=False,
                                     temperature=None, top_p=None, top_k=None)

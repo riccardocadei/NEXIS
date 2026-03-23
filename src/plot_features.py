@@ -483,14 +483,14 @@ def _render_z_dist(ax, Z_col, T_ind, is_binary=False, bg_color="white"):
 def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
                      uganda_gdf, neighbors, lakes_c, map_xlim=None,
                      Z_ind_all=None, df_ind_sub=None):
-    """Map coloured by per-site mean of discretised activation (0=gray → 1=green)."""
+    """Map coloured by per-site fraction of active individuals (0=gray → 1=green)."""
     coord_cols = ['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']
     sites_df   = (df_rct[coord_cols].dropna()
                   .drop_duplicates('geo_long_lat_key'))
     key_to_lon = dict(zip(sites_df['geo_long_lat_key'], sites_df['geo_long_center']))
     key_to_lat = dict(zip(sites_df['geo_long_lat_key'], sites_df['geo_lat_center']))
 
-    # Per-site mean of binary activation: discretise per individual then average
+    # Per-site fraction of active individuals (active = activation > MIN_ACTIVATION)
     if (Z_ind_all is not None and df_ind_sub is not None
             and 'geo_long_lat_key' in df_ind_sub.columns):
         ind_binary = (Z_ind_all[:, feat_idx] > MIN_ACTIVATION).astype(float)
@@ -521,7 +521,6 @@ def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
         scatter = ax.scatter(lons, lats, s=18, c=values, cmap=_CMAP_GG,
                              vmin=0, vmax=1, zorder=5, linewidths=0.3,
                              edgecolors="#555555", alpha=0.95)
-        # Add colorbar to show activation ratio scale
         import matplotlib.pyplot as plt
         cbar = plt.colorbar(scatter, ax=ax,
                            fraction=0.046, pad=0.04, shrink=0.8)
