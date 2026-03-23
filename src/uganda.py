@@ -17,6 +17,70 @@ from shapely.geometry import box
 FILL_THRESHOLD = 5000
 PCT_LO, PCT_HI = 2, 98
 
+# Language group codes → names (Blattman et al. 2014 — northern Uganda YOP)
+# Verify against the original codebook if in doubt.
+LANG_NAMES = {
+    1: 'Acholi',
+    2: 'Lango',
+    3: 'Teso',
+    4: 'Karamojong',
+    5: 'Madi',
+    6: 'Lugbara',
+    7: 'Other',
+}
+
+# Outcome aliases: clean name → CSV column in UgandaDataProcessed.csv
+OUTCOME_ALIASES: dict[str, str] = {
+    # ── Labour outcomes (Jerzak et al. 2023 / Blattman et al. 2014 Table III) ──
+    "log_skilled_hours":  "Yobs",                    # log(skilled-labor hrs/wk + 100) — primary outcome
+    "skilled_employed":   "skilled_dummy_e",          # any skilled trade engagement (binary)
+    "skilled_fulltime":   "fulltimeskill_e",          # ≥30 hrs/week in skilled trade (binary)
+    "employ_hours":       "employhours_e",            # total employment hours/week (missing at endline)
+    "log_training_hours": "training_hours_ln_e",      # log vocational training hours
+    # ── Economic outcomes (Blattman et al. 2014 Tables IV & VI) ────────────────
+    "log_earnings":       "profits4w_real_ln_e",      # log real 4-week cash earnings
+    "log_biz_assets":     "bizasset_val_real_ln_e",   # log real business asset value
+    "wealth_index":       "wealthindex_e",            # household wealth/durable assets index
+    "wellbeing":          "wealthladder_e",           # subjective wellbeing ladder (1–9)
+}
+
+ALL_OUTCOMES = list(OUTCOME_ALIASES)
+
+# ── W covariate display helpers ───────────────────────────────────────────────
+
+_STATIC_W = {
+    'age':          ('Age',                '< 30',       '≥ 30'),
+    'female':       ('Sex',                'Male',       'Female'),
+    'father_educ':  ("Father's education", 'Low / Med',  'High'),
+    'mother_educ':  ("Mother's education", 'Low / Med',  'High'),
+    'group_female': ('Female-only group',  'No',         'Yes'),
+}
+
+
+def w_display(label: str) -> tuple[str, str, str]:
+    """Map a raw W column name to (display_name, tick_lo, tick_hi).
+
+    Used for axis labels and tick annotations in GATE/CATE plots.
+    """
+    if label in _STATIC_W:
+        return _STATIC_W[label]
+    if label.startswith('lang_'):
+        try:
+            code = int(label.split('_')[1])
+            lang = LANG_NAMES.get(code, label)
+            return (f'{lang} language', f'Non-{lang}', lang)
+        except ValueError:
+            pass
+    if label.startswith('district_'):
+        dist = label.replace('district_', '').title()
+        return (f'{dist} district', 'Other', dist)
+    return (label.replace('_', ' '), '= 0', '= 1')
+
+
+def resolve_outcome(name: str) -> str:
+    """Return the CSV column name for an outcome alias (pass-through if already a column name)."""
+    return OUTCOME_ALIASES.get(name, name)
+
 
 # ── Satellite imagery ─────────────────────────────────────────────────────────
 
@@ -155,8 +219,7 @@ def compute_cate(df_sub, col, label_map=None):
 
 
 def plot_districts(df, uganda_gdf, neighbors, lakes_c, ax=None):
-    """Plot experimental sites colored by district on the Uganda basemap.
-    Sites in the Karamoja region are highlighted with an extra ring marker."""
+    """Plot experimental sites colored by district on the Uganda basemap."""
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
 
@@ -164,11 +227,9 @@ def plot_districts(df, uganda_gdf, neighbors, lakes_c, ax=None):
     sites = (
         df.dropna(subset=need_cols)
           .drop_duplicates('geo_long_lat_key')
-          [['geo_long_lat_key', 'geo_long_center', 'geo_lat_center',
-            'district', 'karamojan_district']]
+          [['geo_long_lat_key', 'geo_long_center', 'geo_lat_center', 'district']]
           .copy()
     )
-    sites['karamojan_district'] = sites['karamojan_district'].fillna(0)
 
     districts = sorted(sites['district'].unique())
     cmap    = cm.get_cmap('tab20', len(districts))
@@ -187,41 +248,188 @@ def plot_districts(df, uganda_gdf, neighbors, lakes_c, ax=None):
                 color=d_color[d], zorder=6,
                 bbox=dict(boxstyle='round,pad=0.1', fc='white', alpha=0.5, lw=0))
 
-    # Overlay Karamoja ring
-    kara = sites[sites['karamojan_district'] == 1]
-    if len(kara):
-        ax.scatter(kara['geo_long_center'], kara['geo_lat_center'],
-                   s=90, facecolors='none', edgecolors='#c0392b',
-                   linewidths=1.4, zorder=7, label='Karamoja region')
-
-    ax.set_title(f'Experimental sites by district  ({len(districts)} districts)\n'
-                 f'red ring = Karamoja region', fontsize=10)
     return ax
 
 
-def w_interaction_tests(df, alpha=0.05):
+def clean_w(df, educ_high_thresh=5, include_district=False):
+    """Return a DataFrame of binarized pre-treatment covariates (all binary / one-hot).
+
+    Columns produced:
+        age_30plus         — 1 if age >= 30, else 0
+        female             — as-is (already binary at individual level)
+        father_educ_high   — 1 if father_educ >= educ_high_thresh (default 5 = secondary+)
+        mother_educ_high   — 1 if mother_educ >= educ_high_thresh
+        lang_{name}        — one-hot per language group using LANG_NAMES
+        district_{name}    — one-hot per district (only if include_district=True)
+
+    group_female and karamojan_district are discarded.
+    """
+    out = pd.DataFrame(index=df.index)
+
+    if 'age' in df.columns:
+        out['age_30plus'] = (df['age'] >= 30).astype(int)
+
+    if 'female' in df.columns:
+        out['female'] = df['female'].fillna(0).astype(int)
+
+    if 'father_educ' in df.columns:
+        out['father_educ_high'] = (df['father_educ'] >= educ_high_thresh).astype(int)
+
+    if 'mother_educ' in df.columns:
+        out['mother_educ_high'] = (df['mother_educ'] >= educ_high_thresh).astype(int)
+
+    if 'lang_group' in df.columns:
+        lang = df['lang_group'].astype(float)
+        for code, name in LANG_NAMES.items():
+            out[f'lang_{name.lower()}'] = (lang == float(code)).astype(int)
+
+    if include_district and 'district' in df.columns:
+        dummies = pd.get_dummies(df['district'], prefix='district').astype(int)
+        out = pd.concat([out, dummies], axis=1)
+
+    return out
+
+
+def plot_cate_panels(df, w_panels, treat_color='#e07b39', ctrl_color='#5b8db8',
+                     suptitle='Conditional ATEs by pre-treatment covariate (W)'):
+    """Bar-chart CATE panels for a list of (title, col, label_map) specs.
+
+    df must contain columns T, Y, and all columns referenced in w_panels.
+    Returns the matplotlib Figure.
+    """
+    import matplotlib.pyplot as plt
+
+    sub = df.dropna(subset=['Y', 'T']).copy()
+    ctrl_y = sub.loc[sub['T'] == 0, 'Y']
+    trt_y  = sub.loc[sub['T'] == 1, 'Y']
+    ate     = trt_y.mean() - ctrl_y.mean()
+    pct_ate = (np.exp(ate) - 1) * 100
+
+    ncols = 4
+    nrows = max(1, (len(w_panels) + ncols - 1) // ncols)
+    fig, axes_arr = plt.subplots(nrows, ncols, figsize=(5.5 * ncols, 4.8 * nrows))
+    axes_list = np.array(axes_arr).flatten().tolist()
+
+    for ax_idx, (title, col, lmap) in enumerate(w_panels):
+        ax = axes_list[ax_idx]
+        if col not in sub.columns:
+            ax.set_visible(False)
+            continue
+        g = compute_cate(sub, col, lmap)
+        if g.empty:
+            ax.set_visible(False)
+            continue
+
+        ci     = 1.96 * g['se']
+        colors = [treat_color if v >= 0 else ctrl_color for v in g['cate']]
+        x_pos  = np.arange(len(g))
+        ax.bar(x_pos, g['cate'], color=colors, alpha=0.82, edgecolor='white',
+               yerr=ci, capsize=5, error_kw={'ecolor': '#333', 'lw': 1.2, 'capthick': 1.2})
+        ax.axhline(ate, color='#7b5ea7', lw=1.4, ls='--',
+                   label=f'ATE={ate:+.3f} ({pct_ate:+.0f}%)')
+        ax.axhline(0, color='black', lw=0.8)
+        for xi, (_, row) in enumerate(g.iterrows()):
+            pct = (np.exp(row['cate']) - 1) * 100
+            off = row['se'] * 1.96 + 0.012
+            ax.text(xi, row['cate'] + off, f'{pct:+.0f}%',
+                    ha='center', va='bottom', fontsize=7.5, fontweight='bold')
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(g['label'], rotation=20, ha='right', fontsize=9)
+        ax.set_title(f'CATE by {title}', fontsize=10)
+        ax.set_ylabel('ATE (log hrs)')
+        ax.legend(fontsize=8)
+        ax.grid(axis='y', alpha=0.3)
+
+    for ax in axes_list[len(w_panels):]:
+        ax.set_visible(False)
+
+    plt.suptitle(suptitle + '\nerror bars = 95% CI  ·  labels ≈ % change in skilled-labor hours',
+                 fontsize=12, fontweight='bold')
+    plt.tight_layout()
+    return fig
+
+
+def plot_languages(df, uganda_gdf, neighbors, lakes_c, ax=None):
+    """Plot experimental sites colored by language group on the Uganda basemap.
+
+    Each site's language is the modal lang_group among its individuals (7 sites
+    have 2 language groups present; the rest are unambiguous).  A text label for
+    each language group is placed at the centroid of its sites.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+
+    need_cols = ['geo_long_center', 'geo_lat_center', 'lang_group']
+    sites_all = df.dropna(subset=need_cols).copy()
+    sites_all['lang_group'] = sites_all['lang_group'].astype(float)
+
+    # Modal language per site (handles the ~7 mixed sites gracefully)
+    modal = (
+        sites_all.groupby('geo_long_lat_key')['lang_group']
+        .agg(lambda x: x.mode().iloc[0])
+        .reset_index()
+        .rename(columns={'lang_group': 'lang_modal'})
+    )
+    sites = (
+        sites_all.drop_duplicates('geo_long_lat_key')
+        [['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']]
+        .merge(modal, on='geo_long_lat_key')
+    )
+    sites['lang_name'] = sites['lang_modal'].map(LANG_NAMES).fillna('Unknown')
+
+    lang_order = [LANG_NAMES[k] for k in sorted(LANG_NAMES)]
+    cmap    = cm.get_cmap('Set2', len(lang_order))
+    l_color = {name: cmap(i) for i, name in enumerate(lang_order)}
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(8, 8))
+
+    draw_base(ax, uganda_gdf, neighbors, lakes_c)
+    for lang, grp in sites.groupby('lang_name'):
+        ax.scatter(grp['geo_long_center'], grp['geo_lat_center'],
+                   color=l_color.get(lang, 'grey'), s=30, label=lang, zorder=5,
+                   edgecolors='white', linewidths=0.3, alpha=0.9)
+        cx = grp['geo_long_center'].mean()
+        cy = grp['geo_lat_center'].mean()
+        ax.text(cx, cy, lang, fontsize=6.5, ha='center', va='bottom', fontweight='bold',
+                color=l_color.get(lang, 'grey'), zorder=6,
+                bbox=dict(boxstyle='round,pad=0.15', fc='white', alpha=0.6, lw=0))
+
+    ax.legend(title='Language', fontsize=7, title_fontsize=8,
+              loc='lower right', framealpha=0.85)
+    return ax
+
+
+def w_interaction_tests(df, W_df=None, alpha=0.05):
     """Marginal T×W interaction tests for all W covariates.
 
     For each W_k tests H0: γ=0 in Y ~ 1 + T + W_k + T*W_k via OLS t-test.
-    lang_group and district are one-hot encoded and each dummy is tested separately.
+
+    Parameters
+    ----------
+    df   : DataFrame with columns T, Y (and raw W if W_df is None).
+    W_df : Optional pre-built W DataFrame (e.g. from clean_w()).  When supplied,
+           df is only used for T and Y.  When None, falls back to the raw W
+           variables (age, female, father_educ, mother_educ, group_female,
+           karamojan_district, lang_group one-hots, district one-hots).
 
     Returns a DataFrame sorted by p-value with columns:
         W, γ (T×W), p-value, sig (bool, Bonferroni-corrected at alpha / n_cols).
     """
     sub = df.dropna(subset=['Y', 'T']).copy()
 
-    numeric_w = ['age', 'female', 'father_educ', 'mother_educ',
-                 'group_female', 'karamojan_district']
-    numeric_w = [c for c in numeric_w if c in sub.columns]
-    rename_map = {'karamojan_district': 'region_karamojan'}
+    if W_df is not None:
+        W_df = W_df.loc[sub.index].astype(float)
+    else:
+        numeric_w = ['age', 'female', 'father_educ', 'mother_educ', 'group_female']
+        numeric_w = [c for c in numeric_w if c in sub.columns]
+        cat_dummies = pd.concat(
+            [pd.get_dummies(sub[c], prefix=c).astype(float)
+             for c in ('lang_group', 'district') if c in sub.columns],
+            axis=1,
+        )
+        W_df = pd.concat([sub[numeric_w].astype(float), cat_dummies], axis=1)
 
-    cat_dummies = pd.concat(
-        [pd.get_dummies(sub[c], prefix=c).astype(float)
-         for c in ('lang_group', 'district') if c in sub.columns],
-        axis=1,
-    )
-    W_df  = pd.concat([sub[numeric_w].astype(float), cat_dummies], axis=1)
-    W_df  = W_df.rename(columns=rename_map)
     mask  = ~np.isnan(W_df.values).any(axis=1)
     Y     = sub['Y'].values[mask]
     T     = sub['T'].values[mask]

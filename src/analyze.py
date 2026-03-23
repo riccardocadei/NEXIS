@@ -25,9 +25,9 @@ variables (age, female, father_educ, mother_educ) are averaged across members.
 
 Usage
 -----
-    python analyze.py [--embed-model dinov2_vitb14] [--sae-dim 3072]
-                      [--alpha 0.05] [--max-steps 20]
-                      [--no-w-candidates] [--group-level]
+    python src/analyze.py [--embed-model dinov2] [--sae-dim 3072]
+                          [--alpha 0.05] [--max-steps 20]
+                          [--no-w-candidates] [--group-level]
 """
 
 import argparse
@@ -40,9 +40,9 @@ import pandas as pd
 
 ROOT     = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data" / "uganda"
-sys.path.insert(0, str(ROOT / "src"))
 
 from nems import nems_select, nems_select_grouped, marginal_select
+from uganda import resolve_outcome
 
 
 def parse_args():
@@ -64,6 +64,10 @@ def parse_args():
                    help="One-hot encode district and include all dummies as W candidates.")
     p.add_argument("--group-level", action="store_true",
                    help="Aggregate observations to group level before analysis.")
+    p.add_argument("--outcome", default="log_skilled_hours",
+                   help="Outcome to analyse. Accepts clean aliases (e.g. log_skilled_hours) "
+                        "or raw CSV column names (e.g. Yobs). "
+                        "See uganda.OUTCOME_ALIASES for the full list.")
     p.set_defaults(w_candidates=True)
     return p.parse_args()
 
@@ -89,11 +93,9 @@ def build_covariates(df: pd.DataFrame, district_dummies: bool = False) -> pd.Dat
     district_dummies: if True, one-hot encode district and include all dummies.
     """
     parts = []
-    for col in ["age", "female", "father_educ", "mother_educ",
-                "group_female", "karamojan_district"]:
+    for col in ["age", "female", "father_educ", "mother_educ", "group_female"]:
         if col in df.columns:
-            renamed = df[[col]].rename(columns={"karamojan_district": "region_karamojan"})
-            parts.append(renamed)
+            parts.append(df[[col]])
     if "lang_group" in df.columns:
         parts.append(make_lang_dummies(df["lang_group"]))
     if district_dummies and "district" in df.columns:
@@ -103,18 +105,8 @@ def build_covariates(df: pd.DataFrame, district_dummies: bool = False) -> pd.Dat
     return pd.concat(parts, axis=1)
 
 
-def standardise(df: pd.DataFrame) -> np.ndarray:
-    """Z-score each column, fill NaN with 0."""
-    out = df.copy().astype(float)
-    for c in out.columns:
-        mu, sd = out[c].mean(), out[c].std()
-        out[c] = (out[c].fillna(0) - mu) / (sd if sd > 1e-8 else 1.0)
-    return out.values
-
-
 # Group-level covariate columns: constant within group, take first value.
-_GROUP_LEVEL_COLS = {"lang_group", "karamojan_district", "group_female",
-                     "district", "groupid"}
+_GROUP_LEVEL_COLS = {"lang_group", "group_female", "district", "groupid"}
 
 
 def aggregate_to_groups(
@@ -172,19 +164,30 @@ def aggregate_to_groups(
 
 def main():
     args = parse_args()
+    csv_col = resolve_outcome(args.outcome)
 
-    OUT_DIR = ROOT / "results" / "uganda" / f"{args.embed_model}_{args.sae_dim}"
-    if not OUT_DIR.exists():
-        print(f"ERROR: results directory not found: {OUT_DIR}")
+    MODEL_DIR = ROOT / "results" / "uganda" / f"{args.embed_model}_{args.sae_dim}"
+    if not MODEL_DIR.exists():
+        print(f"ERROR: results directory not found: {MODEL_DIR}")
         print("Run train.py first, or check --embed-model / --sae-dim.")
         sys.exit(1)
+    OUT_DIR = MODEL_DIR / args.outcome
+    OUT_DIR.mkdir(exist_ok=True)
 
     # ── Load RCT data ─────────────────────────────────────────────────────────
     df = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
-    df = df.rename(columns={"Wobs": "T", "Yobs": "Y"})
+
+    # Guard: skip gracefully if outcome column is absent or entirely null
+    if csv_col not in df.columns or df[csv_col].isna().all():
+        print(f"SKIP: outcome '{args.outcome}' (column '{csv_col}') is "
+              f"{'not in the CSV' if csv_col not in df.columns else 'entirely missing at endline'}. "
+              "No analysis produced.")
+        sys.exit(0)
+
+    df = df.rename(columns={"Wobs": "T", csv_col: "Y"})
 
     # ── Load SAE features (individual level) ──────────────────────────────────
-    feat_data      = np.load(OUT_DIR / "individual_features.npz")
+    feat_data      = np.load(MODEL_DIR / "individual_features.npz")
     Z_all          = feat_data["features"]
     n_sae_features = Z_all.shape[1]
 
@@ -203,7 +206,7 @@ def main():
 
     # ── Build covariate matrix W ──────────────────────────────────────────────
     W_df   = build_covariates(df_sub, district_dummies=args.district_dummies)
-    W_vals = standardise(W_df) if not W_df.empty else None
+    W_vals = W_df.values.astype(float) if not W_df.empty else None
     w_names = list(W_df.columns)
 
     Y = df_sub["Y"].values.astype(float)
@@ -224,17 +227,13 @@ def main():
     print()
 
     # ── Decide how W enters the model ─────────────────────────────────────────
-    # W candidates are treated identically to SAE features: they enter Z_full and
-    # are tested as 2-regressor [W_k, T*W_k] candidates via the standard FWL OLS.
-    # D = [1, T, Z_S, T*Z_S] — no W in D — so Z_tilde for W_k is non-zero and
-    # the test of H0: gamma_k = 0 (effect modification) is valid.
     if args.w_candidates and W_vals is not None:
         controls  = None
         main_ctrl = None
         Z_full    = np.hstack([Z_sub, W_vals])
         n_w_cols  = W_vals.shape[1]
     else:
-        controls  = W_vals   # partial out W and T*W unconditionally as nuisance
+        controls  = W_vals
         main_ctrl = None
         Z_full    = Z_sub
         n_w_cols  = 0
@@ -267,7 +266,7 @@ def main():
     print(f"  → {len(marg_res.selected)} feature(s) selected: {marg_res.selected}")
 
     # ── Per-feature summary ───────────────────────────────────────────────────
-    site_data  = np.load(OUT_DIR / "site_features.npz")
+    site_data  = np.load(MODEL_DIR / "site_features.npz")
     site_feats = site_data["site_features"]
 
     def _feature_label(idx: int) -> str:

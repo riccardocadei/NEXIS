@@ -2,26 +2,27 @@
 #SBATCH --job-name=nems-reanalyze
 #SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/slurm-%j.out
 #SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/slurm-%j.err
-#SBATCH --partition=visualize
-#SBATCH --gres=gpu:1
+#SBATCH --partition=gpu100
+#SBATCH --gres=gpu:H100:1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=32G
-#SBATCH --time=00:30:00
+#SBATCH --mem=64G
+#SBATCH --time=01:00:00
 #
-# Re-run NEMS + LLM interpretation for all trained models (skip embedding/SAE).
+# Re-run analysis steps only (skip embedding/SAE training) for all/any models.
+# By default skips the VLM interpret step (which needs exclusive GPU and cannot
+# run in parallel).  Add --steps=analyze,interpret,summarize,plot explicitly
+# to include interpretation.
+#
 # Usage:
-#   sbatch scripts/reanalyze.sh
+#   sbatch scripts/reanalyze.sh [run.sh flags]
+#   bash   scripts/reanalyze.sh --models=dinov2,dinov3,prithvi --all-outcomes
+#   bash   scripts/reanalyze.sh --models=prithvi --outcomes=log_skilled_hours \
+#                               --steps=analyze,interpret,summarize,plot
 
 set -euo pipefail
 
-# Load API key from ~/.anthropic_key if not already set
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$HOME/.anthropic_key" ]; then
-  source "$HOME/.anthropic_key"
-fi
-
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-SCRIPT="$PROJECT_ROOT/scripts/run.sh"
 
-for MODEL_FLAG in --dinov2 --dinov3; do
-  bash "$SCRIPT" "$MODEL_FLAG" --skip-train --w-priority --district-dummies --quantize
-done
+exec bash "$PROJECT_ROOT/scripts/run.sh" \
+  --steps=analyze,interpret,summarize,plot \
+  "$@"

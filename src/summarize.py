@@ -13,11 +13,12 @@ Output
 
 Usage
 -----
-    python scripts/summarize.py [--embed-model dinov2] [--sae-dim 3072]
+    python src/summarize.py [--embed-model dinov2] [--sae-dim 3072]
 """
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -26,7 +27,9 @@ import pandas as pd
 
 ROOT     = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data" / "uganda"
-sys.path.insert(0, str(ROOT / "src"))
+
+sys.path.insert(0, str(Path(__file__).parent))
+from uganda import resolve_outcome, w_display
 
 
 # ── OLS with HC1 standard errors ──────────────────────────────────────────────
@@ -38,8 +41,8 @@ def _ols_hc1(y: np.ndarray, X: np.ndarray):
         XtXi = np.linalg.pinv(X.T @ X)
         beta  = XtXi @ X.T @ y
         resid = y - X @ beta
-        Xe    = X * resid[:, None]          # (n, k)
-        meat  = Xe.T @ Xe                   # (k, k)
+        Xe    = X * resid[:, None]
+        meat  = Xe.T @ Xe
         V     = XtXi @ meat @ XtXi * (n / (n - k))
         se    = np.sqrt(np.maximum(np.diag(V), 0.0))
         return beta, se
@@ -52,12 +55,12 @@ def ate_ols(y: np.ndarray, t: np.ndarray, W: np.ndarray | None):
     n = len(y)
     cols = [np.ones(n), t]
     if W is not None and W.shape[1] > 0:
-        keep = np.std(W, axis=0) > 1e-8        # drop zero-variance columns
+        keep = np.std(W, axis=0) > 1e-8
         if keep.any():
             cols.append(W[:, keep])
     X = np.column_stack(cols)
     beta, se = _ols_hc1(y, X)
-    return float(beta[1]), float(se[1]), n      # index 1 = treatment coeff
+    return float(beta[1]), float(se[1]), n
 
 
 def ci95(est, se):
@@ -90,7 +93,6 @@ def classify_feature(z: np.ndarray):
     median = float(np.median(z))
     frac_nonzero = float((z > 0).mean())
 
-    # Sparse SAE: median == 0 and meaningful active fraction → active/inactive
     if median == 0.0 and 0.02 < frac_nonzero < 0.98:
         return "sparse", 0.0, f"inactive (Z=0, {1-frac_nonzero:.0%})", \
                f"active   (Z>0, {frac_nonzero:.0%})"
@@ -102,11 +104,11 @@ def classify_feature(z: np.ndarray):
 
 # ── Per-feature GATE/CATE ─────────────────────────────────────────────────────
 
-def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None):
+def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None, vlm_label=None):
     ftype, threshold, lbl_lo, lbl_hi = classify_feature(z)
 
     if ftype == "binary":
-        mask_lo = z == threshold          # e.g. val=0
+        mask_lo = z == threshold
         mask_hi = ~mask_lo
     else:
         mask_lo = z <= threshold
@@ -119,7 +121,7 @@ def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None):
     gate_hi, se_hi, n_hi = ate_ols(y[mask_hi], t[mask_hi], W_hi)
 
     return dict(
-        label=feat_label, pvalue=p_value, interp=interp_label,
+        label=feat_label, pvalue=p_value, interp=interp_label, vlm_label=vlm_label,
         ftype=ftype, threshold=threshold,
         lbl_lo=lbl_lo, lbl_hi=lbl_hi,
         gate_lo=gate_lo, se_lo=se_lo, n_lo=n_lo,
@@ -128,7 +130,7 @@ def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None):
     )
 
 
-# ── Data loading (mirrors analyze.py) ────────────────────────────────────────
+# ── Data loading ──────────────────────────────────────────────────────────────
 
 def make_lang_dummies(series):
     return pd.get_dummies(series, prefix="lang", dtype=float)
@@ -160,12 +162,16 @@ def parse_args():
         description="Summarize NEMS results: ATE and CATE/GATE per effect modifier.")
     p.add_argument("--embed-model", default="dinov2_vitb14")
     p.add_argument("--sae-dim",     type=int, default=3072)
+    p.add_argument("--outcome",     default="log_skilled_hours",
+                   help="Outcome alias or CSV column name (must match what was passed to analyze.py).")
     return p.parse_args()
 
 
 def main():
     args   = parse_args()
-    OUT_DIR = ROOT / "results" / "uganda" / f"{args.embed_model}_{args.sae_dim}"
+    csv_col = resolve_outcome(args.outcome)
+    MODEL_DIR = ROOT / "results" / "uganda" / f"{args.embed_model}_{args.sae_dim}"
+    OUT_DIR   = MODEL_DIR / args.outcome
 
     nems_path = OUT_DIR / "nems_result.json"
     if not nems_path.exists():
@@ -174,13 +180,16 @@ def main():
     with open(nems_path) as f:
         nems_out = json.load(f)
 
-    # Load interpretations if available
-    interp_map = {}
+    interp_map   = {}   # feature_idx -> full description sentence
+    vlm_label_map = {}  # feature_idx -> short 2-6 word label
     interp_path = OUT_DIR / "interpretations.json"
     if interp_path.exists():
         with open(interp_path) as f:
             for entry in json.load(f):
-                interp_map[entry["feature"]] = entry.get("label", "")
+                lbl  = entry.get("label", "")
+                desc = entry.get("description", "") or entry.get("group_a_concept", "")
+                interp_map[entry["feature"]]    = desc if desc else lbl
+                vlm_label_map[entry["feature"]] = lbl
 
     meta         = nems_out["feature_meta"]
     n_sae        = meta["n_sae_features"]
@@ -189,9 +198,9 @@ def main():
 
     # ── Load data ─────────────────────────────────────────────────────────────
     df = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
-    df = df.rename(columns={"Wobs": "T", "Yobs": "Y"})
+    df = df.rename(columns={"Wobs": "T", csv_col: "Y"})
 
-    feat_data = np.load(OUT_DIR / "individual_features.npz")
+    feat_data = np.load(MODEL_DIR / "individual_features.npz")
     Z_all     = feat_data["features"]
 
     has_feat = np.isfinite(Z_all[:, 0])
@@ -200,8 +209,8 @@ def main():
     Z_sub    = Z_all[mask]
 
     W_df  = build_covariates(df_sub)
-    W_std = standardise(W_df) if not W_df.empty else None   # standardised W (for ATE)
-    W_raw = W_df.values.astype(float)                        # original scale (for GATE)
+    W_std = standardise(W_df) if not W_df.empty else None
+    W_raw = W_df.values.astype(float)
 
     Y = df_sub["Y"].values.astype(float)
     T = df_sub["T"].values.astype(float)
@@ -210,8 +219,6 @@ def main():
     ate, ate_se, n_total = ate_ols(Y, T, W_std)
     lo_ate, hi_ate       = ci95(ate, ate_se)
 
-    # p-value for ATE (two-sided z-test)
-    import math
     ate_z = ate / ate_se if ate_se > 0 else np.nan
     ate_p = 2 * (1 - 0.5 * (1 + math.erf(abs(ate_z) / math.sqrt(2))))
 
@@ -223,10 +230,8 @@ def main():
         pval  = entry["pvalue"]
         group = entry.get("group", "")
 
-        # Raw (unstandardised) feature values
         if group == "W" or idx >= n_sae:
-            # W covariate: get original column
-            col_name = label   # e.g. "lang_6"
+            col_name = label
             if col_name in W_df.columns:
                 z_raw = W_df[col_name].values.astype(float)
             else:
@@ -235,8 +240,9 @@ def main():
         else:
             z_raw = Z_sub[:, idx].astype(float)
 
-        interp = interp_map.get(idx)
-        results.append(feature_gate(Y, T, W_raw, z_raw, label, pval, interp))
+        interp    = interp_map.get(idx)     # full description sentence
+        vlm_label = vlm_label_map.get(idx)  # short label for feature name
+        results.append(feature_gate(Y, T, W_raw, z_raw, label, pval, interp, vlm_label))
 
     # ── Print summary ─────────────────────────────────────────────────────────
     sep  = "═" * 65
@@ -305,20 +311,28 @@ def main():
         json.dump(summary, f, indent=2)
     print(f"Saved → {out_path}")
 
-    # ── LLM narrative synthesis (requires ANTHROPIC_API_KEY) ──────────────────
-    _llm_narrative(summary, results, ate, ate_se, ate_p, OUT_DIR)
+    _llm_narrative(summary, results, ate, ate_se, ate_p, OUT_DIR, args.outcome)
 
 
 # ── Markdown table + narrative ────────────────────────────────────────────────
 
-def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path):
+def _clean_label(label: str, vlm_label: str | None) -> str:
+    """Return a short human-readable feature name (for table Feature column and narrative)."""
+    if vlm_label:
+        return vlm_label
+    if label.startswith("SAE_"):
+        return label.replace("_", " ")
+    return w_display(label)[0]
+
+
+def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
+                   outcome: str = "Yobs"):
     """Write a deterministic markdown summary table and templated narrative."""
 
-    model_name = out_dir.name          # e.g. "dinov2_3072"
+    model_name = out_dir.name
     lo_ate, hi_ate = ate - 1.96 * ate_se, ate + 1.96 * ate_se
     ate_sig = "*" if ate_p < 0.05 else ""
 
-    # ── Markdown table ────────────────────────────────────────────────────────
     header = ("| Rank | Feature | VLM interpretation | "
               "GATE/CATE (low/0) | GATE/CATE (high/1) | Δ CATE | p-value |\n"
               "|------|---------|-------------------|-------------------|"
@@ -326,20 +340,19 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path):
     rows = []
     for i, r in enumerate(results):
         interp  = r.get("interp") or "—"
+        clean   = _clean_label(r["label"], r.get("vlm_label"))
         diff    = r["diff"]
         se_diff = np.sqrt(r["se_hi"]**2 + r["se_lo"]**2)
         lo_d    = diff - 1.96 * se_diff
         hi_d    = diff + 1.96 * se_diff
-        sig     = "*" if lo_d * hi_d > 0 else ""   # CI excludes zero
+        sig     = "*" if lo_d * hi_d > 0 else ""
         rows.append(
-            f"| {i+1} | {r['label']} | {interp} | "
+            f"| {i+1} | {clean} | {interp} | "
             f"{r['gate_lo']:+.4f} | {r['gate_hi']:+.4f} | "
             f"{diff:+.4f}{sig} | {r['pvalue']:.2e} |"
         )
     table = "\n".join([header] + rows)
 
-    # ── Templated narrative ───────────────────────────────────────────────────
-    # Identify the most important modifiers (significant difference, CI excl zero)
     sig_results = []
     for r in results:
         diff    = r["diff"]
@@ -366,38 +379,36 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path):
         parts = []
         for r in sig_results:
             direction = "higher" if r["diff"] > 0 else "lower"
-            interp    = r.get("interp") or r["label"]
+            clean     = _clean_label(r["label"], r.get("vlm_label"))
             ftype     = r["ftype"]
             if ftype == "binary":
                 contrast = f"group 1 vs group 0 (Δ={r['diff']:+.4f})"
             else:
                 contrast = f"active vs inactive sites (Δ={r['diff']:+.4f})"
-            parts.append(f"{r['label']} ({interp}): {direction} CATE for {contrast}")
+            parts.append(f"{clean}: {direction} CATE for {contrast}")
         modifier_sentence = (
             f"Significant treatment effect heterogeneity is found for "
             f"{len(sig_results)} modifier(s): {'; '.join(parts)}."
         )
-        # Direction of overall story
         positive_mods = [r for r in sig_results if r["diff"] > 0]
         negative_mods = [r for r in sig_results if r["diff"] < 0]
         if positive_mods:
             heterogeneity_sentence = (
                 f"The programme was most effective in areas/groups characterised by "
-                f"high values of: {', '.join(r['label'] for r in positive_mods)}. "
+                f"high values of: {', '.join(_clean_label(r['label'], r.get('vlm_label')) for r in positive_mods)}. "
                 f"This suggests geographic or socio-economic targeting could improve "
                 f"programme efficiency."
             )
         else:
             heterogeneity_sentence = (
                 f"The programme was less effective in areas/groups characterised by "
-                f"high values of: {', '.join(r['label'] for r in negative_mods)}."
+                f"high values of: {', '.join(_clean_label(r['label'], r.get('vlm_label')) for r in negative_mods)}."
             )
 
     narrative = "\n\n".join(filter(None, [
         ate_sentence, modifier_sentence, heterogeneity_sentence
     ]))
 
-    # ── Print and save ────────────────────────────────────────────────────────
     print()
     print("── Results Summary (Markdown) ───────────────────────────────────────")
     print()

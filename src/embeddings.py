@@ -2,13 +2,18 @@
 Vision feature extraction for satellite image datasets.
 
 Supports two backends:
-  torchhub  — Meta's facebookresearch/dinov2 hub models (14×14 patches)
-  hf        — HuggingFace AutoModel (DINOv2 variants + DINOv3, 14×14 or 16×16 patches)
+  hf      — HuggingFace AutoModel (DINOv2 / DINOv3, 14×14 or 16×16 patches)
+  prithvi — IBM/NASA Prithvi-EO geospatial foundation model (16×16 patches)
+            Prithvi is pretrained on Landsat-8 / Sentinel-2 data and expects
+            6 spectral bands.  Our 3-band false-colour (NIR, Green, SWIR1) is
+            mapped into the corresponding Landsat-8 positions; the remaining 3
+            channels are zero-padded.
 
 Two extraction modes:
   mode='cls'   → one d-dim vector per image  (N, d)
   mode='patch' → one vector per patch token  (N, n_patches, d)
-                 ViT-B/14 → 256 patches on 224²; ViT-B/16 → 196 patches on 224²
+                 ViT/14 → 256 patches on 224²
+                 ViT/16 → 196 patches on 224²  (DINOv3, Prithvi)
 
 For the Uganda satellite data use UgandaSatelliteDataset, which reads the
 per-band CSV files, builds the false-color composite, and normalizes using
@@ -40,8 +45,8 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 # Maps short name → (backend, identifier, embed_dim)
-# backend  : "torchhub" or "hf"
-# identifier: model_name for torchhub, HF repo id for hf
+# backend  : "hf" or "prithvi"
+# identifier: HF repo id
 MODEL_REGISTRY: dict[str, tuple[str, str, int]] = {
     # ── HuggingFace DINOv2 (14×14 patches → 256 patches on 224²) ─────────
     "dinov2":       ("hf", "facebook/dinov2-base",                          768),
@@ -49,6 +54,10 @@ MODEL_REGISTRY: dict[str, tuple[str, str, int]] = {
     # ── HuggingFace DINOv3 (16×16 patches → 196 patches on 224²) ─────────
     "dinov3":       ("hf", "facebook/dinov3-vitb16-pretrain-lvd1689m",      768),
     "dinov3_large": ("hf", "facebook/dinov3-vitl16-pretrain-lvd1689m",     1024),
+    # ── IBM/NASA Prithvi-EO (16×16 patches → 196 patches on 224²) ────────
+    # Landsat-8 / Sentinel-2 geospatial foundation model.
+    # 3-band input is zero-padded to 6 bands at the correct spectral positions.
+    "prithvi":      ("prithvi", "ibm-nasa-geospatial/Prithvi-EO-1.0-100M", 768),
 }
 
 # Backwards-compat alias used by older code
@@ -81,6 +90,55 @@ _DINO_TRANSFORM = transforms.Compose([*_RESIZE_CROP.transforms, _IMAGENET_NORM])
 
 
 # ---------------------------------------------------------------------------
+# Prithvi wrapper
+# ---------------------------------------------------------------------------
+
+class _PrithviWrapper(torch.nn.Module):
+    """Adapt Prithvi-EO to the standard ``pixel_values → last_hidden_state`` API.
+
+    Prithvi is a 6-band temporal ViT (PatchEmbed expects (B, C, T, H, W)).
+    Our false-colour stack has 3 bands (NIR, Green, SWIR1 at indices 0, 1, 2).
+    We place them into their correct Landsat-8 positions within the 6-channel
+    tensor (0-indexed order: B2, B3, B4, B5, B6, B7):
+
+        our idx 0 (NIR)   → Landsat B5 → channel position 3
+        our idx 1 (Green) → Landsat B3 → channel position 1
+        our idx 2 (SWIR1) → Landsat B6 → channel position 4
+
+    Remaining channels (B2, B4, B7) are zero-padded.
+
+    PrithviViT has a CLS token; ``_n_prefix_tokens`` is 1 so ``extract_embeddings``
+    skips it and returns the 196 patch tokens in patch mode.
+    """
+
+    # 0-indexed channel positions in 6-band Landsat-8 order (B2,B3,B4,B5,B6,B7)
+    _CHANNEL_POSITIONS: list[int] = [3, 1, 4]  # NIR→B5, Green→B3, SWIR1→B6
+    _n_prefix_tokens: int = 1  # CLS token
+
+    def __init__(self, model: torch.nn.Module) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, pixel_values: torch.Tensor):
+        # pixel_values: (B, 3, H, W) — our 3-band false-colour
+        B, _, H, W = pixel_values.shape
+        x6 = torch.zeros(B, 6, H, W,
+                         device=pixel_values.device, dtype=pixel_values.dtype)
+        for our_ch, landsat_pos in enumerate(self._CHANNEL_POSITIONS):
+            x6[:, landsat_pos] = pixel_values[:, our_ch]
+
+        # PatchEmbed expects (B, C, T, H, W); T=1 time step
+        x6 = x6.unsqueeze(2)  # (B, 6, 1, H, W)
+
+        # Use forward_features (no masking) to get all patch tokens
+        # Returns list of per-block outputs; last entry is normed: (B, 1+n_patches, d)
+        block_outs = self.model.encoder.forward_features(x6)
+        hs = block_outs[-1]  # (B, 1+196, 768)
+
+        return type("_Out", (), {"last_hidden_state": hs})()
+
+
+# ---------------------------------------------------------------------------
 # Model loading
 # ---------------------------------------------------------------------------
 
@@ -88,10 +146,9 @@ def load_model(model_name: str, device: str | None = None) -> torch.nn.Module:
     """Load a pretrained vision backbone by registry name.
 
     Attaches two attributes to the returned model:
-      _backend        : "torchhub" or "hf"
       _n_prefix_tokens: number of non-patch tokens before the first patch token
                         in last_hidden_state (CLS + any register tokens).
-                        Only meaningful for "hf" backend.
+                        0 for Prithvi (no CLS token).
     """
     if device is None:
         device = _auto_device()
@@ -102,10 +159,61 @@ def load_model(model_name: str, device: str | None = None) -> torch.nn.Module:
 
     backend, identifier, _ = MODEL_REGISTRY[model_name]
 
+    if backend == "prithvi":
+        # Prithvi-EO stores weights as a raw .pt checkpoint (no model.safetensors).
+        # Load the architecture from the HuggingFace repo's prithvi_mae.py and
+        # instantiate manually.
+        import importlib.util
+        import yaml
+        from huggingface_hub import hf_hub_download
+
+        arch_path = hf_hub_download(identifier, "prithvi_mae.py")
+        ckpt_path = hf_hub_download(identifier, "Prithvi_EO_V1_100M.pt")
+        cfg_path  = hf_hub_download(identifier, "config.yaml")
+
+        with open(cfg_path) as f:
+            cfg = yaml.safe_load(f)
+        ma = cfg["model_args"]
+
+        spec = importlib.util.spec_from_file_location("prithvi_mae", arch_path)
+        prithvi_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(prithvi_mod)
+
+        mae = prithvi_mod.PrithviMAE(
+            img_size=ma["img_size"],
+            patch_size=ma["patch_size"],
+            num_frames=ma["num_frames"],
+            in_chans=ma["in_chans"],
+            embed_dim=ma["embed_dim"],
+            depth=ma["depth"],
+            num_heads=ma["num_heads"],
+            decoder_embed_dim=ma["decoder_embed_dim"],
+            decoder_depth=ma["decoder_depth"],
+            decoder_num_heads=ma["decoder_num_heads"],
+        )
+        state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+        mae.load_state_dict(state_dict, strict=True)
+
+        model = _PrithviWrapper(mae)
+        model.eval().to(device)
+        return model
+
     from transformers import AutoModel
-    model = AutoModel.from_pretrained(identifier)
+    from transformers.configuration_utils import PretrainedConfig
+    # Workaround: some TimmWrapper configs store num_labels=null which causes
+    # the property setter to call range(None) → TypeError.
+    _orig = PretrainedConfig._create_id_label_maps
+    PretrainedConfig._create_id_label_maps = (
+        lambda self, n: _orig(self, n) if n is not None else None
+    )
+    try:
+        model = AutoModel.from_pretrained(identifier)
+    finally:
+        PretrainedConfig._create_id_label_maps = _orig
+
     n_registers = getattr(model.config, "num_register_tokens", 0)
-    model._n_prefix_tokens = 1 + n_registers   # CLS + optional register tokens
+    model._n_prefix_tokens = 1 + n_registers  # CLS + optional register tokens
+
     model.eval().to(device)
     return model
 

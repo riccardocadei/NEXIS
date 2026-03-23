@@ -1,9 +1,9 @@
 """
-Extract DINOv2 patch embeddings, train an SAE, and produce per-site feature vectors.
+Extract patch embeddings, train an SAE, and produce per-site feature vectors.
 
 Pipeline
 --------
-1. Extract DINOv2 patch tokens for all 1,318 Uganda sites
+1. Extract patch tokens for all 1,318 Uganda sites
    → cached to results/uganda/patch_embeddings.npz (reused on re-runs)
 2. Train SAE on all patches from step 1  (N_sites × 256 tokens)
 3. Encode experimental-site patches → mean-pool over patches → (332, n_features)
@@ -12,12 +12,11 @@ Pipeline
 
 Usage
 -----
-    python train.py [--model dinov2] [--hidden-dim 3072]
-                    [--l1-coeff 2.0] [--epochs 100] [--overwrite]
+    python src/train.py [--model dinov2] [--hidden-dim 3072]
+                        [--l1-coeff 2.0] [--epochs 100] [--overwrite]
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -29,7 +28,6 @@ ROOT     = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data" / "uganda"
 IMG_DIR  = DATA_DIR / "Uganda2000_processed"
 
-sys.path.insert(0, str(ROOT / "src"))
 from embeddings import UgandaSatelliteDataset, embed_uganda_sites, MODEL_REGISTRY
 from sae import SAE, SAETrainConfig, train_sae, get_features
 
@@ -46,9 +44,9 @@ def parse_args():
     p.add_argument("--batch-size",          type=int,   default=2048,
                    help="SAE training batch size (patch tokens, not images)")
     p.add_argument("--extract-batch-size", type=int,   default=16,
-                   help="DINOv2 extraction batch size (images per forward pass)")
+                   help="Extraction batch size (images per forward pass)")
     p.add_argument("--num-workers",         type=int,   default=4,
-                   help="DataLoader workers for DINOv2 extraction")
+                   help="DataLoader workers for embedding extraction")
     p.add_argument("--overwrite", action="store_true",
                    help="Re-extract embeddings and overwrite all cached results.")
     return p.parse_args()
@@ -106,8 +104,8 @@ def main():
     all_keys, exp_keys = load_keys()
     print(f"All Uganda sites: {len(all_keys)}  |  Experimental: {len(exp_keys)}")
 
-    # ── 2. Extract DINOv2 patch embeddings (cached) ───────────────────────────
-    cache_path = OUT_DIR / f"patch_embeddings_{args.model}.npz"
+    # ── 2. Extract patch embeddings (cached) ──────────────────────────────────
+    cache_path = OUT_DIR / "patch_embeddings.npz"
     all_patch_emb, all_valid_keys = extract_or_load_patches(
         all_keys, cache_path, args.model, args.overwrite,
         args.extract_batch_size, args.num_workers,
@@ -144,7 +142,6 @@ def main():
     print(f"SAE saved to {sae_path}")
 
     # ── 4. Encode experimental sites → mean-pool over patches ─────────────────
-    # Filter all_patch_emb to experimental keys only
     key_to_idx = {k: i for i, k in enumerate(all_valid_keys)}
     exp_valid  = [k for k in exp_keys if k in key_to_idx]
     exp_idxs   = [key_to_idx[k] for k in exp_valid]
