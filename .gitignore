@@ -9,5 +9,6 @@ __pycache__/
 data/
 logs/
 results/uganda/dino*
+results/
 
 
