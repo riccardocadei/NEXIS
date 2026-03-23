@@ -297,9 +297,10 @@ run_interpret_serial() {
   $PYTHON "$SCRIPTS/interpret.py" \
     --embed-model "$MODEL"        \
     --sae-dim     "$HIDDEN_DIM"   \
-    --k 6                         \
+    --k 10                        \
     --vlm-model   "$VLM_MODEL"    \
     --outcomes    "$OUTCOMES_CSV" \
+    $(has_overwrite interpret && echo "--overwrite") \
     $INTERPRET_EXTRA_ARGS         \
   || echo "  WARNING: interpret.py failed. NEMS results are still saved."
   echo ""

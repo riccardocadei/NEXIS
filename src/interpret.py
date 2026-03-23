@@ -190,6 +190,7 @@ def contrast_groups_vlm(
     top_imgs: list, top_keys: list, top_acts: list,
     bottom_imgs: list, bottom_keys: list, bottom_acts: list,
     prior_concepts: list = (),
+    max_act: float = 1.0,
 ) -> dict:
     """Single VLM call: show top and bottom images together, ask for contrast.
 
@@ -253,8 +254,20 @@ def contrast_groups_vlm(
     else:
         exclusion_block = ""
 
+    weak_signal_note = (
+        f"\nNOTE: This feature has WEAK activation (max={max_act:.4f}).  "
+        f"The between-group contrast will be subtle.  Use this two-step strategy:\n"
+        f"  Step 1 — Study Group A images ONLY.  What do they share among themselves?  "
+        f"Look for any recurring micro-pattern, texture, or land-cover element that "
+        f"appears in most Group A tiles, however faint.\n"
+        f"  Step 2 — Check whether Group B tiles consistently LACK that element.  "
+        f"If yes, that is the concept.  If Group B also has it, move to the next cue.\n"
+        f"Set Confidence: low if nothing distinguishes the groups after this search.\n"
+    ) if max_act < 0.05 else ""
+
     content.append({"type": "text", "text":
         f"{exclusion_block}\n\n"
+        f"{weak_signal_note}"
         f"TASK: Identify what makes Group A systematically different from Group B.\n"
         f"The difference may be PRESENCE of something in A that B lacks, OR ABSENCE "
         f"of something in A that B has — both are valid interpretations.\n\n"
@@ -308,8 +321,7 @@ def contrast_groups_vlm(
     ).to(model.device)
 
     with torch.no_grad():
-        output_ids = model.generate(**inputs, max_new_tokens=200,
-                                    do_sample=True, temperature=0.3, top_p=0.9)
+        output_ids = model.generate(**inputs, max_new_tokens=200, do_sample=False)
 
     generated = output_ids[0][inputs["input_ids"].shape[1]:]
     raw = processor.decode(generated, skip_special_tokens=True).strip()
@@ -323,8 +335,8 @@ def contrast_groups_vlm(
         "bottom_acts": list(bottom_acts),
     }
     key_map = {
-        "Group A concept": "description",
-        "Group B contrast": "contrast",
+        "Group A concept": "activated_concept",    # what the neuron fires on
+        "Group B contrast": "not_activated_concept",  # what is present when the neuron is silent
         "Label": "label",
         "Confidence": "confidence",
     }
@@ -350,6 +362,7 @@ def interpret_outcome(
     k: int,
     min_activation: float,
     sae_dim: int,
+    vlm_model_name: str = "",
 ) -> bool:
     """Interpret all NEMS-selected SAE features for one outcome.
 
@@ -421,8 +434,10 @@ def interpret_outcome(
             interpretations.append({
                 "feature": feat_idx,
                 "label": "low activation — uninterpretable",
-                "description": f"Max activation {max_act:.4f} below threshold.",
+                "activated_concept": f"Max activation {max_act:.4f} below threshold.",
+                "not_activated_concept": "",
                 "confidence": "low",
+                "vlm_model": vlm_model_name,
                 "raw": "",
                 "top_keys": fg["top_keys"], "bottom_keys": fg["bottom_keys"],
                 "top_acts": fg["top_acts"], "bottom_acts": fg["bottom_acts"],
@@ -435,11 +450,14 @@ def interpret_outcome(
             top_imgs, top_keys, top_acts,
             bottom_imgs, bottom_keys, bot_acts,
             prior_concepts=interpretations,
+            max_act=max_act,
         )
+        result["vlm_model"] = vlm_model_name
         interpretations.append(result)
-        print(f"      [{result.get('confidence','?')}] {result.get('label','?')}: "
-              f"{result.get('description', result.get('raw',''))[:140]}"
-              + (f"\n      contrast: {result['contrast'][:120]}" if result.get('contrast') else "")
+        print(f"      [{result.get('confidence','?')}] {result.get('label','?')}:\n"
+              f"        Fires on: {result.get('activated_concept', result.get('raw',''))[:140]}"
+              + (f"\n        Absent:   {result['not_activated_concept'][:120]}"
+                 if result.get('not_activated_concept') else "")
               + "\n")
 
     out_path = out_dir / "interpretations.json"
@@ -468,7 +486,7 @@ def parse_args():
                    help="SAE hidden dimension (determines results subdir).")
     p.add_argument("--k",            type=int, default=10,
                    help="Images per group shown to VLM (top / bottom).")
-    p.add_argument("--min-activation", type=float, default=0.01,
+    p.add_argument("--min-activation", type=float, default=0.001,
                    help="Skip features whose max activation is below this threshold.")
     p.add_argument("--vlm-model",    default="Qwen/Qwen2-VL-7B-Instruct",
                    help="HuggingFace model ID for the vision-language model.")
@@ -530,6 +548,7 @@ def main():
             outcome, MODEL_DIR, site_feats, site_keys,
             vlm_model, vlm_processor,
             k=args.k, min_activation=args.min_activation, sae_dim=args.sae_dim,
+            vlm_model_name=args.vlm_model,
         )
 
     unload_model(vlm_model)

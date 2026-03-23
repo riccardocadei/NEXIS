@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import matplotlib.transforms as mtransforms
+from matplotlib.colors import LinearSegmentedColormap
 
 ROOT     = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data" / "uganda"
@@ -43,14 +44,17 @@ C = dict(
 
 MIN_ACTIVATION = 0.01
 IMG_THUMB_PX   = 140
+
+# Gray (#AAAAAA) → green (#27AE60) colormap for site maps
+_CMAP_GG = LinearSegmentedColormap.from_list("gray_green", ["#AAAAAA", "#27AE60"])
 N_IMG          = 6   # example images per row (+ 1 mini-map column)
 
 H_HDR   = 0.62   # header (tall enough for 2-line stats)
-H_CHART = 1.48   # GATE/CATE + distribution charts
-H_TG    = 0.18   # tick-label gap
+H_CHART = 1.48   # GATE + distribution charts
+H_TG    = 0.38   # gap between charts and first examples set
 H_ILBL  = 0.12   # image-group label banner (reduced)
 H_IMG   = 1.35   # image row
-H_GAP   = 0.65   # gap between feature boxes
+H_GAP   = 0.46   # gap between feature boxes (tightened, still prevents overlap)
 
 
 
@@ -108,7 +112,9 @@ def _pval_str(gate):
 
 # ── Row plan ───────────────────────────────────────────────────────────────────
 
-def _build_row_plan(selected, site_feats, site_keys, k, gate_map):
+def _build_row_plan(selected, site_feats, site_keys, k, gate_map, interp_full_map=None):
+    if interp_full_map is None:
+        interp_full_map = {}
     rows, ratios, spans = [], [], []
     ri = 0
     for entry in selected:
@@ -122,8 +128,17 @@ def _build_row_plan(selected, site_feats, site_keys, k, gate_map):
             acts          = site_feats[:, feat_idx]
             max_act       = float(acts.max())
             significant   = _is_sig(gate)
-            interp_str    = gate.get("interp", "")
-            interpretable = not ("low activation" in (interp_str or "").lower())
+
+            # Prefer structured concepts from interp_full_map; fall back to gate["interp"]
+            full_interp         = interp_full_map.get(feat_idx, {})
+            activated_concept   = (full_interp.get("activated_concept", "")
+                                   or gate.get("interp", ""))
+            not_activated_concept = full_interp.get("not_activated_concept", "")
+            vlm_model           = full_interp.get("vlm_model", "")
+            # Short 2-6 word label for the box title; fall back to full concept
+            vlm_lbl             = gate.get("vlm_label", "") or activated_concept
+
+            interpretable = not ("low activation" in (activated_concept or "").lower())
             order         = np.argsort(acts)
             top_keys = site_keys[order[::-1][:k]].tolist()
             bot_keys = site_keys[order[:k]].tolist()
@@ -132,7 +147,10 @@ def _build_row_plan(selected, site_feats, site_keys, k, gate_map):
 
             rows.append(dict(kind="header", entry=entry, group="SAE",
                              interpretable=interpretable, significant=significant,
-                             gate=gate, vlm_lbl=interp_str, max_act=max_act))
+                             gate=gate, vlm_lbl=vlm_lbl, max_act=max_act,
+                             activated_concept=activated_concept,
+                             not_activated_concept=not_activated_concept,
+                             vlm_model=vlm_model))
             ratios.append(H_HDR); ri += 1
 
             rows.append(dict(kind="gate_chart", gate=gate, group="SAE",
@@ -145,8 +163,10 @@ def _build_row_plan(selected, site_feats, site_keys, k, gate_map):
             for rk, ks, al, is_top in [
                     ("top_imgs", top_keys, top_acts, True),
                     ("bot_imgs", bot_keys, bot_acts, False)]:
+                # Each row shows the concept relevant to its group
+                concept = activated_concept if is_top else not_activated_concept
                 rows.append(dict(kind="img_label", is_top=is_top,
-                                 vlm_lbl=interp_str))
+                                 vlm_lbl=vlm_lbl, concept=concept))
                 ratios.append(H_ILBL); ri += 1
                 rows.append(dict(kind=rk, keys=ks, acts=al,
                                  interpretable=interpretable, feat_idx=feat_idx))
@@ -156,7 +176,9 @@ def _build_row_plan(selected, site_feats, site_keys, k, gate_map):
             sig_w = _is_sig(gate)
             rows.append(dict(kind="header", entry=entry, group="W",
                              interpretable=True, significant=sig_w,
-                             gate=gate, vlm_lbl="", max_act=None))
+                             gate=gate, vlm_lbl="", max_act=None,
+                             activated_concept="", not_activated_concept="",
+                             vlm_model=""))
             ratios.append(H_HDR); ri += 1
 
             rows.append(dict(kind="gate_chart", gate=gate, group="W",
@@ -174,34 +196,44 @@ def _build_row_plan(selected, site_feats, site_keys, k, gate_map):
 
 # ── Header subtitle helper ─────────────────────────────────────────────────────
 
-def _subtitle_str(gate, group, interpretable, vlm_lbl, label):
-    """One-line summary sentence for the box subtitle (includes comparison group)."""
+def _subtitle_str(gate, group, interpretable, vlm_lbl, label,
+                  activated_concept=None, not_activated_concept=None):
+    """One-line subtitle: what sites look like when the neuron is active vs. inactive.
+
+    Framing mirrors the GATE chart axes ("active" / "inactive") and the image-example
+    row labels below, so the reader can follow a consistent thread top-to-bottom.
+    """
     diff = gate.get("diff", float("nan"))
     sig  = _is_sig(gate)
     if group == "SAE":
         if not interpretable:
             return "Low neuron activation — feature could not be interpreted"
+        gate_tag = f"   [Δ GATE = {diff:+.3f}]" if sig else ""
+        if activated_concept and not_activated_concept:
+            return (f"Active sites: {activated_concept}"
+                    f"   ·   Inactive sites: {not_activated_concept}{gate_tag}")
+        if activated_concept:
+            return f"Active sites: {activated_concept}{gate_tag}"
+        # fallback: no structured concepts available
         name = vlm_lbl or label
-        comparison = "active vs inactive sites"
         if sig:
             direction = "higher" if diff > 0 else "lower"
-            return (f'Active sites (vs inactive) show {direction} CATE '
-                    f'(Δ={diff:+.3f}) — feature: "{name}"')
-        return f'No significant CATE difference ({comparison}) — feature: "{name}"'
+            return f'Active sites show {direction} GATE (Δ={diff:+.3f}) — "{name}"'
+        return f'No significant GATE difference — "{name}"'
     else:
-        disp, tick_lo, tick_hi = w_display(label)
-        comparison = f"{tick_hi} vs {tick_lo}"
+        _, tick_lo, tick_hi = w_display(label)
         if sig:
             direction = "higher" if diff > 0 else "lower"
-            return (f'{tick_hi} (vs {tick_lo}) show {direction} CATE '
+            return (f'{tick_hi} (vs {tick_lo}) show {direction} GATE '
                     f'(Δ={diff:+.3f})')
-        return f'No significant CATE difference ({comparison})'
+        return f'No significant GATE difference ({tick_hi} vs {tick_lo})'
 
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 
 def _render_header(ax, entry, group, interpretable, significant,
-                   gate, vlm_lbl, max_act, rank, header_ax_w_in):
+                   gate, vlm_lbl, max_act, rank, header_ax_w_in,
+                   activated_concept=None, not_activated_concept=None, vlm_model=""):
     box_col, hdr_bg, stripe_col = _box_style(interpretable, significant)
     ax.set_facecolor(hdr_bg)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
@@ -228,8 +260,9 @@ def _render_header(ax, entry, group, interpretable, significant,
             color=txt_col, fontsize=12, fontweight="bold",
             style=style, va="center", ha="left", zorder=3)
 
-    subtitle = _subtitle_str(gate, group, interpretable, vlm_lbl,
-                              entry["label"])
+    subtitle = _subtitle_str(gate, group, interpretable, vlm_lbl, entry["label"],
+                              activated_concept=activated_concept,
+                              not_activated_concept=not_activated_concept)
     ax.text(0.010, 0.48, subtitle,
             transform=ax.transAxes,
             color="#555555", fontsize=7.5, fontweight="normal",
@@ -247,8 +280,17 @@ def _render_header(ax, entry, group, interpretable, significant,
                 color=stat_col, fontsize=8.5, fontweight="bold",
                 va="center", ha="right", clip_on=True)
 
+    conf = gate.get("vlm_confidence", "") if gate else ""
+    if conf and group == "SAE":
+        conf_col = {"high": "#1E8449", "medium": "#D4AC0D", "low": "#C0392B"}.get(conf, "#999999")
+        model_tag = f"  (model: {vlm_model})" if vlm_model else ""
+        ax.text(0.010, 0.30, f"Neural interpretation confidence: {conf}{model_tag}",
+                transform=ax.transAxes,
+                color=conf_col, fontsize=7, fontweight="bold",
+                va="center", ha="left", zorder=3)
 
-# ── GATE / CATE bar chart ──────────────────────────────────────────────────────
+
+# ── GATE bar chart ─────────────────────────────────────────────────────────────
 
 def _render_gate_bars(ax, gate, group, ate_est, bg_color="white"):
     gate_lo = gate.get("gate_lo", float("nan"))
@@ -309,7 +351,7 @@ def _render_gate_bars(ax, gate, group, ate_est, bg_color="white"):
     ax.tick_params(axis="x", length=0, pad=5)
     ax.set_xlim(-0.72, 1.72)
     ax.grid(axis="y", alpha=0.22, linewidth=0.7, color="#CCCCCC", zorder=0)
-    ax.set_title("GATE" if group == "SAE" else "CATE",
+    ax.set_title("GATE",
                  fontsize=9.5, fontweight="bold", color="#333333",
                  loc="left", pad=3)
 
@@ -441,41 +483,48 @@ def _render_z_dist(ax, Z_col, T_ind, is_binary=False, bg_color="white"):
 # ── Uganda site map ─────────────────────────────────────────────────────────────
 
 def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
-                     uganda_gdf, neighbors, lakes_c, map_xlim=None):
-    acts           = site_feats[:, feat_idx]
-    activated_mask = acts > 0        # any neuron fire
-
+                     uganda_gdf, neighbors, lakes_c, map_xlim=None,
+                     Z_ind_all=None, df_ind_sub=None):
+    """Map coloured by per-site mean of discretised activation (0=gray → 1=green)."""
     coord_cols = ['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']
     sites_df   = (df_rct[coord_cols].dropna()
                   .drop_duplicates('geo_long_lat_key'))
     key_to_lon = dict(zip(sites_df['geo_long_lat_key'], sites_df['geo_long_center']))
     key_to_lat = dict(zip(sites_df['geo_long_lat_key'], sites_df['geo_lat_center']))
 
-    all_lons = [key_to_lon[k] for k in site_keys if k in key_to_lon]
-    all_lats = [key_to_lat[k] for k in site_keys if k in key_to_lat]
-    act_lons = [key_to_lon[k] for k, a in zip(site_keys, activated_mask)
-                if a and k in key_to_lon]
-    act_lats = [key_to_lat[k] for k, a in zip(site_keys, activated_mask)
-                if a and k in key_to_lat]
+    # Per-site mean of binary activation: discretise per individual then average
+    if (Z_ind_all is not None and df_ind_sub is not None
+            and 'geo_long_lat_key' in df_ind_sub.columns):
+        ind_binary = (Z_ind_all[:, feat_idx] > MIN_ACTIVATION).astype(float)
+        site_mean  = (pd.Series(ind_binary,
+                                index=df_ind_sub['geo_long_lat_key'].values)
+                      .groupby(level=0).mean())
+    else:
+        site_mean = pd.Series(
+            (site_feats[:, feat_idx] > MIN_ACTIVATION).astype(float),
+            index=site_keys)
+
+    lons   = [key_to_lon[k] for k in site_keys if k in key_to_lon]
+    lats   = [key_to_lat[k] for k in site_keys if k in key_to_lat]
+    values = [float(site_mean.get(k, 0.0)) for k in site_keys if k in key_to_lon]
 
     draw_base(ax, uganda_gdf, neighbors, lakes_c)
     if map_xlim is not None:
         ax.set_xlim(*map_xlim)
-        ax.set_ylim(-1.4, 4.6)   # re-pin after xlim change (aspect='equal' may shift it)
+        ax.set_ylim(-1.4, 4.6)
     ax.set_xlabel(""); ax.set_ylabel("")
     ax.set_xticks([]); ax.set_yticks([])
 
-    ax.scatter(all_lons, all_lats, s=12, color=C["map_all"],
-               zorder=4, linewidths=0, alpha=0.9)
-    if act_lons:
-        ax.scatter(act_lons, act_lats, s=22, color=C["map_act"],
-                   zorder=5, edgecolors=C["map_act_edge"], linewidths=0.6, alpha=0.95)
+    if lons:
+        scatter = ax.scatter(lons, lats, s=18, c=values, cmap=_CMAP_GG,
+                             vmin=0, vmax=1, zorder=5, linewidths=0.3,
+                             edgecolors="#555555", alpha=0.95)
+        # Add colorbar to show activation ratio scale
+        import matplotlib.pyplot as plt
+        cbar = plt.colorbar(scatter, ax=ax, label="Activation ratio",
+                           fraction=0.046, pad=0.04, shrink=0.8)
+        cbar.ax.tick_params(labelsize=7)
 
-    n_act = int(activated_mask.sum())
-    ax.text(0.02, 0.03, f"{n_act} / {len(site_keys)} active",
-            transform=ax.transAxes, ha="left", va="bottom",
-            fontsize=7, color="#444444",
-            bbox=dict(fc="white", ec="none", alpha=0.7, pad=1))
     ax.set_title("Geographical distribution", fontsize=9.5, fontweight="bold",
                  color="#333333", loc="left", pad=3)
 
@@ -520,26 +569,31 @@ def _render_mini_map_examples(ax, example_keys, df_rct,
 def _render_w_site_map(ax, w_label, df_ind_sub, df_rct,
                         site_keys, uganda_gdf, neighbors, lakes_c,
                         n_map_cols=4, map_xlim=None):
-    """Map of sites coloured by above-/below-median W value."""
+    """Map of sites coloured by mean W per site (gray=0/min → green=1/max)."""
     coord_col = 'geo_long_lat_key'
     if (df_ind_sub is None or w_label not in df_ind_sub.columns
             or coord_col not in df_ind_sub.columns):
         ax.axis("off"); return
 
-    site_w    = df_ind_sub.groupby(coord_col)[w_label].mean()
-    threshold = float(site_w.median())
+    site_w = df_ind_sub.groupby(coord_col)[w_label].mean()
+
+    # Determine colormap range: binary → [0,1]; continuous → [0, max]
+    vals_all  = df_ind_sub[w_label].dropna().values
+    finite    = vals_all[np.isfinite(vals_all)]
+    is_binary = set(np.unique(finite)).issubset({0.0, 1.0})
+    vmin = 0.0
+    vmax = 1.0 if is_binary else float(site_w.max())
+    if vmax <= vmin:
+        vmax = vmin + 1.0
 
     coord_cols = ['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']
     sites_df   = df_rct[coord_cols].dropna().drop_duplicates('geo_long_lat_key')
     key_to_lon = dict(zip(sites_df['geo_long_lat_key'], sites_df['geo_long_center']))
     key_to_lat = dict(zip(sites_df['geo_long_lat_key'], sites_df['geo_lat_center']))
 
-    all_lons = [key_to_lon[k] for k in site_keys if k in key_to_lon]
-    all_lats = [key_to_lat[k] for k in site_keys if k in key_to_lat]
-    hi_lons  = [key_to_lon[k] for k in site_keys
-                if k in key_to_lon and site_w.get(k, threshold) > threshold]
-    hi_lats  = [key_to_lat[k] for k in site_keys
-                if k in key_to_lat and site_w.get(k, threshold) > threshold]
+    lons   = [key_to_lon[k] for k in site_keys if k in key_to_lon]
+    lats   = [key_to_lat[k] for k in site_keys if k in key_to_lat]
+    values = [float(site_w.get(k, vmin)) for k in site_keys if k in key_to_lon]
 
     draw_base(ax, uganda_gdf, neighbors, lakes_c)
     if map_xlim is not None:
@@ -548,18 +602,16 @@ def _render_w_site_map(ax, w_label, df_ind_sub, df_rct,
     ax.set_xlabel(""); ax.set_ylabel("")
     ax.set_xticks([]); ax.set_yticks([])
 
-    ax.scatter(all_lons, all_lats, s=12, color=C["map_all"],
-               zorder=4, linewidths=0, alpha=0.9)
-    if hi_lons:
-        ax.scatter(hi_lons, hi_lats, s=22, color=C["map_act"],
-                   zorder=5, edgecolors=C["map_act_edge"], linewidths=0.6, alpha=0.95)
+    if lons:
+        scatter = ax.scatter(lons, lats, s=18, c=values, cmap=_CMAP_GG,
+                             vmin=vmin, vmax=vmax, zorder=5, linewidths=0.3,
+                             edgecolors="#555555", alpha=0.95)
+        # Add colorbar to show the covariate value scale
+        import matplotlib.pyplot as plt
+        cbar = plt.colorbar(scatter, ax=ax, label=w_label.replace("_", " "),
+                           fraction=0.046, pad=0.04, shrink=0.8)
+        cbar.ax.tick_params(labelsize=7)
 
-    _, tick_lo, tick_hi = w_display(w_label)
-    n_hi = len(hi_lons)
-    ax.text(0.02, 0.03, f"{n_hi} / {len(site_keys)}  ↑ {tick_hi}",
-            transform=ax.transAxes, ha="left", va="bottom",
-            fontsize=7, color="#444444",
-            bbox=dict(fc="white", ec="none", alpha=0.7, pad=1))
     ax.set_title("Geographical distribution", fontsize=9.5, fontweight="bold",
                  color="#333333", loc="left", pad=3)
 
@@ -673,6 +725,34 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
         T_ind      = df_ind.loc[mask_ind, "T"].values.astype(float)
         Z_ind_all  = ind_feats[mask_ind]
         df_ind_sub = df_ind[mask_ind].reset_index(drop=True)
+        # Add derived W columns that are built during analysis but absent from df_rct
+        # (e.g. lang dummies from lang_group, district dummies from district)
+        if "lang_group" in df_ind_sub.columns:
+            lang_dum = pd.get_dummies(df_ind_sub["lang_group"], prefix="lang", dtype=float)
+            for col in lang_dum.columns:
+                if col not in df_ind_sub.columns:
+                    df_ind_sub[col] = lang_dum[col].values
+        if "district" in df_ind_sub.columns:
+            dist_dum = pd.get_dummies(df_ind_sub["district"], prefix="district", dtype=float)
+            for col in dist_dum.columns:
+                if col not in df_ind_sub.columns:
+                    df_ind_sub[col] = dist_dum[col].values
+
+    # Load structured VLM interpretations (activated / not_activated concepts + model name)
+    interp_full_map = {}   # feat_idx (int) -> {activated_concept, not_activated_concept, vlm_model, ...}
+    interp_path = out_dir / "interpretations.json"
+    if interp_path.exists():
+        with open(interp_path) as f:
+            for entry in json.load(f):
+                interp_full_map[entry["feature"]] = {
+                    "activated_concept":     (entry.get("activated_concept", "")
+                                              or entry.get("description", "")),
+                    "not_activated_concept": (entry.get("not_activated_concept", "")
+                                              or entry.get("contrast", "")),
+                    "vlm_model":             entry.get("vlm_model", ""),
+                    "label":                 entry.get("label", ""),
+                    "confidence":            entry.get("confidence", ""),
+                }
 
     # Load Uganda basemap once (cached to disk after first download)
     uganda_map = None
@@ -682,7 +762,8 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
         print(f"  Warning: could not load basemap: {e}")
 
     rows, ratios, spans = _build_row_plan(
-        nems_out["nems"]["selected"], site_feats, site_keys, k, gate_map)
+        nems_out["nems"]["selected"], site_feats, site_keys, k, gate_map,
+        interp_full_map=interp_full_map)
 
     if not rows:
         print(f"  No features selected by NEMS — skipping plot for "
@@ -693,14 +774,21 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
     n_cols = N_IMG + 1            # N_IMG example images + 1 mini-map column
     fig_w  = LABEL_W + n_cols * IMG_W + L_MARG + R_MARG
 
-    # Shared map xlim: based on gate_chart panel aspect so all maps look identical
+    # Map xlim constants
     _UG_YLIM    = (-1.4, 4.6)
     _lat_span   = _UG_YLIM[1] - _UG_YLIM[0]
     _lon_center = (29.1 + 35.4) / 2
-    _map_asp    = (n_cols / 3.0) / H_CHART   # 1/3 of image columns, H_CHART tall
+    # gate_chart map: 1/3 of image columns wide, H_CHART tall
+    _map_asp    = (n_cols / 3.0) / H_CHART
     map_xlim    = (_lon_center - _lat_span * _map_asp / 2,
                    _lon_center + _lat_span * _map_asp / 2)
-    fig_h  = max(8.0, sum(r * IMG_W for r in ratios) + 0.38)
+    # mini-map (example rows): square data (lon_span = lat_span) so that
+    # aspect='equal' produces a square axes box matching the satellite images
+    # (which also render as squares, width-limited in their portrait cells)
+    mini_map_xlim = (_lon_center - _lat_span / 2,
+                     _lon_center + _lat_span / 2)
+    # Keep enough headroom for the 2-line title, but avoid unnecessary blank space.
+    fig_h  = max(8.0, sum(r * IMG_W for r in ratios) + 0.30)
 
     fig = plt.figure(figsize=(fig_w, fig_h), facecolor=C["bg"])
 
@@ -712,11 +800,11 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
     fig.text(0.50, 0.999,
              f"Uganda YOP RCT  ·  Outcome: {outcome_clean}{ate_str}",
              ha="center", va="top", fontsize=11, fontweight="bold", color="#222222")
-    fig.text(0.50, 0.988,
+    fig.text(0.50, 0.984,
              f"Encoder: {embed_model}  ·  SAE dim: {sae_dim}",
              ha="center", va="top", fontsize=9, fontweight="normal", color="#777777")
 
-    GS_TOP = 0.938; GS_BOT = 0.004
+    GS_TOP = 0.950; GS_BOT = 0.004
     GS_L   = L_MARG / fig_w; GS_R = 1.0 - R_MARG / fig_w
     header_ax_w_in = fig_w * (GS_R - GS_L)
 
@@ -738,20 +826,20 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
         elif kind == "img_label":
             ax = fig.add_subplot(gs[ri, :])
             is_top  = row["is_top"]
-            vlm_lbl_row = row.get("vlm_lbl", "")
+            concept = row.get("concept", "")   # activated_concept or not_activated_concept
             bg_col  = "#FDF2F2" if is_top else "#EBF5FB"
             ax.set_facecolor(bg_col); ax.axis("off")
             main_lbl = "Most Activated" if is_top else "Least Activated"
             ax.text(0.012, 0.5, main_lbl,
                     transform=ax.transAxes, color="black",
                     fontsize=8.0, fontweight="bold", va="center", ha="left")
-            if vlm_lbl_row:
+            if concept:
                 # position description after the bold label (empirical x offset)
                 x_desc = 0.012 + len(main_lbl) * 0.0058 + 0.005
-                ax.text(x_desc, 0.5, f"({vlm_lbl_row})",
-                        transform=ax.transAxes, color="#666666",
+                ax.text(x_desc, 0.5, f"— {concept}",
+                        transform=ax.transAxes, color="#555555",
                         fontsize=7.5, fontweight="normal",
-                        va="center", ha="left")
+                        style="italic", va="center", ha="left", clip_on=True)
 
         elif kind == "header":
             rank += 1
@@ -759,7 +847,10 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
             _render_header(ax, row["entry"], row["group"],
                            row["interpretable"], row["significant"],
                            row["gate"], row["vlm_lbl"], row["max_act"],
-                           rank, header_ax_w_in)
+                           rank, header_ax_w_in,
+                           activated_concept=row.get("activated_concept"),
+                           not_activated_concept=row.get("not_activated_concept"),
+                           vlm_model=row.get("vlm_model", ""))
 
         elif kind == "gate_chart":
             group    = row["group"]
@@ -767,8 +858,7 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
             w_label  = row.get("w_label")
             _, bg_col, stripe_col = _box_style(row["interpretable"], row["significant"])
 
-            _row_label(fig.add_subplot(gs[ri, 0]), stripe_col,
-                       "GATE" if group == "SAE" else "CATE")
+            _row_label(fig.add_subplot(gs[ri, 0]), stripe_col, "GATE")
 
             # Three equal-width panels for both SAE and W features
             inner = gridspec.GridSpecFromSubplotSpec(
@@ -781,7 +871,8 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
                 if uganda_map is not None:
                     _render_site_map(fig.add_subplot(inner[0, 1]),
                                      feat_idx, site_feats, site_keys, df_rct,
-                                     *uganda_map, map_xlim=map_xlim)
+                                     *uganda_map, map_xlim=map_xlim,
+                                     Z_ind_all=Z_ind_all, df_ind_sub=df_ind_sub)
                 else:
                     fig.add_subplot(inner[0, 1]).axis("off")
 
@@ -821,11 +912,14 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
                     ax.set_facecolor(C["bg"]); ax.axis("off")
             # 7th column: mini Uganda map with example locations highlighted
             ax_mm = fig.add_subplot(gs[ri, N_IMG + 1])
+            # small gap between last image column and map
+            _p = ax_mm.get_position()
+            ax_mm.set_position([_p.x0 + 0.004, _p.y0, _p.width, _p.height])
             feat_idx_mm = row.get("feat_idx")
             if uganda_map is not None and feat_idx_mm is not None:
                 _render_mini_map_examples(
                     ax_mm, row["keys"], df_rct, *uganda_map,
-                    site_keys, bdr, map_xlim=map_xlim)
+                    site_keys, bdr, map_xlim=mini_map_xlim)
             else:
                 ax_mm.set_facecolor(C["bg"]); ax_mm.axis("off")
 

@@ -104,7 +104,7 @@ def classify_feature(z: np.ndarray):
 
 # ── Per-feature GATE/CATE ─────────────────────────────────────────────────────
 
-def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None, vlm_label=None):
+def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None, vlm_label=None, vlm_confidence=None):
     ftype, threshold, lbl_lo, lbl_hi = classify_feature(z)
 
     if ftype == "binary":
@@ -122,6 +122,7 @@ def feature_gate(y, t, W, z, feat_label, p_value, interp_label=None, vlm_label=N
 
     return dict(
         label=feat_label, pvalue=p_value, interp=interp_label, vlm_label=vlm_label,
+        vlm_confidence=vlm_confidence,
         ftype=ftype, threshold=threshold,
         lbl_lo=lbl_lo, lbl_hi=lbl_hi,
         gate_lo=gate_lo, se_lo=se_lo, n_lo=n_lo,
@@ -180,16 +181,21 @@ def main():
     with open(nems_path) as f:
         nems_out = json.load(f)
 
-    interp_map   = {}   # feature_idx -> full description sentence
-    vlm_label_map = {}  # feature_idx -> short 2-6 word label
+    interp_map      = {}   # feature_idx -> full description sentence
+    vlm_label_map   = {}   # feature_idx -> short 2-6 word label
+    confidence_map  = {}   # feature_idx -> low | medium | high
     interp_path = OUT_DIR / "interpretations.json"
     if interp_path.exists():
         with open(interp_path) as f:
             for entry in json.load(f):
                 lbl  = entry.get("label", "")
-                desc = entry.get("description", "") or entry.get("group_a_concept", "")
-                interp_map[entry["feature"]]    = desc if desc else lbl
-                vlm_label_map[entry["feature"]] = lbl
+                # activated_concept is the new canonical key; fall back to legacy keys
+                desc = (entry.get("activated_concept", "")
+                        or entry.get("description", "")
+                        or entry.get("group_a_concept", ""))
+                interp_map[entry["feature"]]     = desc if desc else lbl
+                vlm_label_map[entry["feature"]]  = lbl
+                confidence_map[entry["feature"]] = entry.get("confidence", "")
 
     meta         = nems_out["feature_meta"]
     n_sae        = meta["n_sae_features"]
@@ -240,9 +246,10 @@ def main():
         else:
             z_raw = Z_sub[:, idx].astype(float)
 
-        interp    = interp_map.get(idx)     # full description sentence
-        vlm_label = vlm_label_map.get(idx)  # short label for feature name
-        results.append(feature_gate(Y, T, W_raw, z_raw, label, pval, interp, vlm_label))
+        interp      = interp_map.get(idx)      # full description sentence
+        vlm_label   = vlm_label_map.get(idx)   # short label for feature name
+        vlm_conf    = confidence_map.get(idx)  # low | medium | high
+        results.append(feature_gate(Y, T, W_raw, z_raw, label, pval, interp, vlm_label, vlm_conf))
 
     # ── Print summary ─────────────────────────────────────────────────────────
     sep  = "═" * 65
@@ -268,8 +275,9 @@ def main():
         label = r["label"]
         pval  = r["pvalue"]
         interp = f'  ("{r["interp"]}")' if r["interp"] else ""
+        conf   = f'  [VLM conf: {r["vlm_confidence"]}]' if r.get("vlm_confidence") else ""
         print()
-        print(f"[{rank+1}] {label}   p={pval:.2e}{interp}")
+        print(f"[{rank+1}] {label}   p={pval:.2e}{interp}{conf}")
 
         ftype = r["ftype"]
         thr   = r["threshold"]
@@ -333,13 +341,14 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
     lo_ate, hi_ate = ate - 1.96 * ate_se, ate + 1.96 * ate_se
     ate_sig = "*" if ate_p < 0.05 else ""
 
-    header = ("| Rank | Feature | VLM interpretation | "
+    header = ("| Rank | Feature | VLM interpretation | VLM conf. | "
               "GATE/CATE (low/0) | GATE/CATE (high/1) | Δ CATE | p-value |\n"
-              "|------|---------|-------------------|-------------------|"
-              "-------------------|--------|---------|")
+              "|------|---------|-------------------|-----------|"
+              "-------------------|-------------------|--------|---------|")
     rows = []
     for i, r in enumerate(results):
         interp  = r.get("interp") or "—"
+        conf    = r.get("vlm_confidence") or "—"
         clean   = _clean_label(r["label"], r.get("vlm_label"))
         diff    = r["diff"]
         se_diff = np.sqrt(r["se_hi"]**2 + r["se_lo"]**2)
@@ -347,7 +356,7 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
         hi_d    = diff + 1.96 * se_diff
         sig     = "*" if lo_d * hi_d > 0 else ""
         rows.append(
-            f"| {i+1} | {clean} | {interp} | "
+            f"| {i+1} | {clean} | {interp} | {conf} | "
             f"{r['gate_lo']:+.4f} | {r['gate_hi']:+.4f} | "
             f"{diff:+.4f}{sig} | {r['pvalue']:.2e} |"
         )
@@ -385,7 +394,8 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
                 contrast = f"group 1 vs group 0 (Δ={r['diff']:+.4f})"
             else:
                 contrast = f"active vs inactive sites (Δ={r['diff']:+.4f})"
-            parts.append(f"{clean}: {direction} CATE for {contrast}")
+            conf_tag = f" [VLM conf: {r['vlm_confidence']}]" if r.get("vlm_confidence") else ""
+            parts.append(f"{clean}{conf_tag}: {direction} CATE for {contrast}")
         modifier_sentence = (
             f"Significant treatment effect heterogeneity is found for "
             f"{len(sig_results)} modifier(s): {'; '.join(parts)}."

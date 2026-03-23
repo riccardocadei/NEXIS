@@ -68,7 +68,9 @@ def w_display(label: str) -> tuple[str, str, str]:
         try:
             code = int(label.split('_')[1])
             lang = LANG_NAMES.get(code, label)
-            return (f'{lang} language', f'Non-{lang}', lang)
+            if str(lang).lower() == 'other':
+                return ('Minor local language', 'Not minor local language', 'Minor local language')
+            return (f'{lang} language', f'Non-{lang} language', f'{lang} language')
         except ValueError:
             pass
     if label.startswith('district_'):
