@@ -3,9 +3,11 @@ __pycache__/
 
 **.npz
 **.pt
+**.json
+
 
 data/
 logs/
-results/
+results/uganda/dino*
 
 
