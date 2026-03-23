@@ -1,10 +1,10 @@
 # Generalised Heterogeneous Treatment Effect (HTE) Identification
 
-**Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.**
+**TL;DR:** Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.
 
-Treatment effects vary across individuals, but understanding *why* is harder than estimating *that* they do. Standard CATE estimators produce a predicted-effect surface without identifying *which features* drive heterogeneity, and without statistical guarantees on selection. Our proposed framework introduces a powerful **hypothesis generation component**, allowing researchers to discover novel effect modifiers from high-dimensional data. **NEMS** is the core algorithm used to select among these different candidate modifiers from various sources (whether raw, processed, or learned representations) while controlling the family-wise error rate.
+Understanding *why* treatment effects vary across individuals is a fundamental challenge in causal inference. Standard methods predict effect variation but cannot reliably identify **which specific features** actually drive the heterogeneity, nor do they offer statistical guarantees. To address this, we introduce **NEMS** (Neural Effect Modifier Search): a framework providing a powerful **hypothesis generation component**. It sequentially tests and selects genuine effect modifiers from a vast pool of candidates while strictly controlling the family-wise error rate (FWER).
 
-The approach is **generalised** in a precise sense. The input feature space **X** is not restricted to a single source: it can simultaneously include (i) complex, high-dimensional pre-treatment measurements such as learned representations from foundation models (satellite imagery, genomic profiles, medical imaging), and (ii) interpretable measured pre-treatment variables the researcher already has — demographic covariates, survey responses, administrative records, or any domain-knowledge priors. By establishing a high-level link with **mechanistic interpretability**, our framework bridges the gap between deep learning features and causal hypothesis generation. NEMS provides a unified, multiply-tested screen over this combined space, regardless of whether features come from deep models or from prior knowledge.
+Our approach is uniquely **generalised**: the input feature space $X$ is unrestricted and can freely combine (i) complex, high-dimensional pre-treatment measurements such as representations from foundation models (satellite imagery, medical imaging), and (ii) interpretable prior variables (demographics, administrative records). By linking **mechanistic interpretability** with causal discovery, NEMS bridges the gap between opaque deep learning features and statistically rigorous hypothesis generation.
 
 ### Problem setup
 
@@ -12,7 +12,7 @@ The approach is **generalised** in a precise sense. The input feature space **X*
 <tr>
 <td valign="middle" width="62%">
 
-Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. We posit a set of effect-modification factors **W** — which can be *latent* or *partially observed* — manifesting in both **X** and the heterogeneous response to treatment (see figure).
+Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. We posit a set of effect-modification factors **W** (some latent and some partially observed). Our framework is **generalised** as it aims to identify effects directly by combining complex measurements with domain priors, both of which serve as observable manifestations of **W** acting on **X** and driving the heterogeneous response to treatment (see figure).
 
 The pre-treatment input **X** is the union of two complementary sources:
 
@@ -34,46 +34,21 @@ NEMS screens the combined candidate set for treatment effect modification, condi
 
 ### Motivating example — Uganda Youth Opportunities Programme
 
-A concrete instantiation pairs randomised experiments with satellite imagery: given an RCT with treatment `T` and outcomes `Y`, and pre-treatment satellite imagery from unit locations, modern vision models (e.g. Prithvi, DINOv2) extract rich spatial features, and Sparse Autoencoders map these to interpretable individual neurons. Given the resulting high-dimensional embedding `Z`, the question becomes: *which learned features interact with treatment to drive outcome differences?* NEMS provides a principled answer — and can simultaneously screen any additional measured covariates alongside the learned features.
+A concrete instantiation pairs randomised experiments with satellite imagery: given an RCT with treatment `T` and outcomes `Y`, and pre-treatment satellite imagery from unit locations, modern vision models (e.g. Prithvi, DINOv2, DINOv3) extract rich spatial features. Sparse Autoencoders then map these dense embeddings to interpretable individual neurons. Given the resulting high-dimensional representation `Z`, the question becomes: *which learned features meaningfully interact with treatment to drive outcome differences?* NEMS provides a principled selection, while simultaneously screening explicit covariates alongside the learned deep features.
 
 ---
 
 ## Method
 
-Given an RCT or observational dataset `(Y, T, Z)`, NEMS iteratively selects neurons `j` by testing the conditional interaction hypothesis
+Given an RCT or observational dataset $(Y, T, Z)$, NEMS iteratively selects a feature or neuron $j$ by testing the conditional interaction hypothesis:
 
-```
-H0(j | S) : γ_j = 0   in   Y ~ 1 + T + Z_S + T·Z_S + Z_j + T·Z_j
-```
+$$
+\mathcal{H}_0(j \mid S) : \gamma_j = 0 \quad \text{in} \quad Y \sim 1 + T + Z_S + T \cdot Z_S + Z_j + T \cdot Z_j
+$$
 
-conditioning on the already-selected set `S`. At each step a Bonferroni gate is applied over all remaining candidates, so the family-wise error rate is controlled throughout. Selection stops when no remaining neuron clears the gate.
+Here, the null hypothesis $\mathcal{H}_0$ conditions on the already-selected set $S$. At each step, a Bonferroni gate is conservatively applied uniformly over all remaining candidates. This sequentially narrows the search and guarantees tight control over the family-wise error rate throughout the feature selection process. Selection automatically halts when no remaining candidate effectively clears the gated significance threshold.
 
-```latex
-\begin{algorithm}[h]
-\caption{Neural Effect Modifier Search (NEMS)}
-\label{alg:nems}
-\begin{algorithmic}[1]
-\State \textbf{Input:} $\{(\bm{X}_i,T_i,Y_i)\}_{i=1}^n$, representation map $\phi$, level $\alpha$
-\State Compute $\bm{Z}_i \gets \phi(\bm{X}_i) \in \mathbb{R}^m$ for all $i$
-\State Initialize $S \gets \emptyset$
-\While{true}
-    \State $M \gets [m] \setminus S$
-    \For{$j \in M$}
-        \State Compute $p_j(S)$ for Equation~\ref{eq:null_z}
-    \EndFor
-    \State $j^* \gets \arg\min_{j \in M} p_j(S)$
-    \If{$p_{j^*}(S) \le \frac{\alpha}{|M|}$}
-        \State $S \gets S \cup \{j^*\}$
-    \Else
-        \State \textbf{break}
-    \EndIf
-\EndWhile
-\State \textbf{Output:} Selected set $S$
-\end{algorithmic}
-\end{algorithm}
-```
-
-The procedure is designed for the high-dimensional regime (`p >> n`) where a naïve interaction screen would produce far too many false discoveries. By conditioning on the growing selected set and gating with Bonferroni, NEMS achieves valid sequential selection without requiring post-hoc adjustment.
+The procedure is distinctively designed for high-dimensional regimes
 
 ```python
 from src import nems_select
@@ -86,16 +61,16 @@ print(result.selected)   # list of selected neuron indices
 
 ## Related work
 
-The closest prior work is [Jerzak, Johansson & Daoud (2023)](https://proceedings.mlr.press/v213/jerzak23a.html), who also pair satellite imagery with the Uganda YOP to characterise effect heterogeneity. Their approach uses black-box CATE estimators (BART, causal forests) applied to raw or projected embeddings, producing a smooth predicted-effect surface. NEMS differs in three key respects:
+Past works applying satellite imagery to characterise effect heterogenity (like Jerzak et al.) typically depend on black-box CATE estimators. NEMS addresses critical deficiencies in broad estimator approaches:
 
-| | Jerzak et al. (2023) | Causal forests / X-Learner | **NEMS** |
-|---|---|---|---|
-| Goal | Predict CATE as a function | Predict CATE as a function | **Select effect modifiers** |
-| Multiple-testing guarantee | None | None | **FWER controlled** |
-| p >> n regime | Regularised regression | Regularised regression | **Sequential conditional testing** |
-| Interpretability | Raw embedding dimensions | Raw covariates | **SAE neurons + VLM labels** |
+| Method | Goal | Multiple-testing guarantee | $p \gg n$ regime | Interpretability |
+|--------|------|---------------------------|-------------------|------------------|
+| **Jerzak et al. (2023)** | Predict CATE surface | None | Regularised | Raw dimensions |
+| **Causal Forests / X-Learner** | Predict CATE surface | None | Tree splitting / Regularised | Raw covariates |
+| **Causal Rule Ensembles (CRE)** | Select effect modifiers | Asymptotic / Post-hoc | Regularised | Extracted Rules |
+| **NEMS (Ours)** | **Select effect modifiers** | **FWER controlled sequentially** | **Sequential conditional testing** | **SAE neurons + VLM labels** |
 
-More broadly, generic CATE estimators (causal forests, X-Learner, DR-learner) estimate the full effect surface but do not identify *which features* drive heterogeneity in a statistically tested sense. Marginal interaction screens — even when Bonferroni-corrected — test each candidate independently, inflating false discoveries when features are correlated. NEMS instead conditions each new test on the features already selected, sequentially narrowing the search while maintaining valid FWER control throughout.
+Generic CATE models estimate an average full effect but explicitly *cannot select* or identify the underlying features driving heterogeneity in high-dimensional scenarios. On the other hand, rule-based screening methods test each candidate marginally, inherently inflating false discovery rates amongst correlated features. NEMS overcomes this by iteratively screening each candidate conditionally while scaling naturally to learned high-dimensional features like foundational vision embedding elements and SAE neurons.
 
 ---
 
@@ -103,7 +78,9 @@ More broadly, generic CATE estimators (causal forests, X-Learner, DR-learner) es
 
 ### Uganda Youth Opportunities Programme
 
-We apply NEMS to the Uganda YOP, a cash-and-training RCT in northern Uganda ([Blattman, Fiala & Martinez, 2014](https://doi.org/10.1093/qje/qju003)). We pair each participant with pre-treatment satellite imagery (year 2000) and extract learned features using **Prithvi** (geospatial foundation model) and **DINOv2**. A Sparse Autoencoder trained on top maps the dense embedding to sparse, interpretable neurons; NEMS then screens these neurons — together with any additional measured covariates — for treatment effect modification.
+![Uganda study sites](results/uganda/map.png)
+
+We apply NEMS to the Uganda YOP, a cash-and-training RCT in northern Uganda ([Blattman, Fiala & Martinez, 2014](https://doi.org/10.1093/qje/qju003)). We pair each participant with pre-treatment satellite imagery (year 2000) and extract learned features using **Prithvi** (geospatial foundation model), **DINOv2**, and **DINOv3**. A Sparse Autoencoder trained on top maps the dense embedding to sparse, interpretable neurons; NEMS then screens these neurons — together with any additional measured covariates — for treatment effect modification.
 
 For the primary outcome **log skilled-trade hours** (n = 2,372, ATE = +0.020, p < 0.001), NEMS selects 2 effect modifiers:
 
@@ -118,12 +95,10 @@ The programme is substantially more effective in drier areas without perennial w
 
 ![NEMS results — log skilled-trade hours (Prithvi)](results/uganda/prithvi_1024/log_skilled_hours/summary_illustration.png)
 
-![Uganda study sites](results/uganda/map.png)
-
-**To reproduce**, see [notebooks/uganda.ipynb](notebooks/uganda.ipynb) for the full analysis. Eight outcomes are supported (labour, earnings, assets, wellbeing):
+**To reproduce**, note that notebooks are primarily for visualisation: [notebooks/uganda.ipynb](notebooks/uganda.ipynb). The actual reproducible end-to-end experiments (supporting eight outcomes like labour, earnings, assets, wellbeing) run via the overarching command pipeline script:
 
 ```bash
-bash scripts/run.sh --models=prithvi,dinov2 --all-outcomes
+bash scripts/run.sh --models=prithvi,dinov2,dinov3 --all-outcomes
 ```
 
 ### Synthetic benchmarks
