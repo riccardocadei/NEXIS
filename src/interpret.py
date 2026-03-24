@@ -80,15 +80,15 @@ def load_group(keys, activations):
 
 # ── Model loading ──────────────────────────────────────────────────────────────
 
-def load_vlm(model_name: str, quantize: bool = False):
+def load_vlm(model_name: str, quantize: bool = False, trust_remote_code: bool = False):
     """Load Qwen2-VL (or compatible) VLM model + processor."""
     import torch
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
     print(f"  Loading VLM: {model_name} ...")
-    processor = AutoProcessor.from_pretrained(model_name)
+    processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
 
-    kwargs = dict(dtype=torch.bfloat16, device_map="auto")
+    kwargs = dict(dtype=torch.bfloat16, device_map="auto", trust_remote_code=trust_remote_code)
     if quantize:
         from transformers import BitsAndBytesConfig
         kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
@@ -271,12 +271,16 @@ def load_geochat(model_name: str = "MBZUAI/geochat-7b", quantize: bool = False):
         vision_tower = json.load(f).get("mm_vision_tower", "openai/clip-vit-large-patch14-336")
     image_processor = CLIPImageProcessor.from_pretrained(vision_tower)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    processor = LlavaProcessor(image_processor=image_processor, tokenizer=tokenizer)
+    # patch_size must be set explicitly — GeoChat has no preprocessor_config.json
+    # so LlavaProcessor defaults to None, causing "int // NoneType" crash at inference.
+    patch_size = getattr(image_processor, "patch_size", None) or 14
+    processor = LlavaProcessor(image_processor=image_processor, tokenizer=tokenizer,
+                               patch_size=patch_size)
 
     # Load remapped weights (downloaded + remapped once, then cached locally)
     remapped_dir = _get_geochat_remapped_dir(model_name)
 
-    kwargs = dict(torch_dtype=torch.float16, device_map="auto")
+    kwargs = dict(dtype=torch.float16, device_map="auto")
     if quantize:
         from transformers import BitsAndBytesConfig
         kwargs["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True)
@@ -292,12 +296,20 @@ def describe_image_geochat(model, processor, img: "Image.Image") -> str:
     """Return a 2–4 sentence land-cover description for one RS image via GeoChat."""
     import torch
     prompt = f"USER: <image>\n{GEOCHAT_DESCRIBE_PROMPT}\nASSISTANT:"
-    inputs = processor(text=prompt, images=img, return_tensors="pt").to(model.device)
+    # Build inputs manually to bypass the newer transformers image-token count
+    # validation, which mismatches GeoChat's single-<image>-token convention.
+    pixel_values = processor.image_processor(
+        images=img, return_tensors="pt"
+    )["pixel_values"].to(model.device)
+    text_inputs = processor.tokenizer(
+        prompt, return_tensors="pt", truncation=False
+    ).to(model.device)
+    inputs = {**text_inputs, "pixel_values": pixel_values}
     with torch.no_grad():
         out_ids = model.generate(**inputs, max_new_tokens=150, do_sample=False,
                                  temperature=None, top_p=None, top_k=None)
-    generated = out_ids[0][inputs["input_ids"].shape[1]:]
-    return processor.decode(generated, skip_special_tokens=True).strip()
+    generated = out_ids[0][text_inputs["input_ids"].shape[1]:]
+    return processor.tokenizer.decode(generated, skip_special_tokens=True).strip()
 
 
 def load_or_build_descriptions(
@@ -789,8 +801,8 @@ def interpret_outcome(
     model_dir: Path,
     site_feats: "np.ndarray",
     site_keys: "np.ndarray",
-    pipeline: str,                                      # "qwen" | "geochat"
-    vlm_model=None,         vlm_processor=None,         # qwen
+    pipeline: str,                                      # "qwen7b" | "qwen72b" | "points" | "geochat"
+    vlm_model=None,         vlm_processor=None,         # qwen* / points
     site_descriptions: dict = None,                     # geochat: {str(key): desc}
     text_model=None,        text_tokenizer=None,        # geochat
     geochat_model_name: str = "",                       # geochat
@@ -798,7 +810,7 @@ def interpret_outcome(
     k: int = 10,
     min_activation: float = 0.001,
     sae_dim: int = 3072,
-    vlm_model_name: str = "",                           # qwen
+    vlm_model_name: str = "",                           # qwen* / points
 ) -> bool:
     """Interpret all NEMS-selected SAE features for one outcome.
 
@@ -861,7 +873,7 @@ def interpret_outcome(
               f"top={fg['top_acts'][0]:.3f}..{fg['top_acts'][-1]:.3f}  "
               f"bottom={fg['bottom_acts'][0]:.3f}..{fg['bottom_acts'][-1]:.3f}")
 
-        if pipeline == "qwen":
+        if pipeline in ("qwen7b", "qwen72b", "points"):
             top_imgs, top_keys, top_acts       = load_group(fg["top_keys"],   fg["top_acts"])
             bottom_imgs, bottom_keys, bot_acts = load_group(fg["bottom_keys"], fg["bottom_acts"])
             if not top_imgs or not bottom_imgs:
@@ -877,7 +889,7 @@ def interpret_outcome(
         n_nonzero         = int(np.sum(feat_acts > 0))
         max_act_pct       = int(np.mean(all_max_acts <= max_act) * 100)
 
-        model_label = vlm_model_name if pipeline == "qwen" \
+        model_label = vlm_model_name if pipeline in ("qwen7b", "qwen72b") \
                       else f"{geochat_model_name}+{text_model_name}"
 
         if max_act < min_activation:
@@ -896,7 +908,7 @@ def interpret_outcome(
             })
             continue
 
-        if pipeline == "qwen":
+        if pipeline in ("qwen7b", "qwen72b", "points"):
             result = contrast_groups_vlm(
                 vlm_model, vlm_processor,
                 feat_idx,
@@ -969,11 +981,15 @@ def parse_args():
                    help="Images per group shown to VLM (top / bottom).")
     p.add_argument("--min-activation", type=float, default=0.001,
                    help="Skip features whose max activation is below this threshold.")
-    p.add_argument("--pipeline", choices=["qwen", "geochat"], default="qwen",
-                   help="Interpretation pipeline: 'qwen' (direct VLM contrast) or "
+    p.add_argument("--pipeline", choices=["qwen7b", "qwen72b", "points", "geochat"], default="qwen7b",
+                   help="Interpretation pipeline: 'qwen7b' (Qwen2-VL-7B direct contrast), "
+                        "'qwen72b' (Qwen2-VL-72B direct contrast), "
+                        "'points' (POINTS1.5-7B RS-specialist direct contrast), or "
                         "'geochat' (GeoChat per-image captions + text LLM aggregation).")
-    p.add_argument("--vlm-model",     default="Qwen/Qwen2.5-VL-72B-Instruct",
-                   help="[qwen] HuggingFace VLM model ID.")
+    p.add_argument("--vlm-model",     default="Qwen/Qwen2-VL-7B-Instruct",
+                   help="[qwen7b/qwen72b] HuggingFace VLM model ID.")
+    p.add_argument("--points-model",  default="WePOINTS/POINTS-1-5-Qwen-2-5-7B-Chat",
+                   help="[points] HuggingFace model ID for the POINTS1.5 RS-specialist VLM.")
     p.add_argument("--geochat-model", default="MBZUAI/geochat-7b",
                    help="[geochat] GeoChat model for stage-1 image captioning.")
     p.add_argument("--text-model",    default="Qwen/Qwen2.5-72B-Instruct",
@@ -1028,9 +1044,14 @@ def main():
 
     # Load model(s) based on chosen pipeline
     print(f"\nPipeline: {args.pipeline}  ({len(to_run)} outcome(s))")
-    if args.pipeline == "qwen":
+    if args.pipeline in ("qwen7b", "qwen72b"):
         print(f"  VLM: {args.vlm_model}")
         vlm_model, vlm_processor = load_vlm(args.vlm_model, quantize=args.quantize)
+        site_descriptions = text_model = text_tokenizer = None
+    elif args.pipeline == "points":
+        print(f"  VLM: {args.points_model}")
+        vlm_model, vlm_processor = load_vlm(args.points_model, quantize=args.quantize,
+                                             trust_remote_code=True)
         site_descriptions = text_model = text_tokenizer = None
     else:  # geochat
         print(f"  Stage 1 (GeoChat): {args.geochat_model}")
@@ -1063,10 +1084,11 @@ def main():
             geochat_model_name=args.geochat_model,
             text_model_name=args.text_model,
             k=args.k, min_activation=args.min_activation, sae_dim=args.sae_dim,
-            vlm_model_name=args.vlm_model,
+            vlm_model_name=(args.points_model if args.pipeline == "points"
+                            else args.vlm_model),
         )
 
-    unload_model(vlm_model if args.pipeline == "qwen" else text_model)
+    unload_model(vlm_model if args.pipeline in ("qwen7b", "qwen72b", "points") else text_model)
 
 
 if __name__ == "__main__":

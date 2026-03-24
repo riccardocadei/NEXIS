@@ -165,7 +165,7 @@ def parse_args():
     p.add_argument("--sae-dim",     type=int, default=3072)
     p.add_argument("--outcome",     default="log_skilled_hours",
                    help="Outcome alias or CSV column name (must match what was passed to analyze.py).")
-    p.add_argument("--pipeline",    default="qwen", choices=["qwen", "geochat"],
+    p.add_argument("--pipeline",    default="qwen7b", choices=["qwen7b", "qwen72b", "points", "geochat"],
                    help="Which interpretation pipeline's output to use.")
     return p.parse_args()
 
@@ -339,7 +339,7 @@ def _clean_label(label: str, vlm_label: str | None) -> str:
 
 
 def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
-                   outcome: str = "Yobs", pipeline: str = "qwen"):
+                   outcome: str = "Yobs", pipeline: str = "qwen7b"):
     """Write a deterministic markdown summary table and templated narrative."""
 
     model_name = out_dir.name

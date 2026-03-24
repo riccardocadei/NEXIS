@@ -700,7 +700,7 @@ def _draw_boxes(fig, spans, rows, ratios, gs_top, gs_bot, gs_left, gs_right, fig
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_hours",
-                        pipeline="qwen"):
+                        pipeline="qwen7b"):
     csv_col   = resolve_outcome(outcome)
     model_dir = ROOT / "results" / "uganda" / f"{embed_model}_{sae_dim}"
     out_dir   = model_dir / outcome
@@ -958,7 +958,7 @@ def main():
     p.add_argument("--sae-dim", type=int, default=3072)
     p.add_argument("--k", type=int, default=8)
     p.add_argument("--outcome", default="log_skilled_hours")
-    p.add_argument("--pipeline", default="qwen", choices=["qwen", "geochat"],
+    p.add_argument("--pipeline", default="qwen7b", choices=["qwen7b", "qwen72b", "points", "geochat"],
                    help="Which interpretation pipeline's output to use.")
     p.add_argument("--all", action="store_true")
     args = p.parse_args()
