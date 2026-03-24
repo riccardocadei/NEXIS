@@ -42,13 +42,9 @@ A concrete instantiation pairs randomised experiments with satellite imagery: gi
 
 The pipeline proceeds in three distinct stages.
 
----
-
 ### Step 1 — Representation learning
 
 Raw pre-treatment observations (e.g. satellite imagery) are first passed through a **foundation model** — such as Prithvi (geospatial) or DINOv2/DINOv3 (vision) — to obtain dense, high-dimensional patch embeddings. These embeddings are then fed to a **Sparse Autoencoder (SAE)**, which decomposes the dense representation into a large number of sparse, near-monosemantic neurons. Each neuron captures a specific, human-interpretable visual concept (e.g. *presence of water*, *road density*, *vegetation type*). The result is a high-dimensional but structured feature matrix $Z \in \mathbb{R}^{n \times p}$, with $p$ potentially reaching thousands of candidates, that forms the input to the selection stage.
-
----
 
 ### Step 2 — Neural Effect Modifier Search
 
@@ -66,8 +62,6 @@ from src import nems_select
 result = nems_select(y=Y, t=T, z=Z, alpha=0.05)
 print(result.selected)   # list of selected neuron indices
 ```
-
----
 
 ### Step 3 — Interpretation
 
