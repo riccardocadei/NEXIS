@@ -40,15 +40,25 @@ A concrete instantiation pairs randomised experiments with satellite imagery: gi
 
 ## Method
 
-Given an RCT or observational dataset $(Y, T, Z)$, NEMS iteratively selects a feature or neuron $j$ by testing the conditional interaction hypothesis:
+The pipeline proceeds in three distinct stages.
+
+---
+
+### Step 1 — Representation learning
+
+Raw pre-treatment observations (e.g. satellite imagery) are first passed through a **foundation model** — such as Prithvi (geospatial) or DINOv2/DINOv3 (vision) — to obtain dense, high-dimensional patch embeddings. These embeddings are then fed to a **Sparse Autoencoder (SAE)**, which decomposes the dense representation into a large number of sparse, near-monosemantic neurons. Each neuron captures a specific, human-interpretable visual concept (e.g. *presence of water*, *road density*, *vegetation type*). The result is a high-dimensional but structured feature matrix $Z \in \mathbb{R}^{n \times p}$, with $p$ potentially reaching thousands of candidates, that forms the input to the selection stage.
+
+---
+
+### Step 2 — Neural Effect Modifier Search
+
+Given the combined candidate matrix $Z$ (SAE neurons + any additional measured covariates) and an RCT or observational dataset $(Y, T)$, NEMS iteratively selects a feature or neuron $j$ by testing the conditional interaction hypothesis:
 
 $$
 \mathcal{H}_0(j \mid S) : \quad \gamma_j = 0 \quad \text{in} \quad Y \sim 1 + T + Z_S + T \cdot Z_S + Z_j + T \cdot Z_j
 $$
 
-Here, the null hypothesis $\mathcal{H}_0$ conditions on the already-selected set $S$. At each step, a Bonferroni gate is conservatively applied uniformly over all remaining candidates. This sequentially narrows the search and guarantees tight control over the family-wise error rate throughout the feature selection process. Selection automatically halts when no remaining candidate effectively clears the gated significance threshold.
-
-The procedure is distinctively designed for high-dimensional regimes.
+The null hypothesis $\mathcal{H}_0$ conditions on the already-selected set $S$. At each step, a Bonferroni gate is applied uniformly over all remaining candidates, sequentially narrowing the search while guaranteeing tight control over the family-wise error rate (FWER) throughout. Selection automatically halts when no remaining candidate clears the gated significance threshold.
 
 ```python
 from src import nems_select
@@ -56,6 +66,12 @@ from src import nems_select
 result = nems_select(y=Y, t=T, z=Z, alpha=0.05)
 print(result.selected)   # list of selected neuron indices
 ```
+
+---
+
+### Step 3 — Interpretation
+
+Once NEMS selects a set of neurons, each selected neuron is interpreted using a **Vision-Language Model (VLM)** pipeline. For every selected neuron $j$, the top-activating and bottom-activating satellite patches are retrieved and passed to a VLM (e.g. Qwen-VL, GeoChat) with a structured prompt asking what visual concept the neuron responds to. The per-patch captions are then aggregated by an LLM into a concise, human-readable description (e.g. *"areas without perennial water sources"*). This yields a fully interpretable summary of each effect modifier, grounding statistically selected neurons in domain-meaningful language.
 
 ---
 
