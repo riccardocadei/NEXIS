@@ -4,11 +4,13 @@ __pycache__/
 **.npz
 **.pt
 **.json
-
+**bin
+**.safetensors
 
 data/
 logs/
 results/uganda/dino*
-results/
+#results/
+models/
 
 
