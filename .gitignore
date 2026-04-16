@@ -1,4 +1,5 @@
 __pycache__/
+*.egg-info/
 .claude
 
 **.npz
@@ -10,7 +11,7 @@ __pycache__/
 data/
 logs/
 results/uganda/dino*
-#results/
+results/
 models/
-
+neuralscience-main/
 
