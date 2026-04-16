@@ -282,17 +282,60 @@ def marginal_select(
     )
 
 
+def participation_ratio(Z: np.ndarray) -> float:
+    """Participation Ratio of the column space of Z.
+
+    PR = (Σ λ_i)² / Σ λ_i²  where λ_i are eigenvalues of the covariance matrix.
+    Equals the number of dimensions that carry equal variance — a scalar
+    measure of effective dimensionality in [1, rank(Z)].
+
+    Uses the gram matrix trick: when n < d, eigenvalues of Z @ Z.T (n×n)
+    equal those of Z.T @ Z (d×d), so we pick whichever is smaller — O(min(n,d)³).
+    """
+    Z = np.asarray(Z, dtype=float)
+    Z = Z - Z.mean(axis=0)
+    n, d = Z.shape
+    if n < d:
+        G = (Z @ Z.T) / max(n - 1, 1)   # (n, n) gram matrix
+    else:
+        G = (Z.T @ Z) / max(n - 1, 1)   # (d, d) covariance matrix
+    lam = np.linalg.eigvalsh(G)
+    lam = lam[lam > 0]
+    if lam.size == 0:
+        return 1.0
+    return float(lam.sum() ** 2 / (lam ** 2).sum())
+
+
 def nems_select(
     y: np.ndarray,
     t: np.ndarray,
     z: np.ndarray,
     alpha: float = 0.05,
     max_steps: Optional[int] = None,
+    correction: str = "bonferroni",  # "bonferroni" | "pr" | "bon_aem" | "none"
+    pr0: Optional[float] = None,     # precomputed participation ratio for correction="pr"
+    m_eff: Optional[int] = None,     # fixed effective M for correction="bonferroni"
+    z_for_corr: Optional[np.ndarray] = None,  # override Z used to build R in "bon_aem"
     controls: Optional[np.ndarray] = None,
     main_controls: Optional[np.ndarray] = None,
     interaction_only: Optional[set] = None,
     verbose: bool = False,
 ) -> SelectionResult:
+    """Sequential conditional interaction selection.
+
+    correction:
+      "bonferroni" — gate = α / |remaining|  (adaptive); if m_eff is set,
+                     gate = α / m_eff  (fixed effective M, ignores remaining count)
+      "pr"         — gate = α / max(PR₀ − step, 1)  where PR₀ = participation
+                     ratio of Z computed once at step 0; decremented by 1 each step
+      "bon_aem"    — Adaptive Effective Multiplicity; gate = α / M_eff(A) where
+                     M_eff(A) = |A|² / Σ_{j,k∈A} ρ_{jk}²  (trace-ratio on the
+                     active correlation submatrix).  The full correlation matrix R
+                     is computed once from z_for_corr (if provided) or z; D_A is
+                     updated in O(|A|) per step via:
+                     D_{A\{r}} = D_A − 1 − 2·Σ_{j∈A\{r}} ρ²_{rj}
+      "none"       — gate = α  (no multiple-testing correction)
+    """
     Z = np.asarray(z, dtype=float)
     m = Z.shape[1]
     selected: List[int] = []
@@ -301,6 +344,33 @@ def nems_select(
     # Store the p-value at the step each feature is selected (before it moves into S
     # and gets excluded from subsequent computations, which would reset it to 1.0).
     selected_pvals = np.ones(m, dtype=float)
+
+    # PR-based correction: use precomputed value if provided, else compute from Z
+    if correction == "pr":
+        pr0 = float(pr0) if pr0 is not None else participation_ratio(Z)
+    else:
+        pr0 = float(m)
+
+    # AEM: compute full correlation matrix once, initialise D_A = Σ R²_{jk}
+    # Use z_for_corr if provided (e.g. continuous precodes when z is sparse codes).
+    if correction == "bon_aem":
+        Z_corr = np.asarray(z_for_corr, dtype=float) if z_for_corr is not None else Z
+        Z_c = Z_corr - Z_corr.mean(axis=0)
+        col_stds = Z_c.std(axis=0)
+        col_stds = np.where(col_stds < 1e-8, 1.0, col_stds)   # safe for const cols
+        Z_norm = Z_c / col_stds                                 # (n, m) unit-std
+        R = (Z_norm.T @ Z_norm) / Z_corr.shape[0]              # (m, m) correlation
+        np.fill_diagonal(R, 1.0)                                # exact 1s on diagonal
+        R_sq = R ** 2                                           # (m, m) squared correlations
+        aem_active = np.ones(m, dtype=bool)                     # which features are still in A
+        aem_D = float(R_sq.sum())                               # Σ_{j,k∈A} ρ²_{jk}
+        aem_meff_traj: List[float] = []
+    else:
+        R_sq = None
+        aem_active = None
+        aem_D = 0.0
+        aem_meff_traj = []
+
     step = 0
     while True:
         if max_steps is not None and step >= max_steps:
@@ -319,7 +389,20 @@ def nems_select(
         rem_p = pvals[remaining]
         j_star = remaining[int(np.argmin(rem_p))]
         p_star = pvals[j_star]
-        gate = alpha / len(remaining)  # Bonferroni gate over remaining coordinates
+
+        if correction == "bonferroni":
+            gate = alpha / (m_eff if m_eff is not None else len(remaining))
+        elif correction == "pr":
+            _pr_meff = max(pr0 - step, 1.0)
+            gate = alpha / _pr_meff
+        elif correction == "bon_aem":
+            n_active = int(aem_active.sum())
+            _aem_meff = (n_active ** 2) / max(aem_D, 1e-12)
+            aem_meff_traj.append(_aem_meff)
+            gate = alpha / max(_aem_meff, 1.0)
+        else:  # "none"
+            gate = alpha
+
         n_pass = int(np.sum(pvals[remaining] <= gate))
 
         if verbose:
@@ -331,6 +414,14 @@ def nems_select(
             selected_pvals[j_star] = p_star   # record before j_star enters S
             selected.append(j_star)
             step += 1
+
+            # AEM: efficient O(|A|) update of D_A after removing j_star
+            # D_{A\{r}} = D_A - 1 - 2·Σ_{j∈A\{r}} ρ²_{r,j}
+            if correction == "bon_aem":
+                cross = float(R_sq[j_star, aem_active].sum()) - 1.0  # subtract ρ²_{rr}=1
+                aem_D -= (1.0 + 2.0 * cross)
+                aem_D = max(aem_D, 1e-12)
+                aem_active[j_star] = False
         else:
             if verbose:
                 print(f"    → stopped: best p={p_star:.2e} > gate={gate:.2e}")
@@ -341,12 +432,31 @@ def nems_select(
     for j in selected:
         out_pvals[j] = selected_pvals[j]
 
+    _method_map = {
+        "bonferroni": "nems_bonferroni",
+        "pr":         "nems_pr",
+        "bon_aem":    "nems_bon_aem",
+        "none":       "nems_none",
+    }
+    if correction == "bonferroni" and m_eff is not None:
+        method_str = f"nems_bonferroni_meff{m_eff}"
+    else:
+        method_str = _method_map.get(correction, "nems")
+
+    extra_meta: dict = {}
+    if m_eff is not None and correction == "bonferroni":
+        extra_meta["m_eff"] = float(m_eff)
+    if correction == "bon_aem":
+        extra_meta["aem_meff_trajectory"] = aem_meff_traj
+
     return SelectionResult(
         selected=selected,
         pvalues=out_pvals,
-        method="nems",
+        method=method_str,
         alpha=alpha,
-        metadata={"m": float(m), "steps": float(len(selected))},
+        metadata={"m": float(m), "steps": float(len(selected)),
+                  "correction": correction, "pr0": float(pr0),
+                  **extra_meta},
     )
 
 
@@ -491,6 +601,8 @@ def evaluate_methods_on_dataset(
     truth: Sequence[int],
     alpha: float = 0.05,
     nems_max_steps: Optional[int] = None,
+    pr0: Optional[float] = None,
+    z_precode: Optional[np.ndarray] = None,  # continuous precodes for Bon+AEM M_eff
 ) -> Dict[str, Dict[str, float]]:
     out = {}
     truth_set = set(int(x) for x in truth)
@@ -515,13 +627,27 @@ def evaluate_methods_on_dataset(
             "precision": float(precision),
         }
 
-    res_nems = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps)
-    out["NEMS"] = _metrics(res_nems.selected)
+    res_pr = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
+                         correction="pr", pr0=pr0)
+    out["NEMS (Bon+)"] = _metrics(res_pr.selected)
+
+    res_aem = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
+                          correction="bon_aem", z_for_corr=z_precode)
+    out["NEMS (Bon+AEM)"] = _metrics(res_aem.selected)
+
+    res_bonp = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
+                           correction="bonferroni")
+    out["NEMS (Bon)"] = _metrics(res_bonp.selected)
+
+
+    res_none = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
+                           correction="none")
+    out["NEMS"] = _metrics(res_none.selected)
+
+    res_bonf = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni")
+    out["Marginal (Bon)"] = _metrics(res_bonf.selected)
 
     res_raw = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none")
     out["Marginal"] = _metrics(res_raw.selected)
-
-    res_bonf = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni")
-    out["Marginal (Bonferroni)"] = _metrics(res_bonf.selected)
 
     return out
