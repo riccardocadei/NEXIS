@@ -137,6 +137,7 @@ def run_one(
     nems_max_steps: int = 5,
     pr0: Optional[float] = None,
     precode_features: Optional[np.ndarray] = None,
+    include_gcm: bool = False,
     **scm_kwargs: Any,
 ) -> Dict[str, Dict[str, float]]:
     """
@@ -165,6 +166,7 @@ def run_one(
         nems_max_steps=nems_max_steps,
         pr0=pr0,
         z_precode=z_precode,
+        include_gcm=include_gcm,
     )
 
 
@@ -187,6 +189,7 @@ def run_sweep(
     n_jobs: int = -1,
     verbose: bool = True,
     precode_features: Optional[np.ndarray] = None,
+    include_gcm: bool = False,
     **scm_kwargs: Any,
 ) -> pd.DataFrame:
     """
@@ -221,6 +224,7 @@ def run_sweep(
                     n=n, effect_scale=effect_scale, seed=seed,
                     alpha=alpha, nems_max_steps=nems_max_steps,
                     pr0=pr0, precode_features=precode_features,
+                    include_gcm=include_gcm,
                     **scm_kwargs,
                 )
             except ValueError as e:

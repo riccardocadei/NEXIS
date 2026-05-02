@@ -91,6 +91,7 @@ METHOD_STYLES: dict = {
     'NEMS':            dict(color='#9467bd', marker='o', lw=2.0,          label='NEMS'),
     'Marginal (Bon)':  dict(color='#ff7f0e', marker='s', lw=1.5, ls=':', label='Marginal (Bon)'),
     'Marginal':        dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
+    'NEIS':            dict(color='#8c564b', marker='D', lw=2.0,          label='NEIS'),
 }
 
 REPR_STYLES: dict = {

@@ -96,6 +96,9 @@ def parse_args():
     p.add_argument("--gamma-w2",     type=float, default=-1.0)
     p.add_argument("--noise-sd",     type=float, default=1.0)
     p.add_argument("--force",        action="store_true")
+    p.add_argument("--include-gcm",  action="store_true",
+                   help="Also run NEIS (GCM) variant (~27× slower). "
+                        "Submit as a separate job with --time 08:00:00.")
     return p.parse_args()
 
 
@@ -231,6 +234,7 @@ def main():
             alpha=args.alpha,
             nems_max_steps=args.max_steps,
             precode_features=precode_features,
+            include_gcm=args.include_gcm,
             **scm_kwargs,
         )
         dfs_effect.append(df)
@@ -252,6 +256,7 @@ def main():
             alpha=args.alpha,
             nems_max_steps=args.max_steps,
             precode_features=precode_features,
+            include_gcm=args.include_gcm,
             **scm_kwargs,
         )
         dfs_n.append(df)
