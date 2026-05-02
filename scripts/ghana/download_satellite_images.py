@@ -27,12 +27,19 @@ Bands (Landsat 8 SR):
 """
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import requests
+
+
+def log(msg: str):
+    print(msg, flush=True)
+    sys.stdout.flush()
+
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
@@ -46,8 +53,8 @@ def parse_args():
     p.add_argument('--year', type=int, default=2015,
                    help='Year for annual composite (default: 2015)')
     p.add_argument('--bands', nargs='+',
-                   default=['B4', 'B3', 'B2', 'B5', 'B6', 'B7'],
-                   help='Landsat 8 bands to include (default: B4 B3 B2 B5 B6 B7)')
+                   default=['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7'],
+                   help='Landsat 8 SR bands to include (default: SR_B4 SR_B3 SR_B2 SR_B5 SR_B6 SR_B7)')
     p.add_argument('--scale', type=int, default=30,
                    help='Resolution in metres (default: 30 = Landsat native)')
     p.add_argument('--max-cloud', type=float, default=70.0,
@@ -72,7 +79,7 @@ def load_community_centroids(data_path: str) -> pd.DataFrame:
     )
     centroids.columns = ['comm_id', 'lat', 'lon']
     n_missing = df['comm'].nunique() - len(centroids)
-    print(f"Loaded {len(centroids)} community centroids ({n_missing} missing GPS skipped)")
+    log(f"Loaded {len(centroids)} community centroids ({n_missing} missing GPS skipped)")
     return centroids
 
 
@@ -102,10 +109,9 @@ def build_composite(year: int, tile, bands: list[str], max_cloud: float):
 
 def download_tile(composite, tile, comm_id: int, scale: int,
                   out_dir: Path, retries: int = 3) -> bool:
-    import ee
     dest = out_dir / f'ghana_comm{comm_id:04d}.tif'
     if dest.exists():
-        print(f"  SKIP  comm{comm_id:04d}  (already exists)")
+        log(f"  SKIP  comm{comm_id:04d}  (already exists)")
         return True
 
     params = {
@@ -117,19 +123,21 @@ def download_tile(composite, tile, comm_id: int, scale: int,
 
     for attempt in range(1, retries + 1):
         try:
+            log(f"  GET   comm{comm_id:04d}  (attempt {attempt}) — requesting URL from GEE …")
             url = composite.getDownloadURL(params)
-            r   = requests.get(url, timeout=120)
+            log(f"  GET   comm{comm_id:04d}  — downloading …")
+            r   = requests.get(url, timeout=180)
             r.raise_for_status()
             dest.write_bytes(r.content)
-            print(f"  OK    comm{comm_id:04d}  ({len(r.content) / 1024:.0f} KB)")
+            log(f"  OK    comm{comm_id:04d}  ({len(r.content) / 1024:.0f} KB)")
             return True
         except Exception as exc:
             if attempt < retries:
-                wait = 10 * attempt
-                print(f"  RETRY comm{comm_id:04d}  attempt {attempt} — {exc} — waiting {wait}s")
+                wait = 15 * attempt
+                log(f"  RETRY comm{comm_id:04d}  attempt {attempt} — {exc} — waiting {wait}s")
                 time.sleep(wait)
             else:
-                print(f"  FAIL  comm{comm_id:04d}  — {exc}")
+                log(f"  FAIL  comm{comm_id:04d}  — {exc}")
                 return False
 
 
@@ -147,14 +155,14 @@ def main():
     if args.dry_run:
         tile_px = int((args.tile_km * 1000) / args.scale)
         size_kb = tile_px * tile_px * len(args.bands) * 4 / 1024
-        print(f"\n[DRY RUN] {len(centroids)} communities")
-        print(f"  Year: {args.year}  |  Tile: {args.tile_km}×{args.tile_km} km  "
-              f"|  {tile_px}×{tile_px} px  |  ~{size_kb:.0f} KB/tile")
-        print(f"  Bands: {args.bands}  |  Scale: {args.scale} m  "
-              f"|  Total: ~{size_kb * len(centroids) / 1024:.0f} MB")
-        print(f"  Output: {out_dir}")
+        log(f"\n[DRY RUN] {len(centroids)} communities")
+        log(f"  Year: {args.year}  |  Tile: {args.tile_km}×{args.tile_km} km  "
+            f"|  {tile_px}×{tile_px} px  |  ~{size_kb:.0f} KB/tile")
+        log(f"  Bands: {args.bands}  |  Scale: {args.scale} m  "
+            f"|  Total: ~{size_kb * len(centroids) / 1024:.0f} MB")
+        log(f"  Output: {out_dir}")
         for _, row in centroids.iterrows():
-            print(f"  comm{int(row.comm_id):04d}  lat={row.lat:.4f}  lon={row.lon:.4f}")
+            log(f"  comm{int(row.comm_id):04d}  lat={row.lat:.4f}  lon={row.lon:.4f}")
         return
 
     import ee
@@ -164,7 +172,7 @@ def main():
     half_m  = (args.tile_km * 1000) / 2
     ok, fail = 0, 0
 
-    print(f"\nDownloading {len(centroids)} tiles → {out_dir}\n")
+    log(f"\nDownloading {len(centroids)} tiles → {out_dir}\n")
     for i, (_, row) in enumerate(centroids.iterrows(), 1):
         tile      = make_tile(row.lon, row.lat, half_m)
         composite = build_composite(args.year, tile, args.bands, args.max_cloud)
@@ -174,11 +182,11 @@ def main():
             ok += 1
         else:
             fail += 1
-        print(f"  [{i}/{len(centroids)}]  {ok} ok  {fail} failed", end='\r')
+        log(f"  [{i}/{len(centroids)}]  {ok} ok  {fail} failed")
 
-    print(f"\n\nDone: {ok} downloaded, {fail} failed → {out_dir}")
+    log(f"\nDone: {ok} downloaded, {fail} failed → {out_dir}")
     if fail:
-        print("Re-run the script to retry failed tiles (completed tiles are skipped).")
+        log("Re-run the script to retry failed tiles (completed tiles are skipped).")
 
 
 if __name__ == '__main__':
