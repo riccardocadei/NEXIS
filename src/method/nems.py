@@ -7,6 +7,142 @@ import numpy as np
 from scipy import stats
 
 
+# ── GCM helpers ───────────────────────────────────────────────────────────────
+
+def _make_nuisance_model(nuisance: str, n_estimators: int, max_depth: Optional[int],
+                         random_state: int):
+    """Return a fitted-model factory for the chosen nuisance estimator.
+
+    nuisance options:
+      "poly2"  — Ridge on degree-2 polynomial features of Z^S.  ~5ms per fit,
+                 handles quadratic main effects.  ~1.2× overhead vs linear.
+      "lgbm"   — LightGBM shallow trees.  ~35ms per fit, fully nonparametric.
+                 ~3× overhead vs linear.  Requires lightgbm package.
+      "rf"     — Random Forest (sklearn).  ~1s per fit, fully nonparametric.
+                 ~27× overhead vs linear.  Most robust, use for final results.
+    """
+    if nuisance == "poly2":
+        from sklearn.linear_model import Ridge
+        from sklearn.preprocessing import PolynomialFeatures
+        from sklearn.pipeline import Pipeline
+        return lambda: Pipeline([
+            ("poly", PolynomialFeatures(degree=2, include_bias=False)),
+            ("ridge", Ridge(alpha=1.0)),
+        ])
+    elif nuisance == "lgbm":
+        try:
+            import lightgbm as lgb
+        except ImportError:
+            raise ImportError("lightgbm is required for nuisance='lgbm'. "
+                              "Install with: pip install lightgbm")
+        _n = n_estimators if n_estimators != 100 else 50
+        _d = max_depth if max_depth is not None else 4
+        return lambda: lgb.LGBMRegressor(
+            n_estimators=_n, max_depth=_d, num_leaves=2**_d - 1,
+            verbose=-1, n_jobs=1, random_state=random_state,
+        )
+    elif nuisance == "rf":
+        from sklearn.ensemble import RandomForestRegressor
+        _d = max_depth  # None = unlimited
+        return lambda: RandomForestRegressor(
+            n_estimators=n_estimators, max_depth=_d,
+            n_jobs=1, random_state=random_state,
+        )
+    else:
+        raise ValueError(f"nuisance must be 'poly2', 'lgbm', or 'rf'; got '{nuisance}'")
+
+
+def _crossfit(
+    X: np.ndarray,
+    y: np.ndarray,
+    model_factory,
+    n_splits: int = 5,
+    random_state: int = 0,
+) -> np.ndarray:
+    """K-fold cross-fitted predictions from any sklearn-compatible model."""
+    from sklearn.model_selection import KFold
+    pred = np.zeros_like(y, dtype=float)
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    for tr, te in kf.split(X):
+        m = model_factory()
+        m.fit(X[tr], y[tr])
+        pred[te] = m.predict(X[te])
+    return pred
+
+
+def conditional_interaction_pvalues_gcm(
+    y: np.ndarray,
+    t: np.ndarray,
+    z: np.ndarray,
+    S: Optional[Sequence[int]] = None,
+    candidates: Optional[Sequence[int]] = None,
+    nuisance: str = "poly2",
+    n_splits: int = 5,
+    n_estimators: int = 100,
+    max_depth: Optional[int] = None,
+) -> np.ndarray:
+    """GCM-hybrid p-values for H0(j|S) over j in candidates.
+
+    R-learner pseudo-outcome φ̂ = (Y − m̂(Z^S))(T−e)/(e(1−e)) is computed via
+    cross-fitted nuisance regression (choice controlled by `nuisance`), then a
+    GCM z-statistic is formed using vectorized linear residualization of all Z^j
+    candidates (O(n×m), fast regardless of nuisance choice).
+
+    nuisance:
+      "poly2"  ~1.2× slower than linear — Ridge on poly(2) features of Z^S.
+               Handles quadratic main-effect nonlinearity; best default.
+      "lgbm"   ~3× slower — LightGBM shallow trees; fully nonparametric.
+      "rf"     ~27× slower — Random Forest; most robust for final results.
+    """
+    y = np.asarray(y, dtype=float).reshape(-1)
+    t = np.asarray(t, dtype=float).reshape(-1)
+    Z = np.asarray(z, dtype=float)
+    n, m = Z.shape
+    S_list = [] if S is None else sorted(set(int(k) for k in S))
+    if candidates is None:
+        cand = np.array([j for j in range(m) if j not in S_list], dtype=int)
+    else:
+        cand = np.array([int(j) for j in candidates if int(j) not in S_list], dtype=int)
+
+    pvals = np.ones(m, dtype=float)
+    if cand.size == 0:
+        return pvals
+
+    e = float(t.mean())
+    if abs(e * (1 - e)) < 1e-12:
+        return pvals
+
+    model_fn = _make_nuisance_model(nuisance, n_estimators, max_depth, random_state=0)
+
+    # Conditioning input for nuisance model: Z^S columns (intercept handled internally)
+    Z_S_fit = Z[:, S_list] if S_list else np.zeros((n, 1))
+
+    # R-learner pseudo-outcome: phi = (Y - m_hat) * (T - e) / (e*(1-e))
+    m_hat = _crossfit(Z_S_fit, y, model_fn, n_splits=n_splits)
+    phi = (y - m_hat) * (t - e) / (e * (1 - e))
+
+    # Residualize phi on Z^S to remove remaining dependence
+    phi_resid = phi - _crossfit(Z_S_fit, phi, model_fn, n_splits=n_splits)
+
+    # Residualize all Z^j candidates on [1, Z^S] linearly (vectorized, O(n×m))
+    D_lin = np.column_stack([np.ones(n)] + ([Z[:, S_list]] if S_list else []))
+    Z_cand_resid = _residualize_against(D_lin, Z[:, cand])  # (n, K)
+
+    # GCM z-statistic: sqrt(n) * mean(R) / std(R),  R_i = phi_resid_i * Z^j_resid_i
+    R = phi_resid[:, None] * Z_cand_resid
+    R_mean = R.mean(axis=0)
+    R_std  = R.std(axis=0, ddof=1)
+
+    valid = R_std > 1e-12
+    Tn = np.zeros(len(cand))
+    Tn[valid] = np.sqrt(n) * R_mean[valid] / R_std[valid]
+
+    p = 2.0 * stats.norm.sf(np.abs(Tn))
+    p = np.clip(np.nan_to_num(p, nan=1.0, posinf=1.0, neginf=1.0), 0.0, 1.0)
+    pvals[cand] = p
+    return pvals
+
+
 @dataclass
 class SelectionResult:
     selected: List[int]
@@ -627,6 +763,201 @@ def nems_select_grouped(
     )
 
 
+def neis_select(
+    y: np.ndarray,
+    t: np.ndarray,
+    z: np.ndarray,
+    alpha: float = 0.05,
+    max_rounds: Optional[int] = None,
+    controls: Optional[np.ndarray] = None,
+    main_controls: Optional[np.ndarray] = None,
+    interaction_only: Optional[set] = None,
+    verbose: bool = False,
+) -> SelectionResult:
+    """Forward-backward selection (NEIS — Neural Exposure Interaction Search).
+
+    Each round:
+      1. Forward: add the best remaining j if p_j(S) ≤ α/|S̃|  (Bonferroni over remaining).
+      2. Backward: for every j ∈ S, remove j if p_j(S \\ {j}) > α/|S|.
+    Repeats until S is unchanged (fixed point).
+
+    Gate for the backward check uses the live |S| at each test, matching the
+    reference implementation in the paper (Algorithm 1 / Appendix B.2).
+    """
+    Z = np.asarray(z, dtype=float)
+    m = Z.shape[1]
+    selected: List[int] = []
+    last_pvals = np.ones(m, dtype=float)
+    selected_pvals = np.ones(m, dtype=float)
+
+    S_prev: List[int] = [-1]  # sentinel — guaranteed != [] on first entry
+    round_num = 0
+
+    while selected != S_prev:
+        if max_rounds is not None and round_num >= max_rounds:
+            break
+        S_prev = list(selected)
+
+        # ── Forward step ──────────────────────────────────────────────────────
+        remaining = [j for j in range(m) if j not in selected]
+        if remaining:
+            pvals = conditional_interaction_pvalues(
+                y=y, t=t, z=Z, S=selected, candidates=remaining,
+                controls=controls, main_controls=main_controls,
+                interaction_only=interaction_only,
+            )
+            last_pvals = pvals.copy()
+            j_star = remaining[int(np.argmin(pvals[remaining]))]
+            p_star = float(pvals[j_star])
+            gate_fwd = alpha / len(remaining)
+
+            if verbose:
+                print(f"  round {round_num+1:2d} fwd | remaining={len(remaining):5d} "
+                      f"gate={gate_fwd:.2e} | best=j{j_star} p={p_star:.2e}", flush=True)
+
+            if p_star <= gate_fwd:
+                selected_pvals[j_star] = p_star
+                selected.append(j_star)
+                if verbose:
+                    print(f"    → added j{j_star}  S={selected}", flush=True)
+
+        # ── Backward step ─────────────────────────────────────────────────────
+        for j in list(selected):
+            if not selected:
+                break
+            S_minus_j = [k for k in selected if k != j]
+            pvals_back = conditional_interaction_pvalues(
+                y=y, t=t, z=Z, S=S_minus_j, candidates=[j],
+                controls=controls, main_controls=main_controls,
+                interaction_only=interaction_only,
+            )
+            p_j = float(pvals_back[j])
+            gate_bwd = alpha / len(selected)  # live |S|, matching Algorithm 1
+
+            if verbose:
+                print(f"  round {round_num+1:2d} bwd | j={j} p={p_j:.2e} "
+                      f"gate={gate_bwd:.2e}", flush=True)
+
+            if p_j > gate_bwd:
+                selected.remove(j)
+                if verbose:
+                    print(f"    → removed j{j}  S={selected}", flush=True)
+
+        round_num += 1
+
+    out_pvals = last_pvals.copy()
+    for j in selected:
+        out_pvals[j] = selected_pvals[j]
+
+    return SelectionResult(
+        selected=selected,
+        pvalues=out_pvals,
+        method="neis",
+        alpha=alpha,
+        metadata={"m": float(m), "steps": float(len(selected)),
+                  "rounds": float(round_num)},
+    )
+
+
+def neis_select_gcm(
+    y: np.ndarray,
+    t: np.ndarray,
+    z: np.ndarray,
+    alpha: float = 0.05,
+    max_rounds: Optional[int] = None,
+    nuisance: str = "poly2",
+    n_splits: int = 5,
+    n_estimators: int = 100,
+    max_depth: Optional[int] = None,
+    verbose: bool = False,
+) -> SelectionResult:
+    """NEIS with GCM-hybrid test (nonparametric φ̂, linear Z^j residualization).
+
+    Same forward-backward logic as neis_select, using conditional_interaction_pvalues_gcm
+    for each p-value.  The nuisance model for φ̂ = (Y−m̂(Z^S))(T−e)/(e(1−e)) is
+    controlled by `nuisance`:
+
+      "poly2"  ~1.2× vs linear  Ridge on poly(degree=2) features of Z^S.
+                                 Handles quadratic main-effect nonlinearity.
+                                 Default: best speed/quality trade-off.
+      "lgbm"   ~3× vs linear    LightGBM shallow trees; fully nonparametric.
+      "rf"     ~27× vs linear   Random Forest; most robust; use for final results.
+    """
+    Z = np.asarray(z, dtype=float)
+    m = Z.shape[1]
+    selected: List[int] = []
+    last_pvals = np.ones(m, dtype=float)
+    selected_pvals = np.ones(m, dtype=float)
+
+    gcm_kwargs = dict(nuisance=nuisance, n_splits=n_splits,
+                      n_estimators=n_estimators, max_depth=max_depth)
+
+    S_prev: List[int] = [-1]
+    round_num = 0
+
+    while selected != S_prev:
+        if max_rounds is not None and round_num >= max_rounds:
+            break
+        S_prev = list(selected)
+
+        # ── Forward step ──────────────────────────────────────────────────────
+        remaining = [j for j in range(m) if j not in selected]
+        if remaining:
+            pvals = conditional_interaction_pvalues_gcm(
+                y=y, t=t, z=Z, S=selected, candidates=remaining, **gcm_kwargs,
+            )
+            last_pvals = pvals.copy()
+            j_star = remaining[int(np.argmin(pvals[remaining]))]
+            p_star = float(pvals[j_star])
+            gate_fwd = alpha / len(remaining)
+
+            if verbose:
+                print(f"  round {round_num+1:2d} fwd | remaining={len(remaining):5d} "
+                      f"gate={gate_fwd:.2e} | best=j{j_star} p={p_star:.2e}", flush=True)
+
+            if p_star <= gate_fwd:
+                selected_pvals[j_star] = p_star
+                selected.append(j_star)
+                if verbose:
+                    print(f"    → added j{j_star}  S={selected}", flush=True)
+
+        # ── Backward step ─────────────────────────────────────────────────────
+        for j in list(selected):
+            if not selected:
+                break
+            S_minus_j = [k for k in selected if k != j]
+            pvals_back = conditional_interaction_pvalues_gcm(
+                y=y, t=t, z=Z, S=S_minus_j, candidates=[j], **gcm_kwargs,
+            )
+            p_j = float(pvals_back[j])
+            gate_bwd = alpha / len(selected)
+
+            if verbose:
+                print(f"  round {round_num+1:2d} bwd | j={j} p={p_j:.2e} "
+                      f"gate={gate_bwd:.2e}", flush=True)
+
+            if p_j > gate_bwd:
+                selected.remove(j)
+                if verbose:
+                    print(f"    → removed j{j}  S={selected}", flush=True)
+
+        round_num += 1
+
+    out_pvals = last_pvals.copy()
+    for j in selected:
+        out_pvals[j] = selected_pvals[j]
+
+    return SelectionResult(
+        selected=selected,
+        pvalues=out_pvals,
+        method=f"neis_gcm_{nuisance}",
+        alpha=alpha,
+        metadata={"m": float(m), "steps": float(len(selected)),
+                  "rounds": float(round_num), "nuisance": nuisance,
+                  "n_splits": float(n_splits), "n_estimators": float(n_estimators)},
+    )
+
+
 def iou_score(selected: Sequence[int], truth: Sequence[int]) -> float:
     S = set(int(x) for x in selected)
     T = set(int(x) for x in truth)
@@ -645,6 +976,7 @@ def evaluate_methods_on_dataset(
     nems_max_steps: Optional[int] = None,
     pr0: Optional[float] = None,   # unused, kept for API compatibility
     z_precode: Optional[np.ndarray] = None,  # continuous precodes for AEM M_eff
+    include_gcm: bool = False,     # add NEIS (GCM): ~27× slower, submit separately
 ) -> Dict[str, Dict[str, float]]:
     out = {}
     truth_set = set(int(x) for x in truth)
@@ -694,5 +1026,20 @@ def evaluate_methods_on_dataset(
 
     res_raw = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none")
     out["Marginal"] = _metrics(res_raw.selected)
+
+    res_neis = neis_select(y=y, t=t, z=z, alpha=alpha)
+    out["NEIS"] = _metrics(res_neis.selected)
+
+    # poly2: Ridge on degree-2 polynomial features of Z^S — ~1.2× vs linear, always on
+    res_neis_poly = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="poly2")
+    out["NEIS (poly2)"] = _metrics(res_neis_poly.selected)
+
+    if include_gcm:
+        # lgbm: fully nonparametric, ~3× vs linear
+        res_neis_lgbm = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="lgbm")
+        out["NEIS (lgbm)"] = _metrics(res_neis_lgbm.selected)
+        # rf: most robust, ~27× vs linear
+        res_neis_rf = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="rf")
+        out["NEIS (rf)"] = _metrics(res_neis_rf.selected)
 
     return out
