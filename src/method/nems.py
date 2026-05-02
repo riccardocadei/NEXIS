@@ -80,6 +80,7 @@ def conditional_interaction_pvalues_gcm(
     n_splits: int = 5,
     n_estimators: int = 100,
     max_depth: Optional[int] = None,
+    return_tstats: bool = False,
 ) -> np.ndarray:
     """GCM-hybrid p-values for H0(j|S) over j in candidates.
 
@@ -140,6 +141,10 @@ def conditional_interaction_pvalues_gcm(
     p = 2.0 * stats.norm.sf(np.abs(Tn))
     p = np.clip(np.nan_to_num(p, nan=1.0, posinf=1.0, neginf=1.0), 0.0, 1.0)
     pvals[cand] = p
+    if return_tstats:
+        all_tstats = np.zeros(m, dtype=float)
+        all_tstats[cand] = Tn
+        return pvals, all_tstats
     return pvals
 
 
@@ -768,16 +773,18 @@ def neis_select(
     t: np.ndarray,
     z: np.ndarray,
     alpha: float = 0.05,
-    max_rounds: Optional[int] = None,
+    max_rounds: Optional[int] = 20,
     controls: Optional[np.ndarray] = None,
     main_controls: Optional[np.ndarray] = None,
     interaction_only: Optional[set] = None,
+    auto_f: Optional[float] = None,  # Gate 2: stop if |t_new| < auto_f * min(|t_selected|)
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward-backward selection (NEIS — Neural Exposure Interaction Search).
 
     Each round:
       1. Forward: add the best remaining j if p_j(S) ≤ α/|S̃|  (Bonferroni over remaining).
+         Gate 2 (auto_f): stop before adding if |t_new| < auto_f * min(|t_selected|).
       2. Backward: for every j ∈ S, remove j if p_j(S \\ {j}) > α/|S|.
     Repeats until S is unchanged (fixed point).
 
@@ -789,11 +796,13 @@ def neis_select(
     selected: List[int] = []
     last_pvals = np.ones(m, dtype=float)
     selected_pvals = np.ones(m, dtype=float)
+    t_selected: List[float] = []  # |t| of each selected feature (for Gate 2)
 
     S_prev: List[int] = [-1]  # sentinel — guaranteed != [] on first entry
     round_num = 0
+    _gate2_stop = False
 
-    while selected != S_prev:
+    while selected != S_prev and not _gate2_stop:
         if max_rounds is not None and round_num >= max_rounds:
             break
         S_prev = list(selected)
@@ -801,25 +810,53 @@ def neis_select(
         # ── Forward step ──────────────────────────────────────────────────────
         remaining = [j for j in range(m) if j not in selected]
         if remaining:
-            pvals = conditional_interaction_pvalues(
-                y=y, t=t, z=Z, S=selected, candidates=remaining,
-                controls=controls, main_controls=main_controls,
-                interaction_only=interaction_only,
-            )
+            if auto_f is not None:
+                pvals, tstats = conditional_interaction_pvalues(
+                    y=y, t=t, z=Z, S=selected, candidates=remaining,
+                    controls=controls, main_controls=main_controls,
+                    interaction_only=interaction_only, return_tstats=True,
+                )
+            else:
+                pvals = conditional_interaction_pvalues(
+                    y=y, t=t, z=Z, S=selected, candidates=remaining,
+                    controls=controls, main_controls=main_controls,
+                    interaction_only=interaction_only,
+                )
+                tstats = None
             last_pvals = pvals.copy()
-            j_star = remaining[int(np.argmin(pvals[remaining]))]
+
+            if tstats is not None:
+                j_star = remaining[int(np.argmax(np.abs(tstats[remaining])))]
+            else:
+                j_star = remaining[int(np.argmin(pvals[remaining]))]
             p_star = float(pvals[j_star])
             gate_fwd = alpha / len(remaining)
 
             if verbose:
+                t_str = (f" |t|={abs(tstats[j_star]):.2f}" if tstats is not None else "")
                 print(f"  round {round_num+1:2d} fwd | remaining={len(remaining):5d} "
-                      f"gate={gate_fwd:.2e} | best=j{j_star} p={p_star:.2e}", flush=True)
+                      f"gate={gate_fwd:.2e} | best=j{j_star} p={p_star:.2e}{t_str}", flush=True)
 
             if p_star <= gate_fwd:
-                selected_pvals[j_star] = p_star
-                selected.append(j_star)
-                if verbose:
-                    print(f"    → added j{j_star}  S={selected}", flush=True)
+                if auto_f is not None and tstats is not None and len(t_selected) > 0:
+                    t_new = float(abs(tstats[j_star]))
+                    t_min_found = min(t_selected)
+                    if t_min_found > 0 and t_new < auto_f * t_min_found:
+                        if verbose:
+                            print(f"    → auto-stopped (Gate 2): "
+                                  f"|t_new|={t_new:.2f} < f={auto_f} × "
+                                  f"t_min={t_min_found:.2f}", flush=True)
+                        _gate2_stop = True
+                if not _gate2_stop:
+                    selected_pvals[j_star] = p_star
+                    selected.append(j_star)
+                    if tstats is not None:
+                        t_selected.append(float(abs(tstats[j_star])))
+                    if verbose:
+                        print(f"    → added j{j_star}  S={selected}", flush=True)
+
+        if _gate2_stop:
+            break
 
         # ── Backward step ─────────────────────────────────────────────────────
         for j in list(selected):
@@ -849,13 +886,18 @@ def neis_select(
     for j in selected:
         out_pvals[j] = selected_pvals[j]
 
+    method_str = "neis"
+    if auto_f is not None:
+        method_str += f"_auto{auto_f}"
+
     return SelectionResult(
         selected=selected,
         pvalues=out_pvals,
-        method="neis",
+        method=method_str,
         alpha=alpha,
         metadata={"m": float(m), "steps": float(len(selected)),
-                  "rounds": float(round_num)},
+                  "rounds": float(round_num),
+                  **({"auto_f": float(auto_f)} if auto_f is not None else {})},
     )
 
 
@@ -864,11 +906,12 @@ def neis_select_gcm(
     t: np.ndarray,
     z: np.ndarray,
     alpha: float = 0.05,
-    max_rounds: Optional[int] = None,
+    max_rounds: Optional[int] = 20,
     nuisance: str = "poly2",
     n_splits: int = 5,
     n_estimators: int = 100,
     max_depth: Optional[int] = None,
+    auto_f: Optional[float] = None,  # Gate 2: stop if |t_new| < auto_f * min(|t_selected|)
     verbose: bool = False,
 ) -> SelectionResult:
     """NEIS with GCM-hybrid test (nonparametric φ̂, linear Z^j residualization).
@@ -888,14 +931,16 @@ def neis_select_gcm(
     selected: List[int] = []
     last_pvals = np.ones(m, dtype=float)
     selected_pvals = np.ones(m, dtype=float)
+    t_selected: List[float] = []  # |z| of each selected feature (for Gate 2)
 
     gcm_kwargs = dict(nuisance=nuisance, n_splits=n_splits,
                       n_estimators=n_estimators, max_depth=max_depth)
 
     S_prev: List[int] = [-1]
     round_num = 0
+    _gate2_stop = False
 
-    while selected != S_prev:
+    while selected != S_prev and not _gate2_stop:
         if max_rounds is not None and round_num >= max_rounds:
             break
         S_prev = list(selected)
@@ -903,23 +948,50 @@ def neis_select_gcm(
         # ── Forward step ──────────────────────────────────────────────────────
         remaining = [j for j in range(m) if j not in selected]
         if remaining:
-            pvals = conditional_interaction_pvalues_gcm(
-                y=y, t=t, z=Z, S=selected, candidates=remaining, **gcm_kwargs,
-            )
+            if auto_f is not None:
+                pvals, tstats = conditional_interaction_pvalues_gcm(
+                    y=y, t=t, z=Z, S=selected, candidates=remaining,
+                    return_tstats=True, **gcm_kwargs,
+                )
+            else:
+                pvals = conditional_interaction_pvalues_gcm(
+                    y=y, t=t, z=Z, S=selected, candidates=remaining, **gcm_kwargs,
+                )
+                tstats = None
             last_pvals = pvals.copy()
-            j_star = remaining[int(np.argmin(pvals[remaining]))]
+
+            if tstats is not None:
+                j_star = remaining[int(np.argmax(np.abs(tstats[remaining])))]
+            else:
+                j_star = remaining[int(np.argmin(pvals[remaining]))]
             p_star = float(pvals[j_star])
             gate_fwd = alpha / len(remaining)
 
             if verbose:
+                t_str = (f" |z|={abs(tstats[j_star]):.2f}" if tstats is not None else "")
                 print(f"  round {round_num+1:2d} fwd | remaining={len(remaining):5d} "
-                      f"gate={gate_fwd:.2e} | best=j{j_star} p={p_star:.2e}", flush=True)
+                      f"gate={gate_fwd:.2e} | best=j{j_star} p={p_star:.2e}{t_str}", flush=True)
 
             if p_star <= gate_fwd:
-                selected_pvals[j_star] = p_star
-                selected.append(j_star)
-                if verbose:
-                    print(f"    → added j{j_star}  S={selected}", flush=True)
+                if auto_f is not None and tstats is not None and len(t_selected) > 0:
+                    t_new = float(abs(tstats[j_star]))
+                    t_min_found = min(t_selected)
+                    if t_min_found > 0 and t_new < auto_f * t_min_found:
+                        if verbose:
+                            print(f"    → auto-stopped (Gate 2): "
+                                  f"|z_new|={t_new:.2f} < f={auto_f} × "
+                                  f"z_min={t_min_found:.2f}", flush=True)
+                        _gate2_stop = True
+                if not _gate2_stop:
+                    selected_pvals[j_star] = p_star
+                    selected.append(j_star)
+                    if tstats is not None:
+                        t_selected.append(float(abs(tstats[j_star])))
+                    if verbose:
+                        print(f"    → added j{j_star}  S={selected}", flush=True)
+
+        if _gate2_stop:
+            break
 
         # ── Backward step ─────────────────────────────────────────────────────
         for j in list(selected):
@@ -947,14 +1019,19 @@ def neis_select_gcm(
     for j in selected:
         out_pvals[j] = selected_pvals[j]
 
+    method_str = f"neis_gcm_{nuisance}"
+    if auto_f is not None:
+        method_str += f"_auto{auto_f}"
+
     return SelectionResult(
         selected=selected,
         pvalues=out_pvals,
-        method=f"neis_gcm_{nuisance}",
+        method=method_str,
         alpha=alpha,
         metadata={"m": float(m), "steps": float(len(selected)),
                   "rounds": float(round_num), "nuisance": nuisance,
-                  "n_splits": float(n_splits), "n_estimators": float(n_estimators)},
+                  "n_splits": float(n_splits), "n_estimators": float(n_estimators),
+                  **({"auto_f": float(auto_f)} if auto_f is not None else {})},
     )
 
 
@@ -1001,45 +1078,29 @@ def evaluate_methods_on_dataset(
             "precision": float(precision),
         }
 
-    res_aem = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
-                          correction="bon_aem", z_for_corr=z_precode)
-    out["NEMS (AEM)"] = _metrics(res_aem.selected)
-
     res_auto = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
                            correction="bonferroni", auto_f=0.5)
     out["NEMS (auto)"] = _metrics(res_auto.selected)
 
-    res_aem_auto = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
-                               correction="bon_aem", z_for_corr=z_precode, auto_f=0.5)
-    out["NEMS (AEM+auto)"] = _metrics(res_aem_auto.selected)
-
-    res_bonp = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
-                           correction="bonferroni")
-    out["NEMS (Bon)"] = _metrics(res_bonp.selected)
-
-    res_none = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
-                           correction="none")
-    out["NEMS"] = _metrics(res_none.selected)
-
     res_bonf = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni")
     out["Marginal (Bon)"] = _metrics(res_bonf.selected)
 
-    res_raw = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none")
-    out["Marginal"] = _metrics(res_raw.selected)
+    res_marginal = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none")
+    out["Marginal"] = _metrics(res_marginal.selected)
 
-    res_neis = neis_select(y=y, t=t, z=z, alpha=alpha)
-    out["NEIS"] = _metrics(res_neis.selected)
+    res_neis = neis_select(y=y, t=t, z=z, alpha=alpha, max_rounds=nems_max_steps)
+    out["NEIS (linear)"] = _metrics(res_neis.selected)
 
-    # poly2: Ridge on degree-2 polynomial features of Z^S — ~1.2× vs linear, always on
-    res_neis_poly = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="poly2")
+    res_neis_auto = neis_select(y=y, t=t, z=z, alpha=alpha, max_rounds=nems_max_steps,
+                                auto_f=0.5)
+    out["NEIS (auto) (linear)"] = _metrics(res_neis_auto.selected)
+
+    res_neis_poly = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="poly2",
+                                    max_rounds=nems_max_steps)
     out["NEIS (poly2)"] = _metrics(res_neis_poly.selected)
 
-    if include_gcm:
-        # lgbm: fully nonparametric, ~3× vs linear
-        res_neis_lgbm = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="lgbm")
-        out["NEIS (lgbm)"] = _metrics(res_neis_lgbm.selected)
-        # rf: most robust, ~27× vs linear
-        res_neis_rf = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="rf")
-        out["NEIS (rf)"] = _metrics(res_neis_rf.selected)
+    res_neis_auto_poly = neis_select_gcm(y=y, t=t, z=z, alpha=alpha, nuisance="poly2",
+                                         max_rounds=nems_max_steps, auto_f=0.5)
+    out["NEIS (auto) (poly2)"] = _metrics(res_neis_auto_poly.selected)
 
     return out

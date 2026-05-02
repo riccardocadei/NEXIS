@@ -5,7 +5,7 @@
 #SBATCH --partition=defaultp
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #
 # Single-feature-type experiment worker. Called by submit_experiment.sh.
 # Usage: sbatch run_experiment_single.sh [raw|sae|sae_precode] [k]
@@ -27,7 +27,7 @@ COMMON_ARGS=(
     --w1-attr      Wearing_Hat
     --w2-attr      Eyeglasses
     --top-k        1
-    --n-seeds      20
+    --n-seeds      40
     --alpha        0.05
     --max-steps    10
     --fixed-n      500 2000
