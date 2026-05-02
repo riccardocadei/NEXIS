@@ -218,7 +218,7 @@ def main():
     )
 
     # ── Effect-size sweep (one sub-sweep per fixed n) ─────────────────────────
-    effect_grid = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 5.0, 10.0]
+    effect_grid = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
     dfs_effect = []
     for fixed_n in args.fixed_n:
         print(f"\n=== Effect-size sweep  n={fixed_n}  seeds={args.n_seeds} ===")
@@ -239,7 +239,7 @@ def main():
     print(f"Effect sweep: {len(df_effect)} rows  →  {effect_path}")
 
     # ── Sample-size sweep (one sub-sweep per fixed effect) ────────────────────
-    n_grid = [100, 250, 500, 1000, 2000, 5000, 10000]
+    n_grid = [50, 100, 250, 500, 1000, 2000, 5000, 10000]
     dfs_n = []
     for fixed_effect in args.fixed_effect:
         print(f"\n=== Sample-size sweep  effect={fixed_effect}  seeds={args.n_seeds} ===")

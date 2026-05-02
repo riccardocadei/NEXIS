@@ -2,27 +2,49 @@
 
 from __future__ import annotations
 
+import io
+import urllib.request
+import zipfile
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import geopandas as gpd
+from shapely.geometry import box
 from shapely.ops import unary_union
 
 TREAT_COLOR = '#e07b39'
 CTRL_COLOR  = '#5b8db8'
+PAPER_BG    = '#FFF5EB'  # orange!8!white: 8%*(1,0.5,0) + 92%*(1,1,1)
 
 
-def plot_ghana_map(data_dir: Path | str, ax=None) -> plt.Axes:
+def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False) -> plt.Axes:
     """Draw the Ghana LEAP 1000 study-area map.
 
     Highlights the trial regions (Northern / NorthEast / Upper East) and
     marks the five trial districts with annotated points.
+
+    Parameters
+    ----------
+    paper : bool
+        Paper-ready mode: no title, background set to orange!8!white.
     """
     data_dir = Path(data_dir)
     gdf1 = gpd.read_file(data_dir / 'gadm41_GHA_1.json')
     gdf2 = gpd.read_file(data_dir / 'gadm41_GHA_2.json')
+
+    # 10m lakes clipped to Ghana
+    lakes_shp = data_dir / 'ne_10m_lakes.shp'
+    if not lakes_shp.exists():
+        url = 'https://naciscdn.org/naturalearth/10m/physical/ne_10m_lakes.zip'
+        data = urllib.request.urlopen(url, timeout=60).read()
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for name in z.namelist():
+                if Path(name).suffix in ('.shp', '.shx', '.dbf', '.prj', '.cpg'):
+                    (data_dir / Path(name).name).write_bytes(z.read(name))
+    ghana_box = gpd.GeoDataFrame({'geometry': [box(*gdf1.total_bounds)]}, crs=gdf1.crs)
+    lakes_gh  = gpd.read_file(lakes_shp).to_crs(gdf1.crs).clip(ghana_box)
 
     TRIAL_REGIONS = {'Northern', 'NorthEast', 'UpperEast'}
     gdf1['in_trial'] = gdf1['NAME_1'].isin(TRIAL_REGIONS)
@@ -48,14 +70,20 @@ def plot_ghana_map(data_dir: Path | str, ax=None) -> plt.Axes:
     if ax is None:
         _, ax = plt.subplots(figsize=(4, 5))
 
+    if paper:
+        ax.set_facecolor(PAPER_BG)
+        ax.figure.set_facecolor(PAPER_BG)
+
     gdf1[~gdf1['in_trial']].plot(
         ax=ax, color='#d9d9d9', edgecolor='white', linewidth=0.6)
     gdf1[gdf1['in_trial']].plot(
         ax=ax, color=TREAT_COLOR, alpha=0.45, edgecolor='white', linewidth=0.6)
+    if not lakes_gh.empty:
+        lakes_gh.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=3)
 
     for name, pt in district_centroids.items():
         ax.scatter(pt.x, pt.y, s=55, color=TREAT_COLOR,
-                   edgecolors='white', linewidths=0.8, zorder=5)
+                   edgecolors='black', linewidths=0.5, zorder=5)
         dx, dy = label_offsets[name]
         ax.annotate(name,
                     xy=(pt.x, pt.y), xytext=(pt.x + dx, pt.y + dy),
@@ -63,7 +91,8 @@ def plot_ghana_map(data_dir: Path | str, ax=None) -> plt.Axes:
                     arrowprops=dict(arrowstyle='-', color='#666666', lw=0.6),
                     va='center', ha='right' if dx < 0 else 'left')
 
-    ax.set_title('LEAP 1000 trial districts', fontsize=11, pad=8)
+    if not paper:
+        ax.set_title('LEAP 1000 trial districts', fontsize=11, pad=8)
     ax.axis('off')
     return ax
 

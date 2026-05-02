@@ -84,13 +84,13 @@ def plot_importance(
 # ---------------------------------------------------------------------------
 
 METHOD_STYLES: dict = {
-    'NEMS (Bon)':     dict(color='#2ca02c', marker='o', lw=2.0,           label='NEMS (Bon)'),
-    'NEMS (Bon+)':    dict(color='#1f77b4', marker='o', lw=2.0,           label='NEMS (Bon+)'),
-    'NEMS (Bon+AEM)': dict(color='#e377c2', marker='o', lw=2.0, ls='-.',  label='NEMS (Bon+AEM)'),
-    'NEMS (80)':      dict(color='#17becf', marker='o', lw=2.0, ls='-.',  label='NEMS (80)'),
-    'NEMS':           dict(color='#9467bd', marker='o', lw=2.0,           label='NEMS'),
-    'Marginal (Bon)': dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal (Bon)'),
-    'Marginal':       dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
+    'NEMS (Bon)':      dict(color='#2ca02c', marker='o', lw=2.0,          label='NEMS (Bon)'),
+    'NEMS (auto)':     dict(color='#17becf', marker='o', lw=2.0, ls='--', label='NEMS (auto)'),
+    'NEMS (AEM+auto)': dict(color='#1f77b4', marker='o', lw=2.5,          label='NEMS (AEM+auto)'),
+    'NEMS (AEM)':      dict(color='#e377c2', marker='o', lw=2.0, ls='-.', label='NEMS (AEM)'),
+    'NEMS':            dict(color='#9467bd', marker='o', lw=2.0,          label='NEMS'),
+    'Marginal (Bon)':  dict(color='#ff7f0e', marker='s', lw=1.5, ls=':', label='Marginal (Bon)'),
+    'Marginal':        dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
 }
 
 REPR_STYLES: dict = {
@@ -114,6 +114,7 @@ def plot_sweep(df: pd.DataFrame, xcol: str, metric: str,
     """Mean ± 1.96 SE curves for each method vs. a sweep parameter."""
     if ax is None:
         _, ax = plt.subplots(figsize=(5, 3.5))
+    log_x = (xcol == 'n')
     for method, style in METHOD_STYLES.items():
         sub = df[df['method'] == method].groupby(xcol)[metric]
         mu, se = sub.mean(), sub.sem()
@@ -122,6 +123,8 @@ def plot_sweep(df: pd.DataFrame, xcol: str, metric: str,
                         (mu - 1.96 * se).values, (mu + 1.96 * se).values,
                         color=style['color'], alpha=0.15)
     _add_type1_region(ax, df, xcol, metric)
+    if log_x:
+        ax.set_xscale('log')
     ax.set_xlim(left=df[xcol].min() * 0.95)
     ax.set_ylim(-0.03, 1.03)
     ax.set_xlabel(xlabel)
@@ -214,10 +217,13 @@ def plot_sweep_grid(
             ax = axes[row, col]
             plot_sweep(sub, xcol, metric, xlabel=xlabel, ax=ax)
             if col == 0:
-                fixed_str = (f"{fixed_label}={int(fval)}"
-                             if xcol == "effect_scale"
-                             else f"{fixed_label}={fval:.1f}")
-                ax.set_ylabel(f"{fixed_str}\n{_METRIC_LABEL.get(metric, metric)}")
+                if fval is not None:
+                    fixed_str = (f"{fixed_label}={int(fval)}"
+                                 if xcol == "effect_scale"
+                                 else f"{fixed_label}={fval:.1f}")
+                    ax.set_ylabel(f"{fixed_str}\n{_METRIC_LABEL.get(metric, metric)}")
+                else:
+                    ax.set_ylabel(_METRIC_LABEL.get(metric, metric))
 
     fig.suptitle(suptitle, y=1.01, fontsize=11)
     fig.tight_layout()

@@ -46,7 +46,8 @@ def conditional_interaction_pvalues(
     controls: Optional[np.ndarray] = None,
     main_controls: Optional[np.ndarray] = None,
     interaction_only: Optional[set] = None,
-) -> np.ndarray:
+    return_tstats: bool = False,
+):
     """
     Vectorized p-values for H0(j|S) over j in candidates.
     Working model:
@@ -87,8 +88,9 @@ def conditional_interaction_pvalues(
         cand = np.array([int(j) for j in candidates if int(j) not in S], dtype=int)
 
     pvals = np.ones(m, dtype=float)
+    all_tstats = np.zeros(m, dtype=float)
     if cand.size == 0:
-        return pvals
+        return (pvals, all_tstats) if return_tstats else pvals
 
     # Split candidates into regular (2-reg) and interaction-only (1-reg)
     io_set = interaction_only if interaction_only is not None else set()
@@ -164,6 +166,7 @@ def conditional_interaction_pvalues(
             p[ok] = 2.0 * stats.t.sf(np.abs(tstat[ok]), df=dof)
             p = np.clip(np.nan_to_num(p, nan=1.0, posinf=1.0, neginf=1.0), 0.0, 1.0)
             pvals[reg_cand] = p
+            all_tstats[reg_cand] = tstat
 
     # ── 1-regressor test for interaction_only candidates ──────────────────────
     # Tests H0: gamma_j = 0 using only T*Z_j, with Z_j already in D (main_controls).
@@ -198,8 +201,9 @@ def conditional_interaction_pvalues(
             p_io[ok_io] = 2.0 * stats.t.sf(np.abs(tstat_io[ok_io]), df=dof1)
             p_io = np.clip(np.nan_to_num(p_io, nan=1.0, posinf=1.0, neginf=1.0), 0.0, 1.0)
             pvals[io_cand] = p_io
+            all_tstats[io_cand] = tstat_io
 
-    return pvals
+    return (pvals, all_tstats) if return_tstats else pvals
 
 
 def interaction_test_pvalue(
@@ -319,6 +323,7 @@ def nems_select(
     controls: Optional[np.ndarray] = None,
     main_controls: Optional[np.ndarray] = None,
     interaction_only: Optional[set] = None,
+    auto_f: Optional[float] = None,  # relative stopping threshold f = 1/(C_pa * C_br)
     verbose: bool = False,
 ) -> SelectionResult:
     """Sequential conditional interaction selection.
@@ -371,6 +376,9 @@ def nems_select(
         aem_D = 0.0
         aem_meff_traj = []
 
+    # Auto stopping: track |t-stat| of each selected feature for Gate 2.
+    t_selected: List[float] = []
+
     step = 0
     while True:
         if max_steps is not None and step >= max_steps:
@@ -380,14 +388,28 @@ def nems_select(
         if not remaining:
             break
 
-        pvals = conditional_interaction_pvalues(y=y, t=t, z=Z, S=selected,
-                                                candidates=remaining, controls=controls,
-                                                main_controls=main_controls,
-                                                interaction_only=interaction_only)
+        # Request t-stats when auto_f is set (needed for Gate 2 and tie-breaking)
+        if auto_f is not None:
+            pvals, tstats = conditional_interaction_pvalues(
+                y=y, t=t, z=Z, S=selected, candidates=remaining,
+                controls=controls, main_controls=main_controls,
+                interaction_only=interaction_only, return_tstats=True)
+        else:
+            pvals = conditional_interaction_pvalues(
+                y=y, t=t, z=Z, S=selected, candidates=remaining,
+                controls=controls, main_controls=main_controls,
+                interaction_only=interaction_only)
+            tstats = None
         last_pvals = pvals.copy()
 
-        rem_p = pvals[remaining]
-        j_star = remaining[int(np.argmin(rem_p))]
+        # Select best candidate: by |t-stat| (breaks p-value ties at machine epsilon)
+        # when tstats available, otherwise by minimum p-value.
+        if tstats is not None:
+            rem_abs_t = np.abs(tstats[remaining])
+            j_star = remaining[int(np.argmax(rem_abs_t))]
+        else:
+            rem_p = pvals[remaining]
+            j_star = remaining[int(np.argmin(rem_p))]
         p_star = pvals[j_star]
 
         if correction == "bonferroni":
@@ -406,13 +428,29 @@ def nems_select(
         n_pass = int(np.sum(pvals[remaining] <= gate))
 
         if verbose:
+            t_str = (f" |t|={abs(tstats[j_star]):.2f}" if tstats is not None else "")
             print(f"    step {step+1:2d} | remaining={len(remaining):5d} "
                   f"gate={gate:.2e} | passing={n_pass:4d} "
-                  f"| best=j{j_star} p={p_star:.2e}", flush=True)
+                  f"| best=j{j_star} p={p_star:.2e}{t_str}", flush=True)
 
         if p_star <= gate:
+            # Gate 2: relative stopping criterion (auto_f).
+            # Stop if new candidate's |t| < auto_f * min |t| of already-selected features.
+            # Only active once at least one feature has been selected.
+            if auto_f is not None and tstats is not None and len(t_selected) > 0:
+                t_new = float(abs(tstats[j_star]))
+                t_min_found = min(t_selected)
+                if t_min_found > 0 and t_new < auto_f * t_min_found:
+                    if verbose:
+                        print(f"    → auto-stopped (Gate 2): "
+                              f"|t_new|={t_new:.2f} < f={auto_f} × t_min={t_min_found:.2f} "
+                              f"= {auto_f * t_min_found:.2f}")
+                    break
+
             selected_pvals[j_star] = p_star   # record before j_star enters S
             selected.append(j_star)
+            if auto_f is not None and tstats is not None:
+                t_selected.append(float(abs(tstats[j_star])))
             step += 1
 
             # AEM: efficient O(|A|) update of D_A after removing j_star
@@ -424,7 +462,7 @@ def nems_select(
                 aem_active[j_star] = False
         else:
             if verbose:
-                print(f"    → stopped: best p={p_star:.2e} > gate={gate:.2e}")
+                print(f"    → stopped (Gate 1): best p={p_star:.2e} > gate={gate:.2e}")
             break
 
     # Merge: selected features use their selection-step p-value; others use last step.
@@ -442,12 +480,16 @@ def nems_select(
         method_str = f"nems_bonferroni_meff{m_eff}"
     else:
         method_str = _method_map.get(correction, "nems")
+    if auto_f is not None:
+        method_str += f"_auto{auto_f}"
 
     extra_meta: dict = {}
     if m_eff is not None and correction == "bonferroni":
         extra_meta["m_eff"] = float(m_eff)
     if correction == "bon_aem":
         extra_meta["aem_meff_trajectory"] = aem_meff_traj
+    if auto_f is not None:
+        extra_meta["auto_f"] = float(auto_f)
 
     return SelectionResult(
         selected=selected,
@@ -601,8 +643,8 @@ def evaluate_methods_on_dataset(
     truth: Sequence[int],
     alpha: float = 0.05,
     nems_max_steps: Optional[int] = None,
-    pr0: Optional[float] = None,
-    z_precode: Optional[np.ndarray] = None,  # continuous precodes for Bon+AEM M_eff
+    pr0: Optional[float] = None,   # unused, kept for API compatibility
+    z_precode: Optional[np.ndarray] = None,  # continuous precodes for AEM M_eff
 ) -> Dict[str, Dict[str, float]]:
     out = {}
     truth_set = set(int(x) for x in truth)
@@ -627,18 +669,21 @@ def evaluate_methods_on_dataset(
             "precision": float(precision),
         }
 
-    res_pr = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
-                         correction="pr", pr0=pr0)
-    out["NEMS (Bon+)"] = _metrics(res_pr.selected)
-
     res_aem = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
                           correction="bon_aem", z_for_corr=z_precode)
-    out["NEMS (Bon+AEM)"] = _metrics(res_aem.selected)
+    out["NEMS (AEM)"] = _metrics(res_aem.selected)
+
+    res_auto = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
+                           correction="bonferroni", auto_f=0.5)
+    out["NEMS (auto)"] = _metrics(res_auto.selected)
+
+    res_aem_auto = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
+                               correction="bon_aem", z_for_corr=z_precode, auto_f=0.5)
+    out["NEMS (AEM+auto)"] = _metrics(res_aem_auto.selected)
 
     res_bonp = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
                            correction="bonferroni")
     out["NEMS (Bon)"] = _metrics(res_bonp.selected)
-
 
     res_none = nems_select(y=y, t=t, z=z, alpha=alpha, max_steps=nems_max_steps,
                            correction="none")

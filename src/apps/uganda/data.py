@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from geodatasets import get_path
 from scipy import stats
 from scipy.linalg import lstsq
 from shapely.geometry import box
@@ -16,6 +15,7 @@ from shapely.geometry import box
 # ── Constants ─────────────────────────────────────────────────────────────────
 FILL_THRESHOLD = 5000
 PCT_LO, PCT_HI = 2, 98
+PAPER_BG = '#FFF5EB'  # orange!8!white: 8%*(1,0.5,0) + 92%*(1,1,1)
 
 # Language group codes → names (Blattman et al. 2014 — northern Uganda YOP)
 # Verify against the original codebook if in doubt.
@@ -148,7 +148,11 @@ def geo_label(key, df):
 # ── Mapping ───────────────────────────────────────────────────────────────────
 
 def load_basemap(map_data_dir, bbox=(29.0, -1.5, 35.5, 4.8)):
-    """Download (once) and return (uganda_gdf, neighbors, lakes_c) for draw_base."""
+    """Download (once) and return (uganda_gdf, neighbors, lakes_c, regions_gdf) for draw_base.
+
+    ``regions_gdf`` contains GADM level-1 sub-national boundaries for Uganda
+    (the same level of internal detail used in the Ghana map).
+    """
     map_data_dir = Path(map_data_dir)
     map_data_dir.mkdir(exist_ok=True)
 
@@ -166,23 +170,65 @@ def load_basemap(map_data_dir, bbox=(29.0, -1.5, 35.5, 4.8)):
     neighbors  = world[world.geometry.intersects(
                      uganda_gdf.union_all().buffer(0.3)) & (world['NAME'] != 'Uganda')]
 
-    lakes   = gpd.read_file(get_path('naturalearth.lakes'))
+    # 10m lakes (much higher quality than the 110m geodatasets default)
+    lakes_shp = map_data_dir / 'ne_10m_lakes.shp'
+    if not lakes_shp.exists():
+        url = 'https://naciscdn.org/naturalearth/10m/physical/ne_10m_lakes.zip'
+        data = urllib.request.urlopen(url, timeout=60).read()
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for name in z.namelist():
+                if Path(name).suffix in ('.shp', '.shx', '.dbf', '.prj', '.cpg'):
+                    (map_data_dir / Path(name).name).write_bytes(z.read(name))
     bbox_gdf = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs='EPSG:4326')
-    lakes_c  = lakes.clip(bbox_gdf)
+    lakes_c  = gpd.read_file(lakes_shp).to_crs('EPSG:4326').clip(bbox_gdf)
 
-    return uganda_gdf, neighbors, lakes_c
+    # GADM level-1 sub-national regions for Uganda (same detail as Ghana map)
+    gadm_json = map_data_dir / 'gadm41_UGA_1.json'
+    if not gadm_json.exists():
+        url = 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UGA_1.json'
+        data = urllib.request.urlopen(url, timeout=120).read()
+        gadm_json.write_bytes(data)
+    regions_gdf = gpd.read_file(gadm_json).to_crs('EPSG:4326')
+
+    return uganda_gdf, neighbors, lakes_c, regions_gdf
 
 
 def draw_base(ax, uganda_gdf, neighbors, lakes_c,
-              xlim=(29.1, 35.4), ylim=(-1.4, 4.6)):
-    """Draw Uganda + neighbours + Lake Victoria on ax."""
-    neighbors.plot(ax=ax, color='#e8e4dc', edgecolor='#bbb', lw=0.6, zorder=1)
-    uganda_gdf.plot(ax=ax, color='#f5f0e8', edgecolor='#444', lw=1.4, zorder=2)
-    lakes_c.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=3)
+              xlim=(29.1, 35.4), ylim=(-1.65, 4.45),
+              cities=None, paper: bool = False):
+    """Draw Uganda + neighbours + Lake Victoria on ax.
+
+    Parameters
+    ----------
+    cities : GeoDataFrame, optional
+        GADM level-1 sub-national regions for Uganda (returned as the 4th
+        value of ``load_basemap``).  When provided, internal region boundaries
+        are drawn on top of the country fill — matching the detail level of
+        the Ghana map.
+    paper : bool
+        Paper-ready mode: orange!8!white background, no axis labels/grid.
+    """
+    bg = PAPER_BG if paper else 'white'
+    ax.set_facecolor(bg)
+    ax.figure.set_facecolor(bg)
+
+    neighbors.plot(ax=ax,
+                   color=PAPER_BG if paper else '#e8e4dc',
+                   edgecolor='#bbb', lw=0.6, zorder=1)
+    if cities is not None:
+        cities.plot(ax=ax, color='#f5f0e8', edgecolor='#aaa', lw=0.4, zorder=2)
+        uganda_gdf.plot(ax=ax, color='none', edgecolor='#444', lw=1.4, zorder=3)
+    else:
+        uganda_gdf.plot(ax=ax, color='#f5f0e8', edgecolor='#444', lw=1.4, zorder=2)
+    lakes_c.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=4)
     ax.set_xlim(*xlim); ax.set_ylim(*ylim)
     ax.set_aspect('equal')
-    ax.set_xlabel('Longitude', fontsize=9); ax.set_ylabel('Latitude', fontsize=9)
-    ax.grid(alpha=0.2, ls='--', lw=0.5); ax.tick_params(labelsize=8)
+    if not paper:
+        ax.set_xlabel('Longitude', fontsize=9); ax.set_ylabel('Latitude', fontsize=9)
+        ax.grid(alpha=0.2, ls='--', lw=0.5)
+    else:
+        ax.axis('off')
+    ax.tick_params(labelsize=8)
 
 
 # ── Causal inference helpers ──────────────────────────────────────────────────
@@ -241,7 +287,8 @@ def compute_cate(df_sub, col, label_map=None):
     return pd.DataFrame(rows)
 
 
-def plot_districts(df, uganda_gdf, neighbors, lakes_c, ax=None):
+def plot_districts(df, uganda_gdf, neighbors, lakes_c,
+                   cities=None, ax=None, paper: bool = False):
     """Plot experimental sites colored by district on the Uganda basemap."""
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
@@ -261,7 +308,7 @@ def plot_districts(df, uganda_gdf, neighbors, lakes_c, ax=None):
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 8))
 
-    draw_base(ax, uganda_gdf, neighbors, lakes_c)
+    draw_base(ax, uganda_gdf, neighbors, lakes_c, cities=cities, paper=paper)
     for d, grp in sites.groupby('district'):
         ax.scatter(grp['geo_long_center'], grp['geo_lat_center'],
                    color=d_color[d], s=30, label=d, zorder=5,
@@ -372,7 +419,8 @@ def plot_cate_panels(df, w_panels, treat_color='#e07b39', ctrl_color='#5b8db8',
     return fig
 
 
-def plot_languages(df, uganda_gdf, neighbors, lakes_c, ax=None):
+def plot_languages(df, uganda_gdf, neighbors, lakes_c,
+                   cities=None, ax=None, paper: bool = False):
     """Plot experimental sites colored by language group on the Uganda basemap.
 
     Each site's language is the modal lang_group among its individuals (7 sites
@@ -407,7 +455,7 @@ def plot_languages(df, uganda_gdf, neighbors, lakes_c, ax=None):
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 8))
 
-    draw_base(ax, uganda_gdf, neighbors, lakes_c)
+    draw_base(ax, uganda_gdf, neighbors, lakes_c, cities=cities, paper=paper)
     for lang, grp in sites.groupby('lang_name'):
         ax.scatter(grp['geo_long_center'], grp['geo_lat_center'],
                    color=l_color.get(lang, 'grey'), s=30, label=lang, zorder=5,

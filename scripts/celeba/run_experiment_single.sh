@@ -4,8 +4,8 @@
 #SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-exp-%j.err
 #SBATCH --partition=defaultp
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=01:00:00
+#SBATCH --mem=64G
+#SBATCH --time=04:00:00
 #
 # Single-feature-type experiment worker. Called by submit_experiment.sh.
 # Usage: sbatch run_experiment_single.sh [raw|sae|sae_precode] [k]
@@ -27,11 +27,11 @@ COMMON_ARGS=(
     --w1-attr      Wearing_Hat
     --w2-attr      Eyeglasses
     --top-k        1
-    --n-seeds      10
+    --n-seeds      20
     --alpha        0.05
     --max-steps    10
     --fixed-n      500 2000
-    --fixed-effect 1.0 3.0
+    --fixed-effect 2.0 5.0
     --force
 )
 
