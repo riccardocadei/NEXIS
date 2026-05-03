@@ -41,7 +41,7 @@ import pandas as pd
 ROOT     = Path(__file__).parent.parent.parent.parent   # repo root
 DATA_DIR = ROOT / "data" / "uganda"
 
-from method.neis import neis_select, marginal_select
+from method.neis import neis, marginal_select
 from apps.uganda.data import resolve_outcome
 
 
@@ -240,8 +240,7 @@ def main():
 
     # ── Run NEIS ──────────────────────────────────────────────────────────────
     print(f"Running NEIS  (α={args.alpha}, max_rounds={args.max_steps})...")
-    neis_res = neis_select(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
-                           controls=controls, main_controls=main_ctrl,
+    neis_res = neis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
                            verbose=True)
     print(f"  → {len(neis_res.selected)} feature(s) selected: {neis_res.selected}")
 
@@ -249,7 +248,6 @@ def main():
     print(f"\nRunning marginal (Bonferroni) baseline...")
     marg_groups = groups if (args.w_candidates and n_w_cols > 0) else None
     marg_res = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust="bonferroni",
-                               controls=controls, main_controls=main_ctrl,
                                groups=marg_groups)
     print(f"  → {len(marg_res.selected)} feature(s) selected: {marg_res.selected}")
 
