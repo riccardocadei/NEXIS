@@ -25,11 +25,12 @@ COMMON_ARGS=(
     --w1-attr      Wearing_Hat
     --w2-attr      Eyeglasses
     --top-k        1
-    --n-seeds      40
+    --n-seeds      50
     --alpha        0.05
     --max-steps    10
     --fixed-n      500 2000
     --fixed-effect 2.0 5.0
+    --gcm-splits   3
     --force
 )
 

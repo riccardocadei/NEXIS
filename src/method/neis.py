@@ -58,16 +58,29 @@ def _crossfit(
     model_factory,
     n_splits: int = 5,
     random_state: int = 0,
+    splits=None,
 ) -> np.ndarray:
-    """K-fold cross-fitted predictions from any sklearn-compatible model."""
-    from sklearn.model_selection import KFold
+    """K-fold cross-fitted predictions from any sklearn-compatible model.
+
+    Pass pre-computed ``splits`` (from ``_make_splits``) to reuse the same fold
+    assignment across multiple calls on the same X, ensuring consistency and
+    avoiding redundant KFold construction.
+    """
+    if splits is None:
+        splits = _make_splits(X, n_splits=n_splits, random_state=random_state)
     pred = np.zeros_like(y, dtype=float)
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    for tr, te in kf.split(X):
+    for tr, te in splits:
         m = model_factory()
         m.fit(X[tr], y[tr])
         pred[te] = m.predict(X[te])
     return pred
+
+
+def _make_splits(X: np.ndarray, n_splits: int, random_state: int = 0):
+    """Pre-compute KFold split indices to reuse across multiple cross-fit calls."""
+    from sklearn.model_selection import KFold
+    return list(KFold(n_splits=n_splits, shuffle=True,
+                      random_state=random_state).split(X))
 
 
 def conditional_interaction_pvalues_gcm(
@@ -115,15 +128,19 @@ def conditional_interaction_pvalues_gcm(
 
     model_fn = _make_nuisance_model(nuisance, n_estimators, max_depth, random_state=0)
 
-    # Conditioning input for nuisance model: Z^S columns (intercept handled internally)
-    Z_S_fit = Z[:, S_list] if S_list else np.zeros((n, 1))
-
-    # R-learner pseudo-outcome: phi = (Y - m_hat) * (T - e) / (e*(1-e))
-    m_hat = _crossfit(Z_S_fit, y, model_fn, n_splits=n_splits)
-    phi = (y - m_hat) * (t - e) / (e * (1 - e))
-
-    # Residualize phi on Z^S to remove remaining dependence
-    phi_resid = phi - _crossfit(Z_S_fit, phi, model_fn, n_splits=n_splits)
+    if S_list:
+        # Conditioning input for nuisance model: Z^S columns
+        Z_S_fit = Z[:, S_list]
+        # Pre-compute splits once; reuse for both cross-fit passes to ensure identical folds
+        splits = _make_splits(Z_S_fit, n_splits=n_splits)
+        m_hat = _crossfit(Z_S_fit, y, model_fn, splits=splits)
+        phi = (y - m_hat) * (t - e) / (e * (1 - e))
+        phi_resid = phi - _crossfit(Z_S_fit, phi, model_fn, splits=splits)
+    else:
+        # Fast path: no conditioning — m_hat = mean(Y), phi_resid = phi - mean(phi)
+        m_hat = np.full(n, y.mean())
+        phi = (y - m_hat) * (t - e) / (e * (1 - e))
+        phi_resid = phi - phi.mean()
 
     # Residualize all Z^j candidates on [1, Z^S] linearly (vectorized, O(n×m))
     D_lin = np.column_stack([np.ones(n)] + ([Z[:, S_list]] if S_list else []))

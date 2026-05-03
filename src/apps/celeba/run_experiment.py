@@ -49,7 +49,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 from apps.celeba.scm import build_buckets
-from apps.celeba.experiment import find_ground_truth_neurons, compute_f1_scores, run_sweep
+from apps.celeba.experiment import (
+    find_ground_truth_neurons, compute_f1_scores, run_sweep,
+    ALL_METHODS,
+)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -81,10 +84,14 @@ def parse_args():
     p.add_argument("--top-k",        type=int, default=1,
                    help="Top-k neurons per attribute as ground truth (default: 1)")
     # Experiment design
-    p.add_argument("--n-seeds",      type=int, default=10)
+    p.add_argument("--n-seeds",      type=int, default=50)
     p.add_argument("--alpha",        type=float, default=0.05)
     p.add_argument("--max-steps",    type=int, default=5,
                    help="Max NEIS selection steps (default: 5)")
+    p.add_argument("--methods",      nargs='+', default=None,
+                   help=f"Methods to run (default: all). Choices: {ALL_METHODS}")
+    p.add_argument("--gcm-splits",   type=int, default=3,
+                   help="Cross-fit folds for GCM methods (default: 3, faster than 5)")
     # Fixed values for each sweep (multiple values → one row per value in plots)
     p.add_argument("--fixed-n",      type=int,   nargs='+', default=[500, 2000],
                    help="n values used in effect-size sweep (default: 500 2000)")
@@ -217,6 +224,8 @@ def main():
         noise_sd=args.noise_sd,
     )
 
+    methods = args.methods  # None → all methods
+
     # ── Effect-size sweep (one sub-sweep per fixed n) ─────────────────────────
     effect_grid = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
     dfs_effect = []
@@ -230,6 +239,8 @@ def main():
             n_seeds=args.n_seeds,
             alpha=args.alpha,
             max_rounds=args.max_steps,
+            methods=methods,
+            gcm_splits=args.gcm_splits,
             **scm_kwargs,
         )
         dfs_effect.append(df)
@@ -250,6 +261,8 @@ def main():
             n_seeds=args.n_seeds,
             alpha=args.alpha,
             max_rounds=args.max_steps,
+            methods=methods,
+            gcm_splits=args.gcm_splits,
             **scm_kwargs,
         )
         dfs_n.append(df)

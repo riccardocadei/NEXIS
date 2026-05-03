@@ -18,15 +18,112 @@ Each sweep repeats over n_seeds random draws to average out sampling noise.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from method.neis import evaluate_methods_on_dataset
+from method.neis import neis, marginal_select, iou_score
 from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
+
+
+# ---------------------------------------------------------------------------
+# Method registry
+# ---------------------------------------------------------------------------
+
+#: Canonical ordered list of all methods used in experiments.
+ALL_METHODS: List[str] = [
+    "Marginal",
+    "Marginal (Bon)",
+    "NEIS (rho=0)",
+    "NEIS (rho=0.1)",
+    "NEIS",
+    "NEIS (no-bwd)",
+    "NEIS (poly2)",
+    "NEIS (GCM)",
+]
+
+#: Fast-only subset (skips GCM) for situations where compute is tight.
+FAST_METHODS: List[str] = [m for m in ALL_METHODS if m not in {"NEIS (poly2)", "NEIS (GCM)"}]
+
+
+def evaluate_methods_on_dataset(
+    y: np.ndarray,
+    t: np.ndarray,
+    z: np.ndarray,
+    truth: Sequence[int],
+    alpha: float = 0.05,
+    max_rounds: Optional[int] = None,
+    methods: Optional[List[str]] = None,
+    gcm_splits: int = 3,
+) -> Dict[str, Dict[str, float]]:
+    """Run all (or a subset of) selection methods and return per-method metrics.
+
+    Each entry in the returned dict includes: iou, recall, precision, tp, fp,
+    n_selected, time_s.
+
+    methods: subset of ALL_METHODS to run (default: all).
+    gcm_splits: cross-fit folds for GCM methods (3 is faster than 5, minimal loss).
+    """
+    if methods is None:
+        methods = ALL_METHODS
+
+    truth_set = set(int(x) for x in truth)
+    n_truth = len(truth_set)
+
+    def _metrics(selected: Sequence[int], t_s: float) -> Dict[str, float]:
+        sel_set = set(int(x) for x in selected)
+        tp = float(len(sel_set & truth_set))
+        fp = float(len(sel_set - truth_set))
+        n_sel = float(len(sel_set))
+        recall = tp / n_truth if n_truth > 0 else 1.0
+        precision = (tp / n_sel) if n_sel > 0 else (1.0 if n_truth == 0 else 0.0)
+        return {
+            "iou": iou_score(sel_set, truth_set),
+            "n_selected": n_sel,
+            "tp": tp,
+            "fp": fp,
+            "recall": float(recall),
+            "precision": float(precision),
+            "time_s": t_s,
+        }
+
+    out: Dict[str, Dict[str, float]] = {}
+
+    def _run(name: str, fn):
+        if name not in methods:
+            return
+        t0 = time.perf_counter()
+        res = fn()
+        out[name] = _metrics(res.selected, time.perf_counter() - t0)
+
+    _run("Marginal",
+         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none"))
+    _run("Marginal (Bon)",
+         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni"))
+    _run("NEIS (rho=0)",
+         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="linear", rho=None))
+    _run("NEIS (rho=0.1)",
+         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="linear", rho=0.1))
+    _run("NEIS",
+         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="linear", rho=0.5))
+    _run("NEIS (no-bwd)",
+         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="linear", rho=0.5, backward=False))
+    _run("NEIS (poly2)",
+         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="gcm", nuisance="poly2", rho=0.5, n_splits=gcm_splits))
+    _run("NEIS (GCM)",
+         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits))
+
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -135,13 +232,11 @@ def run_one(
     seed: int,
     alpha: float = 0.05,
     max_rounds: int = 5,
+    methods: Optional[List[str]] = None,
+    gcm_splits: int = 3,
     **scm_kwargs: Any,
 ) -> Dict[str, Dict[str, float]]:
-    """
-    Draw one RCT sample and evaluate all selection methods.
-
-    Returns a dict {method_name: metrics_dict} from evaluate_methods_on_dataset.
-    """
+    """Draw one RCT sample and evaluate all (or a subset of) selection methods."""
     data = generate_celeba_rct(
         n=n,
         features=features,
@@ -158,6 +253,8 @@ def run_one(
         truth=truth,
         alpha=alpha,
         max_rounds=max_rounds,
+        methods=methods,
+        gcm_splits=gcm_splits,
     )
 
 
@@ -177,12 +274,13 @@ def run_sweep(
     n_seeds: int = 10,
     alpha: float = 0.05,
     max_rounds: int = 5,
+    methods: Optional[List[str]] = None,
+    gcm_splits: int = 3,
     n_jobs: int = -1,
     verbose: bool = True,
     **scm_kwargs: Any,
 ) -> pd.DataFrame:
-    """
-    Run a 1-D parameter sweep (effect_scale or n) and collect metrics.
+    """Run a 1-D parameter sweep (effect_scale or n) and collect metrics.
 
     Args:
         sweep_param:   "effect_scale" or "n".
@@ -190,14 +288,16 @@ def run_sweep(
         fixed_n:       n used when sweep_param == "effect_scale".
         fixed_effect:  effect_scale used when sweep_param == "n".
         n_seeds:       Monte Carlo replications per grid point.
+        methods:       Subset of ALL_METHODS to run (default: all).
+        gcm_splits:    Cross-fit folds for GCM methods.
 
     Returns:
         Long-format DataFrame with columns:
-          [sweep_param, seed, method, iou, recall, precision, tp, fp, n_selected]
+          [sweep_param, seed, method, iou, recall, precision, tp, fp, n_selected, time_s]
     """
     rows = []
     for param_val in param_grid:
-        n           = int(param_val) if sweep_param == "n" else fixed_n
+        n            = int(param_val) if sweep_param == "n" else fixed_n
         effect_scale = param_val if sweep_param == "effect_scale" else fixed_effect
 
         if verbose:
@@ -210,9 +310,10 @@ def run_sweep(
                     features, labels_df, buckets, truth,
                     n=n, effect_scale=effect_scale, seed=seed,
                     alpha=alpha, max_rounds=max_rounds,
+                    methods=methods, gcm_splits=gcm_splits,
                     **scm_kwargs,
                 )
-            except ValueError as e:
+            except ValueError:
                 return seed, None  # bucket exhausted
 
         results = Parallel(n_jobs=n_jobs, prefer="threads")(
@@ -233,7 +334,6 @@ def run_sweep(
                 })
 
     df = pd.DataFrame(rows)
-    # Tag with the fixed parameter value so callers can group by it for plotting
     if sweep_param == "effect_scale" and fixed_n is not None:
         df["fixed_n"] = fixed_n
     elif sweep_param == "n" and fixed_effect is not None:

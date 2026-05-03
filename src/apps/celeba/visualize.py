@@ -84,12 +84,18 @@ def plot_importance(
 # ---------------------------------------------------------------------------
 
 METHOD_STYLES: dict = {
-    'Marginal (Bon)':       dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal (Bon)'),
-    'Marginal':             dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
-    'NEIS (linear)':        dict(color='#8c564b', marker='D', lw=2.0, label='NEIS (linear)'),
-    'NEIS (poly2)':         dict(color='#c49c94', marker='D', lw=2.0, label='NEIS (poly2)'),
-    'NEIS (auto) (linear)': dict(color='#bcbd22', marker='D', lw=2.0, label='NEIS (auto) (linear)'),
-    'NEIS (auto) (poly2)':  dict(color='#dbdb8d', marker='D', lw=2.0, label='NEIS (auto) (poly2)'),
+    # Baselines (red/orange family)
+    'Marginal':       dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
+    'Marginal (Bon)': dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal (Bon)'),
+    # NEIS rho ablation (blue family, darker = larger rho)
+    'NEIS (rho=0)':   dict(color='#9ecae1', marker='D', lw=1.5, ls='--', label='NEIS (ρ=0, no stop)'),
+    'NEIS (rho=0.1)': dict(color='#4292c6', marker='D', lw=1.5, label='NEIS (ρ=0.1)'),
+    'NEIS':           dict(color='#08519c', marker='D', lw=2.5, label='NEIS (ρ=0.5, default)'),
+    # Backward ablation (green)
+    'NEIS (no-bwd)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEIS (no backward)'),
+    # Test ablation (purple family)
+    'NEIS (poly2)':   dict(color='#9467bd', marker='o', lw=1.5, label='NEIS (GCM, poly2)'),
+    'NEIS (GCM)':     dict(color='#5c3493', marker='o', lw=1.5, ls='-.', label='NEIS (GCM, lgbm)'),
 }
 
 REPR_STYLES: dict = {
