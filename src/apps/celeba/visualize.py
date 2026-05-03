@@ -84,14 +84,12 @@ def plot_importance(
 # ---------------------------------------------------------------------------
 
 METHOD_STYLES: dict = {
-    'NEMS (Bon)':      dict(color='#2ca02c', marker='o', lw=2.0,          label='NEMS (Bon)'),
-    'NEMS (auto)':     dict(color='#17becf', marker='o', lw=2.0, ls='--', label='NEMS (auto)'),
-    'NEMS (AEM+auto)': dict(color='#1f77b4', marker='o', lw=2.5,          label='NEMS (AEM+auto)'),
-    'NEMS (AEM)':      dict(color='#e377c2', marker='o', lw=2.0, ls='-.', label='NEMS (AEM)'),
-    'NEMS':            dict(color='#9467bd', marker='o', lw=2.0,          label='NEMS'),
-    'Marginal (Bon)':  dict(color='#ff7f0e', marker='s', lw=1.5, ls=':', label='Marginal (Bon)'),
-    'Marginal':        dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
-    'NEIS':            dict(color='#8c564b', marker='D', lw=2.0,          label='NEIS'),
+    'Marginal (Bon)':       dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal (Bon)'),
+    'Marginal':             dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
+    'NEIS (linear)':        dict(color='#8c564b', marker='D', lw=2.0, label='NEIS (linear)'),
+    'NEIS (poly2)':         dict(color='#c49c94', marker='D', lw=2.0, label='NEIS (poly2)'),
+    'NEIS (auto) (linear)': dict(color='#bcbd22', marker='D', lw=2.0, label='NEIS (auto) (linear)'),
+    'NEIS (auto) (poly2)':  dict(color='#dbdb8d', marker='D', lw=2.0, label='NEIS (auto) (poly2)'),
 }
 
 REPR_STYLES: dict = {
@@ -145,7 +143,7 @@ def plot_comparison(
     gt_sae: dict,
     out_path,
 ) -> None:
-    """2×3 grid comparing NEMS on raw SigLIP vs SigLIP+SAE."""
+    """2×3 grid comparing NEIS on raw SigLIP vs SigLIP+SAE."""
     fig, axes = plt.subplots(2, 3, figsize=(14, 8), sharey='row')
     row_data = [
         (df_effect_raw, df_effect_sae, 'effect_scale', r'Effect size $\eta$'),
@@ -155,7 +153,7 @@ def plot_comparison(
         for col, metric in enumerate(['iou', 'recall', 'precision']):
             ax = axes[row, col]
             for (_, style), df in zip(REPR_STYLES.items(), [df_a, df_b]):
-                sub = df[df['method'] == 'NEMS'].groupby(xcol)[metric]
+                sub = df[df['method'] == 'NEIS'].groupby(xcol)[metric]
                 mu, se = sub.mean(), sub.sem()
                 ax.plot(mu.index, mu.values, **style)
                 ax.fill_between(mu.index,
@@ -172,7 +170,7 @@ def plot_comparison(
             ax.grid(True, alpha=0.25)
 
     fig.suptitle(
-        f'NEMS — Raw SigLIP vs SigLIP+SAE  |  '
+        f'NEIS — Raw SigLIP vs SigLIP+SAE  |  '
         f'W1={gt_sae["w1_attr"]}, W2={gt_sae["w2_attr"]}',
         fontsize=12, y=1.01,
     )

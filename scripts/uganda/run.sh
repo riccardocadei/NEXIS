@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=nems-pipeline
-#SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/slurm-%j.out
-#SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/slurm-%j.err
+#SBATCH --job-name=neis-pipeline
+#SBATCH --output=logs/slurm-%j.out
+#SBATCH --error=logs/slurm-%j.err
 #SBATCH --partition=gpu100
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=02:00:00
 #
-# Full pipeline: embedding extraction → SAE → NEMS → LLM interpretation.
+# Full pipeline: embedding extraction → SAE → NEIS → LLM interpretation.
 # Results are written to results/uganda/{MODEL}_{HIDDEN_DIM}/
 #
 # Usage:
@@ -41,7 +41,7 @@
 #   bash scripts/uganda/run.sh --models=dinov2 --overwrite=analyze,interpret
 #   bash scripts/uganda/run.sh --models=dinov2 --overwrite          # re-run everything
 #
-# NEMS tuning:
+# NEIS tuning:
 #   --alpha=0.05  --max-steps=20  --l1-coeff=2.0
 #   --no-w-candidates  --w-priority  --district-dummies  --group-level
 #
@@ -171,7 +171,7 @@ IFS=',' read -ra MODELS   <<< "$MODELS_ARG"
 IFS=',' read -ra OUTCOMES <<< "$OUTCOMES_ARG"
 
 echo "============================================================"
-echo " NEMS pipeline"
+echo " NEIS pipeline"
 echo "  models   : ${MODELS[*]}"
 echo "  outcomes : ${OUTCOMES[*]}"
 echo "  steps    : $STEPS_ARG"
@@ -207,7 +207,7 @@ if has_step train; then
 fi
 
 # ── Steps 2–5: one job per (model, outcome), parallelized when >1 ─────────────
-# run_analyze MODEL_KEY OUTCOME  — NEMS selection only (safe to parallelize)
+# run_analyze MODEL_KEY OUTCOME  — NEIS selection only (safe to parallelize)
 run_analyze() {
   local MODEL_KEY=$1 OUTCOME=$2
   local MODEL HIDDEN_DIM EPOCHS EXTRACT_BATCH SAE_BATCH
@@ -217,8 +217,8 @@ run_analyze() {
   local TAG="[$MODEL | $OUTCOME]"
 
   if has_step analyze; then
-    if should_run analyze "$OUT_DIR/${OUTCOME}/nems_result.json"; then
-      echo "-- $TAG Step 2: NEMS feature selection ----------------------"
+    if should_run analyze "$OUT_DIR/${OUTCOME}/neis_result.json"; then
+      echo "-- $TAG Step 2: NEIS feature selection ----------------------"
       $PYTHON "$SCRIPTS/analyze.py" \
         --embed-model "$MODEL"      \
         --sae-dim     "$HIDDEN_DIM" \
@@ -227,7 +227,7 @@ run_analyze() {
         --outcome     "$OUTCOME"    \
         $ANALYZE_EXTRA_ARGS
     else
-      echo "-- $TAG Step 2: Skipping (${OUTCOME}/nems_result.json exists)"
+      echo "-- $TAG Step 2: Skipping (${OUTCOME}/neis_result.json exists)"
     fi
     echo ""
   fi
@@ -366,7 +366,7 @@ _run_parallel() {
   fi
 }
 
-# ── Phase A: NEMS analysis (parallel across model×outcome) ───────────────────
+# ── Phase A: NEIS analysis (parallel across model×outcome) ───────────────────
 _run_parallel run_analyze
 
 # ── Phase B: VLM interpret (serial per model — VLM loaded once per model) ────

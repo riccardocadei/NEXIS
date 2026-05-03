@@ -1,1 +1,1 @@
-"""CelebA semi-synthetic experiments for NEMS."""
+"""CelebA semi-synthetic experiments for NEIS."""

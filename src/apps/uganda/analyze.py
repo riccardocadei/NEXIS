@@ -1,8 +1,8 @@
 """
-Build the analysis dataset and run NEMS to select SAE features that modify
+Build the analysis dataset and run NEIS to select SAE features that modify
 the treatment effect.
 
-The NEMS model per feature j:
+The NEIS model per feature j:
   Y = β₀ + βₜT + βⱼZⱼ + γⱼ(T·Zⱼ) + ε
   H0: γⱼ = 0  (feature j does not modify the treatment effect)
 
@@ -41,7 +41,7 @@ import pandas as pd
 ROOT     = Path(__file__).parent.parent.parent.parent   # repo root
 DATA_DIR = ROOT / "data" / "uganda"
 
-from method.nems import nems_select, nems_select_grouped, marginal_select
+from method.neis import neis_select, marginal_select
 from apps.uganda.data import resolve_outcome
 
 
@@ -78,7 +78,7 @@ def make_lang_dummies(series: pd.Series) -> pd.DataFrame:
     All dummies are kept (including lang_1) so that T×lang_1 can be tested as
     a candidate effect modifier alongside the other language interactions.
     The resulting main-effects block is rank-deficient by one (dummies sum to
-    the intercept), but the QR-based residualisation in nems.py handles this
+    the intercept), but the QR-based residualisation in neis.py handles this
     gracefully: it projects onto the column space of D, which is unchanged.
     """
     return pd.get_dummies(series, prefix="lang", dtype=float)
@@ -238,24 +238,12 @@ def main():
         Z_full    = Z_sub
         n_w_cols  = 0
 
-    # ── Run NEMS ──────────────────────────────────────────────────────────────
-    print(f"Running NEMS  (α={args.alpha}, max_steps={args.max_steps})...")
-    if args.w_candidates and n_w_cols > 0:
-        groups = {
-            "SAE": list(range(n_sae_features)),
-            "W":   list(range(n_sae_features, n_sae_features + n_w_cols)),
-        }
-        priority_groups = ["W"] if args.w_priority else None
-        nems_res = nems_select_grouped(Y, T, Z_full, groups=groups,
-                                       alpha=args.alpha, max_steps=args.max_steps,
-                                       controls=controls, main_controls=main_ctrl,
-                                       priority_groups=priority_groups,
-                                       verbose=True)
-    else:
-        nems_res = nems_select(Y, T, Z_full, alpha=args.alpha, max_steps=args.max_steps,
-                               controls=controls, main_controls=main_ctrl,
-                               verbose=True)
-    print(f"  → {len(nems_res.selected)} feature(s) selected: {nems_res.selected}")
+    # ── Run NEIS ──────────────────────────────────────────────────────────────
+    print(f"Running NEIS  (α={args.alpha}, max_rounds={args.max_steps})...")
+    neis_res = neis_select(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+                           controls=controls, main_controls=main_ctrl,
+                           verbose=True)
+    print(f"  → {len(neis_res.selected)} feature(s) selected: {neis_res.selected}")
 
     # ── Marginal Bonferroni baseline ──────────────────────────────────────────
     print(f"\nRunning marginal (Bonferroni) baseline...")
@@ -284,34 +272,31 @@ def main():
         return "W covariate"
 
     print()
-    if nems_res.selected:
-        print("── NEMS selected features ──────────────────────────────────")
-        for rank, feat_idx in enumerate(nems_res.selected):
-            p_val  = nems_res.pvalues[feat_idx]
-            grp    = (nems_res.selected_groups[rank]
-                      if rank < len(nems_res.selected_groups) else "")
-            grp_str = f"[{grp}]" if grp else ""
-            print(f"  rank={rank+1}  {grp_str:6s} feature={_feature_label(feat_idx):16s}  "
+    if neis_res.selected:
+        print("── NEIS selected features ──────────────────────────────────")
+        for rank, feat_idx in enumerate(neis_res.selected):
+            p_val = neis_res.pvalues[feat_idx]
+            print(f"  rank={rank+1}  feature={_feature_label(feat_idx):16s}  "
                   f"p={p_val:.2e}  {_activation_summary(feat_idx)}")
     else:
-        print(f"NEMS selected no features at α={args.alpha}.")
+        print(f"NEIS selected no features at α={args.alpha}.")
 
     # ── Save ──────────────────────────────────────────────────────────────────
     output = {
-        "nems": {
+        "neis": {
             "selected": [
                 {
                     "idx":   i,
                     "label": _feature_label(i),
-                    "group": (nems_res.selected_groups[r]
-                              if r < len(nems_res.selected_groups) else ""),
-                    "pvalue": nems_res.pvalues[i],
+                    "group": (neis_res.selected_groups[r]
+                              if r < len(neis_res.selected_groups) else ""),
+                    "pvalue": neis_res.pvalues[i],
                 }
-                for r, i in enumerate(nems_res.selected)
+                for r, i in enumerate(neis_res.selected)
             ],
-            "pvalues":  nems_res.pvalues.tolist(),
-            "alpha":    nems_res.alpha,
-            "metadata": nems_res.metadata,
+            "pvalues":  neis_res.pvalues.tolist(),
+            "alpha":    neis_res.alpha,
+            "metadata": neis_res.metadata,
         },
         "marginal_bonferroni": {
             "selected": [
@@ -332,7 +317,7 @@ def main():
             "sae_dim":         args.sae_dim,
         },
     }
-    out_path = OUT_DIR / "nems_result.json"
+    out_path = OUT_DIR / "neis_result.json"
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
     print(f"\nSaved → {out_path}")

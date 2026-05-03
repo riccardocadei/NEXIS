@@ -12,18 +12,18 @@ Writes:  results/celeba/experiment/raw/ground_truth.json            (raw, K-inde
          results/celeba/experiment/k{K}/sae_precode/ground_truth.json
          (and corresponding effect_sweep.parquet / n_sweep.parquet files)
 
-Feature modes for SAE (--precode controls NEMS regression features):
+Feature modes for SAE (--precode controls NEIS regression features):
   default  — sparse post-topk codes (sae.npy): features are ~orthogonal by design;
-             NEMS ≈ Bonferroni because conditioning on orthogonal features adds no power.
+             NEIS ≈ Bonferroni because conditioning on orthogonal features adds no power.
   --precode — continuous pre-activations (sae_precode.npy): features are dense and
-             correlated; NEMS conditioning removes false positives that Bonferroni misses.
+             correlated; NEIS conditioning removes false positives that Bonferroni misses.
 
 Two sweeps are produced (mimicking Fig. 5 of the ECI paper):
   effect_scale_sweep — fix n, vary heterogeneity strength (0 → type-I, >0 → power)
   n_sweep            — fix effect_scale, vary sample size
 
 Methods compared
-  NEMS               — sequential conditional testing (Bonferroni-gated)
+  NEIS               — sequential conditional testing (Bonferroni-gated)
   Marginal           — marginal interaction test, no correction
   Marginal (Bonf.)   — marginal interaction test, global Bonferroni
 
@@ -63,10 +63,10 @@ def parse_args():
                    help="Use raw SigLIP embeddings instead of SAE features. "
                         "Results go to out-dir/raw/ (default: out-dir/sae/)")
     p.add_argument("--precode",      action="store_true",
-                   help="Use continuous SAE pre-activations (sae_precode_k{K}.npy) for NEMS "
+                   help="Use continuous SAE pre-activations (sae_precode_k{K}.npy) for NEIS "
                         "regression instead of sparse post-topk codes (sae_k{K}.npy). "
                         "Results go to out-dir/k{K}/sae_precode/. "
-                        "Pre-activations are dense and correlated, so NEMS conditioning "
+                        "Pre-activations are dense and correlated, so NEIS conditioning "
                         "suppresses false positives that Bonferroni misses. "
                         "Ignored when --raw is set.")
     p.add_argument("--sae-top-k",   type=int, default=5,
@@ -84,7 +84,7 @@ def parse_args():
     p.add_argument("--n-seeds",      type=int, default=10)
     p.add_argument("--alpha",        type=float, default=0.05)
     p.add_argument("--max-steps",    type=int, default=5,
-                   help="Max NEMS selection steps (default: 5)")
+                   help="Max NEIS selection steps (default: 5)")
     # Fixed values for each sweep (multiple values → one row per value in plots)
     p.add_argument("--fixed-n",      type=int,   nargs='+', default=[500, 2000],
                    help="n values used in effect-size sweep (default: 500 2000)")
@@ -96,9 +96,6 @@ def parse_args():
     p.add_argument("--gamma-w2",     type=float, default=-1.0)
     p.add_argument("--noise-sd",     type=float, default=1.0)
     p.add_argument("--force",        action="store_true")
-    p.add_argument("--include-gcm",  action="store_true",
-                   help="Also run NEIS (GCM) variant (~27× slower). "
-                        "Submit as a separate job with --time 08:00:00.")
     return p.parse_args()
 
 
@@ -143,9 +140,9 @@ def main():
     print(f"Loading {feat_label} from {reg_file} …")
     labels_df = pd.read_parquet(data_dir / "labels.parquet")
 
-    # Features used for NEMS regression
+    # Features used for NEIS regression
     features = np.load(reg_file)
-    print(f"  NEMS regression features: {features.shape}  "
+    print(f"  NEIS regression features: {features.shape}  "
           f"sparsity={(features == 0).mean():.3f}")
 
     # F1 ground-truth evaluation always uses z_pre (continuous pre-activations):
@@ -232,9 +229,7 @@ def main():
             fixed_n=fixed_n,
             n_seeds=args.n_seeds,
             alpha=args.alpha,
-            nems_max_steps=args.max_steps,
-            precode_features=precode_features,
-            include_gcm=args.include_gcm,
+            max_rounds=args.max_steps,
             **scm_kwargs,
         )
         dfs_effect.append(df)
@@ -254,9 +249,7 @@ def main():
             fixed_effect=fixed_effect,
             n_seeds=args.n_seeds,
             alpha=args.alpha,
-            nems_max_steps=args.max_steps,
-            precode_features=precode_features,
-            include_gcm=args.include_gcm,
+            max_rounds=args.max_steps,
             **scm_kwargs,
         )
         dfs_n.append(df)

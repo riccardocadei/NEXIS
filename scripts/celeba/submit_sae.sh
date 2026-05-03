@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=celeba-sae
-#SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-sae-%j.out
-#SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-sae-%j.err
+#SBATCH --output=logs/celeba-sae-%j.out
+#SBATCH --error=logs/celeba-sae-%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4

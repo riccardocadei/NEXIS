@@ -1,5 +1,5 @@
 """
-Direct-contrast VLM interpretation of NEMS-selected SAE features.
+Direct-contrast VLM interpretation of NEIS-selected SAE features.
 
 For each selected feature the VLM receives the top-k and bottom-k activation
 images TOGETHER in a single call and is asked to identify what VISUALLY
@@ -499,7 +499,7 @@ skilled trades. The PRIMARY OUTCOME is skilled-labour hours two years after \
 the grant. The satellite images were captured circa 2000, EIGHT YEARS BEFORE \
 the intervention, and represent the PRE-TREATMENT landscape of the sites.
 
-We are running NEMS (Neural Effect Modifier Selection): a forward stepwise \
+We are running NEIS (Neural Effect Modifier Selection): a forward stepwise \
 procedure that tests which SAE features statistically modify the programme's \
 average treatment effect. The neuron you are interpreting has been selected \
 because its activation pattern correlates with heterogeneous treatment effects \
@@ -568,7 +568,7 @@ def contrast_groups_vlm(
     prior_concepts : list of dicts (previous interpretation results), each with
         'feature', 'label', and 'description' keys.  When non-empty, the prompt
         explicitly tells the VLM which visual concepts are already accounted for,
-        mirroring the conditional nature of NEMS selection.
+        mirroring the conditional nature of NEIS selection.
     """
     import torch
 
@@ -810,24 +810,24 @@ def interpret_outcome(
     sae_dim: int = 3072,
     vlm_model_name: str = "",                           # qwen* / points
 ) -> bool:
-    """Interpret all NEMS-selected SAE features for one outcome.
+    """Interpret all NEIS-selected SAE features for one outcome.
 
     Returns True if interpretations were written, False if skipped.
     VLM is already loaded by the caller — this function does not load or unload it.
     """
     out_dir   = model_dir / outcome
     out_dir.mkdir(parents=True, exist_ok=True)
-    nems_path = out_dir / "nems_result.json"
+    neis_path = out_dir / "neis_result.json"
 
-    if not nems_path.exists():
-        print(f"  [{outcome}] SKIP — nems_result.json not found (run analyze.py first)")
+    if not neis_path.exists():
+        print(f"  [{outcome}] SKIP — neis_result.json not found (run analyze.py first)")
         return False
 
-    with open(nems_path) as f:
-        nems_output = json.load(f)
+    with open(neis_path) as f:
+        neis_output = json.load(f)
 
-    n_sae            = nems_output.get("feature_meta", {}).get("n_sae_features", sae_dim)
-    selected_entries = nems_output["nems"]["selected"]
+    n_sae            = neis_output.get("feature_meta", {}).get("n_sae_features", sae_dim)
+    selected_entries = neis_output["neis"]["selected"]
     if selected_entries and isinstance(selected_entries[0], dict):
         sae_entries  = [e for e in selected_entries if e["group"] != "W"]
         skip_entries = [e for e in selected_entries if e["group"] == "W"]
@@ -968,7 +968,7 @@ def interpret_outcome(
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="VLM interpretation of NEMS-selected SAE features. "
+        description="VLM interpretation of NEIS-selected SAE features. "
                     "The VLM is loaded once and reused across all requested outcomes."
     )
     p.add_argument("--embed-model",  default="dinov2_vitb14",

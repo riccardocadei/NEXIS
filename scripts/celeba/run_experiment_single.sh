@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=celeba-exp
-#SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-exp-%j.out
-#SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-exp-%j.err
+#SBATCH --output=logs/celeba-exp-%j.out
+#SBATCH --error=logs/celeba-exp-%j.err
 #SBATCH --partition=defaultp
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G

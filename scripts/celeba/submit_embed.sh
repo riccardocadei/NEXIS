@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=celeba-embed
-#SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-embed-%j.out
-#SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-embed-%j.err
+#SBATCH --output=logs/celeba-embed-%j.out
+#SBATCH --error=logs/celeba-embed-%j.err
 #SBATCH --partition=debug_gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4

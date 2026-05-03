@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from method.nems import evaluate_methods_on_dataset
+from method.neis import evaluate_methods_on_dataset
 from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 
 
@@ -134,10 +134,7 @@ def run_one(
     effect_scale: float,
     seed: int,
     alpha: float = 0.05,
-    nems_max_steps: int = 5,
-    pr0: Optional[float] = None,
-    precode_features: Optional[np.ndarray] = None,
-    include_gcm: bool = False,
+    max_rounds: int = 5,
     **scm_kwargs: Any,
 ) -> Dict[str, Dict[str, float]]:
     """
@@ -154,19 +151,13 @@ def run_one(
         seed=seed,
         **scm_kwargs,
     )
-    # Align precode features to the sampled image indices for Bon+AEM
-    z_precode = (precode_features[data.image_indices].astype(np.float64)
-                 if precode_features is not None else None)
     return evaluate_methods_on_dataset(
         y=data.Y,
         t=data.T,
         z=data.Z,
         truth=truth,
         alpha=alpha,
-        nems_max_steps=nems_max_steps,
-        pr0=pr0,
-        z_precode=z_precode,
-        include_gcm=include_gcm,
+        max_rounds=max_rounds,
     )
 
 
@@ -185,11 +176,9 @@ def run_sweep(
     fixed_effect: Optional[float] = None,
     n_seeds: int = 10,
     alpha: float = 0.05,
-    nems_max_steps: int = 5,
+    max_rounds: int = 5,
     n_jobs: int = -1,
     verbose: bool = True,
-    precode_features: Optional[np.ndarray] = None,
-    include_gcm: bool = False,
     **scm_kwargs: Any,
 ) -> pd.DataFrame:
     """
@@ -206,8 +195,6 @@ def run_sweep(
         Long-format DataFrame with columns:
           [sweep_param, seed, method, iou, recall, precision, tp, fp, n_selected]
     """
-    pr0 = None  # computed inside nems_select from the experiment sample (n × d, fast)
-
     rows = []
     for param_val in param_grid:
         n           = int(param_val) if sweep_param == "n" else fixed_n
@@ -222,9 +209,7 @@ def run_sweep(
                 return seed, run_one(
                     features, labels_df, buckets, truth,
                     n=n, effect_scale=effect_scale, seed=seed,
-                    alpha=alpha, nems_max_steps=nems_max_steps,
-                    pr0=pr0, precode_features=precode_features,
-                    include_gcm=include_gcm,
+                    alpha=alpha, max_rounds=max_rounds,
                     **scm_kwargs,
                 )
             except ValueError as e:

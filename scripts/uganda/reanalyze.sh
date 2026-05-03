@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=nems-reanalyze
-#SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/slurm-%j.out
-#SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/slurm-%j.err
+#SBATCH --job-name=neis-reanalyze
+#SBATCH --output=logs/slurm-%j.out
+#SBATCH --error=logs/slurm-%j.err
 #SBATCH --partition=gpu100
 #SBATCH --gres=gpu:H100:1
 #SBATCH --cpus-per-task=16

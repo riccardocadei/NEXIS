@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=celeba-images
-#SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-images-%j.out
-#SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEMS/logs/celeba-images-%j.err
+#SBATCH --output=logs/celeba-images-%j.out
+#SBATCH --error=logs/celeba-images-%j.err
 #SBATCH --partition=defaultp
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
