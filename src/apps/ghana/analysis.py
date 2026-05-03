@@ -25,23 +25,28 @@ def naive_did(df: pd.DataFrame, outcome: str = 'Y') -> pd.DataFrame:
 
 # ── Regression DiD (OLS with HC1 SEs) ────────────────────────────────────────
 
-def regression_did(df: pd.DataFrame, outcome: str = 'Y') -> pd.DataFrame:
+def regression_did(df: pd.DataFrame, outcome: str = 'Y',
+                   cluster: str | None = 'comm') -> pd.DataFrame:
     """OLS DiD: Y = α + β₁·T + β₂·wave + δ·(T×wave) + ε.
 
-    Returns a DataFrame with Coef, SE (HC1), t-stat, and 95% CI.
+    Returns a DataFrame with Coef, SE, t-stat, and 95% CI.
     Under the parallel trends assumption, δ = DiD = ITT.
 
-    Note: standard errors are HC1 (heteroscedasticity-robust). The
-    randomisation unit is the sub-district community/cluster; the
-    dataset lacks a community ID, so we cluster at the district level
-    (5 districts), which is conservative but gives few clusters — wild
-    cluster bootstrap is recommended for final reporting.
+    Parameters
+    ----------
+    cluster : column name to use for cluster-robust variance estimation, or
+              None to fall back to HC1.  Defaults to 'comm' (162 communities),
+              which gives far more reliable cluster SEs than the 5 available
+              districts.  Note: comm mixes T and C households so it is not the
+              exact randomisation unit, but geographic clustering is still the
+              right correction for spatial correlation in residuals.
     """
-    sub = df.dropna(subset=['T', 'wave', outcome]).copy()
-    y   = sub[outcome].values
-    T   = sub['T'].values
-    w   = sub['wave'].values
-    D   = T * w  # DiD indicator
+    cols = ['T', 'wave', outcome] + ([cluster] if cluster else [])
+    sub  = df.dropna(subset=cols).copy()
+    y    = sub[outcome].values
+    T    = sub['T'].values
+    w    = sub['wave'].values
+    D    = T * w  # DiD indicator
 
     X = np.column_stack([np.ones(len(y)), T, w, D])
     n, k = X.shape
@@ -50,11 +55,30 @@ def regression_did(df: pd.DataFrame, outcome: str = 'Y') -> pd.DataFrame:
     beta  = XtXi @ X.T @ y
     resid = y - X @ beta
 
-    # HC1 sandwich
-    Xe   = X * resid[:, None]
-    meat = Xe.T @ Xe
-    V    = XtXi @ meat @ XtXi * (n / (n - k))
-    se   = np.sqrt(np.diag(V))
+    if cluster is not None:
+        # Cluster-robust (CRVE) sandwich estimator
+        groups = sub[cluster].values
+        unique_g = np.unique(groups)
+        G = len(unique_g)
+        meat = np.zeros((k, k))
+        for g in unique_g:
+            mask = groups == g
+            Xg   = X[mask]
+            eg   = resid[mask]
+            sg   = Xg.T @ eg
+            meat += np.outer(sg, sg)
+        # Small-sample correction: (G / (G-1)) * (n-1) / (n-k)
+        meat *= (G / (G - 1)) * ((n - 1) / (n - k))
+        V  = XtXi @ meat @ XtXi
+        se_label = f'SE (CRVE, G={G})'
+    else:
+        # HC1 sandwich
+        Xe   = X * resid[:, None]
+        meat = Xe.T @ Xe
+        V    = XtXi @ meat @ XtXi * (n / (n - k))
+        se_label = 'SE (HC1)'
+
+    se = np.sqrt(np.diag(V))
 
     idx = [
         'Intercept  (C baseline mean)',
@@ -63,9 +87,9 @@ def regression_did(df: pd.DataFrame, outcome: str = 'Y') -> pd.DataFrame:
         'T × wave   (DiD = ITT estimate)',
     ]
     return pd.DataFrame({
-        'Coef':     beta,
-        'SE (HC1)': se,
-        't-stat':   beta / se,
+        'Coef':      beta,
+        se_label:    se,
+        't-stat':    beta / se,
         '95% CI lo': beta - 1.96 * se,
         '95% CI hi': beta + 1.96 * se,
     }, index=idx)
@@ -74,33 +98,43 @@ def regression_did(df: pd.DataFrame, outcome: str = 'Y') -> pd.DataFrame:
 # ── Covariate balance ─────────────────────────────────────────────────────────
 
 def balance_tests(df0: pd.DataFrame, w_cols: list[str],
-                  labels: dict[str, str] | None = None) -> pd.DataFrame:
+                  labels: dict[str, str] | None = None,
+                  smd_threshold: float = 0.1) -> pd.DataFrame:
     """Two-sample t-tests and SMDs for all covariates at baseline.
 
     Parameters
     ----------
-    df0     : baseline-only DataFrame (wave == 0).
-    w_cols  : list of covariate column names to test.
-    labels  : optional dict mapping column name → display label.
+    df0           : baseline-only DataFrame (wave == 0).
+    w_cols        : list of covariate column names to test.
+    labels        : optional dict mapping column name → display label.
+    smd_threshold : |SMD| threshold for the practical-balance flag (default 0.1).
 
     Returns a DataFrame indexed by variable with columns:
-        C mean, T mean, Diff (T−C), SMD, p-value, balanced (✓/✗).
+        C mean, T mean, Diff (T−C), SMD, p-value, p-balanced, smd-balanced.
+
+    Two balance flags are reported separately because with n > 1,000 even
+    trivially small differences are statistically significant (p-value flag),
+    while |SMD| < 0.1 captures practical importance regardless of sample size.
+    Note: PMT score typically shows a huge SMD (≈ −3) despite a tiny absolute
+    difference because all study households are compressed near the eligibility
+    threshold, making the pooled SD near-zero.
     """
     rows = []
     for col in w_cols:
         s0 = df0.loc[df0['T'] == 0, col].dropna()
         s1 = df0.loc[df0['T'] == 1, col].dropna()
-        _, pval    = stats.ttest_ind(s0, s1, equal_var=False)
-        pooled_sd  = np.sqrt((s0.var() + s1.var()) / 2)
-        smd        = (s1.mean() - s0.mean()) / pooled_sd if pooled_sd > 0 else 0.0
+        _, pval   = stats.ttest_ind(s0, s1, equal_var=False)
+        pooled_sd = np.sqrt((s0.var() + s1.var()) / 2)
+        smd       = (s1.mean() - s0.mean()) / pooled_sd if pooled_sd > 0 else 0.0
         name = (labels or {}).get(col, col.replace('_', ' '))
         rows.append({
-            'variable':   name,
-            'C mean':     round(s0.mean(), 3),
-            'T mean':     round(s1.mean(), 3),
-            'Diff (T−C)': round(s1.mean() - s0.mean(), 3),
-            'SMD':        round(smd, 3),
-            'p-value':    round(pval, 3),
-            'balanced':   '✓' if pval > 0.05 else '✗',
+            'variable':     name,
+            'C mean':       round(s0.mean(), 3),
+            'T mean':       round(s1.mean(), 3),
+            'Diff (T−C)':   round(s1.mean() - s0.mean(), 3),
+            'SMD':          round(smd, 3),
+            'p-value':      round(pval, 3),
+            'p-bal':        '✓' if pval > 0.05 else '✗',
+            'smd-bal':      '✓' if abs(smd) < smd_threshold else '✗',
         })
     return pd.DataFrame(rows).set_index('variable')

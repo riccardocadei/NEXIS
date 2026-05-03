@@ -19,16 +19,22 @@ CTRL_COLOR  = '#5b8db8'
 PAPER_BG    = '#FFF5EB'  # orange!8!white: 8%*(1,0.5,0) + 92%*(1,1,1)
 
 
-def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False) -> plt.Axes:
+def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
+                   df: 'pd.DataFrame | None' = None) -> plt.Axes:
     """Draw the Ghana LEAP 1000 study-area map.
 
     Highlights the trial regions (Northern / NorthEast / Upper East) and
-    marks the five trial districts with annotated points.
+    marks the five trial districts with annotated points.  If a dataframe
+    with community GPS coordinates is supplied (via `df`), community
+    centroids are overlaid as scatter points coloured by treatment arm.
 
     Parameters
     ----------
     paper : bool
         Paper-ready mode: no title, background set to orange!8!white.
+    df : optional DataFrame returned by load_data(); must contain
+        gps_latitude, gps_longitude, comm, T columns.  Baseline wave
+        (wave == 0) is used to avoid double-counting panel households.
     """
     data_dir = Path(data_dir)
     gdf1 = gpd.read_file(data_dir / 'gadm41_GHA_1.json')
@@ -90,6 +96,29 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False) -> plt.Ax
                     fontsize=7, color='#222222',
                     arrowprops=dict(arrowstyle='-', color='#666666', lw=0.6),
                     va='center', ha='right' if dx < 0 else 'left')
+
+    if df is not None:
+        # Community centroids: one point per comm, using baseline wave only
+        comm_df = (
+            df[df['wave'] == 0]
+            .dropna(subset=['gps_latitude', 'gps_longitude'])
+            .groupby('comm', as_index=False)
+            .agg(lat=('gps_latitude', 'first'),
+                 lon=('gps_longitude', 'first'),
+                 T=('T', lambda x: int(x.mode()[0])),
+                 n=('T', 'count'))
+        )
+        for t_val, color, label in [
+            (1, '#2ca02c', 'Treatment community'),
+            (0, '#d62728', 'Comparison community'),
+        ]:
+            sub = comm_df[comm_df['T'] == t_val]
+            ax.scatter(sub['lon'], sub['lat'],
+                       s=8, c=color, marker='o',
+                       edgecolors='none',
+                       alpha=0.75, zorder=6, label=label)
+        ax.legend(fontsize=7, loc='lower left',
+                  framealpha=0.8, markerscale=1.2)
 
     if not paper:
         ax.set_title('LEAP 1000 trial districts', fontsize=11, pad=8)

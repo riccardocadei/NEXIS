@@ -52,19 +52,31 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     """Load LEAP 1000 panel data with cleaned variable names.
 
     Core variables created:
-        T    — treatment assignment (1 = Treatment, 0 = Comparison)
-        Y    — adult-equivalent expenditure per month (GH₵, constant Aug-2017)
-        wave — survey wave (0 = Baseline 2015, 1 = Endline 2017)
+        T            — treatment assignment (1 = Treatment, 0 = Comparison)
+        Y            — adult-equivalent expenditure per month (GH₵, constant Aug-2017)
+        wave         — survey wave (0 = Baseline 2015, 1 = Endline 2017)
+        comm         — community identifier (162 unique values); GPS centroid shared by
+                       all households in the same community.  Note: T and C households
+                       can appear within the same comm code — comm is a geographic area
+                       marker, NOT the randomisation unit — but it provides 162 clusters
+                       for variance estimation, far more than the 5 available districts.
+        gps_latitude / gps_longitude — community-level centroid coordinates (NaN for 3
+                       communities: comm 14, 273, 281).
 
     All Yes/No covariates are binarised (1/0) and given readable names.
     Continuous covariates are renamed for clarity.
     """
-    df = pd.read_stata(Path(data_dir) / 'LEAP1000 2015-2017 household data.dta')
+    df = pd.read_stata(Path(data_dir) / 'LEAP1000 2015-2017 household data++.dta')
 
     # Core identifiers
     df['T']    = (df['tac'] == 'Treatment').astype(int)
     df['Y']    = df['aeexp_r'].astype(float)
     df['wave'] = df['time'].map({'Baseline': 0, 'Endline': 1}).astype('int64')
+
+    # Community identifier and GPS coordinates (community-level centroids)
+    df['comm']          = df['comm'].astype(int)
+    df['gps_latitude']  = df['gps_latitude'].astype(float)
+    df['gps_longitude'] = df['gps_longitude'].astype(float)
 
     # Rename continuous covariates for readability
     df = df.rename(columns={
