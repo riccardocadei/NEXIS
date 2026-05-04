@@ -36,14 +36,19 @@ from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 
 #: Canonical ordered list of all methods used in experiments.
 ALL_METHODS: List[str] = [
-    "Marginal",
-    "Marginal (Bon)",
+    "Marginal Testing",
+    "Marginal Testing (FWER)",
+    "Marginal Testing (FDR)",
     "NEXIS (rho=0)",
     "NEXIS (rho=0.1)",
     "NEXIS",
+    "NEXIS (no adj)",
+    "NEXIS (FDR)",
     "NEXIS (no-bwd)",
     "NEXIS (poly2)",
     "NEXIS (GCM)",
+    "NEXIS (GCM, no adj)",
+    "NEXIS (GCM, FDR)",
 ]
 
 #: Fast-only subset (skips GCM) for situations where compute is tight.
@@ -100,10 +105,12 @@ def evaluate_methods_on_dataset(
         res = fn()
         out[name] = _metrics(res.selected, time.perf_counter() - t0)
 
-    _run("Marginal",
-         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none"))
-    _run("Marginal (Bon)",
-         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni"))
+    _run("Marginal Testing",
+         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust=None))
+    _run("Marginal Testing (FWER)",
+         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FWER"))
+    _run("Marginal Testing (FDR)",
+         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FDR"))
     _run("NEXIS (rho=0)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=None))
@@ -112,7 +119,13 @@ def evaluate_methods_on_dataset(
                       test="linear", rho=0.1))
     _run("NEXIS",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=0.5))
+                      test="linear", rho=0.5, adjust="FWER"))
+    _run("NEXIS (no adj)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="linear", rho=0.5, adjust=None))
+    _run("NEXIS (FDR)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="linear", rho=0.5, adjust="FDR"))
     _run("NEXIS (no-bwd)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=0.5, backward=False))
@@ -121,7 +134,16 @@ def evaluate_methods_on_dataset(
                       test="gcm", nuisance="poly2", rho=0.5, n_splits=gcm_splits))
     _run("NEXIS (GCM)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits))
+                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits,
+                      adjust="FWER"))
+    _run("NEXIS (GCM, no adj)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits,
+                      adjust=None))
+    _run("NEXIS (GCM, FDR)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits,
+                      adjust="FDR"))
 
     return out
 

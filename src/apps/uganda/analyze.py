@@ -245,9 +245,9 @@ def main():
     print(f"  → {len(nexis_res.selected)} feature(s) selected: {nexis_res.selected}")
 
     # ── Marginal Bonferroni baseline ──────────────────────────────────────────
-    print(f"\nRunning marginal (Bonferroni) baseline...")
+    print(f"\nRunning marginal (FWER) baseline...")
     marg_groups = groups if (args.w_candidates and n_w_cols > 0) else None
-    marg_res = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust="bonferroni",
+    marg_res = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust="FWER",
                                groups=marg_groups)
     print(f"  → {len(marg_res.selected)} feature(s) selected: {marg_res.selected}")
 

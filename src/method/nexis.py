@@ -309,24 +309,25 @@ def marginal_select(
     t: np.ndarray,
     z: np.ndarray,
     alpha: float = 0.05,
-    adjust: str = "none",  # "none" or "bonferroni"
+    adjust: Optional[str] = None,  # None | "FWER" | "FDR"
     groups: Optional[Dict[str, List[int]]] = None,
 ) -> SelectionResult:
     """Marginal interaction test with optional multiple-testing adjustment.
 
-    groups: if provided and adjust='bonferroni', each group gets its own
-            Bonferroni budget (α / group_size).
-            Without groups, a single α/M correction is applied over all M
-            candidates (standard Bonferroni).
+    adjust=None  : raw threshold at level alpha (no correction).
+    adjust="FWER": Bonferroni correction (α/M).  groups splits the budget
+                   per group instead of globally.
+    adjust="FDR" : Benjamini-Hochberg step-up procedure at level alpha.
     """
     pvals = conditional_interaction_pvalues(y=y, t=t, z=z, S=[])
     m = len(pvals)
+    _adj = adjust.upper() if adjust is not None else None
 
-    if adjust.lower() in {"none", "raw", "unadjusted"}:
+    if _adj is None:
         selected = np.where(pvals <= alpha)[0].tolist()
         method = "marginal_raw"
         metadata: Dict[str, float] = {"threshold": float(alpha), "m": float(m)}
-    elif adjust.lower() in {"bonf", "bonferroni"}:
+    elif _adj == "FWER":
         if groups is not None:
             # Per-group Bonferroni: each group corrects for its own size only.
             mask = np.zeros(m, dtype=bool)
@@ -336,7 +337,7 @@ def marginal_select(
                     if pvals[j] <= thr_g:
                         mask[j] = True
             selected = np.where(mask)[0].tolist()
-            method = "marginal_bonferroni_grouped"
+            method = "marginal_fwer_grouped"
             metadata = {"m": float(m), **{
                 f"thr_{g}": alpha / max(len(idxs), 1)
                 for g, idxs in groups.items()
@@ -344,10 +345,21 @@ def marginal_select(
         else:
             thr = alpha / max(m, 1)
             selected = np.where(pvals <= thr)[0].tolist()
-            method = "marginal_bonferroni"
+            method = "marginal_fwer"
             metadata = {"threshold": float(thr), "m": float(m)}
+    elif _adj == "FDR":
+        order = np.argsort(pvals)
+        thresholds = (np.arange(1, m + 1) / m) * alpha
+        below = pvals[order] <= thresholds
+        if below.any():
+            kstar = int(np.where(below)[0].max())
+            selected = order[:kstar + 1].tolist()
+        else:
+            selected = []
+        method = "marginal_fdr"
+        metadata = {"alpha": float(alpha), "m": float(m)}
     else:
-        raise ValueError("adjust must be 'none' or 'bonferroni'")
+        raise ValueError("adjust must be None, 'FWER', or 'FDR'")
 
     return SelectionResult(
         selected=selected,
@@ -370,6 +382,7 @@ def nexis(
     max_rounds: Optional[int] = 20,
     rho: Optional[float] = None,
     backward: bool = True,
+    adjust: Optional[str] = "FWER",  # None | "FWER" (Bonferroni) | "FDR" (BH)
     test: str = "linear",
     nuisance: str = "poly2",       # gcm only: "poly2" | "lgbm" | "rf"
     n_splits: int = 5,             # gcm only
@@ -380,11 +393,17 @@ def nexis(
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
 
     Each round:
-      1. Forward: among candidates passing Gate 1 (p ≤ α/|remaining|), pick the
-         best.  Spectral gap (ρ): stop if the chosen candidate's
+      1. Forward: among candidates passing Gate 1, pick the best.
+         Gate 1 depends on adjust:
+           None    : p ≤ α
+           "FWER"  : p ≤ α/|remaining|  (Bonferroni, default)
+           "FDR"   : BH applied to all remaining p-values at level α
+         Spectral gap (ρ): stop if the chosen candidate's
          |t| < rho * min(|t| of already-selected features).
-      2. Backward (skipped when backward=False): for every j ∈ S, remove j if
-         p_j(S \\ {j}) > α/|S|.
+      2. Backward (skipped when backward=False): remove j ∈ S if it no longer
+         passes the gate given S\\{j}.
+         None/"FWER" remove sequentially; "FDR" batches all backward p-values
+         with the current S and applies BH before removing.
     Repeats until S is unchanged (fixed point).
 
     backward=False runs a pure greedy forward pass — useful for ablation.
@@ -430,7 +449,7 @@ def nexis(
             y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
-            rho=rho,
+            rho=rho, adjust=adjust,
             backward=backward, verbose=verbose,
         )
         S_w = result_w.selected
@@ -486,13 +505,23 @@ def nexis(
                 tstats = None
             last_pvals = pvals.copy()
 
-            gate_fwd = alpha / len(remaining)
-
             # Gate 1: significance filter
-            def _eligible(j: int) -> bool:
-                return pvals[j] <= gate_fwd
-
-            eligible = [j for j in remaining if _eligible(j)]
+            _adj = adjust.upper() if adjust is not None else None
+            if _adj == "FDR":
+                pv_rem = np.array([pvals[j] for j in remaining])
+                order_rem = np.argsort(pv_rem)
+                m_rem = len(remaining)
+                bh_thr = (np.arange(1, m_rem + 1) / m_rem) * alpha
+                below_bh = pv_rem[order_rem] <= bh_thr
+                if below_bh.any():
+                    kstar_rem = int(np.where(below_bh)[0].max())
+                    eligible = [remaining[order_rem[i]] for i in range(kstar_rem + 1)]
+                else:
+                    eligible = []
+                gate_fwd = float("nan")  # no single threshold for verbose
+            else:
+                gate_fwd = alpha if _adj is None else alpha / len(remaining)
+                eligible = [j for j in remaining if pvals[j] <= gate_fwd]
 
             if eligible:
                 if tstats is not None:
@@ -503,8 +532,9 @@ def nexis(
 
                 if verbose:
                     t_str = (f" |t|={abs(tstats[j_star]):.2f}" if tstats is not None else "")
+                    gate_str = "FDR" if _adj == "FDR" else f"{gate_fwd:.2e}"
                     print(f"  round {round_num+1:2d} fwd | remaining={len(remaining):5d} "
-                          f"gate={gate_fwd:.2e} eligible={len(eligible)} "
+                          f"gate={gate_str} eligible={len(eligible)} "
                           f"| best=j{j_star} p={p_star:.2e}{t_str}", flush=True)
 
                 # Gate 2: relative stopping (rho)
@@ -536,23 +566,45 @@ def nexis(
         if not backward:
             round_num += 1
             continue
-        for j in list(selected):
-            if not selected:
-                break
-            S_minus_j = [s for s in selected if s != j]
-            pvals_back = _pvalues(S_minus_j, [j])
-            p_j = float(pvals_back[j])
-            gate_bwd = alpha / len(selected)
 
-            if verbose:
-                print(f"  round {round_num+1:2d} bwd | j={j} p={p_j:.2e} "
-                      f"gate={gate_bwd:.2e}", flush=True)
+        if _adj == "FDR":
+            # Batch: compute all backward p-values with the current S, then BH.
+            js = list(selected)
+            back_pv = [float(_pvalues([s for s in selected if s != j], [j])[j]) for j in js]
+            pv_arr = np.array(back_pv)
+            order_back = np.argsort(pv_arr)
+            m_sel = len(js)
+            bh_thr = (np.arange(1, m_sel + 1) / m_sel) * alpha
+            below = pv_arr[order_back] <= bh_thr
+            keep = (
+                {js[order_back[i]] for i in range(int(np.where(below)[0].max()) + 1)}
+                if below.any() else set()
+            )
+            for idx, j in enumerate(js):
+                if j not in keep:
+                    selected.remove(j)
+                    n_rejections += 1
+                    if verbose:
+                        print(f"  round {round_num+1:2d} bwd | removed j{j} "
+                              f"(BH) p={back_pv[idx]:.2e}  S={selected}", flush=True)
+        else:
+            for j in list(selected):
+                if not selected:
+                    break
+                S_minus_j = [s for s in selected if s != j]
+                pvals_back = _pvalues(S_minus_j, [j])
+                p_j = float(pvals_back[j])
+                gate_bwd = alpha if _adj is None else alpha / len(selected)
 
-            if p_j > gate_bwd:
-                selected.remove(j)
-                n_rejections += 1
                 if verbose:
-                    print(f"    → removed j{j}  S={selected}", flush=True)
+                    print(f"  round {round_num+1:2d} bwd | j={j} p={p_j:.2e} "
+                          f"gate={gate_bwd:.2e}", flush=True)
+
+                if p_j > gate_bwd:
+                    selected.remove(j)
+                    n_rejections += 1
+                    if verbose:
+                        print(f"    → removed j{j}  S={selected}", flush=True)
 
         round_num += 1
 
@@ -579,6 +631,10 @@ def nexis(
         method_str += "_fwd"
     if rho is not None:
         method_str += f"_sg{rho}"
+    if _adj is None:
+        method_str += "_noadj"
+    elif _adj == "FDR":
+        method_str += "_fdr"
 
     meta: Dict[str, object] = {
         "m": float(total),
@@ -660,10 +716,13 @@ def evaluate_methods_on_dataset(
                       test="gcm", nuisance="poly2", rho=rho)
     out["NEXIS (auto) (poly2)"] = _metrics(res.selected)
 
-    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni")
-    out["Marginal (Bon)"] = _metrics(res.selected)
+    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FWER")
+    out["Marginal Testing (FWER)"] = _metrics(res.selected)
 
-    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none")
-    out["Marginal"] = _metrics(res.selected)
+    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FDR")
+    out["Marginal Testing (FDR)"] = _metrics(res.selected)
+
+    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust=None)
+    out["Marginal Testing"] = _metrics(res.selected)
 
     return out
