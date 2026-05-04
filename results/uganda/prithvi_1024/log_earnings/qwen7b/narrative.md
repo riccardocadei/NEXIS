@@ -1,4 +1,4 @@
-# NEMS Results: log_earnings
+# NEXIS Results: log_earnings
 
 **ATE = +0.0618***  95% CI [+0.0326, +0.0910]  SE=0.0149  p=0.0000  n=2372
 

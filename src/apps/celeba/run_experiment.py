@@ -12,18 +12,18 @@ Writes:  results/celeba/experiment/raw/ground_truth.json            (raw, K-inde
          results/celeba/experiment/k{K}/sae_precode/ground_truth.json
          (and corresponding effect_sweep.parquet / n_sweep.parquet files)
 
-Feature modes for SAE (--precode controls NEIS regression features):
+Feature modes for SAE (--precode controls NEXIS regression features):
   default  — sparse post-topk codes (sae.npy): features are ~orthogonal by design;
-             NEIS ≈ Bonferroni because conditioning on orthogonal features adds no power.
+             NEXIS ≈ Bonferroni because conditioning on orthogonal features adds no power.
   --precode — continuous pre-activations (sae_precode.npy): features are dense and
-             correlated; NEIS conditioning removes false positives that Bonferroni misses.
+             correlated; NEXIS conditioning removes false positives that Bonferroni misses.
 
 Two sweeps are produced (mimicking Fig. 5 of the ECI paper):
   effect_scale_sweep — fix n, vary heterogeneity strength (0 → type-I, >0 → power)
   n_sweep            — fix effect_scale, vary sample size
 
 Methods compared
-  NEIS               — sequential conditional testing (Bonferroni-gated)
+  NEXIS               — sequential conditional testing (Bonferroni-gated)
   Marginal           — marginal interaction test, no correction
   Marginal (Bonf.)   — marginal interaction test, global Bonferroni
 
@@ -66,10 +66,10 @@ def parse_args():
                    help="Use raw SigLIP embeddings instead of SAE features. "
                         "Results go to out-dir/raw/ (default: out-dir/sae/)")
     p.add_argument("--precode",      action="store_true",
-                   help="Use continuous SAE pre-activations (sae_precode_k{K}.npy) for NEIS "
+                   help="Use continuous SAE pre-activations (sae_precode_k{K}.npy) for NEXIS "
                         "regression instead of sparse post-topk codes (sae_k{K}.npy). "
                         "Results go to out-dir/k{K}/sae_precode/. "
-                        "Pre-activations are dense and correlated, so NEIS conditioning "
+                        "Pre-activations are dense and correlated, so NEXIS conditioning "
                         "suppresses false positives that Bonferroni misses. "
                         "Ignored when --raw is set.")
     p.add_argument("--sae-top-k",   type=int, default=5,
@@ -87,7 +87,7 @@ def parse_args():
     p.add_argument("--n-seeds",      type=int, default=50)
     p.add_argument("--alpha",        type=float, default=0.05)
     p.add_argument("--max-steps",    type=int, default=5,
-                   help="Max NEIS selection steps (default: 5)")
+                   help="Max NEXIS selection steps (default: 5)")
     p.add_argument("--methods",      nargs='+', default=None,
                    help=f"Methods to run (default: all). Choices: {ALL_METHODS}")
     p.add_argument("--gcm-splits",   type=int, default=3,
@@ -147,9 +147,9 @@ def main():
     print(f"Loading {feat_label} from {reg_file} …")
     labels_df = pd.read_parquet(data_dir / "labels.parquet")
 
-    # Features used for NEIS regression
+    # Features used for NEXIS regression
     features = np.load(reg_file)
-    print(f"  NEIS regression features: {features.shape}  "
+    print(f"  NEXIS regression features: {features.shape}  "
           f"sparsity={(features == 0).mean():.3f}")
 
     # F1 ground-truth evaluation always uses z_pre (continuous pre-activations):

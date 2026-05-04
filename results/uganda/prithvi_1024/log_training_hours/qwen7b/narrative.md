@@ -1,4 +1,4 @@
-# NEMS Results: log_training_hours
+# NEXIS Results: log_training_hours
 
 **ATE = +3.7417***  95% CI [+3.5498, +3.9335]  SE=0.0979  p=0.0000  n=2364
 

@@ -1,1 +1,1 @@
-from .neis import neis, SelectionResult
+from .nexis import nexis, SelectionResult

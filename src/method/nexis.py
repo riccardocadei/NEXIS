@@ -167,7 +167,7 @@ def conditional_interaction_pvalues_gcm(
 
 @dataclass
 class SelectionResult:
-    selected: List[int]            # indices into the feature space neis ran on
+    selected: List[int]            # indices into the feature space nexis ran on
     pvalues: np.ndarray            # one entry per feature in that space
     method: str
     alpha: float
@@ -358,9 +358,9 @@ def marginal_select(
     )
 
 
-# ── NEIS ──────────────────────────────────────────────────────────────────────
+# ── NEXIS ──────────────────────────────────────────────────────────────────────
 
-def neis(
+def nexis(
     y: np.ndarray,
     t: np.ndarray,
     z: np.ndarray,
@@ -377,7 +377,7 @@ def neis(
     max_depth: Optional[int] = None,  # gcm only
     verbose: bool = False,
 ) -> SelectionResult:
-    """Forward(-backward) selection (NEIS — Neural Exposure Interaction Search).
+    """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
 
     Each round:
       1. Forward: among candidates passing Gate 1 (p ≤ α/|remaining|), pick the
@@ -390,7 +390,7 @@ def neis(
     backward=False runs a pure greedy forward pass — useful for ablation.
 
     w: optional (n, q) matrix of interpretable covariates.  When provided, a
-      preliminary phase runs NEIS on W first; the features selected there seed
+      preliminary phase runs NEXIS on W first; the features selected there seed
       the initial S for the main phase on Z.  Both W and Z features compete
       symmetrically in that phase: forward can re-add expelled W features,
       backward can expel W features.  SelectionResult.feature_names labels
@@ -426,7 +426,7 @@ def neis(
         W = np.asarray(w, dtype=float)
         if W.ndim == 1:
             W = W[:, None]
-        result_w = neis(
+        result_w = nexis(
             y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
@@ -570,7 +570,7 @@ def neis(
     else:
         feature_names = [f"z_{j}" for j in range(m)]
 
-    method_str = f"neis_{test}"
+    method_str = f"nexis_{test}"
     if w is not None:
         method_str = "w_" + method_str
     if test == "gcm":
@@ -644,21 +644,21 @@ def evaluate_methods_on_dataset(
             "precision": float(precision),
         }
 
-    res = neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear")
-    out["NEIS (linear)"] = _metrics(res.selected)
+    out["NEXIS (linear)"] = _metrics(res.selected)
 
-    res = neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=rho)
-    out["NEIS (auto) (linear)"] = _metrics(res.selected)
+    out["NEXIS (auto) (linear)"] = _metrics(res.selected)
 
-    res = neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2")
-    out["NEIS (poly2)"] = _metrics(res.selected)
+    out["NEXIS (poly2)"] = _metrics(res.selected)
 
-    res = neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2", rho=rho)
-    out["NEIS (auto) (poly2)"] = _metrics(res.selected)
+    out["NEXIS (auto) (poly2)"] = _metrics(res.selected)
 
     res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni")
     out["Marginal (Bon)"] = _metrics(res.selected)

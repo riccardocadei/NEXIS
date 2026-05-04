@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=neis-reanalyze
+#SBATCH --job-name=nexis-reanalyze
 #SBATCH --output=logs/slurm-%j.out
 #SBATCH --error=logs/slurm-%j.err
 #SBATCH --partition=gpu100

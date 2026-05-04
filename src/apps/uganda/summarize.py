@@ -1,10 +1,10 @@
 """
-Summarize NEIS results: ATE and CATE/GATE per effect modifier.
+Summarize NEXIS results: ATE and CATE/GATE per effect modifier.
 
 Output
 ------
   1. ATE (Average Treatment Effect) with 95% CI.
-  2. For each NEIS-selected feature:
+  2. For each NEXIS-selected feature:
        - Binary feature  → CATE(val=0) and CATE(val=1).
        - Sparse SAE feature (median=0, some nonzero)
                          → GATE(inactive, Z=0) and GATE(active, Z>0).
@@ -61,7 +61,7 @@ def standardise(df):
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Summarize NEIS results: ATE and CATE/GATE per effect modifier.")
+        description="Summarize NEXIS results: ATE and CATE/GATE per effect modifier.")
     p.add_argument("--embed-model", default="dinov2_vitb14")
     p.add_argument("--sae-dim",     type=int, default=3072)
     p.add_argument("--outcome",     default="log_skilled_hours",
@@ -77,12 +77,12 @@ def main():
     MODEL_DIR = ROOT / "results" / "uganda" / f"{args.embed_model}_{args.sae_dim}"
     OUT_DIR   = MODEL_DIR / args.outcome
 
-    neis_path = OUT_DIR / "neis_result.json"
-    if not neis_path.exists():
-        print(f"ERROR: {neis_path} not found."); sys.exit(1)
+    nexis_path = OUT_DIR / "nexis_result.json"
+    if not nexis_path.exists():
+        print(f"ERROR: {nexis_path} not found."); sys.exit(1)
 
-    with open(neis_path) as f:
-        neis_out = json.load(f)
+    with open(nexis_path) as f:
+        nexis_out = json.load(f)
 
     interp_map      = {}   # feature_idx -> full description sentence
     vlm_label_map   = {}   # feature_idx -> short 2-6 word label
@@ -100,10 +100,10 @@ def main():
                 vlm_label_map[entry["feature"]]  = lbl
                 confidence_map[entry["feature"]] = entry.get("confidence", "")
 
-    meta         = neis_out["feature_meta"]
+    meta         = nexis_out["feature_meta"]
     n_sae        = meta["n_sae_features"]
     w_names      = meta["w_names"]
-    selected     = neis_out["neis"]["selected"]
+    selected     = nexis_out["nexis"]["selected"]
 
     # ── Load data ─────────────────────────────────────────────────────────────
     df = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
@@ -160,7 +160,7 @@ def main():
 
     print()
     print(sep)
-    print(f"  NEIS Results Summary  —  {args.embed_model}  (SAE dim={args.sae_dim})")
+    print(f"  NEXIS Results Summary  —  {args.embed_model}  (SAE dim={args.sae_dim})")
     print(sep)
 
     print()
@@ -171,7 +171,7 @@ def main():
     print(f"  n        : {n_total}")
 
     print()
-    print("Effect Modifiers (NEIS-selected, by rank)")
+    print("Effect Modifiers (NEXIS-selected, by rank)")
     print(line)
 
     for rank, r in enumerate(results):
@@ -285,7 +285,7 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
 
     if not sig_results:
         modifier_sentence = (
-            "None of the NEIS-selected effect modifiers show a statistically "
+            "None of the NEXIS-selected effect modifiers show a statistically "
             "significant difference in CATE at the 95% level, suggesting "
             "limited detectable heterogeneity given the sample size."
         )
@@ -338,7 +338,7 @@ def _llm_narrative(summary, results, ate, ate_se, ate_p, out_dir: Path,
 
     narrative_path = out_dir / pipeline / "narrative.md"
     with open(narrative_path, "w") as f:
-        f.write(f"# NEIS Results: {model_name}\n\n")
+        f.write(f"# NEXIS Results: {model_name}\n\n")
         f.write(f"**ATE = {ate:+.4f}{ate_sig}**  "
                 f"95% CI [{lo_ate:+.4f}, {hi_ate:+.4f}]  "
                 f"SE={ate_se:.4f}  p={ate_p:.4f}  n={summary['ate']['n']}\n\n")

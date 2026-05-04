@@ -1,8 +1,8 @@
 """
-Build the analysis dataset and run NEIS to select SAE features that modify
+Build the analysis dataset and run NEXIS to select SAE features that modify
 the treatment effect.
 
-The NEIS model per feature j:
+The NEXIS model per feature j:
   Y = β₀ + βₜT + βⱼZⱼ + γⱼ(T·Zⱼ) + ε
   H0: γⱼ = 0  (feature j does not modify the treatment effect)
 
@@ -41,7 +41,7 @@ import pandas as pd
 ROOT     = Path(__file__).parent.parent.parent.parent   # repo root
 DATA_DIR = ROOT / "data" / "uganda"
 
-from method.neis import neis, marginal_select
+from method.nexis import nexis, marginal_select
 from apps.uganda.data import resolve_outcome
 
 
@@ -78,7 +78,7 @@ def make_lang_dummies(series: pd.Series) -> pd.DataFrame:
     All dummies are kept (including lang_1) so that T×lang_1 can be tested as
     a candidate effect modifier alongside the other language interactions.
     The resulting main-effects block is rank-deficient by one (dummies sum to
-    the intercept), but the QR-based residualisation in neis.py handles this
+    the intercept), but the QR-based residualisation in nexis.py handles this
     gracefully: it projects onto the column space of D, which is unchanged.
     """
     return pd.get_dummies(series, prefix="lang", dtype=float)
@@ -238,11 +238,11 @@ def main():
         Z_full    = Z_sub
         n_w_cols  = 0
 
-    # ── Run NEIS ──────────────────────────────────────────────────────────────
-    print(f"Running NEIS  (α={args.alpha}, max_rounds={args.max_steps})...")
-    neis_res = neis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+    # ── Run NEXIS ──────────────────────────────────────────────────────────────
+    print(f"Running NEXIS  (α={args.alpha}, max_rounds={args.max_steps})...")
+    nexis_res = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
                            verbose=True)
-    print(f"  → {len(neis_res.selected)} feature(s) selected: {neis_res.selected}")
+    print(f"  → {len(nexis_res.selected)} feature(s) selected: {nexis_res.selected}")
 
     # ── Marginal Bonferroni baseline ──────────────────────────────────────────
     print(f"\nRunning marginal (Bonferroni) baseline...")
@@ -270,31 +270,31 @@ def main():
         return "W covariate"
 
     print()
-    if neis_res.selected:
-        print("── NEIS selected features ──────────────────────────────────")
-        for rank, feat_idx in enumerate(neis_res.selected):
-            p_val = neis_res.pvalues[feat_idx]
+    if nexis_res.selected:
+        print("── NEXIS selected features ──────────────────────────────────")
+        for rank, feat_idx in enumerate(nexis_res.selected):
+            p_val = nexis_res.pvalues[feat_idx]
             print(f"  rank={rank+1}  feature={_feature_label(feat_idx):16s}  "
                   f"p={p_val:.2e}  {_activation_summary(feat_idx)}")
     else:
-        print(f"NEIS selected no features at α={args.alpha}.")
+        print(f"NEXIS selected no features at α={args.alpha}.")
 
     # ── Save ──────────────────────────────────────────────────────────────────
     output = {
-        "neis": {
+        "nexis": {
             "selected": [
                 {
                     "idx":   i,
                     "label": _feature_label(i),
-                    "group": (neis_res.selected_groups[r]
-                              if r < len(neis_res.selected_groups) else ""),
-                    "pvalue": neis_res.pvalues[i],
+                    "group": (nexis_res.selected_groups[r]
+                              if r < len(nexis_res.selected_groups) else ""),
+                    "pvalue": nexis_res.pvalues[i],
                 }
-                for r, i in enumerate(neis_res.selected)
+                for r, i in enumerate(nexis_res.selected)
             ],
-            "pvalues":  neis_res.pvalues.tolist(),
-            "alpha":    neis_res.alpha,
-            "metadata": neis_res.metadata,
+            "pvalues":  nexis_res.pvalues.tolist(),
+            "alpha":    nexis_res.alpha,
+            "metadata": nexis_res.metadata,
         },
         "marginal_bonferroni": {
             "selected": [
@@ -315,7 +315,7 @@ def main():
             "sae_dim":         args.sae_dim,
         },
     }
-    out_path = OUT_DIR / "neis_result.json"
+    out_path = OUT_DIR / "nexis_result.json"
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2)
     print(f"\nSaved → {out_path}")

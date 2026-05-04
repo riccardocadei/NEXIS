@@ -1,4 +1,4 @@
-# NEMS Results: log_skilled_hours
+# NEXIS Results: log_skilled_hours
 
 **ATE = +0.0200***  95% CI [+0.0089, +0.0310]  SE=0.0056  p=0.0004  n=2372
 

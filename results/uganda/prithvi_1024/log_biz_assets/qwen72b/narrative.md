@@ -1,4 +1,4 @@
-# NEMS Results: log_biz_assets
+# NEXIS Results: log_biz_assets
 
 **ATE = +0.6405***  95% CI [+0.5570, +0.7240]  SE=0.0426  p=0.0000  n=2372
 

@@ -1,4 +1,4 @@
-# NEMS Results: wellbeing
+# NEXIS Results: wellbeing
 
 **ATE = +0.3625***  95% CI [+0.2293, +0.4957]  SE=0.0680  p=0.0000  n=2361
 

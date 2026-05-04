@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from method.neis import neis, marginal_select, iou_score
+from method.nexis import nexis, marginal_select, iou_score
 from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 
 
@@ -38,16 +38,16 @@ from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 ALL_METHODS: List[str] = [
     "Marginal",
     "Marginal (Bon)",
-    "NEIS (rho=0)",
-    "NEIS (rho=0.1)",
-    "NEIS",
-    "NEIS (no-bwd)",
-    "NEIS (poly2)",
-    "NEIS (GCM)",
+    "NEXIS (rho=0)",
+    "NEXIS (rho=0.1)",
+    "NEXIS",
+    "NEXIS (no-bwd)",
+    "NEXIS (poly2)",
+    "NEXIS (GCM)",
 ]
 
 #: Fast-only subset (skips GCM) for situations where compute is tight.
-FAST_METHODS: List[str] = [m for m in ALL_METHODS if m not in {"NEIS (poly2)", "NEIS (GCM)"}]
+FAST_METHODS: List[str] = [m for m in ALL_METHODS if m not in {"NEXIS (poly2)", "NEXIS (GCM)"}]
 
 
 def evaluate_methods_on_dataset(
@@ -104,23 +104,23 @@ def evaluate_methods_on_dataset(
          lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="none"))
     _run("Marginal (Bon)",
          lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="bonferroni"))
-    _run("NEIS (rho=0)",
-         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    _run("NEXIS (rho=0)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=None))
-    _run("NEIS (rho=0.1)",
-         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    _run("NEXIS (rho=0.1)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=0.1))
-    _run("NEIS",
-         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    _run("NEXIS",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=0.5))
-    _run("NEIS (no-bwd)",
-         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    _run("NEXIS (no-bwd)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=0.5, backward=False))
-    _run("NEIS (poly2)",
-         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    _run("NEXIS (poly2)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2", rho=0.5, n_splits=gcm_splits))
-    _run("NEIS (GCM)",
-         lambda: neis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    _run("NEXIS (GCM)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits))
 
     return out

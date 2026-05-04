@@ -1,4 +1,4 @@
-# NEMS Results: wealth_index
+# NEXIS Results: wealth_index
 
 **ATE = +0.0654**  95% CI [-0.0085, +0.1392]  SE=0.0377  p=0.0827  n=2358
 

@@ -87,15 +87,15 @@ METHOD_STYLES: dict = {
     # Baselines (red/orange family)
     'Marginal':       dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
     'Marginal (Bon)': dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal (Bon)'),
-    # NEIS rho ablation (blue family, darker = larger rho)
-    'NEIS (rho=0)':   dict(color='#9ecae1', marker='D', lw=1.5, ls='--', label='NEIS (ρ=0, no stop)'),
-    'NEIS (rho=0.1)': dict(color='#4292c6', marker='D', lw=1.5, label='NEIS (ρ=0.1)'),
-    'NEIS':           dict(color='#08519c', marker='D', lw=2.5, label='NEIS (ρ=0.5, default)'),
+    # NEXIS rho ablation (blue family, darker = larger rho)
+    'NEXIS (rho=0)':   dict(color='#9ecae1', marker='D', lw=1.5, ls='--', label='NEXIS (ρ=0, no stop)'),
+    'NEXIS (rho=0.1)': dict(color='#4292c6', marker='D', lw=1.5, label='NEXIS (ρ=0.1)'),
+    'NEXIS':           dict(color='#08519c', marker='D', lw=2.5, label='NEXIS (ρ=0.5, default)'),
     # Backward ablation (green)
-    'NEIS (no-bwd)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEIS (no backward)'),
+    'NEXIS (no-bwd)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEXIS (no backward)'),
     # Test ablation (purple family)
-    'NEIS (poly2)':   dict(color='#9467bd', marker='o', lw=1.5, label='NEIS (GCM, poly2)'),
-    'NEIS (GCM)':     dict(color='#5c3493', marker='o', lw=1.5, ls='-.', label='NEIS (GCM, lgbm)'),
+    'NEXIS (poly2)':   dict(color='#9467bd', marker='o', lw=1.5, label='NEXIS (GCM, poly2)'),
+    'NEXIS (GCM)':     dict(color='#5c3493', marker='o', lw=1.5, ls='-.', label='NEXIS (GCM, lgbm)'),
 }
 
 REPR_STYLES: dict = {
@@ -149,7 +149,7 @@ def plot_comparison(
     gt_sae: dict,
     out_path,
 ) -> None:
-    """2×3 grid comparing NEIS on raw SigLIP vs SigLIP+SAE."""
+    """2×3 grid comparing NEXIS on raw SigLIP vs SigLIP+SAE."""
     fig, axes = plt.subplots(2, 3, figsize=(14, 8), sharey='row')
     row_data = [
         (df_effect_raw, df_effect_sae, 'effect_scale', r'Effect size $\eta$'),
@@ -159,7 +159,7 @@ def plot_comparison(
         for col, metric in enumerate(['iou', 'recall', 'precision']):
             ax = axes[row, col]
             for (_, style), df in zip(REPR_STYLES.items(), [df_a, df_b]):
-                sub = df[df['method'] == 'NEIS'].groupby(xcol)[metric]
+                sub = df[df['method'] == 'NEXIS'].groupby(xcol)[metric]
                 mu, se = sub.mean(), sub.sem()
                 ax.plot(mu.index, mu.values, **style)
                 ax.fill_between(mu.index,
@@ -176,7 +176,7 @@ def plot_comparison(
             ax.grid(True, alpha=0.25)
 
     fig.suptitle(
-        f'NEIS — Raw SigLIP vs SigLIP+SAE  |  '
+        f'NEXIS — Raw SigLIP vs SigLIP+SAE  |  '
         f'W1={gt_sae["w1_attr"]}, W2={gt_sae["w2_attr"]}',
         fontsize=12, y=1.01,
     )

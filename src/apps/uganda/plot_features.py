@@ -1,5 +1,5 @@
 """
-Feature-image comparison plot for NEIS-selected effect modifiers.
+Feature-image comparison plot for NEXIS-selected effect modifiers.
 """
 
 import argparse
@@ -703,13 +703,13 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
     csv_col   = resolve_outcome(outcome)
     model_dir = ROOT / "results" / "uganda" / f"{embed_model}_{sae_dim}"
     out_dir   = model_dir / outcome
-    neis_path = out_dir / "neis_result.json"
-    if not neis_path.exists():
-        print(f"  Skipping {embed_model}_{sae_dim}/{outcome}: neis_result.json not found")
+    nexis_path = out_dir / "nexis_result.json"
+    if not nexis_path.exists():
+        print(f"  Skipping {embed_model}_{sae_dim}/{outcome}: nexis_result.json not found")
         return
 
-    with open(neis_path) as f:
-        neis_out = json.load(f)
+    with open(nexis_path) as f:
+        nexis_out = json.load(f)
 
     pipeline_dir = out_dir / pipeline
     gate_map, ate_est = {}, float("nan")
@@ -771,11 +771,11 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
         print(f"  Warning: could not load basemap: {e}")
 
     rows, ratios, spans = _build_row_plan(
-        neis_out["neis"]["selected"], site_feats, site_keys, k, gate_map,
+        nexis_out["nexis"]["selected"], site_feats, site_keys, k, gate_map,
         interp_full_map=interp_full_map)
 
     if not rows:
-        print(f"  No features selected by NEIS — skipping plot for "
+        print(f"  No features selected by NEXIS — skipping plot for "
               f"{embed_model}_{sae_dim}/{outcome}")
         return
 
@@ -964,7 +964,7 @@ def main():
     df_rct = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
     if args.all:
         triples = []
-        for d in sorted((ROOT / "results" / "uganda").glob("*/*/neis_result.json")):
+        for d in sorted((ROOT / "results" / "uganda").glob("*/*/nexis_result.json")):
             outcome_name = d.parent.name
             model_dir    = d.parent.parent.name
             parts = model_dir.rsplit("_", 1)

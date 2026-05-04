@@ -16,9 +16,9 @@ Default attributes
   W1 = "Wearing_Hat"  (prevalence ≈ 5%)   — positive T×W1 modification
   W2 = "Eyeglasses"   (prevalence ≈ 7%)   — negative T×W2 modification
 
-The ground truth for NEIS evaluation is the set of SAE neurons whose
+The ground truth for NEXIS evaluation is the set of SAE neurons whose
 activations are most correlated with W1 / W2 across the full CelebA set.
-NEIS should recover these through significant T×Z_j interactions with Y.
+NEXIS should recover these through significant T×Z_j interactions with Y.
 """
 from __future__ import annotations
 
