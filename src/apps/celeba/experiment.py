@@ -35,24 +35,32 @@ from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 # ---------------------------------------------------------------------------
 
 #: Canonical ordered list of all methods used in experiments.
+#: Each NEXIS variant is characterised by the quadruplet
+#: (test, adjust, rho, backward); "NEXIS" uses the defaults
+#: (linear, FWER, 0.5, True) and variants name only what changed.
 ALL_METHODS: List[str] = [
+    # Baselines
     "Marginal Testing",
     "Marginal Testing (FWER)",
     "Marginal Testing (FDR)",
+    # NEXIS default
+    "NEXIS",
+    # test ablation
+    "NEXIS (test=GCM: quadratic)",
+    "NEXIS (test=GCM: lgbm)",
+    # adjust ablation
+    "NEXIS (adjust=None)",
+    "NEXIS (adjust=FDR)",
+    # rho ablation
     "NEXIS (rho=0)",
     "NEXIS (rho=0.1)",
-    "NEXIS",
-    "NEXIS (no adj)",
-    "NEXIS (FDR)",
-    "NEXIS (no-bwd)",
-    "NEXIS (poly2)",
-    "NEXIS (GCM)",
-    "NEXIS (GCM, no adj)",
-    "NEXIS (GCM, FDR)",
+    "NEXIS (rho=0.2)",
+    # backward ablation
+    "NEXIS (backward=False)",
 ]
 
-#: Fast-only subset (skips GCM) for situations where compute is tight.
-FAST_METHODS: List[str] = [m for m in ALL_METHODS if m not in {"NEXIS (poly2)", "NEXIS (GCM)"}]
+#: Fast-only subset (skips GCM lgbm, ~3× slower) for compute-tight runs.
+FAST_METHODS: List[str] = [m for m in ALL_METHODS if m != "NEXIS (test=GCM: lgbm)"]
 
 
 def evaluate_methods_on_dataset(
@@ -111,39 +119,37 @@ def evaluate_methods_on_dataset(
          lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FWER"))
     _run("Marginal Testing (FDR)",
          lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FDR"))
+    # NEXIS default: test=linear, adjust=FWER, rho=0.5, backward=True
+    _run("NEXIS",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds))
+    # test ablation
+    _run("NEXIS (test=GCM: quadratic)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="GCM: quadratic", n_splits=gcm_splits))
+    _run("NEXIS (test=GCM: lgbm)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="GCM: lgbm", n_splits=gcm_splits))
+    # adjust ablation
+    _run("NEXIS (adjust=None)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      adjust=None))
+    _run("NEXIS (adjust=FDR)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      adjust="FDR"))
+    # rho ablation
     _run("NEXIS (rho=0)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=None))
+                      rho=0))
     _run("NEXIS (rho=0.1)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=0.1))
-    _run("NEXIS",
+                      rho=0.1))
+    _run("NEXIS (rho=0.2)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=0.5, adjust="FWER"))
-    _run("NEXIS (no adj)",
+                      rho=0.2))
+    # backward ablation
+    _run("NEXIS (backward=False)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=0.5, adjust=None))
-    _run("NEXIS (FDR)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=0.5, adjust="FDR"))
-    _run("NEXIS (no-bwd)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=0.5, backward=False))
-    _run("NEXIS (poly2)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="poly2", rho=0.5, n_splits=gcm_splits))
-    _run("NEXIS (GCM)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits,
-                      adjust="FWER"))
-    _run("NEXIS (GCM, no adj)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits,
-                      adjust=None))
-    _run("NEXIS (GCM, FDR)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="lgbm", rho=0.5, n_splits=gcm_splits,
-                      adjust="FDR"))
+                      backward=False))
 
     return out
 

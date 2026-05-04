@@ -380,11 +380,11 @@ def nexis(
     w_names: Optional[List[str]] = None,
     alpha: float = 0.05,
     max_rounds: Optional[int] = 20,
-    rho: Optional[float] = None,
+    rho: Optional[float] = 0.5,
     backward: bool = True,
     adjust: Optional[str] = "FWER",  # None | "FWER" (Bonferroni) | "FDR" (BH)
-    test: str = "linear",
-    nuisance: str = "poly2",       # gcm only: "poly2" | "lgbm" | "rf"
+    test: str = "linear",            # "linear" | "quadratic" | "GCM"
+    nuisance: str = "poly2",         # gcm only: "poly2" | "lgbm" | "rf"
     n_splits: int = 5,             # gcm only
     n_estimators: int = 100,       # gcm only
     max_depth: Optional[int] = None,  # gcm only
@@ -430,6 +430,22 @@ def nexis(
       the strongest and weakest true direct-modifier CATE contrasts.
       Recommended range: 0.2 (effects may vary 5×) to 0.5 (effects within 2×).
     """
+    # Normalise test aliases and set nuisance accordingly.
+    # "quadratic" → gcm + poly2 nuisance
+    # "GCM"       → gcm + lgbm nuisance
+    # "linear"    → linear (nuisance unused)
+    _test_key = test.lower().strip()
+    if _test_key in {"gcm: quadratic", "quadratic"}:
+        test, nuisance = "gcm", "poly2"
+    elif _test_key in {"gcm: lgbm", "gcm", "lgbm"}:
+        test, nuisance = "gcm", "lgbm"
+    elif _test_key != "linear":
+        raise ValueError("test must be 'linear', 'GCM: quadratic', or 'GCM: lgbm'")
+
+    # rho=0 is treated as rho=None (gate 2 disabled).
+    if rho is not None and rho == 0:
+        rho = None
+
     y_arr = np.asarray(y, dtype=float).reshape(-1)
     t_arr = np.asarray(t, dtype=float).reshape(-1)
     Z = np.asarray(z, dtype=float)
@@ -622,11 +638,13 @@ def nexis(
     else:
         feature_names = [f"z_{j}" for j in range(m)]
 
-    method_str = f"nexis_{test}"
+    if test == "gcm":
+        test_label = "gcm_quadratic" if nuisance == "poly2" else "gcm_lgbm"
+    else:
+        test_label = test
+    method_str = f"nexis_{test_label}"
     if w is not None:
         method_str = "w_" + method_str
-    if test == "gcm":
-        method_str += f"_{nuisance}"
     if not backward:
         method_str += "_fwd"
     if rho is not None:

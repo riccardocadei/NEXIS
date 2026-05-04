@@ -85,17 +85,23 @@ def plot_importance(
 
 METHOD_STYLES: dict = {
     # Baselines (red/orange family)
-    'Marginal':       dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal'),
-    'Marginal (Bon)': dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal (Bon)'),
-    # NEXIS rho ablation (blue family, darker = larger rho)
-    'NEXIS (rho=0)':   dict(color='#9ecae1', marker='D', lw=1.5, ls='--', label='NEXIS (ρ=0, no stop)'),
-    'NEXIS (rho=0.1)': dict(color='#4292c6', marker='D', lw=1.5, label='NEXIS (ρ=0.1)'),
-    'NEXIS':           dict(color='#08519c', marker='D', lw=2.5, label='NEXIS (ρ=0.5, default)'),
-    # Backward ablation (green)
-    'NEXIS (no-bwd)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEXIS (no backward)'),
-    # Test ablation (purple family)
-    'NEXIS (poly2)':   dict(color='#9467bd', marker='o', lw=1.5, label='NEXIS (GCM, poly2)'),
-    'NEXIS (GCM)':     dict(color='#5c3493', marker='o', lw=1.5, ls='-.', label='NEXIS (GCM, lgbm)'),
+    'Marginal Testing':       dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal Testing'),
+    'Marginal Testing (FWER)': dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal Testing (FWER)'),
+    'Marginal Testing (FDR)':  dict(color='#e377c2', marker='s', lw=1.5, ls='-.',  label='Marginal Testing (FDR)'),
+    # NEXIS default (bold blue)
+    'NEXIS':                   dict(color='#08519c', marker='D', lw=2.5, label='NEXIS'),
+    # test ablation (purple family)
+    'NEXIS (test=GCM: quadratic)': dict(color='#9467bd', marker='o', lw=1.5, label='NEXIS (test=GCM: quadratic)'),
+    'NEXIS (test=GCM: lgbm)':      dict(color='#5c3493', marker='o', lw=2.0, label='NEXIS (test=GCM: lgbm)'),
+    # adjust ablation (teal family)
+    'NEXIS (adjust=None)':     dict(color='#41b6c4', marker='^', lw=1.5, ls='--', label='NEXIS (adjust=None)'),
+    'NEXIS (adjust=FDR)':      dict(color='#1d91c0', marker='^', lw=1.5, ls='-.',  label='NEXIS (adjust=FDR)'),
+    # rho ablation (blue family, lighter = smaller rho)
+    'NEXIS (rho=0)':           dict(color='#c6dbef', marker='D', lw=1.5, ls='--', label='NEXIS (ρ=0)'),
+    'NEXIS (rho=0.1)':         dict(color='#9ecae1', marker='D', lw=1.5, ls='--', label='NEXIS (ρ=0.1)'),
+    'NEXIS (rho=0.2)':         dict(color='#6baed6', marker='D', lw=1.5,          label='NEXIS (ρ=0.2)'),
+    # backward ablation (green)
+    'NEXIS (backward=False)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEXIS (backward=False)'),
 }
 
 REPR_STYLES: dict = {
