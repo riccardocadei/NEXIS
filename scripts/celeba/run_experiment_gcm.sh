@@ -33,7 +33,7 @@ COMMON_ARGS=(
     --fixed-effect 2.0 5.0
     --gcm-splits   3
     --methods      "NEXIS (test=GCM: lgbm)"
-    --force
+    --merge
 )
 
 case "$FEATURE_TYPE" in

@@ -103,6 +103,10 @@ def parse_args():
     p.add_argument("--gamma-w2",     type=float, default=-1.0)
     p.add_argument("--noise-sd",     type=float, default=1.0)
     p.add_argument("--force",        action="store_true")
+    p.add_argument("--merge",        action="store_true",
+                   help="Merge new method results into existing parquet files instead of "
+                        "overwriting. Rows for the methods being run are replaced; all "
+                        "other existing rows are kept. Implies --force.")
     return p.parse_args()
 
 
@@ -125,9 +129,19 @@ def main():
 
     effect_path = out_dir / "effect_sweep.parquet"
     n_path      = out_dir / "n_sweep.parquet"
+    if args.merge:
+        args.force = True  # merge implies force
     if effect_path.exists() and n_path.exists() and not args.force:
         print("Results already exist. Use --force to rerun.")
         return
+
+    def _merge_parquet(path: Path, new_df: pd.DataFrame) -> pd.DataFrame:
+        """Keep existing rows for methods not in new_df; replace rows that are."""
+        if not path.exists():
+            return new_df
+        old = pd.read_parquet(path)
+        keep = old[~old["method"].isin(new_df["method"].unique())]
+        return pd.concat([keep, new_df], ignore_index=True)
 
     # ── Load data ─────────────────────────────────────────────────────────────
     k = args.sae_top_k
@@ -245,6 +259,8 @@ def main():
         )
         dfs_effect.append(df)
     df_effect = pd.concat(dfs_effect, ignore_index=True)
+    if args.merge:
+        df_effect = _merge_parquet(effect_path, df_effect)
     df_effect.to_parquet(effect_path, index=False)
     print(f"Effect sweep: {len(df_effect)} rows  →  {effect_path}")
 
@@ -267,6 +283,8 @@ def main():
         )
         dfs_n.append(df)
     df_n = pd.concat(dfs_n, ignore_index=True)
+    if args.merge:
+        df_n = _merge_parquet(n_path, df_n)
     df_n.to_parquet(n_path, index=False)
     print(f"N sweep:      {len(df_n)} rows  →  {n_path}")
 

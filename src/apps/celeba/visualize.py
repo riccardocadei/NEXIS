@@ -104,6 +104,51 @@ METHOD_STYLES: dict = {
     'NEXIS (backward=False)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEXIS (backward=False)'),
 }
 
+# Methods shown in the main comparison figure (NEXIS vs all marginal baselines)
+MAIN_METHODS: dict[str, str] = {
+    'NEXIS':                   'NEXIS',
+    'Marginal Testing':        'Marginal Testing',
+    'Marginal Testing (FWER)': 'Marginal Testing (FWER)',
+    'Marginal Testing (FDR)':  'Marginal Testing (FDR)',
+}
+
+# One entry per ablation dimension: NEXIS default + the ablated variants.
+# Labels are short (no "NEXIS" prefix); legend title names the dimension.
+ABLATION_GROUPS: dict[str, dict] = {
+    'test': {
+        'title': 'Test statistic',
+        'methods': {
+            'NEXIS':                       'linear (default)',
+            'NEXIS (test=GCM: quadratic)': 'GCM: quadratic',
+            'NEXIS (test=GCM: lgbm)':      'GCM: lgbm',
+        },
+    },
+    'adjust': {
+        'title': 'Adjustment',
+        'methods': {
+            'NEXIS':                'Bonferroni (default)',
+            'NEXIS (adjust=None)':  'None',
+            'NEXIS (adjust=FDR)':   'FDR',
+        },
+    },
+    'rho': {
+        'title': 'ρ threshold',
+        'methods': {
+            'NEXIS':           '0.5 (default)',
+            'NEXIS (rho=0)':   '0',
+            'NEXIS (rho=0.1)': '0.1',
+            'NEXIS (rho=0.2)': '0.2',
+        },
+    },
+    'backward': {
+        'title': 'Backward selection',
+        'methods': {
+            'NEXIS':                   'True (default)',
+            'NEXIS (backward=False)':  'False',
+        },
+    },
+}
+
 REPR_STYLES: dict = {
     'Raw SigLIP': dict(color='#d62728', marker='s', lw=2.0, ls='--', label='Raw SigLIP'),
     'SigLIP+SAE': dict(color='#1f77b4', marker='o', lw=2.0,           label='SigLIP+SAE'),
