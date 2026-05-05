@@ -246,7 +246,7 @@ def main():
 
     # ── Marginal Bonferroni baseline ──────────────────────────────────────────
     print(f"\nRunning marginal (FWER) baseline...")
-    marg_groups = groups if (args.w_candidates and n_w_cols > 0) else None
+    marg_groups = None
     marg_res = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust="FWER",
                                groups=marg_groups)
     print(f"  → {len(marg_res.selected)} feature(s) selected: {marg_res.selected}")
@@ -286,8 +286,7 @@ def main():
                 {
                     "idx":   i,
                     "label": _feature_label(i),
-                    "group": (nexis_res.selected_groups[r]
-                              if r < len(nexis_res.selected_groups) else ""),
+                    "group": "SAE" if i < n_sae_features else "W",
                     "pvalue": nexis_res.pvalues[i],
                 }
                 for r, i in enumerate(nexis_res.selected)

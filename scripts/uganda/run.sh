@@ -88,7 +88,7 @@ INTERPRET_EXTRA_ARGS="--quantize"
 VLM_MODEL="Qwen/Qwen2-VL-7B-Instruct"
 GEOCHAT_MODEL="MBZUAI/geochat-7b"
 TEXT_MODEL="Qwen/Qwen2.5-72B-Instruct"
-PIPELINES_ARG="qwen,geochat"
+PIPELINES_ARG="qwen7b,geochat"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 for arg in "$@"; do
@@ -316,9 +316,9 @@ run_interpret_serial() {
     OUTCOMES_CSV=$(IFS=','; echo "${OUTCOMES_TO_RUN[*]}")
     echo "-- $TAG Step 3 ($PIPELINE): ${#OUTCOMES_TO_RUN[@]} outcome(s)"
 
-    if [ "$PIPELINE" = "qwen" ]; then
+    if [ "$PIPELINE" = "qwen7b" ] || [ "$PIPELINE" = "qwen72b" ] || [ "$PIPELINE" = "points" ]; then
       $PYTHON "$SCRIPTS/interpret.py" \
-        --pipeline    qwen            \
+        --pipeline    "$PIPELINE"     \
         --embed-model "$MODEL"        \
         --sae-dim     "$HIDDEN_DIM"   \
         --k 10                        \
@@ -326,7 +326,7 @@ run_interpret_serial() {
         --outcomes    "$OUTCOMES_CSV" \
         $(has_overwrite interpret && echo "--overwrite") \
         $INTERPRET_EXTRA_ARGS         \
-      || echo "  WARNING: interpret.py (qwen) failed."
+      || echo "  WARNING: interpret.py ($PIPELINE) failed."
     else
       $PYTHON "$SCRIPTS/interpret.py" \
         --pipeline      geochat         \

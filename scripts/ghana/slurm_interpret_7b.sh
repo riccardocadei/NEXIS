@@ -1,13 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=ghana_interpret
+#SBATCH --job-name=ghana_interp7b
 #SBATCH --output=/nfs/scistore19/locatgrp/rcadei/NEXIS/logs/ghana_interpret_%j.out
 #SBATCH --error=/nfs/scistore19/locatgrp/rcadei/NEXIS/logs/ghana_interpret_%j.err
-#SBATCH --partition=gpu100
-#SBATCH --time=00:45:00
-#SBATCH --nodelist=gpu269
-#SBATCH --gres=gpu:H100:1
-#SBATCH --mem=64G
-#SBATCH --cpus-per-task=4
+#SBATCH --partition=debug_gpu
+#SBATCH --time=01:00:00
+#SBATCH --gres=gpu:2080ti:1
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=6
 
 set -euo pipefail
 
@@ -19,12 +18,10 @@ cd "$ROOT"
 
 $PYTHON src/apps/ghana/interpret.py \
     --mode both \
-    --vlm-model Qwen/Qwen2.5-VL-72B-Instruct \
+    --vlm-model Qwen/Qwen2-VL-7B-Instruct \
     --quantize \
-    --pipeline qwen25_72b \
-    --k 12 \
+    --pipeline qwen7b \
+    --k 8 \
     --alpha 0.05 \
     --interpret-only \
-    --overwrite \
-    --neurons 1777,3821 \
     "$@"

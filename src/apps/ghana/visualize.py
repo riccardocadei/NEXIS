@@ -132,6 +132,104 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
     return ax
 
 
+def plot_neuron_activation_map(
+    data_dir: Path | str,
+    df: 'pd.DataFrame',
+    comm_ids: 'np.ndarray',
+    activations: 'np.ndarray',
+    neuron_idx: int,
+    pvalue: float,
+    ax=None,
+    cmap: str = "YlOrRd",
+    inactive_color: str = "#cccccc",
+) -> plt.Axes:
+    """Map of Ghana LEAP communities coloured by SAE neuron activation.
+
+    Active communities (activation > 0) are coloured on a sequential scale;
+    inactive communities are rendered in gray.
+
+    Parameters
+    ----------
+    df         : DataFrame from load_data(); must contain comm, gps_latitude,
+                 gps_longitude, wave columns.
+    comm_ids   : (n_comm,) array of community IDs aligned with `activations`.
+    activations: (n_comm,) activation values for this neuron.
+    """
+    import matplotlib.colors as mcolors
+    from matplotlib.cm import ScalarMappable
+
+    data_dir = Path(data_dir)
+    gdf1 = gpd.read_file(data_dir / 'gadm41_GHA_1.json')
+    gdf2 = gpd.read_file(data_dir / 'gadm41_GHA_2.json')
+
+    lakes_shp = data_dir / 'ne_10m_lakes.shp'
+    if lakes_shp.exists():
+        ghana_box = gpd.GeoDataFrame({'geometry': [box(*gdf1.total_bounds)]}, crs=gdf1.crs)
+        lakes_gh  = gpd.read_file(lakes_shp).to_crs(gdf1.crs).clip(ghana_box)
+    else:
+        lakes_gh = gpd.GeoDataFrame()
+
+    GADM_TO_DISTRICT = {
+        'EastMamprusi': 'East Mamprusi', 'Karaga': 'Karaga',
+        'Bongo': 'Bongo', 'Yendi': 'Yendi',
+        'Garu': 'Garu-Tempane', 'Tempane': 'Garu-Tempane',
+    }
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 5))
+
+    # Base map
+    gdf1.plot(ax=ax, color='#e8e8e8', edgecolor='white', linewidth=0.6)
+    gdf2['district_label'] = gdf2['NAME_2'].map(GADM_TO_DISTRICT)
+    trial_mask = gdf2['district_label'].notna()
+    gdf2[trial_mask].plot(ax=ax, color='#f0f0f0', edgecolor='white', linewidth=0.6)
+    if not lakes_gh.empty:
+        lakes_gh.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=3)
+
+    # Community activations
+    act_map = dict(zip(comm_ids.tolist(), activations.tolist()))
+    comm_df = (
+        df[df['wave'] == 0]
+        .dropna(subset=['gps_latitude', 'gps_longitude'])
+        .groupby('comm', as_index=False)
+        .agg(lat=('gps_latitude', 'first'), lon=('gps_longitude', 'first'))
+    )
+    comm_df['activation'] = comm_df['comm'].map(act_map).fillna(0.0)
+
+    active   = comm_df[comm_df['activation'] > 0]
+    inactive = comm_df[comm_df['activation'] <= 0]
+
+    # Inactive communities in gray
+    if not inactive.empty:
+        ax.scatter(inactive['lon'], inactive['lat'],
+                   s=14, c=inactive_color, marker='o',
+                   edgecolors='none', alpha=0.7, zorder=5, label='Inactive')
+
+    # Active communities on a colormap
+    if not active.empty:
+        vmin, vmax = active['activation'].min(), active['activation'].max()
+        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+        sc = ax.scatter(active['lon'], active['lat'],
+                        s=20, c=active['activation'], cmap=cmap, norm=norm,
+                        marker='o', edgecolors='#333333', linewidths=0.3,
+                        alpha=0.95, zorder=6)
+        cbar = ax.figure.colorbar(
+            ScalarMappable(norm=norm, cmap=cmap),
+            ax=ax, fraction=0.03, pad=0.02, aspect=20
+        )
+        cbar.set_label('Activation', fontsize=7)
+        cbar.ax.tick_params(labelsize=6)
+
+    n_active = int((activations > 0).sum())
+    ax.set_title(
+        f"Neuron {neuron_idx}  |  p = {pvalue:.4f}  |  "
+        f"{n_active}/{len(comm_ids)} active communities",
+        fontsize=8, pad=4,
+    )
+    ax.axis('off')
+    return ax
+
+
 def plot_love(df0: pd.DataFrame, w_cols: list[str],
               labels: dict[str, str] | None = None,
               ax=None,

@@ -480,8 +480,8 @@ def _render_z_dist(ax, Z_col, T_ind, is_binary=False, bg_color="white"):
 # ── Uganda site map ─────────────────────────────────────────────────────────────
 
 def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
-                     uganda_gdf, neighbors, lakes_c, map_xlim=None,
-                     Z_ind_all=None, df_ind_sub=None):
+                     uganda_gdf, neighbors, lakes_c, regions_gdf=None,
+                     map_xlim=None, Z_ind_all=None, df_ind_sub=None):
     """Map coloured by per-site fraction of active individuals (0=gray → 1=green)."""
     coord_cols = ['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']
     sites_df   = (df_rct[coord_cols].dropna()
@@ -532,8 +532,8 @@ def _render_site_map(ax, feat_idx, site_feats, site_keys, df_rct,
 # ── Mini map for image example rows ────────────────────────────────────────────
 
 def _render_mini_map_examples(ax, example_keys, df_rct,
-                               uganda_gdf, neighbors, lakes_c,
-                               site_keys_all, highlight_col, map_xlim=None):
+                               uganda_gdf, neighbors, lakes_c, regions_gdf=None,
+                               site_keys_all=None, highlight_col=None, map_xlim=None):
     """7th slot in top/bot image rows: Uganda map highlighting the k example locations."""
     coord_cols = ['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']
     sites_df   = df_rct[coord_cols].dropna().drop_duplicates('geo_long_lat_key')
@@ -567,7 +567,7 @@ def _render_mini_map_examples(ax, example_keys, df_rct,
 # ── W-covariate site map ────────────────────────────────────────────────────────
 
 def _render_w_site_map(ax, w_label, df_ind_sub, df_rct,
-                        site_keys, uganda_gdf, neighbors, lakes_c,
+                        site_keys, uganda_gdf, neighbors, lakes_c, regions_gdf=None,
                         n_map_cols=4, map_xlim=None):
     """Map of sites coloured by mean W per site (gray=0/min → green=1/max)."""
     coord_col = 'geo_long_lat_key'
