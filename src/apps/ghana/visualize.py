@@ -52,18 +52,22 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
     ghana_box = gpd.GeoDataFrame({'geometry': [box(*gdf1.total_bounds)]}, crs=gdf1.crs)
     lakes_gh  = gpd.read_file(lakes_shp).to_crs(gdf1.crs).clip(ghana_box)
 
-    TRIAL_REGIONS = {'Northern', 'NorthEast', 'UpperEast'}
-    gdf1['in_trial'] = gdf1['NAME_1'].isin(TRIAL_REGIONS)
-
-    # Garu-Tempane was split into Garu + Tempane in the GADM dataset
-    district_centroids = {
-        'East Mamprusi': gdf2[gdf2['NAME_2'] == 'EastMamprusi'].geometry.iloc[0].centroid,
-        'Karaga':        gdf2[gdf2['NAME_2'] == 'Karaga'].geometry.iloc[0].centroid,
-        'Bongo':         gdf2[gdf2['NAME_2'] == 'Bongo'].geometry.iloc[0].centroid,
-        'Yendi':         gdf2[gdf2['NAME_2'] == 'Yendi'].geometry.iloc[0].centroid,
-        'Garu-Tempane':  unary_union(
-                             gdf2[gdf2['NAME_2'].isin({'Garu', 'Tempane'})].geometry
-                         ).centroid,
+    # One colour per trial district
+    DISTRICT_COLORS = {
+        'East Mamprusi': '#e07b39',
+        'Karaga':        '#5b8db8',
+        'Bongo':         '#4caf7d',
+        'Yendi':         '#9c6db7',
+        'Garu-Tempane':  '#d4a017',
+    }
+    # GADM NAME_2 → study district label
+    GADM_TO_DISTRICT = {
+        'EastMamprusi': 'East Mamprusi',
+        'Karaga':       'Karaga',
+        'Bongo':        'Bongo',
+        'Yendi':        'Yendi',
+        'Garu':         'Garu-Tempane',
+        'Tempane':      'Garu-Tempane',
     }
     label_offsets = {
         'East Mamprusi': (-0.55, -0.18),
@@ -80,48 +84,50 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
         ax.set_facecolor(PAPER_BG)
         ax.figure.set_facecolor(PAPER_BG)
 
-    gdf1[~gdf1['in_trial']].plot(
-        ax=ax, color='#d9d9d9', edgecolor='white', linewidth=0.6)
-    gdf1[gdf1['in_trial']].plot(
-        ax=ax, color=TREAT_COLOR, alpha=0.45, edgecolor='white', linewidth=0.6)
+    # All regions in gray background first
+    gdf1.plot(ax=ax, color='#d9d9d9', edgecolor='white', linewidth=0.6)
+
+    # Trial districts: each in its own colour on top
+    gdf2['district_label'] = gdf2['NAME_2'].map(GADM_TO_DISTRICT)
+    for label, color in DISTRICT_COLORS.items():
+        mask = gdf2['district_label'] == label
+        if mask.any():
+            gdf2[mask].plot(ax=ax, color=color, alpha=0.35,
+                            edgecolor='white', linewidth=0.6)
+
     if not lakes_gh.empty:
         lakes_gh.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=3)
 
-    for name, pt in district_centroids.items():
-        ax.scatter(pt.x, pt.y, s=55, color=TREAT_COLOR,
-                   edgecolors='black', linewidths=0.5, zorder=5)
-        dx, dy = label_offsets[name]
-        ax.annotate(name,
+    # District name labels (no circle markers — names are district labels, not cities)
+    for label, color in DISTRICT_COLORS.items():
+        mask = gdf2['district_label'] == label
+        if mask.any():
+            pt = gdf2[mask].geometry.unary_union.centroid
+        dx, dy = label_offsets[label]
+        ax.annotate(label,
                     xy=(pt.x, pt.y), xytext=(pt.x + dx, pt.y + dy),
                     fontsize=7, color='#222222',
                     arrowprops=dict(arrowstyle='-', color='#666666', lw=0.6),
                     va='center', ha='right' if dx < 0 else 'left')
 
     if df is not None:
-        # Community centroids: one point per comm, using baseline wave only
+        # Community centroids coloured by district; one point per comm.
         comm_df = (
             df[df['wave'] == 0]
             .dropna(subset=['gps_latitude', 'gps_longitude'])
             .groupby('comm', as_index=False)
             .agg(lat=('gps_latitude', 'first'),
                  lon=('gps_longitude', 'first'),
-                 T=('T', lambda x: int(x.mode()[0])),
-                 n=('T', 'count'))
+                 district=('district', 'first'))
         )
-        for t_val, color, label in [
-            (1, '#2ca02c', 'Treatment community'),
-            (0, '#d62728', 'Comparison community'),
-        ]:
-            sub = comm_df[comm_df['T'] == t_val]
+        for label, color in DISTRICT_COLORS.items():
+            sub = comm_df[comm_df['district'] == label]
             ax.scatter(sub['lon'], sub['lat'],
                        s=8, c=color, marker='o',
-                       edgecolors='none',
-                       alpha=0.75, zorder=6, label=label)
-        ax.legend(fontsize=7, loc='lower left',
-                  framealpha=0.8, markerscale=1.2)
+                       edgecolors='none', alpha=0.9, zorder=6)
 
-    if not paper:
-        ax.set_title('LEAP 1000 trial districts', fontsize=11, pad=8)
+    ax.set_facecolor('white')
+    ax.figure.set_facecolor('white')
     ax.axis('off')
     return ax
 

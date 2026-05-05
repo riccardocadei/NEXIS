@@ -9,7 +9,7 @@ DATA_DIR = Path('../data/ghana')
 
 # ── Covariate groups ──────────────────────────────────────────────────────────
 NUMERIC_W = [
-    'pmtscore', 'hhsize', 'children_u5', 'children_6_17',
+    'hhsize', 'children_u5', 'children_6_17',
     'adults', 'elderly', 'head_age', 'rooms',
 ]
 
@@ -24,7 +24,6 @@ W_ALL = NUMERIC_W + BINARY_W
 
 # ── Human-readable labels ─────────────────────────────────────────────────────
 W_LABELS: dict[str, str] = {
-    'pmtscore':       'PMT score',
     'hhsize':         'Household size',
     'children_u5':    'Children 0–5',
     'children_6_17':  'Children 6–17',
@@ -60,8 +59,7 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
                        can appear within the same comm code — comm is a geographic area
                        marker, NOT the randomisation unit — but it provides 162 clusters
                        for variance estimation, far more than the 5 available districts.
-        gps_latitude / gps_longitude — community-level centroid coordinates (NaN for 3
-                       communities: comm 14, 273, 281).
+        gps_latitude / gps_longitude — community-level centroid coordinates.
 
     All Yes/No covariates are binarised (1/0) and given readable names.
     Continuous covariates are renamed for clarity.
