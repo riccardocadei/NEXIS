@@ -53,8 +53,8 @@ ALL_METHODS: List[str] = [
     "NEXIS (adjust=FDR)",
     # rho ablation
     "NEXIS (rho=0)",
-    "NEXIS (rho=0.1)",
     "NEXIS (rho=0.2)",
+    "NEXIS (rho=0.8)",
     # backward ablation
     "NEXIS (backward=False)",
 ]
@@ -140,9 +140,9 @@ def evaluate_methods_on_dataset(
     _run("NEXIS (rho=0)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       rho=0))
-    _run("NEXIS (rho=0.1)",
+    _run("NEXIS (rho=0.8)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
-                      rho=0.1))
+                      rho=0.8))
     _run("NEXIS (rho=0.2)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       rho=0.2))
@@ -323,43 +323,42 @@ def run_sweep(
         Long-format DataFrame with columns:
           [sweep_param, seed, method, iou, recall, precision, tp, fp, n_selected, time_s]
     """
+    def _one_task(param_val, seed):
+        n_loc        = int(param_val) if sweep_param == "n" else fixed_n
+        effect_loc   = param_val if sweep_param == "effect_scale" else fixed_effect
+        try:
+            return param_val, seed, run_one(
+                features, labels_df, buckets, truth,
+                n=n_loc, effect_scale=effect_loc, seed=seed,
+                alpha=alpha, max_rounds=max_rounds,
+                methods=methods, gcm_splits=gcm_splits,
+                **scm_kwargs,
+            )
+        except ValueError:
+            return param_val, seed, None  # bucket exhausted
+
+    tasks = [(pv, s) for pv in param_grid for s in range(n_seeds)]
+    if verbose:
+        print(f"  {len(tasks)} tasks  "
+              f"({len(param_grid)} {sweep_param} values × {n_seeds} seeds) …", flush=True)
+
+    results = Parallel(n_jobs=n_jobs, prefer="threads")(
+        delayed(_one_task)(pv, s) for pv, s in tasks
+    )
+
     rows = []
-    for param_val in param_grid:
-        n            = int(param_val) if sweep_param == "n" else fixed_n
-        effect_scale = param_val if sweep_param == "effect_scale" else fixed_effect
-
-        if verbose:
-            print(f"  {sweep_param}={param_val:.3g}  n={n}  effect={effect_scale:.3g}",
-                  flush=True)
-
-        def _one_seed(seed):
-            try:
-                return seed, run_one(
-                    features, labels_df, buckets, truth,
-                    n=n, effect_scale=effect_scale, seed=seed,
-                    alpha=alpha, max_rounds=max_rounds,
-                    methods=methods, gcm_splits=gcm_splits,
-                    **scm_kwargs,
-                )
-            except ValueError:
-                return seed, None  # bucket exhausted
-
-        results = Parallel(n_jobs=n_jobs, prefer="threads")(
-            delayed(_one_seed)(s) for s in range(n_seeds)
-        )
-
-        for seed, metrics in results:
-            if metrics is None:
-                if verbose:
-                    print(f"    SKIP seed={seed}: bucket exhausted")
-                continue
-            for method, m in metrics.items():
-                rows.append({
-                    sweep_param: param_val,
-                    "seed": seed,
-                    "method": method,
-                    **m,
-                })
+    for param_val, seed, metrics in results:
+        if metrics is None:
+            if verbose:
+                print(f"    SKIP seed={seed}: bucket exhausted")
+            continue
+        for method, m in metrics.items():
+            rows.append({
+                sweep_param: param_val,
+                "seed": seed,
+                "method": method,
+                **m,
+            })
 
     df = pd.DataFrame(rows)
     if sweep_param == "effect_scale" and fixed_n is not None:

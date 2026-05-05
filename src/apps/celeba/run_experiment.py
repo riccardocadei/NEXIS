@@ -102,6 +102,8 @@ def parse_args():
     p.add_argument("--gamma-w1",     type=float, default=1.0)
     p.add_argument("--gamma-w2",     type=float, default=-1.0)
     p.add_argument("--noise-sd",     type=float, default=1.0)
+    p.add_argument("--sweep",        choices=["effect", "n", "both"], default="both",
+                   help="Which sweep to run (default: both)")
     p.add_argument("--force",        action="store_true")
     p.add_argument("--merge",        action="store_true",
                    help="Merge new method results into existing parquet files instead of "
@@ -131,9 +133,14 @@ def main():
     n_path      = out_dir / "n_sweep.parquet"
     if args.merge:
         args.force = True  # merge implies force
-    if effect_path.exists() and n_path.exists() and not args.force:
-        print("Results already exist. Use --force to rerun.")
-        return
+    if args.sweep in ("effect", "both") and effect_path.exists() and not args.force:
+        print("Effect sweep results already exist. Use --force to rerun.")
+        if args.sweep == "effect":
+            return
+    if args.sweep in ("n", "both") and n_path.exists() and not args.force:
+        print("N sweep results already exist. Use --force to rerun.")
+        if args.sweep == "n":
+            return
 
     def _merge_parquet(path: Path, new_df: pd.DataFrame) -> pd.DataFrame:
         """Keep existing rows for methods not in new_df; replace rows that are."""
@@ -241,52 +248,54 @@ def main():
     methods = args.methods  # None → all methods
 
     # ── Effect-size sweep (one sub-sweep per fixed n) ─────────────────────────
-    effect_grid = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
-    dfs_effect = []
-    for fixed_n in args.fixed_n:
-        print(f"\n=== Effect-size sweep  n={fixed_n}  seeds={args.n_seeds} ===")
-        df = run_sweep(
-            features, labels_df, buckets, truth,
-            sweep_param="effect_scale",
-            param_grid=effect_grid,
-            fixed_n=fixed_n,
-            n_seeds=args.n_seeds,
-            alpha=args.alpha,
-            max_rounds=args.max_steps,
-            methods=methods,
-            gcm_splits=args.gcm_splits,
-            **scm_kwargs,
-        )
-        dfs_effect.append(df)
-    df_effect = pd.concat(dfs_effect, ignore_index=True)
-    if args.merge:
-        df_effect = _merge_parquet(effect_path, df_effect)
-    df_effect.to_parquet(effect_path, index=False)
-    print(f"Effect sweep: {len(df_effect)} rows  →  {effect_path}")
+    if args.sweep in ("effect", "both"):
+        effect_grid = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+        dfs_effect = []
+        for fixed_n in args.fixed_n:
+            print(f"\n=== Effect-size sweep  n={fixed_n}  seeds={args.n_seeds} ===")
+            df = run_sweep(
+                features, labels_df, buckets, truth,
+                sweep_param="effect_scale",
+                param_grid=effect_grid,
+                fixed_n=fixed_n,
+                n_seeds=args.n_seeds,
+                alpha=args.alpha,
+                max_rounds=args.max_steps,
+                methods=methods,
+                gcm_splits=args.gcm_splits,
+                **scm_kwargs,
+            )
+            dfs_effect.append(df)
+        df_effect = pd.concat(dfs_effect, ignore_index=True)
+        if args.merge:
+            df_effect = _merge_parquet(effect_path, df_effect)
+        df_effect.to_parquet(effect_path, index=False)
+        print(f"Effect sweep: {len(df_effect)} rows  →  {effect_path}")
 
     # ── Sample-size sweep (one sub-sweep per fixed effect) ────────────────────
-    n_grid = [50, 100, 250, 500, 1000, 2000, 5000, 10000]
-    dfs_n = []
-    for fixed_effect in args.fixed_effect:
-        print(f"\n=== Sample-size sweep  effect={fixed_effect}  seeds={args.n_seeds} ===")
-        df = run_sweep(
-            features, labels_df, buckets, truth,
-            sweep_param="n",
-            param_grid=n_grid,
-            fixed_effect=fixed_effect,
-            n_seeds=args.n_seeds,
-            alpha=args.alpha,
-            max_rounds=args.max_steps,
-            methods=methods,
-            gcm_splits=args.gcm_splits,
-            **scm_kwargs,
-        )
-        dfs_n.append(df)
-    df_n = pd.concat(dfs_n, ignore_index=True)
-    if args.merge:
-        df_n = _merge_parquet(n_path, df_n)
-    df_n.to_parquet(n_path, index=False)
-    print(f"N sweep:      {len(df_n)} rows  →  {n_path}")
+    if args.sweep in ("n", "both"):
+        n_grid = [50, 100, 200, 350, 500, 750, 1000, 2000, 3500, 5000, 10000]
+        dfs_n = []
+        for fixed_effect in args.fixed_effect:
+            print(f"\n=== Sample-size sweep  effect={fixed_effect}  seeds={args.n_seeds} ===")
+            df = run_sweep(
+                features, labels_df, buckets, truth,
+                sweep_param="n",
+                param_grid=n_grid,
+                fixed_effect=fixed_effect,
+                n_seeds=args.n_seeds,
+                alpha=args.alpha,
+                max_rounds=args.max_steps,
+                methods=methods,
+                gcm_splits=args.gcm_splits,
+                **scm_kwargs,
+            )
+            dfs_n.append(df)
+        df_n = pd.concat(dfs_n, ignore_index=True)
+        if args.merge:
+            df_n = _merge_parquet(n_path, df_n)
+        df_n.to_parquet(n_path, index=False)
+        print(f"N sweep:      {len(df_n)} rows  →  {n_path}")
 
     print(f"\nDone ({feat_label}).  Run notebooks/celeba_semisynthetic.ipynb to visualise.")
 

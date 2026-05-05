@@ -84,36 +84,37 @@ def plot_importance(
 # ---------------------------------------------------------------------------
 
 METHOD_STYLES: dict = {
-    # Baselines (red/orange family)
-    'Marginal Testing':       dict(color='#d62728', marker='s', lw=1.5, ls='--', label='Marginal Testing'),
-    'Marginal Testing (FWER)': dict(color='#ff7f0e', marker='s', lw=1.5, ls=':',  label='Marginal Testing (FWER)'),
-    'Marginal Testing (FDR)':  dict(color='#e377c2', marker='s', lw=1.5, ls='-.',  label='Marginal Testing (FDR)'),
+    # Baselines (red/orange/pink family)
+    'Marginal Testing':        dict(color='#d62728', lw=1.5, marker='o', ms=3, label='Marginal Testing'),
+    'Marginal Testing (FWER)': dict(color='#ff7f0e', lw=1.5, marker='o', ms=3, label='Marginal Testing (FWER)'),
+    'Marginal Testing (FDR)':  dict(color='#e377c2', lw=1.5, marker='o', ms=3, label='Marginal Testing (FDR)'),
     # NEXIS default (bold blue)
-    'NEXIS':                   dict(color='#08519c', marker='D', lw=2.5, label='NEXIS'),
+    'NEXIS':                   dict(color='#08519c', lw=2.5, marker='o', ms=3, label='NEXIS'),
     # test ablation (purple family)
-    'NEXIS (test=GCM: quadratic)': dict(color='#9467bd', marker='o', lw=1.5, label='NEXIS (test=GCM: quadratic)'),
-    'NEXIS (test=GCM: lgbm)':      dict(color='#5c3493', marker='o', lw=2.0, label='NEXIS (test=GCM: lgbm)'),
+    'NEXIS (test=GCM: quadratic)': dict(color='#9467bd', lw=1.5, marker='o', ms=3, label='NEXIS (test=GCM: quadratic)'),
+    'NEXIS (test=GCM: lgbm)':      dict(color='#5c3493', lw=2.0, marker='o', ms=3, label='NEXIS (test=GCM: lgbm)'),
     # adjust ablation (teal family)
-    'NEXIS (adjust=None)':     dict(color='#41b6c4', marker='^', lw=1.5, ls='--', label='NEXIS (adjust=None)'),
-    'NEXIS (adjust=FDR)':      dict(color='#1d91c0', marker='^', lw=1.5, ls='-.',  label='NEXIS (adjust=FDR)'),
+    'NEXIS (adjust=None)':     dict(color='#41b6c4', lw=1.5, marker='o', ms=3, label='NEXIS (adjust=None)'),
+    'NEXIS (adjust=FDR)':      dict(color='#1d91c0', lw=1.5, marker='o', ms=3, label='NEXIS (adjust=FDR)'),
     # rho ablation (blue family, lighter = smaller rho)
-    'NEXIS (rho=0)':           dict(color='#c6dbef', marker='D', lw=1.5, ls='--', label='NEXIS (ρ=0)'),
-    'NEXIS (rho=0.1)':         dict(color='#9ecae1', marker='D', lw=1.5, ls='--', label='NEXIS (ρ=0.1)'),
-    'NEXIS (rho=0.2)':         dict(color='#6baed6', marker='D', lw=1.5,          label='NEXIS (ρ=0.2)'),
+    'NEXIS (rho=0)':           dict(color='#c6dbef', lw=1.5, marker='o', ms=3, label='NEXIS (ρ=0)'),
+    'NEXIS (rho=0.2)':         dict(color='#9ecae1', lw=1.5, marker='o', ms=3, label='NEXIS (ρ=0.2)'),
+    'NEXIS (rho=0.8)':         dict(color='#6baed6', lw=1.5, marker='o', ms=3, label='NEXIS (ρ=0.8)'),
     # backward ablation (green)
-    'NEXIS (backward=False)':  dict(color='#2ca02c', marker='v', lw=1.5, ls='-.', label='NEXIS (backward=False)'),
+    'NEXIS (backward=False)':  dict(color='#2ca02c', lw=1.5, marker='o', ms=3, label='NEXIS (backward=False)'),
 }
 
 # Methods shown in the main comparison figure (NEXIS vs all marginal baselines)
 MAIN_METHODS: dict[str, str] = {
-    'NEXIS':                   'NEXIS',
     'Marginal Testing':        'Marginal Testing',
-    'Marginal Testing (FWER)': 'Marginal Testing (FWER)',
     'Marginal Testing (FDR)':  'Marginal Testing (FDR)',
+    'Marginal Testing (FWER)': 'Marginal Testing (FWER)',
+    'NEXIS':                   'NEXIS',
 }
 
 # One entry per ablation dimension: NEXIS default + the ablated variants.
 # Labels are short (no "NEXIS" prefix); legend title names the dimension.
+# Ordering within each group follows natural progression.
 ABLATION_GROUPS: dict[str, dict] = {
     'test': {
         'title': 'Test statistic',
@@ -126,54 +127,71 @@ ABLATION_GROUPS: dict[str, dict] = {
     'adjust': {
         'title': 'Adjustment',
         'methods': {
-            'NEXIS':                'Bonferroni (default)',
             'NEXIS (adjust=None)':  'None',
             'NEXIS (adjust=FDR)':   'FDR',
+            'NEXIS':                'FWER (default)',
         },
     },
     'rho': {
         'title': 'ρ threshold',
         'methods': {
-            'NEXIS':           '0.5 (default)',
             'NEXIS (rho=0)':   '0',
-            'NEXIS (rho=0.1)': '0.1',
             'NEXIS (rho=0.2)': '0.2',
+            'NEXIS':           '0.5 (default)',
+            'NEXIS (rho=0.8)': '0.8',
         },
     },
     'backward': {
         'title': 'Backward selection',
         'methods': {
-            'NEXIS':                   'True (default)',
             'NEXIS (backward=False)':  'False',
+            'NEXIS':                   'True (default)',
         },
     },
 }
 
 REPR_STYLES: dict = {
-    'Raw SigLIP': dict(color='#d62728', marker='s', lw=2.0, ls='--', label='Raw SigLIP'),
-    'SigLIP+SAE': dict(color='#1f77b4', marker='o', lw=2.0,           label='SigLIP+SAE'),
+    'Raw SigLIP': dict(color='#d62728', lw=2.0, ls='--', label='Raw SigLIP'),
+    'SigLIP+SAE': dict(color='#1f77b4', lw=2.0,           label='SigLIP+SAE'),
 }
 
 
 def _add_type1_region(ax, df, xcol: str, metric: str) -> None:
     if xcol == 'effect_scale' and metric in ('recall', 'iou', 'precision'):
         ax.axvspan(-0.05, 0.05, color='gray', alpha=0.10)
-        ax.text(0.04, 0.04, 'Type I', rotation=90, color='gray', fontsize=8,
-                transform=ax.get_xaxis_transform())
 
 
 _METRIC_LABEL = {'iou': 'IoU', 'recall': 'Recall', 'precision': 'Precision'}
 
 
-def plot_sweep(df: pd.DataFrame, xcol: str, metric: str,
-               xlabel: str, title: str | None = None, ax=None) -> plt.Axes:
-    """Mean ± 1.96 SE curves for each method vs. a sweep parameter."""
+def plot_sweep(
+    df: pd.DataFrame,
+    xcol: str,
+    metric: str,
+    xlabel: str,
+    title: str | None = None,
+    ax=None,
+    methods: dict[str, str] | None = None,
+    legend_title: str | None = None,
+) -> plt.Axes:
+    """Mean ± 1.96 SE curves for each method vs. a sweep parameter.
+
+    methods: optional dict {method_key: display_label}. If None, all METHOD_STYLES
+             are shown with their default labels.
+    """
     if ax is None:
         _, ax = plt.subplots(figsize=(5, 3.5))
     log_x = (xcol == 'n')
-    for method, style in METHOD_STYLES.items():
+    items = (methods.items() if methods is not None
+             else {m: s['label'] for m, s in METHOD_STYLES.items()}.items())
+    for method, label in items:
+        if method not in METHOD_STYLES:
+            continue
+        style = {**METHOD_STYLES[method], 'label': label}
         sub = df[df['method'] == method].groupby(xcol)[metric]
         mu, se = sub.mean(), sub.sem()
+        if mu.empty:
+            continue
         ax.plot(mu.index.values, mu.values, **style)
         ax.fill_between(mu.index.values,
                         (mu - 1.96 * se).values, (mu + 1.96 * se).values,
@@ -187,7 +205,7 @@ def plot_sweep(df: pd.DataFrame, xcol: str, metric: str,
     ax.set_ylabel(_METRIC_LABEL.get(metric, metric.capitalize()))
     if title is not None:
         ax.set_title(title)
-    ax.legend(fontsize=9, frameon=False)
+    ax.legend(fontsize=9, frameon=False, title=legend_title)
     ax.grid(True, alpha=0.25)
     return ax
 
@@ -238,7 +256,7 @@ def plot_comparison(
 
 
 # ---------------------------------------------------------------------------
-# Convenience wrapper: full 3-panel sweep grid
+# Convenience wrapper: full 3-panel sweep grid (main comparison)
 # ---------------------------------------------------------------------------
 
 def plot_sweep_grid(
@@ -247,6 +265,7 @@ def plot_sweep_grid(
     xlabel: str,
     suptitle: str,
     out_path,
+    methods: dict[str, str] | None = None,
 ) -> None:
     """Save and show an (R×3) Precision / Recall / IoU grid.
 
@@ -254,9 +273,14 @@ def plot_sweep_grid(
     For effect sweeps the fixed parameter is 'fixed_n'; for n sweeps it is
     'fixed_effect'.  Each row is labelled with its fixed-parameter value.
     Falls back to a single row if the column is absent (legacy data).
+
+    methods: dict {method_key: label}. Defaults to MAIN_METHODS (NEXIS + baselines).
     """
-    fixed_col  = "fixed_n"     if xcol == "effect_scale" else "fixed_effect"
-    fixed_label = "n"          if xcol == "effect_scale" else "η"
+    if methods is None:
+        methods = MAIN_METHODS
+
+    fixed_col   = "fixed_n"     if xcol == "effect_scale" else "fixed_effect"
+    fixed_label = "n"           if xcol == "effect_scale" else "η"
 
     if fixed_col in df.columns:
         fixed_vals = sorted(df[fixed_col].unique())
@@ -271,7 +295,7 @@ def plot_sweep_grid(
         sub = df[df[fixed_col] == fval] if fval is not None else df
         for col, metric in enumerate(['precision', 'recall', 'iou']):
             ax = axes[row, col]
-            plot_sweep(sub, xcol, metric, xlabel=xlabel, ax=ax)
+            plot_sweep(sub, xcol, metric, xlabel=xlabel, ax=ax, methods=methods)
             if col == 0:
                 if fval is not None:
                     fixed_str = (f"{fixed_label}={int(fval)}"
@@ -280,6 +304,45 @@ def plot_sweep_grid(
                     ax.set_ylabel(f"{fixed_str}\n{_METRIC_LABEL.get(metric, metric)}")
                 else:
                     ax.set_ylabel(_METRIC_LABEL.get(metric, metric))
+
+    fig.suptitle(suptitle, y=1.01, fontsize=11)
+    fig.tight_layout()
+    fig.savefig(out_path, bbox_inches='tight')
+    print(f'Saved → {out_path}')
+    plt.show()
+
+
+# ---------------------------------------------------------------------------
+# Ablation grid: one figure per ablation dimension, rows = representations
+# ---------------------------------------------------------------------------
+
+def plot_ablation_by_repr(
+    dfs: dict[str, pd.DataFrame],
+    ablation_key: str,
+    xcol: str,
+    xlabel: str,
+    suptitle: str,
+    out_path,
+) -> None:
+    """Save and show a (R×3) ablation grid for one design-choice dimension.
+
+    dfs: ordered dict {repr_label: df} — one row per representation.
+    ablation_key: key in ABLATION_GROUPS (e.g. 'test', 'adjust', 'rho', 'backward').
+
+    Columns are Precision / Recall / IoU.  The legend title names the dimension.
+    """
+    group  = ABLATION_GROUPS[ablation_key]
+    n_rows = len(dfs)
+    fig, axes = plt.subplots(n_rows, 3, figsize=(14, 4 * n_rows),
+                             sharey=False, squeeze=False)
+
+    for row, (repr_label, df) in enumerate(dfs.items()):
+        for col, metric in enumerate(['precision', 'recall', 'iou']):
+            ax = axes[row, col]
+            plot_sweep(df, xcol, metric, xlabel=xlabel, ax=ax,
+                       methods=group['methods'], legend_title=group['title'])
+            if col == 0:
+                ax.set_ylabel(f"{repr_label}\n{_METRIC_LABEL.get(metric, metric)}")
 
     fig.suptitle(suptitle, y=1.01, fontsize=11)
     fig.tight_layout()
