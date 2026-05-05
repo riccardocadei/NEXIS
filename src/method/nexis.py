@@ -211,10 +211,8 @@ def conditional_interaction_pvalues(
     Tests gamma_j = 0 for each j via FWL residualization against D=[1, T, Z_S, T*Z_S],
     then 2-regressor OLS per candidate on [Z_j, T*Z_j].
 
-    cluster: optional 1-D array of cluster IDs (length n).  When provided, the
-      variance of the interaction coefficient is estimated with the CR1S sandwich
-      estimator and the t-statistic is referred to a t(G-1) distribution, where
-      G is the number of unique clusters.
+    cluster: reserved for future use. CR1S is not valid when z features are
+      constant within clusters; pass pre-aggregated community-level data instead.
     """
     y = np.asarray(y, dtype=float).reshape(-1)
     t = np.asarray(t, dtype=float).reshape(-1)
@@ -268,46 +266,13 @@ def conditional_interaction_pvalues(
         beta_x[valid] = (zz[valid] * xy[valid] - zx[valid] * zy[valid]) / det[valid]
         beta_z[valid] = (xx[valid] * zy[valid] - zx[valid] * xy[valid]) / det[valid]
 
-        if cluster is not None:
-            # CR1S sandwich: Var(beta_x) = (zz²·B_xx - 2·zz·zx·B_zx + zx²·B_zz) / det²
-            # where B_** = sum_g score_g score_g', CR1S-scaled by G/(G-1)·(n-1)/(n-p-2).
-            e = y_tilde[:, None] - Z_tilde * beta_z[None, :] - X_tilde * beta_x[None, :]
-            Ze = Z_tilde * e   # (n, n_cand)
-            Xe = X_tilde * e   # (n, n_cand)
-
-            unique_cl, cl_ids = np.unique(cluster, return_inverse=True)
-            G = len(unique_cl)
-            B_zz = np.zeros(len(cand))
-            B_zx = np.zeros(len(cand))
-            B_xx = np.zeros(len(cand))
-            for g in range(G):
-                mask = cl_ids == g
-                sz = Ze[mask].sum(axis=0)
-                sx = Xe[mask].sum(axis=0)
-                B_zz += sz * sz
-                B_zx += sz * sx
-                B_xx += sx * sx
-
-            cr_scale = (G / (G - 1)) * ((n - 1) / (n - p_full - 2))
-            B_zz *= cr_scale
-            B_zx *= cr_scale
-            B_xx *= cr_scale
-
-            var_bx = np.full_like(det, np.nan, dtype=float)
-            var_bx[valid] = (
-                zz[valid] ** 2 * B_xx[valid]
-                - 2 * zz[valid] * zx[valid] * B_zx[valid]
-                + zx[valid] ** 2 * B_zz[valid]
-            ) / det[valid] ** 2
-            dof = G - 1
-        else:
-            rss = np.full_like(det, np.nan, dtype=float)
-            rss[valid] = yy - beta_z[valid] * zy[valid] - beta_x[valid] * xy[valid]
-            rss = np.maximum(rss, 0.0)
-            sigma2 = np.full_like(det, np.nan, dtype=float)
-            sigma2[valid] = rss[valid] / dof
-            var_bx = np.full_like(det, np.nan, dtype=float)
-            var_bx[valid] = sigma2[valid] * (zz[valid] / det[valid])
+        rss = np.full_like(det, np.nan, dtype=float)
+        rss[valid] = yy - beta_z[valid] * zy[valid] - beta_x[valid] * xy[valid]
+        rss = np.maximum(rss, 0.0)
+        sigma2 = np.full_like(det, np.nan, dtype=float)
+        sigma2[valid] = rss[valid] / dof
+        var_bx = np.full_like(det, np.nan, dtype=float)
+        var_bx[valid] = sigma2[valid] * (zz[valid] / det[valid])
 
         ok = valid & np.isfinite(var_bx) & (var_bx > 0)
         tstat = np.zeros_like(det, dtype=float)
@@ -415,6 +380,7 @@ def nexis(
     z: np.ndarray,
     w: Optional[np.ndarray] = None,
     w_names: Optional[List[str]] = None,
+    z_names: Optional[List[str]] = None,
     alpha: float = 0.05,
     max_rounds: Optional[int] = 20,
     rho: Optional[float] = 0.5,
@@ -662,19 +628,31 @@ def nexis(
 
         round_num += 1
 
+    # Recompute final conditional p-values: p(j | S \ {j}) for every selected j.
+    # This gives meaningful values for W-seeded features (which never pass through
+    # the forward step and would otherwise be reported as 1.0).
+    for j in list(selected):
+        S_minus_j = [s for s in selected if s != j]
+        selected_pvals[j] = float(_pvalues(S_minus_j, [j])[j])
+
     out_pvals = last_pvals.copy()
     for j in selected:
         out_pvals[j] = selected_pvals[j]
 
     # Feature names: w_{name} for prior features, z_{j} for neural features
+    z_labels = [
+        f"z_{z_names[j]}" if (z_names is not None and j < len(z_names) and z_names[j])
+        else f"z_{j}"
+        for j in range(m)
+    ]
     if k > 0:
         w_labels = [
             f"w_{w_names[S_w[i]]}" if w_names else f"w_{S_w[i]}"
             for i in range(k)
         ]
-        feature_names = w_labels + [f"z_{j}" for j in range(m)]
+        feature_names = w_labels + z_labels
     else:
-        feature_names = [f"z_{j}" for j in range(m)]
+        feature_names = z_labels
 
     if test == "gcm":
         test_label = "gcm_quadratic" if nuisance == "poly2" else "gcm_lgbm"
