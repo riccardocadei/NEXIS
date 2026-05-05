@@ -31,7 +31,8 @@
 #   dinov3        DINOv3-B/16   768d  3072 features
 #   dinov2_large  DINOv2-L/14  1024d  4096 features
 #   dinov3_large  DINOv3-L/16  1024d  4096 features
-#   prithvi       Prithvi-EO    768d  1024 features
+#   prithvi       Prithvi-EO    768d  1024 features  (year-2000 CSV images)
+#   prithvi_l5    Prithvi-EO    768d  1024 features  (Landsat 5 2005–2007 pre-treatment GeoTIFF)
 #
 # Examples:
 #   bash scripts/uganda/run.sh
@@ -106,6 +107,7 @@ for arg in "$@"; do
     --dinov2-large)  MODELS_ARG="dinov2_large" ;;
     --dinov3-large)  MODELS_ARG="dinov3_large" ;;
     --prithvi)       MODELS_ARG="prithvi" ;;
+    --prithvi-l5)    MODELS_ARG="prithvi_l5" ;;
 
     # Legacy flags
     --skip-train)
@@ -151,6 +153,7 @@ model_params() {
     dinov2_large) echo "dinov2_large 4096 150 32  8192" ;;
     dinov3_large) echo "dinov3_large 4096 150 32  8192" ;;
     prithvi)      echo "prithvi      1024 100 32  8192" ;;
+    prithvi_l5)   echo "prithvi_l5   1024 100 32  8192" ;;  # Landsat 5 2008–2010 tiles
     *) echo "Unknown model preset: $1" >&2; exit 1 ;;
   esac
 }
