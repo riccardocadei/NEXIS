@@ -224,10 +224,15 @@ def main():
     device = torch.device(args.device)
 
     # ── Load embeddings ───────────────────────────────────────────────────────
-    train_path = (script_dir / args.train_embeddings).resolve()
-    rct_path   = (script_dir / args.rct_embeddings).resolve()
-    keys_path  = (script_dir / args.rct_keys).resolve()
-    data_csv   = (script_dir / args.data_csv).resolve()
+    # Resolve paths: absolute paths used as-is; relative paths resolved from repo root.
+    def _resolve(p: str) -> Path:
+        q = Path(p)
+        return q.resolve() if q.is_absolute() else (repo_root / q).resolve()
+
+    train_path = _resolve(args.train_embeddings)
+    rct_path   = _resolve(args.rct_embeddings)
+    keys_path  = _resolve(args.rct_keys)
+    data_csv   = _resolve(args.data_csv)
 
     train_embs = np.load(train_path).astype(np.float32)
     rct_embs   = np.load(rct_path).astype(np.float32)

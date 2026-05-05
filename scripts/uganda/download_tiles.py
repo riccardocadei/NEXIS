@@ -5,8 +5,10 @@ Two modes:
   --mode national  → regular 5×5 km grid covering all of Uganda (SAE training corpus)
 
 Satellite source:
-  LANDSAT/LT05/C02/T1_L2  (Landsat 5 TM, Collection 2 Tier 1 Level 2)
+  LANDSAT/LE07/C02/T1_L2  (Landsat 7 ETM+, Collection 2 Tier 1 Level 2)
   Cloud-free median composite over 2005–2007 (pre-treatment; YOP disbursements began 2008).
+  Landsat 5 has no Uganda coverage 2003–2007 (standby period); Landsat 7 has 910 scenes.
+  SLC-off stripes (post May 2003) are suppressed by the 3-year median composite.
   6 optical bands, in this TIF order:
     0: SR_B1  Blue   (0.45–0.52 µm)
     1: SR_B2  Green  (0.52–0.60 µm)
@@ -73,11 +75,11 @@ def log(msg: str):
 # ── GEE composite ─────────────────────────────────────────────────────────────
 
 def build_composite(year_start: int, year_end: int, bands: list[str], max_cloud: float):
-    """Landsat 5 median composite over [year_start, year_end] (lazy GEE object)."""
+    """Landsat 7 ETM+ median composite over [year_start, year_end] (lazy GEE object)."""
     import ee
     bbox = ee.Geometry.BBox(LON_MIN, LAT_MIN, LON_MAX, LAT_MAX)
     return (
-        ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+        ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
           .filterDate(f'{year_start}-01-01', f'{year_end}-12-31')
           .filterBounds(bbox)
           .filter(ee.Filter.lt('CLOUD_COVER', max_cloud))
@@ -193,7 +195,7 @@ def main():
         out_dir = data_dir / 'satellite' / ('tif_rct' if args.mode == 'rct' else 'tif_national')
 
     log(f'Mode      : {args.mode}')
-    log(f'Composite : Landsat 5 TM  {YEAR_START}–{YEAR_END} median  '
+    log(f'Composite : Landsat 7 ETM+  {YEAR_START}–{YEAR_END} median  '
         f'(cloud < {MAX_CLOUD}%)')
     log(f'Bands     : {BANDS}')
     log(f'Scale     : {args.scale} m  |  Tile: {TILE_KM}×{TILE_KM} km')
@@ -223,7 +225,7 @@ def main():
     ee.Initialize()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    log('\nBuilding Landsat 5 composite (lazy GEE object) …')
+    log('\nBuilding Landsat 7 ETM+ composite (lazy GEE object) …')
     composite = build_composite(YEAR_START, YEAR_END, BANDS, MAX_CLOUD)
     log('Composite ready. Starting downloads …\n')
 

@@ -32,7 +32,7 @@
 #   dinov2_large  DINOv2-L/14  1024d  4096 features
 #   dinov3_large  DINOv3-L/16  1024d  4096 features
 #   prithvi       Prithvi-EO    768d  1024 features  (year-2000 CSV images)
-#   prithvi_l5    Prithvi-EO    768d  1024 features  (Landsat 5 2005–2007 pre-treatment GeoTIFF)
+#   prithvi_l5    Prithvi-EO    768d  1024 features  (Landsat 7 2005–2007 pre-treatment GeoTIFF)
 #
 # Examples:
 #   bash scripts/uganda/run.sh
