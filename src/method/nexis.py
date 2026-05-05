@@ -202,6 +202,7 @@ def conditional_interaction_pvalues(
     S: Optional[Sequence[int]] = None,
     candidates: Optional[Sequence[int]] = None,
     return_tstats: bool = False,
+    cluster: Optional[np.ndarray] = None,
 ):
     """
     Vectorized p-values for H0(j|S) over j in candidates.
@@ -209,6 +210,11 @@ def conditional_interaction_pvalues(
       Y = beta0 + betaT T + beta_S' Z_S + beta_j Z_j + gamma_S'(T*Z_S) + gamma_j (T*Z_j) + e
     Tests gamma_j = 0 for each j via FWL residualization against D=[1, T, Z_S, T*Z_S],
     then 2-regressor OLS per candidate on [Z_j, T*Z_j].
+
+    cluster: optional 1-D array of cluster IDs (length n).  When provided, the
+      variance of the interaction coefficient is estimated with the CR1S sandwich
+      estimator and the t-statistic is referred to a t(G-1) distribution, where
+      G is the number of unique clusters.
     """
     y = np.asarray(y, dtype=float).reshape(-1)
     t = np.asarray(t, dtype=float).reshape(-1)
@@ -262,15 +268,46 @@ def conditional_interaction_pvalues(
         beta_x[valid] = (zz[valid] * xy[valid] - zx[valid] * zy[valid]) / det[valid]
         beta_z[valid] = (xx[valid] * zy[valid] - zx[valid] * xy[valid]) / det[valid]
 
-        rss = np.full_like(det, np.nan, dtype=float)
-        rss[valid] = yy - beta_z[valid] * zy[valid] - beta_x[valid] * xy[valid]
-        rss = np.maximum(rss, 0.0)
+        if cluster is not None:
+            # CR1S sandwich: Var(beta_x) = (zz²·B_xx - 2·zz·zx·B_zx + zx²·B_zz) / det²
+            # where B_** = sum_g score_g score_g', CR1S-scaled by G/(G-1)·(n-1)/(n-p-2).
+            e = y_tilde[:, None] - Z_tilde * beta_z[None, :] - X_tilde * beta_x[None, :]
+            Ze = Z_tilde * e   # (n, n_cand)
+            Xe = X_tilde * e   # (n, n_cand)
 
-        sigma2 = np.full_like(det, np.nan, dtype=float)
-        sigma2[valid] = rss[valid] / dof
+            unique_cl, cl_ids = np.unique(cluster, return_inverse=True)
+            G = len(unique_cl)
+            B_zz = np.zeros(len(cand))
+            B_zx = np.zeros(len(cand))
+            B_xx = np.zeros(len(cand))
+            for g in range(G):
+                mask = cl_ids == g
+                sz = Ze[mask].sum(axis=0)
+                sx = Xe[mask].sum(axis=0)
+                B_zz += sz * sz
+                B_zx += sz * sx
+                B_xx += sx * sx
 
-        var_bx = np.full_like(det, np.nan, dtype=float)
-        var_bx[valid] = sigma2[valid] * (zz[valid] / det[valid])
+            cr_scale = (G / (G - 1)) * ((n - 1) / (n - p_full - 2))
+            B_zz *= cr_scale
+            B_zx *= cr_scale
+            B_xx *= cr_scale
+
+            var_bx = np.full_like(det, np.nan, dtype=float)
+            var_bx[valid] = (
+                zz[valid] ** 2 * B_xx[valid]
+                - 2 * zz[valid] * zx[valid] * B_zx[valid]
+                + zx[valid] ** 2 * B_zz[valid]
+            ) / det[valid] ** 2
+            dof = G - 1
+        else:
+            rss = np.full_like(det, np.nan, dtype=float)
+            rss[valid] = yy - beta_z[valid] * zy[valid] - beta_x[valid] * xy[valid]
+            rss = np.maximum(rss, 0.0)
+            sigma2 = np.full_like(det, np.nan, dtype=float)
+            sigma2[valid] = rss[valid] / dof
+            var_bx = np.full_like(det, np.nan, dtype=float)
+            var_bx[valid] = sigma2[valid] * (zz[valid] / det[valid])
 
         ok = valid & np.isfinite(var_bx) & (var_bx > 0)
         tstat = np.zeros_like(det, dtype=float)
@@ -388,6 +425,7 @@ def nexis(
     n_splits: int = 5,             # gcm only
     n_estimators: int = 100,       # gcm only
     max_depth: Optional[int] = None,  # gcm only
+    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs (linear test only)
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
@@ -465,7 +503,7 @@ def nexis(
             y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
-            rho=rho, adjust=adjust,
+            rho=rho, adjust=adjust, cluster=cluster,
             backward=backward, verbose=verbose,
         )
         S_w = result_w.selected
@@ -490,7 +528,7 @@ def nexis(
             )
         return conditional_interaction_pvalues(
             y=y_arr, t=t_arr, z=Z, S=S_cur, candidates=candidates,
-            return_tstats=return_tstats,
+            return_tstats=return_tstats, cluster=cluster,
         )
 
     # W features (0..k-1) seed S; all features compete symmetrically from here
