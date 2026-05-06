@@ -24,18 +24,21 @@ plt.rcParams.update({
     "mathtext.fontset":   "cm",
 })
 
-ROOT     = Path(__file__).resolve().parents[3]
-DATA_DIR = ROOT / "data" / "uganda"
-TIF_DIR  = DATA_DIR / "satellite" / "tif_rct"
-MAP_DIR  = DATA_DIR / "map"
-RES_DIR  = ROOT / "results" / "uganda" / "prithvi_l5_1024"
-OUT_DIR  = ROOT / "results" / "uganda" / "figures"
+ROOT      = Path(__file__).resolve().parents[3]
+DATA_DIR  = ROOT / "data" / "uganda"
+TIF_DIR   = DATA_DIR / "satellite" / "tif_rct"
+MAP_DIR   = DATA_DIR / "map"
+SPEC_PATH = DATA_DIR / "satellite" / "rct" / "spectral_indices.csv"
+RES_DIR   = ROOT / "results" / "uganda" / "prithvi_l5_1024"
+OUT_DIR   = ROOT / "results" / "uganda" / "figures"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── colours ───────────────────────────────────────────────────────────────────
-C_ACTIVE   = "#C0392B"   # terracotta red — activated sites on map
-C_MAP_BG   = "#D5D8DC"   # light grey — all sites
+C_ACTIVE   = "#C0392B"   # terracotta red — default activated (unused in current rows)
+C_MAP_BG   = "#D5D8DC"   # light grey — all sites / inactive
 C_LBL      = "#222222"   # near-black — z= labels above images
+C_BLUE     = "#2E86C1"   # river blue  — perennial river presence (Z_339)
+C_GREEN    = "#2E8B57"   # sea green — vegetation (Z_533, Z_820, NDVI)
 
 # ── image loading ─────────────────────────────────────────────────────────────
 
@@ -72,27 +75,41 @@ def load_basemap():
     return uganda, lakes
 
 
-def draw_map(ax, site_df, acts, uganda=None, lakes=None, acts2=None):
-    """Plot Uganda outline + activated sites in red (single colour regardless of merge)."""
+def draw_map(ax, site_df, acts, uganda=None, lakes=None, acts2=None,
+             continuous=False, color=C_ACTIVE):
+    """Plot Uganda outline + activated sites.
+
+    continuous=True: grey→color gradient proportional to acts (e.g. NDVI).
+    continuous=False: binary — grey background, solid `color` for acts > 0.
+    """
+    from matplotlib.colors import to_rgb
     if uganda is not None:
         uganda.plot(ax=ax, color="#F0F0F0", edgecolor="#AAAAAA", linewidth=0.4)
     if lakes is not None:
         lakes.plot(ax=ax, color="#AED6F1", edgecolor="none")
 
-    # All trial sites (grey)
-    ax.scatter(site_df["geo_long_center"], site_df["geo_lat_center"],
-               c=C_MAP_BG, s=4, linewidths=0, zorder=2)
-
-    # Activated sites (union of both neurons for merged rows, all in same red)
-    if acts2 is not None:
-        active_mask = (acts > 0) | (acts2 > 0)
+    if continuous:
+        grey = np.array(to_rgb(C_MAP_BG))
+        hi_c = np.array(to_rgb(color))
+        vals = np.asarray(acts, dtype=float)
+        hi   = np.nanmax(vals)
+        norm    = np.clip(vals / max(hi, 1e-9), 0.0, 1.0)  # 0 for ≤0, 1 at max
+        colours = grey[None, :] * (1 - norm[:, None]) + hi_c[None, :] * norm[:, None]
+        ax.scatter(site_df["geo_long_center"], site_df["geo_lat_center"],
+                   c=colours, s=3, linewidths=0, zorder=3, alpha=0.95)
     else:
-        active_mask = acts > 0
+        ax.scatter(site_df["geo_long_center"], site_df["geo_lat_center"],
+                   c=C_MAP_BG, s=2, linewidths=0, zorder=2)
 
-    if active_mask.any():
-        ax.scatter(site_df.loc[active_mask, "geo_long_center"],
-                   site_df.loc[active_mask, "geo_lat_center"],
-                   c=C_ACTIVE, s=9, linewidths=0, zorder=3, alpha=0.85)
+        if acts2 is not None:
+            active_mask = (acts > 0) | (acts2 > 0)
+        else:
+            active_mask = acts > 0
+
+        if active_mask.any():
+            ax.scatter(site_df.loc[active_mask, "geo_long_center"],
+                       site_df.loc[active_mask, "geo_lat_center"],
+                       c=color, s=4, linewidths=0, zorder=3, alpha=0.85)
 
     ax.set_axis_off()
     ax.set_aspect("equal")
@@ -166,7 +183,9 @@ def build_figure(rows: list[dict], out_path: Path,
         # Map
         ax_map = fig.add_axes([x_starts[0], y_img_top - img_frac, map_frac, img_frac])
         draw_map(ax_map, row["site_df"], row["all_acts"],
-                 uganda=uganda, lakes=lakes, acts2=row.get("all_acts2"))
+                 uganda=uganda, lakes=lakes, acts2=row.get("all_acts2"),
+                 continuous=row.get("continuous", False),
+                 color=row.get("map_color", C_ACTIVE))
 
         def _fmt_z(act):
             return "0" if act == 0 else f"{act:.2f}".rstrip("0").rstrip(".")
@@ -234,6 +253,16 @@ def main():
         return (site_keys[top_i].tolist(), acts[top_i].tolist(),
                 site_keys[bot_i].tolist(), acts[bot_i].tolist())
 
+    def top_bot_ndvi(ndvi_vals, k=3):
+        """Top k by highest NDVI; bottom k from lowest *positive* NDVI only,
+        ordered least-to-most sparse (highest→lowest among the bottom set)."""
+        top_i = np.argsort(ndvi_vals)[::-1][:k]
+        pos_idx = np.where(ndvi_vals > 0)[0]
+        bot_pos = pos_idx[np.argsort(ndvi_vals[pos_idx])][:k]  # lowest positive, ascending
+        bot_i   = bot_pos[::-1]   # reverse → least sparse first, most sparse last
+        return (site_keys[top_i].tolist(), ndvi_vals[top_i].tolist(),
+                site_keys[bot_i].tolist(), ndvi_vals[bot_i].tolist())
+
     # ── Figure 1: skilled_employed ─────────────────────────────────────────────
     rows_se = []
 
@@ -241,20 +270,22 @@ def main():
     a339 = get_acts(339)
     tk, ta, bk, ba = top_bot(a339)
     rows_se.append(dict(
-        title    = "Neuron 339: perennial river presence",
-        raw_cols = [339], colors = [C_ACTIVE],
+        title     = "Neuron 339: perennial river presence",
+        raw_cols  = [339], colors = [C_BLUE],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
-        all_acts=a339, all_acts2=None, site_df=site_df,
+        all_acts  = a339, all_acts2=None, site_df=site_df,
+        map_color = C_BLUE,
     ))
 
     # Z_533 — vegetation spatial heterogeneity
     a533 = get_acts(533)
     tk, ta, bk, ba = top_bot(a533)
     rows_se.append(dict(
-        title    = "Neuron 533: vegetation spatial heterogeneity",
-        raw_cols = [533], colors = [C_ACTIVE],
+        title     = "Neuron 533: vegetation spatial heterogeneity",
+        raw_cols  = [533], colors = [C_GREEN],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
-        all_acts=a533, all_acts2=None, site_df=site_df,
+        all_acts  = a533, all_acts2=None, site_df=site_df,
+        map_color = C_GREEN,
     ))
 
     build_figure(rows_se, OUT_DIR / "figure_neural_skilled_employed.pdf",
@@ -265,36 +296,31 @@ def main():
     # ── Figure 2: log_biz_assets ───────────────────────────────────────────────
     rows_ba = []
 
+    # NDVI mean — vegetation greenness (W spectral covariate)
+    spec_df  = pd.read_csv(SPEC_PATH).set_index("site_key")
+    ndvi_raw = spec_df.reindex(site_keys)["ndvi_mean"].values.astype(np.float32)
+    # Center at median: sites above median shown as "active" on map
+    ndvi_med     = np.nanmedian(ndvi_raw)
+    ndvi_centered = ndvi_raw - ndvi_med
+    ndvi_centered = np.where(np.isnan(ndvi_centered), 0.0, ndvi_centered)
+    tk, ta, bk, ba = top_bot_ndvi(ndvi_raw)
+    rows_ba.append(dict(
+        title      = "NDVI: vegetation greenness",
+        raw_cols   = [], colors = [C_GREEN],
+        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
+        all_acts   = ndvi_raw, all_acts2=None, site_df=site_df,
+        continuous = True, map_color = C_GREEN,
+    ))
+
     # Z_820 — structured agricultural landscape
     a820 = get_acts(820)
     tk, ta, bk, ba = top_bot(a820)
     rows_ba.append(dict(
-        title    = "Neuron 820: structured agricultural landscape",
-        raw_cols = [820], colors = [C_ACTIVE],
+        title     = "Neuron 820: structured agricultural landscape",
+        raw_cols  = [820], colors = [C_GREEN],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
-        all_acts=a820, all_acts2=None, site_df=site_df,
-    ))
-
-    # Z_751 — road connectivity
-    a751 = get_acts(751)
-    tk, ta, bk, ba = top_bot(a751)
-    rows_ba.append(dict(
-        title    = "Neuron 751: road connectivity",
-        raw_cols = [751], colors = [C_ACTIVE],
-        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
-        all_acts=a751, all_acts2=None, site_df=site_df,
-    ))
-
-    # Z_698 + Z_533 merged — riparian vegetation connectivity
-    a698  = get_acts(698)
-    a533b = get_acts(533)
-    a_sum = a698 + a533b
-    tk, ta, bk, ba = top_bot(a_sum)
-    rows_ba.append(dict(
-        title    = "Neurons 698 & 533: riparian vegetation connectivity",
-        raw_cols = [698, 533], colors = [],
-        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
-        all_acts=a698, all_acts2=a533b, site_df=site_df,
+        all_acts  = a820, all_acts2=None, site_df=site_df,
+        map_color = C_GREEN,
     ))
 
     build_figure(rows_ba, OUT_DIR / "figure_neural_log_biz_assets.pdf",

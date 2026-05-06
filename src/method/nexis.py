@@ -359,8 +359,9 @@ def marginal_interaction_pvalues(
     y: np.ndarray,
     t: np.ndarray,
     z: np.ndarray,
+    cluster: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    return conditional_interaction_pvalues(y=y, t=t, z=z, S=[])
+    return conditional_interaction_pvalues(y=y, t=t, z=z, S=[], cluster=cluster)
 
 
 def marginal_select(
@@ -370,6 +371,7 @@ def marginal_select(
     alpha: float = 0.05,
     adjust: Optional[str] = None,  # None | "FWER" | "FDR"
     groups: Optional[Dict[str, List[int]]] = None,
+    cluster: Optional[np.ndarray] = None,
 ) -> SelectionResult:
     """Marginal interaction test with optional multiple-testing adjustment.
 
@@ -378,7 +380,7 @@ def marginal_select(
                    per group instead of globally.
     adjust="FDR" : Benjamini-Hochberg step-up procedure at level alpha.
     """
-    pvals = conditional_interaction_pvalues(y=y, t=t, z=z, S=[])
+    pvals = conditional_interaction_pvalues(y=y, t=t, z=z, S=[], cluster=cluster)
     m = len(pvals)
     _adj = adjust.upper() if adjust is not None else None
 
