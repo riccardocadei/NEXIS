@@ -19,12 +19,13 @@ cd "$ROOT"
 
 $PYTHON src/apps/ghana/interpret.py \
     --mode codes \
-    --method nexis_no_adj_hc1 \
-    --vlm-model Qwen/Qwen2.5-VL-72B-Instruct \
-    --quantize \
-    --pipeline qwen25_72b \
-    --k 12 \
+    --min-activations 5 \
+    --method nexis_fdr \
     --interpret-only \
     --overwrite \
-    --neurons 1715,1661,1424,3976 \
+    --neurons 3821,2095,3318 \
+    --vlm-model Qwen/Qwen2.5-VL-72B-Instruct \
+    --pipeline qwen25_72b \
+    --quantize \
+    --k 12 \
     "$@"

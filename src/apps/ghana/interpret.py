@@ -60,7 +60,7 @@ TIF_NAT  = SAT_DIR / "tif_national"
 RES_DIR  = ROOT / "results" / "ghana"
 
 sys.path.insert(0, str(ROOT))
-from src.apps.ghana.data import load_data, W_ALL, W_LABELS
+from src.apps.ghana.data import load_data, W_ALL, W_LABELS, COMMUNITY_Z
 from src.method.nexis    import nexis, marginal_select, SelectionResult
 
 
@@ -724,7 +724,7 @@ def _compute_sae_activations(embeddings: np.ndarray, ckpt: dict,
     return acts.numpy()
 
 
-def _load_nexis_inputs():
+def _load_nexis_inputs(min_activations: int = 10):
     """Load all data needed for Ghana NEXIS experiments."""
     import pandas as pd
 
@@ -740,17 +740,19 @@ def _load_nexis_inputs():
     SPECTRAL_NAMES = [c[:-5] for c in SPECTRAL_COLS]   # ndvi_mean → ndvi
 
     merged = (
-        df0.set_index("hhid")[["T", "comm"] + W_ALL + ["Y"]]
+        df0.set_index("hhid")[["T", "comm"] + W_ALL + COMMUNITY_Z + ["Y"]]
            .join(df1.set_index("hhid")[["Y"]].rename(columns={"Y": "Y1"}))
     )
     merged["dY"] = merged["Y1"] - merged["Y"]
     merged = merged.reset_index().merge(sp, on="comm", how="left").set_index("hhid")
 
-    y = merged["dY"].values.astype(float)
-    t = merged["T"].values.astype(float)
-    W = merged[W_ALL].values.astype(float)
+    y       = merged["dY"].values.astype(float)
+    t       = merged["T"].values.astype(float)
+    W       = merged[W_ALL].values.astype(float)
     W_NAMES = [W_LABELS.get(c, c) for c in W_ALL]
-    spectral_hh = merged[SPECTRAL_COLS].values.astype(float)   # (n_hh, n_spectral)
+    cluster      = merged["comm"].values                             # community IDs for CRVE
+    spectral_hh  = merged[SPECTRAL_COLS].values.astype(float)       # (n_hh, n_spectral)
+    community_hh = merged[COMMUNITY_Z].values.astype(float)         # (n_hh, 2) community-level
 
     # Load SAE checkpoint + whitening
     ckpt    = torch.load(SAT_DIR / "sae_model.pt", map_location="cpu", weights_only=False)
@@ -778,24 +780,25 @@ def _load_nexis_inputs():
     hh_idx = merged["comm"].map(comm_to_idx).values
 
     def make_filtered(comm_acts, hh_idx_arr):
-        live_mask = (comm_acts > 0).sum(axis=0) >= 5
+        live_mask = (comm_acts > 0).sum(axis=0) >= min_activations
         live_idx  = np.where(live_mask)[0]
         return comm_acts[:, live_mask], live_idx, comm_acts[:, live_mask][hh_idx_arr]
 
     leap_codes_comm, live_idx_codes, Z_codes_hh = make_filtered(leap_codes,     hh_idx)
     leap_pre_comm,   live_idx_pre,   Z_pre_hh   = make_filtered(leap_pre_codes, hh_idx)
 
-    nat_codes_filt = nat_codes[:,     np.where((leap_codes     > 0).sum(axis=0) >= 5)[0]]
-    nat_pre_filt   = nat_pre_codes[:, np.where((leap_pre_codes > 0).sum(axis=0) >= 5)[0]]
+    nat_codes_filt = nat_codes[:,     np.where((leap_codes     > 0).sum(axis=0) >= min_activations)[0]]
+    nat_pre_filt   = nat_pre_codes[:, np.where((leap_pre_codes > 0).sum(axis=0) >= min_activations)[0]]
 
-    # Append spectral indices to Z (named z_{col}, not z_{number})
-    Z_codes_hh = np.concatenate([Z_codes_hh, spectral_hh], axis=1)
-    Z_pre_hh   = np.concatenate([Z_pre_hh,   spectral_hh], axis=1)
-    z_names_codes = [None] * len(live_idx_codes) + SPECTRAL_NAMES
-    z_names_pre   = [None] * len(live_idx_pre)   + SPECTRAL_NAMES
+    # Append spectral indices + community-level variables to Z
+    COMMUNITY_NAMES = [W_LABELS.get(c, c) for c in COMMUNITY_Z]
+    Z_codes_hh = np.concatenate([Z_codes_hh, spectral_hh, community_hh], axis=1)
+    Z_pre_hh   = np.concatenate([Z_pre_hh,   spectral_hh, community_hh], axis=1)
+    z_names_codes = [None] * len(live_idx_codes) + SPECTRAL_NAMES + COMMUNITY_NAMES
+    z_names_pre   = [None] * len(live_idx_pre)   + SPECTRAL_NAMES + COMMUNITY_NAMES
 
     return dict(
-        y=y, t=t, W=W, W_NAMES=W_NAMES,
+        y=y, t=t, W=W, W_NAMES=W_NAMES, cluster=cluster,
         spectral_names=SPECTRAL_NAMES,
         codes=dict(Z_hh=Z_codes_hh, Z_comm=leap_codes_comm,
                    comm_ids=leap_ids, live_idx=live_idx_codes,
@@ -818,7 +821,7 @@ def run_nexis(rep_mode: str, method_name: str, data: dict,
     print(f"NEXIS  rep={rep_mode}  method={method_name}  Z={cfg['Z_hh'].shape}  adjust={adjust}")
     print(f"{'='*60}")
     res = nexis(y, t, cfg["Z_hh"], w=W, w_names=W_NAMES, z_names=cfg["z_names"],
-               alpha=alpha, adjust=adjust, verbose=True)
+               alpha=alpha, adjust=adjust, cluster=data["cluster"], verbose=True)
     print(f"\nSelected: {len(res.selected)}")
     for i in res.selected:
         name = res.feature_names[i]
@@ -1097,7 +1100,7 @@ def _load_result_from_json(rep_mode: str, method_name: str):
         selected.append(idx)
         idx += 1
     for entry in d.get("selected_z", []):
-        feature_names[idx] = entry.get("name") or f"z_{entry['filtered_idx']}"
+        feature_names[idx] = f"z_{entry['filtered_idx']}"
         pvalues[idx] = entry["pvalue"]
         selected.append(idx)
         idx += 1
@@ -1179,12 +1182,16 @@ def parse_args():
                    help="Single method name to run (e.g. nexis_no_adj_hc1). "
                         "Overrides the default [nexis_no_adj, nexis_fdr] list. "
                         "Requires a saved result.json at results/ghana/{rep}/{method}/.")
+    p.add_argument("--min-activations", type=int, default=10,
+                   help="Min community activations for a neuron to enter Z (default 10).")
     return p.parse_args()
 
 
 def main():
     import functools, gc
     args = parse_args()
+    global RES_DIR
+    RES_DIR = ROOT / "results" / "ghana" / f"mact{args.min_activations}"
     rep_modes = ["codes", "pre_codes"] if args.mode == "both" else [args.mode]
     neuron_filter = (
         {int(x) for x in args.neurons.split(",")} if args.neurons else None
@@ -1195,12 +1202,12 @@ def main():
     nexis_methods = (
         [(args.method, None)]
         if args.method
-        else [("nexis_no_adj", None), ("nexis_fdr", "FDR")]
+        else [("nexis_no_adj", None), ("nexis_fdr", "FDR"), ("nexis_fwer", "FWER")]
     )
 
     if args.interpret_only:
         print("Loading data for image pool ...")
-        data = _load_nexis_inputs()
+        data = _load_nexis_inputs(args.min_activations)
         nexis_results = {}
         for rep_mode in rep_modes:
             nexis_results[rep_mode] = {}
@@ -1217,7 +1224,7 @@ def main():
                       f"({z_count} Z neurons)")
     else:
         print("Loading data and computing activations ...")
-        data = _load_nexis_inputs()
+        data = _load_nexis_inputs(args.min_activations)
 
         nexis_results = {}
         for rep_mode in rep_modes:
