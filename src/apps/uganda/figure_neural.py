@@ -1,0 +1,307 @@
+"""
+Neural discovery figures for Uganda (skilled_employed & log_biz_assets).
+
+Each figure has one row per neural discovery:
+  [map] | [top-3 satellite images] | [divider] | [bottom-3 satellite images]
+
+Usage:
+    python src/apps/uganda/figure_neural.py
+"""
+
+from pathlib import Path
+
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import rasterio
+from PIL import Image
+
+plt.rcParams.update({
+    "text.usetex":        False,
+    "font.family":        "serif",
+    "font.serif":         ["Computer Modern Roman", "DejaVu Serif", "Times New Roman"],
+    "mathtext.fontset":   "cm",
+})
+
+ROOT     = Path(__file__).resolve().parents[3]
+DATA_DIR = ROOT / "data" / "uganda"
+TIF_DIR  = DATA_DIR / "satellite" / "tif_rct"
+MAP_DIR  = DATA_DIR / "map"
+RES_DIR  = ROOT / "results" / "uganda" / "prithvi_l5_1024"
+OUT_DIR  = ROOT / "results" / "uganda" / "figures"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── colours ───────────────────────────────────────────────────────────────────
+C_ACTIVE   = "#C0392B"   # terracotta red — activated sites on map
+C_MAP_BG   = "#D5D8DC"   # light grey — all sites
+C_LBL      = "#222222"   # near-black — z= labels above images
+
+# ── image loading ─────────────────────────────────────────────────────────────
+
+def _norm(arr: np.ndarray) -> np.ndarray:
+    valid = arr[arr > 0]
+    if valid.size == 0:
+        return np.zeros_like(arr)
+    lo, hi = np.percentile(valid, [2, 98])
+    out = np.clip((arr - lo) / max(hi - lo, 1e-6), 0, 1)
+    out[arr <= 0] = 0
+    return out
+
+
+def load_tile(key: int, size: int = 112) -> np.ndarray | None:
+    """Return false-colour (NIR/Green/SWIR1) uint8 array (size, size, 3)."""
+    path = TIF_DIR / f"uganda_rct{int(key):06d}.tif"
+    if not path.exists():
+        return None
+    with rasterio.open(path) as src:
+        green = src.read(2).astype(np.float32)
+        nir   = src.read(4).astype(np.float32)
+        swir1 = src.read(5).astype(np.float32)
+    arr = (np.stack([_norm(nir), _norm(green), _norm(swir1)], axis=-1) * 255).astype(np.uint8)
+    img = Image.fromarray(arr).resize((size, size), Image.BICUBIC)
+    return np.asarray(img)
+
+
+# ── basemap ───────────────────────────────────────────────────────────────────
+
+def load_basemap():
+    uganda = gpd.read_file(MAP_DIR / "gadm41_UGA_1.json").to_crs("EPSG:4326")
+    lakes  = gpd.read_file(MAP_DIR / "ne_10m_lakes.shp").to_crs("EPSG:4326")
+    lakes  = lakes.clip(uganda.total_bounds)
+    return uganda, lakes
+
+
+def draw_map(ax, site_df, acts, uganda=None, lakes=None, acts2=None):
+    """Plot Uganda outline + activated sites in red (single colour regardless of merge)."""
+    if uganda is not None:
+        uganda.plot(ax=ax, color="#F0F0F0", edgecolor="#AAAAAA", linewidth=0.4)
+    if lakes is not None:
+        lakes.plot(ax=ax, color="#AED6F1", edgecolor="none")
+
+    # All trial sites (grey)
+    ax.scatter(site_df["geo_long_center"], site_df["geo_lat_center"],
+               c=C_MAP_BG, s=4, linewidths=0, zorder=2)
+
+    # Activated sites (union of both neurons for merged rows, all in same red)
+    if acts2 is not None:
+        active_mask = (acts > 0) | (acts2 > 0)
+    else:
+        active_mask = acts > 0
+
+    if active_mask.any():
+        ax.scatter(site_df.loc[active_mask, "geo_long_center"],
+                   site_df.loc[active_mask, "geo_lat_center"],
+                   c=C_ACTIVE, s=9, linewidths=0, zorder=3, alpha=0.85)
+
+    ax.set_axis_off()
+    ax.set_aspect("equal")
+
+
+# ── figure builder ────────────────────────────────────────────────────────────
+
+def build_figure(rows: list[dict], out_path: Path,
+                 uganda=None, lakes=None):
+    """
+    rows: list of dicts with keys:
+        title      str   "Neuron 339: perennial river presence"
+        raw_cols   list  [339]  or [698, 533]  (actual SAE columns in site_feats)
+        colors     list  [C_ACTIVE]  or [C_MERGED_A, C_MERGED_B]
+        top_keys   list of int (3 keys)
+        top_acts   list of float
+        bot_keys   list of int (3 keys)
+        bot_acts   list of float
+        all_acts   np.ndarray shape (n_sites,)   — for map
+        all_acts2  np.ndarray or None            — second neuron for merged
+        site_df    DataFrame with geo_long_center, geo_lat_center
+    """
+    n_rows = len(rows)
+
+    # Layout: [map | img img img | divider | img img img]
+    map_w   = 1.15
+    img_w   = 1.1
+    div_w   = 0.05
+    pad_w   = 0.08
+    row_h   = 1.28
+    title_h = 0.16
+    top_pad = 0.08
+    bot_pad = 0.14   # space for community label below images
+
+    total_w = map_w + 3*img_w + div_w + 3*img_w + 4*pad_w
+    total_h = n_rows * (row_h + title_h) + top_pad + bot_pad
+
+    fig = plt.figure(figsize=(total_w, total_h), dpi=150)
+    fig.patch.set_facecolor("white")
+
+    for row_i, row in enumerate(rows):
+        y_top = 1.0 - (top_pad + row_i*(row_h+title_h)) / total_h
+
+        # ── title ─────────────────────────────────────────────────────────────
+        title_frac = title_h / total_h
+        ax_title = fig.add_axes([0, y_top - title_frac, 1, title_frac])
+        ax_title.set_axis_off()
+        t = row["title"]
+        if ": " in t:
+            pre, desc = t.split(": ", 1)
+            t = pre + ": " + desc[0].upper() + desc[1:]
+        ax_title.text(0.01, 0.5, t,
+                      ha="left", va="center", fontsize=7,
+                      fontweight="normal", transform=ax_title.transAxes)
+
+        # ── image row axes ─────────────────────────────────────────────────────
+        y_img_top = y_top - title_frac
+        img_frac  = row_h / total_h
+
+        col_widths = [map_w, pad_w, img_w, img_w, img_w, div_w, img_w, img_w, img_w, pad_w]
+        x_starts = []
+        x = pad_w / total_w
+        for w in col_widths:
+            x_starts.append(x)
+            x += w / total_w
+
+        map_frac   = map_w / total_w
+        img_frac_w = img_w / total_w
+        div_frac   = div_w / total_w
+
+        # Map
+        ax_map = fig.add_axes([x_starts[0], y_img_top - img_frac, map_frac, img_frac])
+        draw_map(ax_map, row["site_df"], row["all_acts"],
+                 uganda=uganda, lakes=lakes, acts2=row.get("all_acts2"))
+
+        def _fmt_z(act):
+            return "0" if act == 0 else f"{act:.2f}".rstrip("0").rstrip(".")
+
+        # Top-3 images (high activation)
+        for j, (key, act) in enumerate(zip(row["top_keys"], row["top_acts"])):
+            ax = fig.add_axes([x_starts[2+j], y_img_top - img_frac, img_frac_w, img_frac])
+            img_arr = load_tile(int(key))
+            if img_arr is not None:
+                ax.imshow(img_arr)
+            ax.set_axis_off()
+            ax.set_title(f"Active ($z={_fmt_z(act)}$)", fontsize=5.5, color=C_LBL,
+                         pad=1.5, fontweight="normal")
+            ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=4.2, color="#666666",
+                    ha="center", va="top", transform=ax.transAxes, clip_on=False)
+
+        # Divider
+        ax_div = fig.add_axes([x_starts[5], y_img_top - img_frac, div_frac, img_frac])
+        ax_div.set_axis_off()
+        ax_div.axvline(0.5, color="#BBBBBB", linewidth=0.6, ymin=0.04, ymax=0.96)
+
+        # Bottom-3 images (low / inactive)
+        for j, (key, act) in enumerate(zip(row["bot_keys"], row["bot_acts"])):
+            ax = fig.add_axes([x_starts[6+j], y_img_top - img_frac, img_frac_w, img_frac])
+            img_arr = load_tile(int(key))
+            if img_arr is not None:
+                ax.imshow(img_arr)
+            ax.set_axis_off()
+            ax.set_title(f"Inactive ($z={_fmt_z(act)}$)", fontsize=5.5, color=C_LBL,
+                         pad=1.5, fontweight="normal")
+            ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=4.2, color="#666666",
+                    ha="center", va="top", transform=ax.transAxes, clip_on=False)
+
+    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"Saved → {out_path}")
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    # Shared data
+    d = np.load(RES_DIR / "site_features.npz")
+    site_feats = d["site_features"]   # (331, 1024)
+    site_keys  = d["site_keys"]       # (331,)
+
+    coords = (pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False,
+                          usecols=["geo_long_lat_key","geo_long_center","geo_lat_center"])
+              .drop_duplicates("geo_long_lat_key")
+              .dropna()
+              .set_index("geo_long_lat_key"))
+
+    # Align coords to site_keys order
+    site_df = coords.loc[site_keys].reset_index()
+
+    uganda, lakes = load_basemap()
+
+    def get_acts(raw_col):
+        return site_feats[:, raw_col]
+
+    def top_bot(acts, k=3):
+        order = np.argsort(acts)[::-1]
+        top_i = order[:k]
+        bot_i = np.argsort(acts)[:k]
+        return (site_keys[top_i].tolist(), acts[top_i].tolist(),
+                site_keys[bot_i].tolist(), acts[bot_i].tolist())
+
+    # ── Figure 1: skilled_employed ─────────────────────────────────────────────
+    rows_se = []
+
+    # Z_339 — perennial river presence
+    a339 = get_acts(339)
+    tk, ta, bk, ba = top_bot(a339)
+    rows_se.append(dict(
+        title    = "Neuron 339: perennial river presence",
+        raw_cols = [339], colors = [C_ACTIVE],
+        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
+        all_acts=a339, all_acts2=None, site_df=site_df,
+    ))
+
+    # Z_533 — vegetation spatial heterogeneity
+    a533 = get_acts(533)
+    tk, ta, bk, ba = top_bot(a533)
+    rows_se.append(dict(
+        title    = "Neuron 533: vegetation spatial heterogeneity",
+        raw_cols = [533], colors = [C_ACTIVE],
+        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
+        all_acts=a533, all_acts2=None, site_df=site_df,
+    ))
+
+    build_figure(rows_se, OUT_DIR / "figure_neural_skilled_employed.pdf",
+                 uganda=uganda, lakes=lakes)
+    build_figure(rows_se, OUT_DIR / "figure_neural_skilled_employed.png",
+                 uganda=uganda, lakes=lakes)
+
+    # ── Figure 2: log_biz_assets ───────────────────────────────────────────────
+    rows_ba = []
+
+    # Z_820 — structured agricultural landscape
+    a820 = get_acts(820)
+    tk, ta, bk, ba = top_bot(a820)
+    rows_ba.append(dict(
+        title    = "Neuron 820: structured agricultural landscape",
+        raw_cols = [820], colors = [C_ACTIVE],
+        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
+        all_acts=a820, all_acts2=None, site_df=site_df,
+    ))
+
+    # Z_751 — road connectivity
+    a751 = get_acts(751)
+    tk, ta, bk, ba = top_bot(a751)
+    rows_ba.append(dict(
+        title    = "Neuron 751: road connectivity",
+        raw_cols = [751], colors = [C_ACTIVE],
+        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
+        all_acts=a751, all_acts2=None, site_df=site_df,
+    ))
+
+    # Z_698 + Z_533 merged — riparian vegetation connectivity
+    a698  = get_acts(698)
+    a533b = get_acts(533)
+    a_sum = a698 + a533b
+    tk, ta, bk, ba = top_bot(a_sum)
+    rows_ba.append(dict(
+        title    = "Neurons 698 & 533: riparian vegetation connectivity",
+        raw_cols = [698, 533], colors = [],
+        top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
+        all_acts=a698, all_acts2=a533b, site_df=site_df,
+    ))
+
+    build_figure(rows_ba, OUT_DIR / "figure_neural_log_biz_assets.pdf",
+                 uganda=uganda, lakes=lakes)
+    build_figure(rows_ba, OUT_DIR / "figure_neural_log_biz_assets.png",
+                 uganda=uganda, lakes=lakes)
+
+
+if __name__ == "__main__":
+    main()

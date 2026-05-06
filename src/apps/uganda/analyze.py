@@ -54,6 +54,11 @@ def parse_args():
                    help="SAE hidden dimension (determines results subdir).")
     p.add_argument("--alpha",       type=float, default=0.05)
     p.add_argument("--max-steps",   type=int,   default=20)
+    p.add_argument("--active-threshold", type=int, default=5,
+                   help="Minimum number of RCT sites that must activate a SAE feature "
+                        "for it to be included in Z (default 5).")
+    p.add_argument("--no-spectral", dest="spectral", action="store_false",
+                   help="Do not add spectral indices (NDVI, NDWI, …) as W candidates.")
     p.add_argument("--no-w-candidates", dest="w_candidates", action="store_false",
                    help="Revert to treating W as nuisance controls "
                         "(partials out T*W unconditionally).")
@@ -68,7 +73,7 @@ def parse_args():
                    help="Outcome to analyse. Accepts clean aliases (e.g. log_skilled_hours) "
                         "or raw CSV column names (e.g. Yobs). "
                         "See uganda.OUTCOME_ALIASES for the full list.")
-    p.set_defaults(w_candidates=True)
+    p.set_defaults(w_candidates=True, spectral=True)
     return p.parse_args()
 
 
@@ -187,9 +192,20 @@ def main():
     df = df.rename(columns={"Wobs": "T", csv_col: "Y"})
 
     # ── Load SAE features (individual level) ──────────────────────────────────
-    feat_data      = np.load(MODEL_DIR / "individual_features.npz")
-    Z_all          = feat_data["features"]
-    n_sae_features = Z_all.shape[1]
+    feat_data = np.load(MODEL_DIR / "individual_features.npz")
+    Z_all     = feat_data["features"]
+
+    # ── Filter SAE features to those active in ≥ active_threshold RCT sites ──
+    site_data       = np.load(MODEL_DIR / "site_features.npz")
+    site_feats_full = site_data["site_features"]          # (N_rct, d_hidden)
+    community_act   = (site_feats_full > 0).sum(axis=0)  # per feature: # active sites
+    active_mask     = community_act >= args.active_threshold
+    sae_orig_idx    = np.where(active_mask)[0]            # original SAE indices
+    Z_all           = Z_all[:, active_mask]
+    site_feats      = site_feats_full[:, active_mask]
+    n_sae_features  = int(active_mask.sum())
+    print(f"SAE features after active≥{args.active_threshold} filter: "
+          f"{n_sae_features}/{site_feats_full.shape[1]}")
 
     # ── Initial individual-level filter ──────────────────────────────────────
     has_feat = np.isfinite(Z_all[:, 0])
@@ -206,7 +222,23 @@ def main():
 
     # ── Build covariate matrix W ──────────────────────────────────────────────
     W_df   = build_covariates(df_sub, district_dummies=args.district_dummies)
-    W_vals = W_df.values.astype(float) if not W_df.empty else None
+
+    # ── Optionally add spectral indices as W candidates ───────────────────────
+    spec_path = DATA_DIR / "satellite" / "rct" / "spectral_indices.csv"
+    if args.spectral and spec_path.exists():
+        spec_df  = pd.read_csv(spec_path).set_index("site_key")
+        spec_cols = list(spec_df.columns)
+        # Map each individual to their site's spectral values
+        if "geo_long_lat_key" in df_sub.columns:
+            spec_mat = np.full((len(df_sub), len(spec_cols)), np.nan)
+            for row_i, key in enumerate(df_sub["geo_long_lat_key"].values):
+                if pd.notna(key) and int(key) in spec_df.index:
+                    spec_mat[row_i] = spec_df.loc[int(key)].values
+            spec_part = pd.DataFrame(spec_mat, columns=spec_cols, index=df_sub.index)
+            W_df = pd.concat([W_df, spec_part], axis=1)
+            print(f"Spectral indices added as W candidates: {spec_cols}")
+
+    W_vals  = W_df.values.astype(float) if not W_df.empty else None
     w_names = list(W_df.columns)
 
     Y = df_sub["Y"].values.astype(float)
@@ -238,27 +270,34 @@ def main():
         Z_full    = Z_sub
         n_w_cols  = 0
 
-    # ── Run NEXIS ──────────────────────────────────────────────────────────────
-    print(f"Running NEXIS  (α={args.alpha}, max_rounds={args.max_steps})...")
-    nexis_res = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
-                           verbose=True)
-    print(f"  → {len(nexis_res.selected)} feature(s) selected: {nexis_res.selected}")
+    # ── Run NEXIS (3 correction variants) ─────────────────────────────────────
+    print(f"Running NEXIS exploratory  (α={args.alpha}, adjust=None)...")
+    nexis_expl = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+                       adjust=None, verbose=True)
+    print(f"  → {len(nexis_expl.selected)} feature(s) selected")
 
-    # ── Marginal Bonferroni baseline ──────────────────────────────────────────
-    print(f"\nRunning marginal (FWER) baseline...")
-    marg_groups = None
-    marg_res = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust="FWER",
-                               groups=marg_groups)
-    print(f"  → {len(marg_res.selected)} feature(s) selected: {marg_res.selected}")
+    print(f"\nRunning NEXIS FDR  (α={args.alpha}, adjust=FDR)...")
+    nexis_fdr = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+                      adjust="FDR", verbose=True)
+    print(f"  → {len(nexis_fdr.selected)} feature(s) selected")
 
-    # ── Per-feature summary ───────────────────────────────────────────────────
-    site_data  = np.load(MODEL_DIR / "site_features.npz")
-    site_feats = site_data["site_features"]
+    print(f"\nRunning NEXIS FWER  (α={args.alpha}, adjust=FWER)...")
+    nexis_fwer = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+                       adjust="FWER", verbose=True)
+    print(f"  → {len(nexis_fwer.selected)} feature(s) selected")
+
+    # ── Marginal baseline (unadjusted / exploratory only) ────────────────────
+    print(f"\nRunning marginal (unadjusted) baseline...")
+    marg_none = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust=None)
+    print(f"  → {len(marg_none.selected)} feature(s) selected")
+
+    # ── Per-feature summary helpers ───────────────────────────────────────────
+    # site_feats is already loaded (filtered to active features)
 
     def _feature_label(idx: int) -> str:
         if idx < n_sae_features:
-            return f"SAE_{idx}"
-        return w_names[idx - n_sae_features]
+            return f"Z_{int(sae_orig_idx[idx])}"
+        return f"W_{w_names[idx - n_sae_features]}"
 
     def _activation_summary(idx: int) -> str:
         if idx < n_sae_features:
@@ -269,49 +308,66 @@ def main():
             return "never active"
         return "W covariate"
 
+    def _nexis_selected(res):
+        return [{"idx": i, "label": _feature_label(i),
+                 "group": "SAE" if i < n_sae_features else "W",
+                 "pvalue": float(res.pvalues[i])}
+                for i in res.selected]
+
+    def _marg_selected(res):
+        return [{"idx": i, "label": _feature_label(i),
+                 "group": "SAE" if i < n_sae_features else "W",
+                 "pvalue": float(res.pvalues[i])}
+                for i in res.selected]
+
     print()
-    if nexis_res.selected:
-        print("── NEXIS selected features ──────────────────────────────────")
-        for rank, feat_idx in enumerate(nexis_res.selected):
-            p_val = nexis_res.pvalues[feat_idx]
-            print(f"  rank={rank+1}  feature={_feature_label(feat_idx):16s}  "
-                  f"p={p_val:.2e}  {_activation_summary(feat_idx)}")
-    else:
-        print(f"NEXIS selected no features at α={args.alpha}.")
+    for tag, res in [("exploratory", nexis_expl), ("FDR", nexis_fdr), ("FWER", nexis_fwer)]:
+        if res.selected:
+            print(f"── NEXIS ({tag}) selected features ───────────────────────")
+            for rank, feat_idx in enumerate(res.selected):
+                p_val = res.pvalues[feat_idx]
+                print(f"  rank={rank+1}  feature={_feature_label(feat_idx):16s}  "
+                      f"p={p_val:.2e}  {_activation_summary(feat_idx)}")
+        else:
+            print(f"NEXIS ({tag}) selected no features at α={args.alpha}.")
 
     # ── Save ──────────────────────────────────────────────────────────────────
     output = {
-        "nexis": {
-            "selected": [
-                {
-                    "idx":   i,
-                    "label": _feature_label(i),
-                    "group": "SAE" if i < n_sae_features else "W",
-                    "pvalue": nexis_res.pvalues[i],
-                }
-                for r, i in enumerate(nexis_res.selected)
-            ],
-            "pvalues":  nexis_res.pvalues.tolist(),
-            "alpha":    nexis_res.alpha,
-            "metadata": nexis_res.metadata,
+        "nexis_exploratory": {
+            "selected": _nexis_selected(nexis_expl),
+            "pvalues":  nexis_expl.pvalues.tolist(),
+            "alpha":    nexis_expl.alpha,
+            "metadata": nexis_expl.metadata,
         },
-        "marginal_bonferroni": {
-            "selected": [
-                {"idx": i, "label": _feature_label(i), "pvalue": marg_res.pvalues[i]}
-                for i in marg_res.selected
-            ],
-            "pvalues": marg_res.pvalues.tolist(),
+        "nexis_fdr": {
+            "selected": _nexis_selected(nexis_fdr),
+            "pvalues":  nexis_fdr.pvalues.tolist(),
+            "alpha":    nexis_fdr.alpha,
+            "metadata": nexis_fdr.metadata,
+        },
+        "nexis_fwer": {
+            "selected": _nexis_selected(nexis_fwer),
+            "pvalues":  nexis_fwer.pvalues.tolist(),
+            "alpha":    nexis_fwer.alpha,
+            "metadata": nexis_fwer.metadata,
+        },
+        "marginal_exploratory": {
+            "selected": _marg_selected(marg_none),
+            "pvalues":  marg_none.pvalues.tolist(),
         },
         "feature_meta": {
-            "n_sae_features":  n_sae_features,
-            "n_w_features":    n_w_cols,
-            "w_names":         w_names,
-            "w_mode":          "candidates" if args.w_candidates else "controls",
-            "w_priority":      args.w_priority if args.w_candidates else False,
+            "n_sae_features":   n_sae_features,
+            "sae_active_idx":   sae_orig_idx.tolist(),
+            "active_threshold": args.active_threshold,
+            "n_w_features":     n_w_cols,
+            "w_names":          w_names,
+            "w_mode":           "candidates" if args.w_candidates else "controls",
+            "w_priority":       args.w_priority if args.w_candidates else False,
             "district_dummies": args.district_dummies,
-            "level":           level_label,
-            "embed_model":     args.embed_model,
-            "sae_dim":         args.sae_dim,
+            "spectral":         args.spectral,
+            "level":            level_label,
+            "embed_model":      args.embed_model,
+            "sae_dim":          args.sae_dim,
         },
     }
     out_path = OUT_DIR / "nexis_result.json"

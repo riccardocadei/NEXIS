@@ -1175,6 +1175,10 @@ def parse_args():
     p.add_argument("--neurons", default=None,
                    help="Comma-separated neuron_idx values to interpret, e.g. 1777,3821. "
                         "If omitted all selected neurons are interpreted.")
+    p.add_argument("--method", default=None,
+                   help="Single method name to run (e.g. nexis_no_adj_hc1). "
+                        "Overrides the default [nexis_no_adj, nexis_fdr] list. "
+                        "Requires a saved result.json at results/ghana/{rep}/{method}/.")
     return p.parse_args()
 
 
@@ -1188,10 +1192,11 @@ def main():
     if neuron_filter:
         print(f"Neuron filter: {sorted(neuron_filter)}")
 
-    nexis_methods = [
-        ("nexis_no_adj", None),
-        ("nexis_fdr",    "FDR"),
-    ]
+    nexis_methods = (
+        [(args.method, None)]
+        if args.method
+        else [("nexis_no_adj", None), ("nexis_fdr", "FDR")]
+    )
 
     if args.interpret_only:
         print("Loading data for image pool ...")

@@ -203,6 +203,7 @@ def conditional_interaction_pvalues(
     candidates: Optional[Sequence[int]] = None,
     return_tstats: bool = False,
     cluster: Optional[np.ndarray] = None,
+    hc1: bool = False,
 ):
     """
     Vectorized p-values for H0(j|S) over j in candidates.
@@ -211,8 +212,15 @@ def conditional_interaction_pvalues(
     Tests gamma_j = 0 for each j via FWL residualization against D=[1, T, Z_S, T*Z_S],
     then 2-regressor OLS per candidate on [Z_j, T*Z_j].
 
-    cluster: reserved for future use. CR1S is not valid when z features are
-      constant within clusters; pass pre-aggregated community-level data instead.
+    cluster: array of group labels (length n) for CR1S cluster-robust SEs.
+             Takes priority over hc1.  Even when Z_j is constant within clusters,
+             after FWL residualization both Z_tilde_j and (T*Z_j)_tilde have
+             within-cluster variation (T varies within communities), so CRVE is
+             valid and well-defined.  Implementation: loop over G clusters —
+             O(n×K) total work, same cost as HC1.  df = G-1 for the t-test.
+
+    hc1:    if True and cluster is None, use HC1 (White sandwich, n/(n-k)
+            correction) instead of homoskedastic OLS variance.
     """
     y = np.asarray(y, dtype=float).reshape(-1)
     t = np.asarray(t, dtype=float).reshape(-1)
@@ -266,20 +274,69 @@ def conditional_interaction_pvalues(
         beta_x[valid] = (zz[valid] * xy[valid] - zx[valid] * zy[valid]) / det[valid]
         beta_z[valid] = (xx[valid] * zy[valid] - zx[valid] * xy[valid]) / det[valid]
 
-        rss = np.full_like(det, np.nan, dtype=float)
-        rss[valid] = yy - beta_z[valid] * zy[valid] - beta_x[valid] * xy[valid]
-        rss = np.maximum(rss, 0.0)
-        sigma2 = np.full_like(det, np.nan, dtype=float)
-        sigma2[valid] = rss[valid] / dof
-        var_bx = np.full_like(det, np.nan, dtype=float)
-        var_bx[valid] = sigma2[valid] * (zz[valid] / det[valid])
+        e_mat = y_tilde[:, None] - Z_tilde * beta_z[None, :] - X_tilde * beta_x[None, :]
+
+        if cluster is not None:
+            # CR1S cluster-robust sandwich variance.
+            # For each cluster g: Ze_g = sum_{i in g} Z_tilde[i,j]*e[i,j]  (K,)
+            #                     Xe_g = sum_{i in g} X_tilde[i,j]*e[i,j]  (K,)
+            # meat diagonal blocks: zzee = sum_g Ze_g², xxee = sum_g Xe_g², zxee = sum_g Ze_g*Xe_g
+            groups   = np.asarray(cluster)
+            unique_g = np.unique(groups)
+            G        = len(unique_g)
+            zzee = np.zeros(len(cand), dtype=float)
+            xxee = np.zeros(len(cand), dtype=float)
+            zxee = np.zeros(len(cand), dtype=float)
+            for g in unique_g:
+                mask = groups == g
+                Ze_g  = (Z_tilde[mask] * e_mat[mask]).sum(axis=0)
+                Xe_g  = (X_tilde[mask] * e_mat[mask]).sum(axis=0)
+                zzee += Ze_g ** 2
+                xxee += Xe_g ** 2
+                zxee += Ze_g * Xe_g
+            # CR1S small-sample correction
+            cr1s  = (G / (G - 1)) * ((n - 1) / (n - p_full))
+            zzee *= cr1s;  xxee *= cr1s;  zxee *= cr1s
+            var_bx = np.full_like(det, np.nan, dtype=float)
+            var_bx[valid] = (
+                (zz[valid] ** 2 * xxee[valid]
+                 - 2 * zz[valid] * zx[valid] * zxee[valid]
+                 + zx[valid] ** 2 * zzee[valid])
+                / det[valid] ** 2
+            )
+            t_df = G - 1
+        elif hc1:
+            # HC1 sandwich variance (fully vectorized).
+            e2   = e_mat ** 2
+            zzee = np.sum(Z_tilde ** 2 * e2, axis=0)
+            xxee = np.sum(X_tilde ** 2 * e2, axis=0)
+            zxee = np.sum(Z_tilde * X_tilde * e2, axis=0)
+            # var(beta_x) = (n/(n-p_full)) * (zz²·xxee − 2·zz·zx·zxee + zx²·zzee) / det²
+            scale = n / dof
+            var_bx = np.full_like(det, np.nan, dtype=float)
+            var_bx[valid] = (
+                scale * (zz[valid] ** 2 * xxee[valid]
+                         - 2 * zz[valid] * zx[valid] * zxee[valid]
+                         + zx[valid] ** 2 * zzee[valid])
+                / det[valid] ** 2
+            )
+            t_df = dof
+        else:
+            rss = np.full_like(det, np.nan, dtype=float)
+            rss[valid] = yy - beta_z[valid] * zy[valid] - beta_x[valid] * xy[valid]
+            rss = np.maximum(rss, 0.0)
+            sigma2 = np.full_like(det, np.nan, dtype=float)
+            sigma2[valid] = rss[valid] / dof
+            var_bx = np.full_like(det, np.nan, dtype=float)
+            var_bx[valid] = sigma2[valid] * (zz[valid] / det[valid])
+            t_df = dof
 
         ok = valid & np.isfinite(var_bx) & (var_bx > 0)
         tstat = np.zeros_like(det, dtype=float)
         tstat[ok] = beta_x[ok] / np.sqrt(var_bx[ok])
 
         p = np.ones_like(det, dtype=float)
-        p[ok] = 2.0 * stats.t.sf(np.abs(tstat[ok]), df=dof)
+        p[ok] = 2.0 * stats.t.sf(np.abs(tstat[ok]), df=t_df)
         p = np.clip(np.nan_to_num(p, nan=1.0, posinf=1.0, neginf=1.0), 0.0, 1.0)
         pvals[cand] = p
         all_tstats[cand] = tstat
@@ -391,7 +448,8 @@ def nexis(
     n_splits: int = 5,             # gcm only
     n_estimators: int = 100,       # gcm only
     max_depth: Optional[int] = None,  # gcm only
-    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs (linear test only)
+    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs for Z-phase (linear test)
+    hc1: bool = False,                     # HC1 robust SEs for W-phase and Z-phase fallback
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
@@ -469,7 +527,7 @@ def nexis(
             y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
-            rho=rho, adjust=adjust, cluster=cluster,
+            rho=rho, adjust=adjust, cluster=None, hc1=hc1,
             backward=backward, verbose=verbose,
         )
         S_w = result_w.selected
@@ -494,7 +552,7 @@ def nexis(
             )
         return conditional_interaction_pvalues(
             y=y_arr, t=t_arr, z=Z, S=S_cur, candidates=candidates,
-            return_tstats=return_tstats, cluster=cluster,
+            return_tstats=return_tstats, cluster=cluster, hc1=hc1,
         )
 
     # W features (0..k-1) seed S; all features compete symmetrically from here

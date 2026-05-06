@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+import rasterio
 import pandas as pd
 import matplotlib.pyplot as plt
 import geopandas as gpd
@@ -266,6 +267,64 @@ def plot_love(df0: pd.DataFrame, w_cols: list[str],
     ax.set_title('Covariate Balance at Baseline (Love Plot)')
     ax.legend(fontsize=9)
     return ax
+
+
+def show_neuron(
+    fi: int,
+    act: np.ndarray,
+    live_idx: np.ndarray,
+    sae_ids: np.ndarray,
+    tif_dir: Path | str,
+    comm_district: 'pd.Series',
+    k: int = 5,
+    ax_row=None,
+) -> np.ndarray:
+    """Show false-colour satellite chips for the top-k activated communities.
+
+    Parameters
+    ----------
+    fi            : filtered neuron index (column index into `act`)
+    act           : (n_comms, n_live) activation matrix (live neurons only)
+    live_idx      : mapping from filtered index → full SAE neuron index
+    sae_ids       : community IDs corresponding to act rows
+    tif_dir       : directory containing ghana_comm{id:04d}.tif files
+    comm_district : Series mapping comm id → district name
+    k             : number of top communities to display
+
+    Returns
+    -------
+    Array of the top-k community IDs shown.
+    """
+    tif_dir = Path(tif_dir)
+    col     = act[:, fi]
+    top_k   = np.argsort(col)[::-1][:k]
+    comm_ids_top = sae_ids[top_k]
+    acts_top     = col[top_k]
+
+    if ax_row is None:
+        _, axes = plt.subplots(1, k, figsize=(3 * k, 3))
+    else:
+        axes = ax_row
+
+    for ax, comm_id, act_val in zip(axes, comm_ids_top, acts_top):
+        tif_path = tif_dir / f'ghana_comm{int(comm_id):04d}.tif'
+        with rasterio.open(tif_path) as src:
+            r = src.read(4).astype(float)  # NIR
+            g = src.read(2).astype(float)  # Green
+            b = src.read(6).astype(float)  # SWIR2
+
+        def _norm(band):
+            lo, hi = (np.percentile(band[band > 0], [2, 98])
+                      if (band > 0).any() else (0.0, 1.0))
+            return np.clip((band - lo) / max(hi - lo, 1e-6), 0, 1)
+
+        rgb = np.stack([_norm(r), _norm(g), _norm(b)], axis=-1)
+        ax.imshow(rgb)
+        district = comm_district.get(int(comm_id), '?')
+        ax.set_title(f'comm {int(comm_id)}\n{district}\nact={act_val:.3f}', fontsize=7)
+        ax.axis('off')
+
+    return comm_ids_top
 
 
 def plot_parallel_trends(df: pd.DataFrame, outcome: str = 'Y',

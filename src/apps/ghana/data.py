@@ -20,31 +20,69 @@ BINARY_W = [
     'farms',
 ]
 
-W_ALL = NUMERIC_W + BINARY_W
+ENGINEERED_W = [
+    'livelihood_diversity',
+    'dependency_ratio',
+    'rooms_per_person',
+    'housing_depriv',
+]
+
+# Community-level features — go into Z alongside SAE neurons and spectral indices
+COMMUNITY_Z = [
+    'dist_to_capital_km',
+    'comm_size',
+]
+
+W_ALL = NUMERIC_W + BINARY_W + ENGINEERED_W
 
 # ── Human-readable labels ─────────────────────────────────────────────────────
 W_LABELS: dict[str, str] = {
-    'hhsize':         'Household size',
-    'children_u5':    'Children 0–5',
-    'children_6_17':  'Children 6–17',
-    'adults':         'Adults 18–64',
-    'elderly':        'Elderly 65+',
-    'head_age':       'Head age',
-    'rooms':          'Rooms',
-    'head_married':   'Head married',
-    'head_female':    'Female head',
-    'head_schooled':  'Head attended school',
-    'head_formal':    'Head in formal sector',
-    'no_electricity': 'No electricity',
-    'mud_walls':      'Mud walls',
-    'thatch_roof':    'Thatch roof',
-    'mud_floor':      'Mud floor',
-    'improved_water': 'Improved water',
-    'has_poultry':    'Has poultry',
-    'has_livestock':  'Has livestock',
-    'has_business':   'Has business',
-    'farms':          'Farming household',
+    'hhsize':               'Household size',
+    'children_u5':          'Children 0–5',
+    'children_6_17':        'Children 6–17',
+    'adults':               'Adults 18–64',
+    'elderly':              'Elderly 65+',
+    'head_age':             'Head age',
+    'rooms':                'Rooms',
+    'head_married':         'Head married',
+    'head_female':          'Female head',
+    'head_schooled':        'Head attended school',
+    'head_formal':          'Head in formal sector',
+    'no_electricity':       'No electricity',
+    'mud_walls':            'Mud walls',
+    'thatch_roof':          'Thatch roof',
+    'mud_floor':            'Mud floor',
+    'improved_water':       'Improved water',
+    'has_poultry':          'Has poultry',
+    'has_livestock':        'Has livestock',
+    'has_business':         'Has business',
+    'farms':                'Farming household',
+    'livelihood_diversity': 'Livelihood diversity',
+    'dependency_ratio':     'Dependency ratio',
+    'rooms_per_person':     'Rooms per person',
+    'housing_depriv':       'Housing deprivation index',
+    'dist_to_capital_km':   'Distance to district capital (km)',
+    'comm_size':            'Community size',
 }
+
+# ── District capital GPS (WGS-84) ─────────────────────────────────────────────
+_DISTRICT_CAPITALS: dict[str, tuple[float, float]] = {
+    'East Mamprusi': (10.5285, -0.4156),   # Gambaga
+    'Karaga':        (10.1003, -0.5070),   # Karaga
+    'Yendi':         ( 9.4412,  0.0138),   # Yendi
+    'Bongo':         (10.9019, -0.8149),   # Bongo
+    'Garu-Tempane':  (10.8824, -0.1724),   # Garu
+}
+
+
+def _haversine_km(lat1: np.ndarray, lon1: np.ndarray,
+                  lat2: np.ndarray, lon2: np.ndarray) -> np.ndarray:
+    R = 6371.0
+    dlat = np.radians(lat2 - lat1)
+    dlon = np.radians(lon2 - lon1)
+    a = (np.sin(dlat / 2) ** 2
+         + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2) ** 2)
+    return R * 2 * np.arcsin(np.sqrt(a))
 
 
 def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
@@ -84,9 +122,9 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         'headage': 'head_age',
     })
 
-    # Rooms: coerce to numeric (raw data has a spurious 'Yes' category)
+    # Rooms: 'Yes' means the household confirmed >1 room but gave no count — treat as 1
     df['rooms'] = pd.to_numeric(
-        df['room'].astype(str).replace('Yes', np.nan), errors='coerce'
+        df['room'].astype(str).replace('Yes', '1'), errors='coerce'
     )
 
     # Binarise Yes/No columns with clean names
@@ -107,5 +145,36 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     }
     for raw, clean in _binary_map.items():
         df[clean] = (df[raw] == 'Yes').astype(int)
+
+    # ── Engineered features ───────────────────────────────────────────────────
+    # Count of distinct income/livelihood channels (0–5)
+    df['livelihood_diversity'] = (
+        df['farms'] + df['has_livestock'] + df['has_poultry']
+        + df['has_business'] + df['head_formal']
+    )
+
+    # Share of household members who are economically dependent
+    df['dependency_ratio'] = (
+        (df['children_u5'] + df['children_6_17'] + df['elderly']) / df['hhsize']
+    )
+
+    # Housing space per person (rooms fixed: 'Yes' → 1, so no NAs)
+    df['rooms_per_person'] = df['rooms'] / df['hhsize']
+
+    # Count of housing deprivation dimensions (0–4)
+    df['housing_depriv'] = (
+        df['mud_walls'] + df['thatch_roof'] + df['mud_floor'] + df['no_electricity']
+    )
+
+    # Haversine distance (km) from community centroid to district capital
+    district_str = df['district'].astype(str)
+    cap_lat = district_str.map({d: c[0] for d, c in _DISTRICT_CAPITALS.items()}).values.astype(float)
+    cap_lon = district_str.map({d: c[1] for d, c in _DISTRICT_CAPITALS.items()}).values.astype(float)
+    df['dist_to_capital_km'] = _haversine_km(
+        df['gps_latitude'].values, df['gps_longitude'].values, cap_lat, cap_lon
+    )
+
+    # Number of unique sampled households per community (proxy for community size)
+    df['comm_size'] = df.groupby('comm')['hhid'].transform('nunique')
 
     return df

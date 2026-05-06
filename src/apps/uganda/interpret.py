@@ -26,49 +26,58 @@ import numpy as np
 from PIL import Image
 
 ROOT    = Path(__file__).parent.parent.parent.parent   # repo root
-IMG_DIR = ROOT / "data" / "uganda" / "Uganda2000_processed"
+TIF_DIR = ROOT / "data" / "uganda" / "satellite" / "tif_rct"
 
 # ── Image loading ──────────────────────────────────────────────────────────────
+# Landsat 7 ETM+ 2005-2007 composite (Landsat Collection 2 Level-2 SR).
+# TIF band order (rasterio 1-based): 1=Blue, 2=Green, 3=Red, 4=NIR, 5=SWIR1, 6=SWIR2.
+# False-colour: NIR→R, Green→G, SWIR1→B.  True-colour: Red→R, Green→G, Blue→B.
 
-_FILL = 5000
-_PCT_LO, _PCT_HI = 2, 98
-
-
-def load_image(key: int, img_dir: Path) -> "np.ndarray | None":
-    """Load false-color (NIR→R, Green→G, SWIR→B) array (H,W,3) float32 in [0,1]."""
-    import pandas as _pd
-    raw = {}
-    for b in [1, 2, 3]:
-        p = Path(img_dir) / f"GeoKey{key}_BAND{b}.csv"
-        if not p.exists():
-            return None
-        arr = _pd.read_csv(p, header=None).values.astype(np.float32)
-        arr[arr >= _FILL] = np.nan
-        raw[b] = arr
-    out = []
-    for b in [2, 1, 3]:          # NIR→R, Green→G, SWIR→B
-        ch = raw[b]
-        valid = ch[~np.isnan(ch)]
-        lo = np.percentile(valid, _PCT_LO)
-        hi = np.percentile(valid, _PCT_HI)
-        s = np.clip((ch - lo) / (hi - lo + 1e-8), 0.0, 1.0)
-        s[np.isnan(ch)] = 0.0
-        out.append(s)
-    return np.stack(out, axis=-1)
+def _norm(arr: "np.ndarray") -> "np.ndarray":
+    valid = arr[arr > 0]
+    if valid.size == 0:
+        return np.zeros_like(arr)
+    lo, hi = np.percentile(valid, [2, 98])
+    out = np.clip((arr - lo) / max(hi - lo, 1e-6), 0, 1)
+    out[arr <= 0] = 0
+    return out
 
 
-def load_site_image(key: int, size: int = 224) -> "Image.Image | None":
-    arr = load_image(key, IMG_DIR)
-    if arr is None:
+def load_site_image(key: int, size: int = 224, mode: str = "both") -> "Image.Image | None":
+    """Load a Landsat 7 tile as a PIL image.
+
+    mode='both'  — side-by-side 2*size × size: true-colour | false-colour
+    mode='fc'    — false-colour only (NIR/Green/SWIR1), size × size
+    """
+    import rasterio
+    tif_path = TIF_DIR / f"uganda_rct{int(key):06d}.tif"
+    if not tif_path.exists():
         return None
-    img = Image.fromarray((arr * 255).astype("uint8"))
-    return img.resize((size, size), Image.BICUBIC)
+    with rasterio.open(tif_path) as src:
+        blue  = src.read(1).astype(np.float32)
+        green = src.read(2).astype(np.float32)
+        red   = src.read(3).astype(np.float32)
+        nir   = src.read(4).astype(np.float32)
+        swir1 = src.read(5).astype(np.float32)
+
+    fc_arr = (np.stack([_norm(nir), _norm(green), _norm(swir1)], axis=-1) * 255).astype("uint8")
+    fc_img = Image.fromarray(fc_arr).resize((size, size), Image.BICUBIC)
+
+    if mode == "fc":
+        return fc_img
+
+    tc_arr = (np.stack([_norm(red), _norm(green), _norm(blue)], axis=-1) * 255).astype("uint8")
+    tc_img = Image.fromarray(tc_arr).resize((size, size), Image.BICUBIC)
+    combined = Image.new("RGB", (size * 2, size))
+    combined.paste(tc_img, (0, 0))
+    combined.paste(fc_img, (size, 0))
+    return combined
 
 
-def load_group(keys, activations):
+def load_group(keys, activations, size: int = 224, mode: str = "both"):
     imgs, valid_keys, valid_acts = [], [], []
     for key, act in zip(keys, activations):
-        img = load_site_image(int(key))
+        img = load_site_image(int(key), size, mode)
         if img is not None:
             imgs.append(img)
             valid_keys.append(int(key))
@@ -112,9 +121,10 @@ def unload_model(model):
 _DESCRIPTIONS_DIR = ROOT / "data" / "uganda"
 
 GEOCHAT_DESCRIBE_PROMPT = (
-    "This is a false-colour Landsat ETM+ pan-sharpened satellite image of northern Uganda "
-    "(year ~2000). Band mapping: NIR→Red channel, Green→Green channel, SWIR→Blue channel. "
-    "The tile covers approximately 5×5 km at ~14 m/pixel native resolution.\n\n"
+    "This is a false-colour Landsat 7 ETM+ satellite image of northern Uganda "
+    "(2005–2007 cloud-free median composite). "
+    "Band mapping: NIR→Red channel, Green→Green channel, SWIR1→Blue channel. "
+    "The tile covers approximately 5×5 km at ~30 m/pixel native resolution.\n\n"
     "Colour guide:\n"
     "• Bright red/magenta = dense healthy vegetation (woodland, vigorous crops)\n"
     "• Dark red/maroon = burn scar or sparse post-fire regrowth\n"
@@ -330,7 +340,7 @@ def load_or_build_descriptions(
     if missing:
         print(f"  Running GeoChat on {len(missing)} new site(s) ...")
         for i, key in enumerate(missing):
-            img = load_site_image(int(key))
+            img = load_site_image(int(key), mode="fc")
             cache[str(key)] = describe_image_geochat(geochat_model, geochat_processor, img) \
                               if img is not None else ""
             if (i + 1) % 50 == 0 or (i + 1) == len(missing):
@@ -490,14 +500,14 @@ def aggregate_descriptions_llm(
 STUDY_CONTEXT = """\
 STUDY CONTEXT
 You are helping interpret a feature neuron from a Sparse Autoencoder (SAE) \
-trained on DINOv2 patch embeddings of Landsat satellite imagery.
+trained on Prithvi patch embeddings of Landsat satellite imagery.
 
 The images come from the Youth Opportunities Programme (YOP) evaluation — \
 a randomised controlled trial in northern Uganda in which small teams of \
 young adults competed for one-time business grants (~USD 7,500) to pursue \
 skilled trades. The PRIMARY OUTCOME is skilled-labour hours two years after \
-the grant. The satellite images were captured circa 2000, EIGHT YEARS BEFORE \
-the intervention, and represent the PRE-TREATMENT landscape of the sites.
+the grant. The satellite images were captured 2005–2007, roughly THREE YEARS \
+BEFORE the intervention, and represent the PRE-TREATMENT landscape of the sites.
 
 We are running NEXIS (Neural Effect Modifier Selection): a forward stepwise \
 procedure that tests which SAE features statistically modify the programme's \
@@ -507,12 +517,15 @@ across sites — meaning the programme works DIFFERENTLY depending on the \
 landscape this neuron detects.
 
 IMAGE FORMAT
-False-colour Landsat ETM+ composites, ~5 × 5 km footprint per tile.
+Each tile is a side-by-side pair: TRUE-COLOUR (left) | FALSE-COLOUR (right).
+Landsat 7 ETM+ cloud-free median composite, 2005–2007, ~5 × 5 km footprint.
+True-colour (left):  Red=Red, Green=Green, Blue=Blue — natural appearance.
+False-colour (right): Red=NIR, Green=Green, Blue=SWIR1.
 · Bright red / pink  = healthy dense vegetation (high NIR reflectance)
 · Tan / brown        = bare or degraded soil, low vegetation, dry season crops
 · Dark blue / black  = open water (lakes, rivers, wetlands)
 · Grey / cyan        = settlements, roads, built-up impervious surfaces
-Native resolution: ~14 m/pixel (ETM+ pan-sharpened); presented to model at 224 × 224 px (~22 m/pixel effective, ≈ 25 km²).
+Native resolution: ~30 m/pixel; presented to model at 448 × 224 px per tile.
 
 ECONOMICALLY RELEVANT VISUAL PROPERTIES TO CONSIDER
 The following landscape features have known links to rural programme outcomes:
@@ -809,6 +822,7 @@ def interpret_outcome(
     min_activation: float = 0.001,
     sae_dim: int = 3072,
     vlm_model_name: str = "",                           # qwen* / points
+    method: str = "nexis_fdr",                          # key in nexis_result.json to read selections from
 ) -> bool:
     """Interpret all NEXIS-selected SAE features for one outcome.
 
@@ -827,7 +841,13 @@ def interpret_outcome(
         nexis_output = json.load(f)
 
     n_sae            = nexis_output.get("feature_meta", {}).get("n_sae_features", sae_dim)
-    selected_entries = nexis_output["nexis"]["selected"]
+    # Support both legacy key ("nexis") and new per-method keys (nexis_fdr, nexis_exploratory, …)
+    _key_candidates = [method, "nexis", "nexis_fdr", "nexis_exploratory", "nems"]
+    _block = next((nexis_output[k] for k in _key_candidates if k in nexis_output), None)
+    if _block is None:
+        print(f"  [{outcome}] SKIP — none of {_key_candidates} found in nexis_result.json")
+        return False
+    selected_entries = _block["selected"]
     if selected_entries and isinstance(selected_entries[0], dict):
         sae_entries  = [e for e in selected_entries if e["group"] != "W"]
         skip_entries = [e for e in selected_entries if e["group"] == "W"]
@@ -842,6 +862,15 @@ def interpret_outcome(
         print(f"  [{outcome}] No SAE features selected — nothing to interpret.")
         return False
 
+    # Map compressed analysis indices → actual SAE column indices in site_feats.
+    # NEXIS compresses the 1024-dim SAE to only active features; idx refers to
+    # that compressed list, not the raw SAE column. sae_active_idx provides the mapping.
+    sae_active_idx = nexis_output.get("feature_meta", {}).get("sae_active_idx", None)
+    def resolve_col(idx: int) -> int:
+        if sae_active_idx is not None and idx < len(sae_active_idx):
+            return int(sae_active_idx[idx])
+        return idx  # fallback: raw index (legacy results without sae_active_idx)
+
     print(f"  [{outcome}] {len(selected)} feature(s) to interpret")
 
     # Precompute max activation per feature for percentile ranking (item 3)
@@ -851,7 +880,8 @@ def interpret_outcome(
     # Build image groups for each selected feature
     feature_groups = []
     for feat_idx in selected:
-        acts        = site_feats[:, feat_idx]
+        col  = resolve_col(feat_idx)
+        acts = site_feats[:, col]
         sorted_idxs = np.argsort(acts)
         top_idxs    = sorted_idxs[::-1][:k]
         bottom_idxs = sorted_idxs[:k]
@@ -883,7 +913,7 @@ def interpret_outcome(
             bottom_keys, bot_acts = fg["bottom_keys"], fg["bottom_acts"]
 
         max_act           = fg["top_acts"][0]
-        feat_acts         = site_feats[:, feat_idx]
+        feat_acts         = site_feats[:, resolve_col(feat_idx)]
         n_nonzero         = int(np.sum(feat_acts > 0))
         max_act_pct       = int(np.mean(all_max_acts <= max_act) * 100)
 
@@ -1001,6 +1031,10 @@ def parse_args():
                    help="Comma-separated outcome aliases to process in one VLM session.")
     p.add_argument("--overwrite",    action="store_true",
                    help="Re-run even if interpretations.json already exists.")
+    p.add_argument("--method",       default="nexis_fdr",
+                   help="Which selection block to read from nexis_result.json "
+                        "(e.g. nexis_fdr, nexis_fwer, nexis_exploratory, nexis, nems). "
+                        "Falls back through legacy keys automatically.")
     return p.parse_args()
 
 
@@ -1084,6 +1118,7 @@ def main():
             k=args.k, min_activation=args.min_activation, sae_dim=args.sae_dim,
             vlm_model_name=(args.points_model if args.pipeline == "points"
                             else args.vlm_model),
+            method=args.method,
         )
 
     unload_model(vlm_model if args.pipeline in ("qwen7b", "qwen72b", "points") else text_model)

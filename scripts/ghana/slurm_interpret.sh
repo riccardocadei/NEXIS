@@ -18,13 +18,13 @@ mkdir -p "$ROOT/logs"
 cd "$ROOT"
 
 $PYTHON src/apps/ghana/interpret.py \
-    --mode both \
+    --mode codes \
+    --method nexis_no_adj_hc1 \
     --vlm-model Qwen/Qwen2.5-VL-72B-Instruct \
     --quantize \
     --pipeline qwen25_72b \
     --k 12 \
-    --alpha 0.05 \
     --interpret-only \
     --overwrite \
-    --neurons 1777,3821 \
+    --neurons 1715,1661,1424,3976 \
     "$@"
