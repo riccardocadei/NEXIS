@@ -140,18 +140,19 @@ def build_figure(rows: list[dict], out_path: Path,
     div_w   = 0.05
     pad_w   = 0.08
     row_h   = 1.28
-    title_h = 0.16
-    top_pad = 0.08
-    bot_pad = 0.14   # space for community label below images
+    title_h = 0.22
+    row_gap = 0.10   # inter-row spacing
+    top_pad = 0.03
+    bot_pad = 0.05
 
-    total_w = map_w + 3*img_w + div_w + 3*img_w + 4*pad_w
-    total_h = n_rows * (row_h + title_h) + top_pad + bot_pad
+    total_w = map_w + 2*img_w + div_w + 2*img_w + 4*pad_w
+    total_h = n_rows * (row_h + title_h) + max(n_rows - 1, 0) * row_gap + top_pad + bot_pad
 
     fig = plt.figure(figsize=(total_w, total_h), dpi=150)
     fig.patch.set_facecolor("white")
 
     for row_i, row in enumerate(rows):
-        y_top = 1.0 - (top_pad + row_i*(row_h+title_h)) / total_h
+        y_top = 1.0 - (top_pad + row_i*(row_h+title_h+row_gap)) / total_h
 
         # ── title ─────────────────────────────────────────────────────────────
         title_frac = title_h / total_h
@@ -161,15 +162,16 @@ def build_figure(rows: list[dict], out_path: Path,
         if ": " in t:
             pre, desc = t.split(": ", 1)
             t = pre + ": " + desc[0].upper() + desc[1:]
-        ax_title.text(0.01, 0.5, t,
-                      ha="left", va="center", fontsize=7,
+        title_y = 0.72 if row_i == 0 else 0.58
+        ax_title.text(0.01, title_y, t,
+                      ha="left", va="center", fontsize=9,
                       fontweight="normal", transform=ax_title.transAxes)
 
         # ── image row axes ─────────────────────────────────────────────────────
         y_img_top = y_top - title_frac
         img_frac  = row_h / total_h
 
-        col_widths = [map_w, pad_w, img_w, img_w, img_w, div_w, img_w, img_w, img_w, pad_w]
+        col_widths = [map_w, pad_w, img_w, img_w, div_w, img_w, img_w, pad_w]
         x_starts = []
         x = pad_w / total_w
         for w in col_widths:
@@ -190,33 +192,33 @@ def build_figure(rows: list[dict], out_path: Path,
         def _fmt_z(act):
             return "0" if act == 0 else f"{act:.2f}".rstrip("0").rstrip(".")
 
-        # Top-3 images (high activation)
+        # Top-2 images (high activation)
         for j, (key, act) in enumerate(zip(row["top_keys"], row["top_acts"])):
             ax = fig.add_axes([x_starts[2+j], y_img_top - img_frac, img_frac_w, img_frac])
             img_arr = load_tile(int(key))
             if img_arr is not None:
                 ax.imshow(img_arr)
             ax.set_axis_off()
-            ax.set_title(f"Active ($z={_fmt_z(act)}$)", fontsize=5.5, color=C_LBL,
-                         pad=1.5, fontweight="normal")
-            ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=4.2, color="#666666",
+            ax.set_title(f"Active ($z={_fmt_z(act)}$)", fontsize=8, color=C_LBL,
+                         pad=2, fontweight="normal")
+            ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=6.5, color="#666666",
                     ha="center", va="top", transform=ax.transAxes, clip_on=False)
 
         # Divider
-        ax_div = fig.add_axes([x_starts[5], y_img_top - img_frac, div_frac, img_frac])
+        ax_div = fig.add_axes([x_starts[4], y_img_top - img_frac, div_frac, img_frac])
         ax_div.set_axis_off()
         ax_div.axvline(0.5, color="#BBBBBB", linewidth=0.6, ymin=0.04, ymax=0.96)
 
-        # Bottom-3 images (low / inactive)
+        # Bottom-2 images (low / inactive)
         for j, (key, act) in enumerate(zip(row["bot_keys"], row["bot_acts"])):
-            ax = fig.add_axes([x_starts[6+j], y_img_top - img_frac, img_frac_w, img_frac])
+            ax = fig.add_axes([x_starts[5+j], y_img_top - img_frac, img_frac_w, img_frac])
             img_arr = load_tile(int(key))
             if img_arr is not None:
                 ax.imshow(img_arr)
             ax.set_axis_off()
-            ax.set_title(f"Inactive ($z={_fmt_z(act)}$)", fontsize=5.5, color=C_LBL,
-                         pad=1.5, fontweight="normal")
-            ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=4.2, color="#666666",
+            ax.set_title(f"Inactive ($z={_fmt_z(act)}$)", fontsize=8, color=C_LBL,
+                         pad=2, fontweight="normal")
+            ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=6.5, color="#666666",
                     ha="center", va="top", transform=ax.transAxes, clip_on=False)
 
     fig.savefig(out_path, bbox_inches="tight", facecolor="white")
@@ -246,14 +248,14 @@ def main():
     def get_acts(raw_col):
         return site_feats[:, raw_col]
 
-    def top_bot(acts, k=3):
+    def top_bot(acts, k=2):
         order = np.argsort(acts)[::-1]
         top_i = order[:k]
         bot_i = np.argsort(acts)[:k]
         return (site_keys[top_i].tolist(), acts[top_i].tolist(),
                 site_keys[bot_i].tolist(), acts[bot_i].tolist())
 
-    def top_bot_ndvi(ndvi_vals, k=3):
+    def top_bot_ndvi(ndvi_vals, k=2):
         """Top k by highest NDVI; bottom k from lowest *positive* NDVI only,
         ordered least-to-most sparse (highest→lowest among the bottom set)."""
         top_i = np.argsort(ndvi_vals)[::-1][:k]
@@ -315,6 +317,9 @@ def main():
     # Z_820 — structured agricultural landscape
     a820 = get_acts(820)
     tk, ta, bk, ba = top_bot(a820)
+    # override inactive examples to avoid 219/230 (use 226, 228 instead)
+    bk = [226, 228]
+    ba = [float(a820[site_keys.tolist().index(k)]) for k in bk]
     rows_ba.append(dict(
         title     = "Neuron 820: structured agricultural landscape",
         raw_cols  = [820], colors = [C_GREEN],
