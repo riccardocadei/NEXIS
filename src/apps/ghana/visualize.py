@@ -72,10 +72,10 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
     }
     label_offsets = {
         'East Mamprusi': (-0.55, -0.18),
-        'Karaga':        (-0.65,  0.05),
+        'Karaga':        (-0.65, -0.15),
         'Bongo':         (-0.72,  0.12),
         'Yendi':         ( 0.15, -0.20),
-        'Garu-Tempane':  ( 0.15,  0.12),
+        'Garu-Tempane':  ( 0.00,  0.38),
     }
 
     if ax is None:
@@ -99,6 +99,11 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
     if not lakes_gh.empty:
         lakes_gh.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=3)
 
+    # Crop to Ghana's actual extent with minimal padding
+    minx, miny, maxx, maxy = gdf1.total_bounds
+    ax.set_xlim(minx, maxx)
+    ax.set_ylim(miny, maxy)
+
     # District name labels (no circle markers — names are district labels, not cities)
     for label, color in DISTRICT_COLORS.items():
         mask = gdf2['district_label'] == label
@@ -107,9 +112,9 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
         dx, dy = label_offsets[label]
         ax.annotate(label,
                     xy=(pt.x, pt.y), xytext=(pt.x + dx, pt.y + dy),
-                    fontsize=7, color='#222222',
+                    fontsize=14, color='#222222',
                     arrowprops=dict(arrowstyle='-', color='#666666', lw=0.6),
-                    va='center', ha='right' if dx < 0 else 'left')
+                    va='center', ha='right' if dx < 0 else ('center' if dx == 0 else 'left'))
 
     if df is not None:
         # Community centroids coloured by district; one point per comm.
@@ -127,8 +132,8 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
                        s=8, c=color, marker='o',
                        edgecolors='none', alpha=0.9, zorder=6)
 
-    ax.set_facecolor('white')
-    ax.figure.set_facecolor('white')
+    ax.set_facecolor(PAPER_BG if paper else 'white')
+    ax.figure.set_facecolor(PAPER_BG if paper else 'white')
     ax.axis('off')
     return ax
 

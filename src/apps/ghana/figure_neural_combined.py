@@ -16,6 +16,8 @@ Usage:
 
 from pathlib import Path
 
+import json
+
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,11 +55,46 @@ TEMPORAL_COMMUNITIES = [
     {"comm_id": 624,  "activation": 0.6847},
 ]
 
-TEMPORAL_CHANGES = {
-    951:  [("+", "cropland", "#c0392b"), ("+", "vegetation", "#27ae60")],
-    1265: [("+", "cropland", "#c0392b"), ("+", "vegetation", "#27ae60")],
-    624:  [("+", "cropland", "#c0392b"), ("+", "vegetation", "#27ae60")],
+CHANGE_COLORS = {
+    "cropland":   "#c0392b",
+    "vegetation": "#27ae60",
+    "bare soil":  "#e67e22",
+    "settlement": "#8e44ad",
+    "water":      "#2980b9",
+    "burn scar":  "#7f8c8d",
 }
+
+
+def _load_temporal_changes() -> dict:
+    """Parse VLM temporal descriptions from neuron_3821_temporal.json.
+
+    Returns {comm_id: [(symbol, label, color), ...]} only for communities
+    where the VLM detected meaningful intensification.
+    """
+    path = RES_DIR / "temporal" / "neuron_3821_temporal.json"
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        entries = json.load(f)
+
+    changes = {}
+    for e in entries:
+        cid     = int(e["comm_id"])
+        overall = e.get("overall", "").lower()
+        if "does not" in overall or "no sign" in overall or "stable" in overall:
+            continue
+        if "intensif" not in overall and "expand" not in overall:
+            continue
+        items = []
+        ag  = e.get("agricultural_change", "").lower()
+        veg = e.get("vegetation_change",   "").lower()
+        if "expansion" in ag or "intensif" in ag:
+            items.append(("+", "cropland",   CHANGE_COLORS["cropland"]))
+        if "denser" in veg or "increase" in veg:
+            items.append(("+", "vegetation", CHANGE_COLORS["vegetation"]))
+        if items:
+            changes[cid] = items
+    return changes
 
 
 # ── image loading ──────────────────────────────────────────────────────────────
@@ -181,7 +218,11 @@ def _row_y(row_i: int):
 # ── main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    import json
+    temporal_changes = _load_temporal_changes()
+    if temporal_changes:
+        print(f"Loaded temporal changes for {len(temporal_changes)} communities from JSON.")
+    else:
+        print("WARNING: temporal_changes.json not found — arrows will be omitted.")
 
     df = pd.read_stata(DATA_DIR / "LEAP1000 2015-2017 household data++.dta")
     comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
@@ -197,17 +238,33 @@ def main():
 
     ghana, lakes = load_basemap()
 
+    # Load effect direction from gate results
+    gate_df = pd.read_csv(RES_DIR / "gate" / "gate_Z.csv")
+    gate_df["neuron_idx"] = gate_df["feature"].str.extract(r"neuron (\d+)").astype(float)
+    direction_map = dict(zip(
+        gate_df["neuron_idx"].dropna().astype(int),
+        gate_df.loc[gate_df["neuron_idx"].notna(), "diff"],
+    ))
+
     neural_rows = []
     colors = {3821: C_BLUE, 2095: C_GREEN}
     for entry in interps:
         neuron = entry["neuron_idx"]
+        diff   = direction_map.get(neuron, 0)
+        sign   = "+" if diff >= 0 else "-"
+
+        all_acts    = sae_acts[:, neuron]
+        sorted_idx  = np.argsort(all_acts)[::-1]
+        nonzero_idx = sorted_idx[all_acts[sorted_idx] > 0]
+        zero_idx    = sorted_idx[all_acts[sorted_idx] == 0]
+
         neural_rows.append(dict(
-            title     = f"Neuron {neuron}: {entry['label']}",
-            top_keys  = entry["top_ids"][:2],
-            top_acts  = entry["top_acts"][:2],
-            bot_keys  = entry["bot_ids"][:2],
-            bot_acts  = entry["bot_acts"][:2],
-            all_acts  = sae_acts[:, neuron],
+            title     = f"Neuron {neuron}: {entry['label']} ({sign}impact)",
+            top_keys  = comm_ids[nonzero_idx[:2]].tolist(),
+            top_acts  = all_acts[nonzero_idx[:2]].tolist(),
+            bot_keys  = comm_ids[zero_idx[:2]].tolist(),
+            bot_acts  = all_acts[zero_idx[:2]].tolist(),
+            all_acts  = all_acts,
             comm_df   = comm_df_aligned,
             map_color = colors.get(neuron, C_BLUE),
         ))
@@ -244,7 +301,7 @@ def main():
         x_act0_in = pad_w + map_w + pad_w
         for j, (key, act) in enumerate(zip(row["top_keys"], row["top_acts"])):
             ax = fig.add_axes([xf(x_act0_in + j*img_w), y_img_top - h_img, w_img, h_img])
-            arr = load_tile_national(int(key))
+            arr = load_tile_community(TIF_2015, int(key))
             if arr is not None:
                 ax.imshow(arr)
             ax.set_axis_off()
@@ -263,7 +320,7 @@ def main():
         x_inact0_in = x_div_in + div_w
         for j, (key, act) in enumerate(zip(row["bot_keys"], row["bot_acts"])):
             ax = fig.add_axes([xf(x_inact0_in + j*img_w), y_img_top - h_img, w_img, h_img])
-            arr = load_tile_national(int(key))
+            arr = load_tile_community(TIF_2015, int(key))
             if arr is not None:
                 ax.imshow(arr)
             ax.set_axis_off()
@@ -320,7 +377,7 @@ def main():
 
     for col, comm in enumerate(TEMPORAL_COMMUNITIES):
         cid = comm["comm_id"]
-        if cid not in TEMPORAL_CHANGES:
+        if cid not in temporal_changes:
             continue
 
         x_tile_in = t_x0_in + t_year_w + col * (t_img_w + t_gap_w)
@@ -337,8 +394,8 @@ def main():
 
         mid_y   = 0.5 * (p_top[1] + p_bot[1])
         label_x = arrow_x + 0.003
-        for k, (sym, label, _) in enumerate(TEMPORAL_CHANGES[cid]):
-            offset_y = 0.034 * (k - (len(TEMPORAL_CHANGES[cid]) - 1) / 2)
+        for k, (sym, label, _) in enumerate(temporal_changes[cid]):
+            offset_y = 0.034 * (k - (len(temporal_changes[cid]) - 1) / 2)
             fig.text(label_x, mid_y + offset_y, f"{sym} {label}",
                      ha="left", va="center", fontsize=7.5,
                      color="black", fontweight="normal",

@@ -64,6 +64,20 @@ def load_tile(grid_id: int, size: int = 112) -> np.ndarray | None:
     return np.asarray(img)
 
 
+def load_leap_tile(comm_id: int, size: int = 112) -> np.ndarray | None:
+    """False-colour (NIR/Green/SWIR2) tile from the LEAP RCT community pool."""
+    path = SAT_DIR / "tif" / f"ghana_comm{int(comm_id):04d}.tif"
+    if not path.exists():
+        return None
+    with rasterio.open(path) as src:
+        green = src.read(2).astype(np.float32)
+        nir   = src.read(4).astype(np.float32)
+        swir2 = src.read(6).astype(np.float32)
+    arr = (np.stack([_norm(nir), _norm(green), _norm(swir2)], axis=-1) * 255).astype(np.uint8)
+    img = Image.fromarray(arr).resize((size, size), Image.BICUBIC)
+    return np.asarray(img)
+
+
 # ── basemap ────────────────────────────────────────────────────────────────────
 
 def load_basemap():
@@ -94,18 +108,22 @@ def draw_map(ax, comm_df, acts, ghana=None, lakes=None, color=C_BLUE):
 
 # ── figure builder ─────────────────────────────────────────────────────────────
 
-def build_figure(rows: list[dict], out_path: Path, ghana=None, lakes=None):
+def build_figure(rows: list[dict], out_path: Path, ghana=None, lakes=None,
+                 tile_loader=None):
     """
     rows: list of dicts with keys:
         title      str
-        top_keys   list of int  (2 national grid IDs)
+        top_keys   list of int  (LEAP community IDs)
         top_acts   list of float
-        bot_keys   list of int  (2 national grid IDs)
+        bot_keys   list of int  (LEAP community IDs)
         bot_acts   list of float
         all_acts   np.ndarray shape (n_comm,)   — community-level, for map
         comm_df    DataFrame with gps_latitude, gps_longitude  (index aligned to all_acts)
         map_color  str
+    tile_loader: callable(comm_id) -> np.ndarray | None
     """
+    if tile_loader is None:
+        tile_loader = load_leap_tile
     n_rows  = len(rows)
     map_w   = 1.15
     img_w   = 1.1
@@ -161,7 +179,7 @@ def build_figure(rows: list[dict], out_path: Path, ghana=None, lakes=None):
 
         for j, (key, act) in enumerate(zip(row["top_keys"], row["top_acts"])):
             ax = fig.add_axes([x_starts[2+j], y_img_top - img_frac, img_frac_w, img_frac])
-            arr = load_tile(int(key))
+            arr = tile_loader(int(key))
             if arr is not None:
                 ax.imshow(arr)
             ax.set_axis_off()
@@ -176,7 +194,7 @@ def build_figure(rows: list[dict], out_path: Path, ghana=None, lakes=None):
 
         for j, (key, act) in enumerate(zip(row["bot_keys"], row["bot_acts"])):
             ax = fig.add_axes([x_starts[5+j], y_img_top - img_frac, img_frac_w, img_frac])
-            arr = load_tile(int(key))
+            arr = tile_loader(int(key))
             if arr is not None:
                 ax.imshow(arr)
             ax.set_axis_off()
@@ -216,6 +234,14 @@ def main():
 
     ghana, lakes = load_basemap()
 
+    # Load effect direction from gate results
+    gate_df = pd.read_csv(RES_DIR / "gate" / "gate_Z.csv")
+    gate_df["neuron_idx"] = gate_df["feature"].str.extract(r"neuron (\d+)").astype(float)
+    direction_map = dict(zip(
+        gate_df["neuron_idx"].dropna().astype(int),
+        gate_df.loc[gate_df["neuron_idx"].notna(), "diff"],
+    ))
+
     rows = []
     colors = {3821: C_BLUE, 2095: C_GREEN}
     for entry in interps:
@@ -226,12 +252,19 @@ def main():
 
         all_acts = sae_acts[:, neuron]
 
-        top_keys = entry["top_ids"][:2]
-        top_acts = entry["top_acts"][:2]
-        bot_keys = entry["bot_ids"][:2]
-        bot_acts = entry["bot_acts"][:2]
+        # Use LEAP RCT community tiles, sorted by activation
+        sorted_idx = np.argsort(all_acts)[::-1]
+        nonzero_idx = sorted_idx[all_acts[sorted_idx] > 0]
+        zero_idx    = sorted_idx[all_acts[sorted_idx] == 0]
 
-        title = f"Neuron {neuron}: {label}"
+        top_keys = comm_ids[nonzero_idx[:2]].tolist()
+        top_acts = all_acts[nonzero_idx[:2]].tolist()
+        bot_keys = comm_ids[zero_idx[:2]].tolist()
+        bot_acts = all_acts[zero_idx[:2]].tolist()
+
+        diff = direction_map.get(neuron, 0)
+        sign  = "+" if diff >= 0 else "-"
+        title = f"Neuron {neuron}: {label} ({sign}impact)"
 
         rows.append(dict(
             title     = title,

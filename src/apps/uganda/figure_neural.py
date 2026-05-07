@@ -265,14 +265,36 @@ def main():
         return (site_keys[top_i].tolist(), ndvi_vals[top_i].tolist(),
                 site_keys[bot_i].tolist(), ndvi_vals[bot_i].tolist())
 
+    # ── Compute GATE directions ────────────────────────────────────────────────
+    df_full = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
+    site_key_to_idx = {k: i for i, k in enumerate(site_keys)}
+    df_full["feat_idx"] = df_full["geo_long_lat_key"].map(site_key_to_idx)
+    df_full = df_full.dropna(subset=["feat_idx", "Wobs"]).reset_index(drop=True)
+    df_full["feat_idx"] = df_full["feat_idx"].astype(int)
+    T_all = df_full["Wobs"].values.astype(float)
+
+    def gate_sign(Y_col, active_mask):
+        sub = df_full.dropna(subset=[Y_col])   # keep original index for correct alignment
+        Y   = sub[Y_col].values.astype(float)
+        T   = sub["Wobs"].values.astype(float)
+        act = active_mask[sub.index.values]
+        g1  = Y[act  & (T == 1)].mean() - Y[act  & (T == 0)].mean()
+        g0  = Y[~act & (T == 1)].mean() - Y[~act & (T == 0)].mean()
+        return "+" if (g1 - g0) >= 0 else "-"
+
+    spec_df   = pd.read_csv(SPEC_PATH).set_index("site_key")
+    ndvi_raw  = spec_df.reindex(site_keys)["ndvi_mean"].values.astype(np.float32)
+    ndvi_med  = np.nanmedian(ndvi_raw)
+
     # ── Figure 1: skilled_employed ─────────────────────────────────────────────
     rows_se = []
 
     # Z_339 — perennial river presence
-    a339 = get_acts(339)
+    a339  = get_acts(339)
+    sign  = gate_sign("skilled_dummy_e", a339[df_full["feat_idx"].values] > 0)
     tk, ta, bk, ba = top_bot(a339)
     rows_se.append(dict(
-        title     = "Neuron 339: perennial river presence",
+        title     = f"Neuron 339: perennial river presence ({sign}impact)",
         raw_cols  = [339], colors = [C_BLUE],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
         all_acts  = a339, all_acts2=None, site_df=site_df,
@@ -280,10 +302,11 @@ def main():
     ))
 
     # Z_533 — vegetation spatial heterogeneity
-    a533 = get_acts(533)
+    a533  = get_acts(533)
+    sign  = gate_sign("skilled_dummy_e", a533[df_full["feat_idx"].values] > 0)
     tk, ta, bk, ba = top_bot(a533)
     rows_se.append(dict(
-        title     = "Neuron 533: vegetation spatial heterogeneity",
+        title     = f"Neuron 533: vegetation spatial heterogeneity ({sign}impact)",
         raw_cols  = [533], colors = [C_GREEN],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
         all_acts  = a533, all_acts2=None, site_df=site_df,
@@ -299,15 +322,13 @@ def main():
     rows_ba = []
 
     # NDVI mean — vegetation greenness (W spectral covariate)
-    spec_df  = pd.read_csv(SPEC_PATH).set_index("site_key")
-    ndvi_raw = spec_df.reindex(site_keys)["ndvi_mean"].values.astype(np.float32)
-    # Center at median: sites above median shown as "active" on map
-    ndvi_med     = np.nanmedian(ndvi_raw)
-    ndvi_centered = ndvi_raw - ndvi_med
-    ndvi_centered = np.where(np.isnan(ndvi_centered), 0.0, ndvi_centered)
+    # (spec_df, ndvi_raw, ndvi_med already computed above for gate_sign)
+    ndvi_centered = np.where(np.isnan(ndvi_raw - ndvi_med), 0.0, ndvi_raw - ndvi_med)
+    ndvi_sign = gate_sign("bizasset_val_real_ln_e",
+                          ndvi_raw[df_full["feat_idx"].values] > ndvi_med)
     tk, ta, bk, ba = top_bot_ndvi(ndvi_raw)
     rows_ba.append(dict(
-        title      = "NDVI: vegetation greenness",
+        title      = f"NDVI: vegetation greenness ({ndvi_sign}impact)",
         raw_cols   = [], colors = [C_GREEN],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
         all_acts   = ndvi_raw, all_acts2=None, site_df=site_df,
@@ -315,13 +336,14 @@ def main():
     ))
 
     # Z_820 — structured agricultural landscape
-    a820 = get_acts(820)
+    a820  = get_acts(820)
+    sign  = gate_sign("bizasset_val_real_ln_e", a820[df_full["feat_idx"].values] > 0)
     tk, ta, bk, ba = top_bot(a820)
     # override inactive examples to avoid 219/230 (use 226, 228 instead)
     bk = [226, 228]
     ba = [float(a820[site_keys.tolist().index(k)]) for k in bk]
     rows_ba.append(dict(
-        title     = "Neuron 820: structured agricultural landscape",
+        title     = f"Neuron 820: structured agricultural landscape ({sign}impact)",
         raw_cols  = [820], colors = [C_GREEN],
         top_keys=tk, top_acts=ta, bot_keys=bk, bot_acts=ba,
         all_acts  = a820, all_acts2=None, site_df=site_df,

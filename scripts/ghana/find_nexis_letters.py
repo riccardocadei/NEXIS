@@ -217,3 +217,16 @@ out_panel = os.path.join(OUT_DIR, "nexis_teaser.png")
 plt.savefig(out_panel, dpi=200, bbox_inches="tight", facecolor="black")
 plt.close()
 print(f"\nTeaser panel → {out_panel}")
+
+# ── save rankings to JSON for downstream inspection ─────────────────────────
+import json
+rankings = {}
+for L in LETTERS:
+    ranked = sorted(scores[L], key=lambda x: x[0], reverse=True)
+    rankings[L] = [{"rank": i+1, "score": float(s), "path": p}
+                   for i, (s, p) in enumerate(ranked[:TOP_K])]
+
+json_out = os.path.join(OUT_DIR, "rankings.json")
+with open(json_out, "w") as f:
+    json.dump(rankings, f, indent=2)
+print(f"Rankings saved → {json_out}")

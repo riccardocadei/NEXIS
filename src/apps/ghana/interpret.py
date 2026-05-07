@@ -125,6 +125,21 @@ def load_group_national(grid_ids, activations, size: int = 224, mode: str = "bot
     return imgs, valid_ids, valid_acts
 
 
+def load_community_image(comm_id: int, size: int = 224, mode: str = "both"):
+    return _load_composite(TIF_DIR / f"ghana_comm{int(comm_id):04d}.tif", size, mode)
+
+
+def load_group_community(comm_ids, activations, size: int = 224, mode: str = "both"):
+    imgs, valid_ids, valid_acts = [], [], []
+    for cid, act in zip(comm_ids, activations):
+        img = load_community_image(int(cid), size, mode)
+        if img is not None:
+            imgs.append(img)
+            valid_ids.append(int(cid))
+            valid_acts.append(float(act))
+    return imgs, valid_ids, valid_acts
+
+
 # ── VLM loading ────────────────────────────────────────────────────────────────
 
 def load_vlm(model_name: str, quantize: bool = False):
@@ -967,6 +982,7 @@ def interpret_nexis(
     min_activation: float = 0.001,
     overwrite: bool = False,
     neuron_filter: set = None,   # if set, only interpret these neuron_idx values
+    pool: str = "national",      # "national" or "leap"
 ) -> None:
     out_dir = RES_DIR / rep_mode / method_name / pipeline
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -978,11 +994,20 @@ def interpret_nexis(
         return
 
     cfg      = data[rep_mode]
-    nat_key  = "nat_codes" if rep_mode == "codes" else "nat_pre"
-    nat_cfg  = data[nat_key]
-    Z_nat    = nat_cfg["Z_nat"]
-    nat_ids  = nat_cfg["nat_ids"]
     live_idx = cfg["live_idx"]
+
+    if pool == "leap":
+        Z_pool    = cfg["Z_comm"]        # (n_comm, n_live)
+        pool_ids  = cfg["comm_ids"]
+        load_group_fn = load_group_community
+        pool_label = f"{len(pool_ids)} LEAP community tiles"
+    else:
+        nat_key   = "nat_codes" if rep_mode == "codes" else "nat_pre"
+        nat_cfg   = data[nat_key]
+        Z_pool    = nat_cfg["Z_nat"]
+        pool_ids  = nat_cfg["nat_ids"]
+        load_group_fn = load_group_national
+        pool_label = f"{len(pool_ids)} national tiles"
 
     # SAE neurons only — spectral z features (non-numeric suffix) have no TIF
     z_feats = [
@@ -995,22 +1020,21 @@ def interpret_nexis(
         print(f"  [{tag}] No SAE neuron features selected — nothing to interpret.")
         return
 
-    print(f"\n── Interpreting {tag}: {len(z_feats)} neuron(s)  "
-          f"(pool: {len(nat_ids)} national tiles) ──")
-    all_max_acts = Z_nat.max(axis=0)
-    n_total = Z_nat.shape[0]
+    print(f"\n── Interpreting {tag}: {len(z_feats)} neuron(s)  (pool: {pool_label}) ──")
+    all_max_acts = Z_pool.max(axis=0)
+    n_total = Z_pool.shape[0]
     interpretations = []
 
     for j, pval in z_feats:
         neuron = int(live_idx[j])
-        acts   = Z_nat[:, j]
+        acts   = Z_pool[:, j]
 
         top_k_idx = np.argsort(acts)[::-1][:k]
         bot_k_idx = np.argsort(acts)[:k]
 
-        top_ids  = nat_ids[top_k_idx].tolist()
+        top_ids  = pool_ids[top_k_idx].tolist()
         top_acts = acts[top_k_idx].tolist()
-        bot_ids  = nat_ids[bot_k_idx].tolist()
+        bot_ids  = pool_ids[bot_k_idx].tolist()
         bot_acts = acts[bot_k_idx].tolist()
 
         max_act   = float(top_acts[0])
@@ -1032,8 +1056,8 @@ def interpret_nexis(
             continue
 
         img_mode = "fc" if pipeline == "geochat_llm" else "both"
-        top_imgs, top_valid, top_valid_acts = load_group_national(top_ids, top_acts, mode=img_mode)
-        bot_imgs, bot_valid, bot_valid_acts = load_group_national(bot_ids, bot_acts, mode=img_mode)
+        top_imgs, top_valid, top_valid_acts = load_group_fn(top_ids, top_acts, mode=img_mode)
+        bot_imgs, bot_valid, bot_valid_acts = load_group_fn(bot_ids, bot_acts, mode=img_mode)
         if not top_imgs or not bot_imgs:
             print("    (skipped: could not load images)")
             continue
@@ -1182,6 +1206,9 @@ def parse_args():
                    help="Single method name to run (e.g. nexis_no_adj_hc1). "
                         "Overrides the default [nexis_no_adj, nexis_fdr] list. "
                         "Requires a saved result.json at results/ghana/{rep}/{method}/.")
+    p.add_argument("--pool", default="national", choices=["national", "leap"],
+                   help="Image pool for VLM contrast: 'national' (default, 9592 tiles) "
+                        "or 'leap' (162 RCT community tiles).")
     p.add_argument("--min-activations", type=int, default=10,
                    help="Min community activations for a neuron to enter Z (default 10).")
     return p.parse_args()
@@ -1296,6 +1323,7 @@ def main():
                 k=args.k,
                 overwrite=args.overwrite,
                 neuron_filter=neuron_filter,
+                pool=args.pool,
             )
 
     for m in models_to_free:

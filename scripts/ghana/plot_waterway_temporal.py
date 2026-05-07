@@ -34,15 +34,50 @@ COMMUNITIES = [
     {"comm_id": 624,  "activation": 0.6847},
 ]
 
-# VLM-detected intensification: comm_id → list of (symbol, label, color)
-CHANGES = {
-    951:  [("+", "cropland",   "#c0392b"),
-           ("+", "vegetation", "#27ae60")],
-    1265: [("+", "cropland",   "#c0392b"),
-           ("+", "vegetation", "#27ae60")],
-    624:  [("+", "cropland",   "#c0392b"),
-           ("+", "vegetation", "#27ae60")],
+CHANGE_COLORS = {
+    "cropland":   "#c0392b",
+    "vegetation": "#27ae60",
+    "bare soil":  "#e67e22",
+    "settlement": "#8e44ad",
+    "water":      "#2980b9",
+    "burn scar":  "#7f8c8d",
 }
+
+
+def _load_changes() -> dict:
+    """Load VLM-detected changes from neuron_3821_temporal.json.
+
+    Returns {comm_id: [(symbol, label, color), ...]} for communities where
+    the VLM detected meaningful intensification (non-stable overall verdict).
+    """
+    import json
+    path = ROOT / "results" / "ghana" / "temporal" / "neuron_3821_temporal.json"
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        entries = json.load(f)
+
+    changes = {}
+    for e in entries:
+        cid     = int(e["comm_id"])
+        overall = e.get("overall", "").lower()
+        if "does not" in overall or "no sign" in overall or "stable" in overall:
+            continue
+        if "intensif" not in overall and "expand" not in overall:
+            continue
+        items = []
+        if "cropland" in e.get("agricultural_change", "").lower() and (
+            "expansion" in e.get("agricultural_change", "").lower()
+            or "intensif" in e.get("agricultural_change", "").lower()
+        ):
+            items.append(("+", "cropland", CHANGE_COLORS["cropland"]))
+        if "denser" in e.get("vegetation_change", "").lower() or (
+            "increase" in e.get("vegetation_change", "").lower()
+        ):
+            items.append(("+", "vegetation", CHANGE_COLORS["vegetation"]))
+        if items:
+            changes[cid] = items
+    return changes
 
 
 def load_fc(tif_path: Path, size: int = 224) -> np.ndarray | None:
@@ -68,6 +103,9 @@ def load_fc(tif_path: Path, size: int = 224) -> np.ndarray | None:
 
 def main():
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    CHANGES = _load_changes()
+    print(f"Loaded changes for communities: {sorted(CHANGES.keys())}")
 
     n = len(COMMUNITIES)
 
