@@ -137,7 +137,7 @@ section p:last-child{margin-bottom:0;}
 .two-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
 .chart-card{background:var(--bg);border:1px solid var(--border);
   border-radius:3px;padding:0.8rem;}
-.chart-card canvas{max-height:280px;}
+.chart-card canvas{max-height:400px;}
 .chart-controls{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.74rem;
   display:flex;flex-wrap:wrap;gap:0.4rem 0.9rem;margin:0.5rem 0 0.3rem;}
 .chart-controls label{display:flex;align-items:center;gap:0.3rem;cursor:pointer;}
@@ -256,8 +256,8 @@ footer{padding:1.8rem 2rem;text-align:center;
   <span class="brand-sub">From Tokens to Policy</span>
   <nav><ul>
     <li><a href="#tldr" data-s="tldr">Introduction</a></li>
-    <li><a href="#method" data-s="method">Method</a></li>
     <li><a href="#paradox" data-s="paradox">Experimental Power Paradox</a></li>
+    <li><a href="#method" data-s="method">Method</a></li>
     <li><a href="#ablation" data-s="ablation">Ablations (CelebA)</a></li>
     <li><a href="#uganda" data-s="uganda">App. 1 — Uganda (YOP)</a>
       <ul>
@@ -378,6 +378,82 @@ footer{padding:1.8rem 2rem;text-align:center;
   </div>
 </section>
 
+<!-- POWER PARADOX -->
+<section id="paradox">
+  <div class="wrap">
+    <h2>Experimental Power Paradox</h2>
+    <h3>On the distinction between Effect Modification and Interaction</h3>
+    <p>
+      Consider a cash transfer program in rural Uganda. We observe that communities
+      near a paved road show larger gains in skilled employment &#8212; should future
+      programs target road-adjacent communities?
+    </p>
+    <p>
+      Not necessarily. Road proximity may correlate with pre-existing market access,
+      which in turn makes households more able to convert cash into productive activity.
+      If market access is the true mechanism &#8212; the variable that <em>directly causes</em>
+      the differential response &#8212; then road proximity is merely a correlated proxy:
+      an <strong>effect modifier</strong> (a predictor of heterogeneity), but not an
+      <strong>interactor</strong> (a direct cause of it). Targeting based on road proximity
+      would misdirect policy.
+    </p>
+    <p>
+      <strong>Marginal screening</strong> tests each candidate variable independently.
+      With enough data, <em>every</em> variable correlated with the treatment effect will
+      pass a marginal significance test &#8212; including spurious proxies. The problem
+      is structural: it cannot be solved by collecting more data.
+    </p>
+    <div class="paradox-callout">
+      <span class="plabel">The Paradox</span>
+      <p style="margin:0">
+        As experimental power grows, marginal screening converges to flagging
+        <em>every</em> correlated variable, each backed by genuinely significant evidence.
+        <strong>More data makes the set of spurious discoveries larger and more
+        convincing, not smaller.</strong>
+      </p>
+    </div>
+    <p>
+      NEXIS avoids this by <em>conditioning</em> &#8212; testing each candidate in the
+      presence of the others &#8212; and recovering only the minimal sufficient set of
+      true interactors.
+    </p>
+
+    <h3>Empirical evidence &#8212; CelebA semi-synthetic benchmark</h3>
+    <p style="font-size:0.87rem;color:var(--muted);">
+      |S*| = 2 known modifiers &middot; m = 13,824 SAE atoms &middot; 50 seeds.
+      Bands = &#177;1.96 SE.
+    </p>
+    <div class="two-charts-wrap">
+      <div class="two-charts-shared">
+        <span class="sh-label">Metric</span>
+        <label class="chart-controls"><input type="radio" name="pm" value="precision" checked> Precision</label>
+        <label class="chart-controls"><input type="radio" name="pm" value="recall"> Recall</label>
+        <label class="chart-controls"><input type="radio" name="pm" value="iou"> IoU</label>
+      </div>
+      <div class="two-charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Sample size sweep</div>
+          <div class="chart-controls">
+            <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
+            <label><input type="radio" name="p-feta" value="5" checked> 5</label>
+            <label><input type="radio" name="p-feta" value="2"> 2</label>
+          </div>
+          <canvas id="paradox-n-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Effect size sweep</div>
+          <div class="chart-controls">
+            <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
+            <label><input type="radio" name="p-fn" value="2000" checked> 2000</label>
+            <label><input type="radio" name="p-fn" value="500"> 500</label>
+          </div>
+          <canvas id="paradox-e-chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- METHOD -->
 <section id="method">
   <div class="wrap">
@@ -417,65 +493,6 @@ footer{padding:1.8rem 2rem;text-align:center;
         directly actionable for program adaptation.
       </div></li>
     </ol>
-  </div>
-</section>
-
-<!-- POWER PARADOX -->
-<section id="paradox">
-  <div class="wrap">
-    <h2>Experimental Power Paradox</h2>
-    <div class="paradox-callout">
-      <span class="plabel">The paradox</span>
-      <p style="margin:0">
-        The failure of marginal effect-modification testing is not a small-sample artifact
-        that more data can fix &#8212; it is <strong>structural</strong>. As experimental
-        power grows, marginal screening converges to M* &#8776; [m] and accumulates
-        non-direct modifiers each backed by genuinely significant evidence.
-        <strong>More power makes the gap between M* and S* more visible, not less.</strong>
-      </p>
-    </div>
-    <p>
-      In a learned SAE dictionary with m &#8811; r atoms, any coordinate entangled with a
-      real direct modifier shows marginal effect modification &#8212; not because it is
-      causally relevant, but due to representation
-      <a href="https://arxiv.org/abs/2409.14507" class="ref" target="_blank">entanglement</a>.
-      Recovering S* requires <em>conditioning</em> &#8212; ruling out each candidate in
-      the presence of the others. This is the design principle behind NEXIS.
-    </p>
-
-    <h3>Empirical evidence &#8212; CelebA semi-synthetic benchmark</h3>
-    <p style="font-size:0.87rem;color:var(--muted);">
-      |S*| = 2 known modifiers &middot; m = 13,824 SAE atoms &middot; 50 seeds.
-      Bands = &#177;1.96 SE.
-    </p>
-    <div class="two-charts-wrap">
-      <div class="two-charts-shared">
-        <span class="sh-label">Metric</span>
-        <label class="chart-controls"><input type="radio" name="pm" value="precision" checked> Precision</label>
-        <label class="chart-controls"><input type="radio" name="pm" value="recall"> Recall</label>
-        <label class="chart-controls"><input type="radio" name="pm" value="iou"> IoU</label>
-      </div>
-      <div class="two-charts-grid">
-        <div class="chart-card">
-          <div class="chart-title">Sample size sweep</div>
-          <div class="chart-controls">
-            <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-            <label><input type="radio" name="p-feta" value="5" checked> 5</label>
-            <label><input type="radio" name="p-feta" value="2"> 2</label>
-          </div>
-          <canvas id="paradox-n-chart"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">Effect size sweep</div>
-          <div class="chart-controls">
-            <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-            <label><input type="radio" name="p-fn" value="2000" checked> 2000</label>
-            <label><input type="radio" name="p-fn" value="500"> 500</label>
-          </div>
-          <canvas id="paradox-e-chart"></canvas>
-        </div>
-      </div>
-    </div>
   </div>
 </section>
 
@@ -848,7 +865,7 @@ function copyBibtex(){
 }
 
 /* ── Scrollspy ── */
-const SECS=['tldr','method','paradox','ablation','uganda','ghana','citation'];
+const SECS=['tldr','paradox','method','ablation','uganda','ghana','citation'];
 function navUpdate(){
   const y=window.scrollY+100;let cur=SECS[0];
   SECS.forEach(id=>{const e=document.getElementById(id);if(e&&e.offsetTop<=y)cur=id;});
@@ -1267,26 +1284,26 @@ initGhanaCharts();
    ══════════════════════════════════════════════ */
 fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const PALETTE={
-    'NEXIS':{c:'#1a56a0',d:''},
-    'Marginal Testing':{c:'#e05c1a',d:''},
-    'Marginal Testing (FWER)':{c:'#c0392b',d:'5,3'},
-    'Marginal Testing (FDR)':{c:'#e89a6a',d:'3,3'},
-    'NEXIS (adjust=FDR)':{c:'#4a90d9',d:'5,3'},
-    'NEXIS (adjust=None)':{c:'#7ab3e8',d:'3,3'},
-    'NEXIS (backward=False)':{c:'#e07b2a',d:'6,3'},
-    'NEXIS (rho=0)':{c:'#a0c0f0',d:'4,2'},
-    'NEXIS (rho=0.2)':{c:'#6ea8e0',d:'4,2'},
-    'NEXIS (rho=0.8)':{c:'#3060a8',d:'4,2'},
-    'NEXIS (test=GCM: quadratic)':{c:'#2d9a60',d:'6,3'},
-    'NEXIS (test=GCM: lgbm)':{c:'#56c490',d:'4,3'},
-    'NEXIS [k=20]':{c:'#1a56a0',d:''},
-    'NEXIS [k=5]':{c:'#1a56a0',d:'6,3'},
-    'Marginal [k=20]':{c:'#e05c1a',d:''},
-    'Marginal [k=5]':{c:'#e05c1a',d:'6,3'},
-    'NEXIS [Z]':{c:'#1a56a0',d:''},
-    'NEXIS [Z_pre]':{c:'#4a90d9',d:'5,3'},
+    'NEXIS':                        {c:'#1a56a0'},
+    'Marginal Testing':             {c:'#e05c1a'},
+    'Marginal Testing (FWER)':      {c:'#c0392b'},
+    'Marginal Testing (FDR)':       {c:'#f59e0b'},
+    'NEXIS (adjust=FDR)':           {c:'#42a5f5'},
+    'NEXIS (adjust=None)':          {c:'#26a69a'},
+    'NEXIS (backward=False)':       {c:'#e91e63'},
+    'NEXIS (rho=0)':                {c:'#8b5cf6'},
+    'NEXIS (rho=0.2)':              {c:'#f97316'},
+    'NEXIS (rho=0.8)':              {c:'#4caf50'},
+    'NEXIS (test=GCM: quadratic)':  {c:'#2d9a60'},
+    'NEXIS (test=GCM: lgbm)':       {c:'#9c27b0'},
+    'NEXIS [k=20]':                 {c:'#1a56a0'},
+    'NEXIS [k=5]':                  {c:'#4db6ac'},
+    'Marginal [k=20]':              {c:'#e05c1a'},
+    'Marginal [k=5]':               {c:'#ef9a9a'},
+    'NEXIS [Z]':                    {c:'#1a56a0'},
+    'NEXIS [Z_pre]':                {c:'#00bcd4'},
   };
-  function colOf(k){return PALETTE[k]||{c:'#888',d:''};}
+  function colOf(k){return PALETTE[k]||{c:'#888'};}
 
   function buildIdx(variant,sweep){
     const src=DATA[variant][sweep];
@@ -1312,22 +1329,27 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
       const ses=xs.map(x=>entry.pts[x][sk]);
       const up=xs.map((x,i)=>ys[i]+1.96*ses[i]);
       const lo=xs.map((x,i)=>Math.max(0,ys[i]-1.96*ses[i]));
-      const{c,d}=colOf(label||key);
-      const dash=d?d.split(',').map(Number):[];
+      const{c}=colOf(label||key);
       out.push(
         {label:'',data:xs.map((x,i)=>({x,y:up[i]})),borderWidth:0,pointRadius:0,
-         fill:'+1',backgroundColor:c+'20',showLine:true,borderColor:'transparent',borderDash:dash,tension:0.35},
+         fill:'+1',backgroundColor:c+'20',showLine:true,borderColor:'transparent',tension:0.35},
         {label:label||key,data:xs.map((x,i)=>({x,y:ys[i]})),
          borderColor:c,backgroundColor:c+'20',borderWidth:2.2,
-         pointRadius:3,pointHoverRadius:5,fill:false,tension:0.35,borderDash:dash},
+         pointRadius:3,pointHoverRadius:5,fill:false,tension:0.35},
         {label:'',data:xs.map((x,i)=>({x,y:lo[i]})),borderWidth:0,pointRadius:0,
-         fill:'-1',backgroundColor:c+'20',showLine:true,borderColor:'transparent',borderDash:dash,tension:0.35}
+         fill:'-1',backgroundColor:c+'20',showLine:true,borderColor:'transparent',tension:0.35}
       );
     });
     return out;
   }
 
   function mkChart(id,xLbl,xType){
+    const xAxis={type:xType||'linear',title:{display:true,text:xLbl,font:{size:11}},grid:{color:'#eee'}};
+    if(xType==='logarithmic'){
+      xAxis.min=50;xAxis.max=10000;
+      xAxis.ticks={maxRotation:0,minRotation:0,
+        callback:v=>{if(v===100||v===1000||v===10000)return v.toLocaleString();return null;}};
+    }
     return new Chart(document.getElementById(id),{
       type:'line',data:{datasets:[]},
       options:{responsive:true,parsing:false,
@@ -1340,7 +1362,7 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
             }}}
         },
         scales:{
-          x:{type:xType||'linear',title:{display:true,text:xLbl,font:{size:11}},grid:{color:'#eee'}},
+          x:xAxis,
           y:{min:0,max:1.05,title:{display:true,text:'',font:{size:11}},grid:{color:'#eee'}}
         }
       }
