@@ -4,20 +4,30 @@
 
 *Riccardo Cadei*, Frank Otchere, Nyasha Tirivayi, Gustavo Angeles Tagliaferro, Falco J. Bargagli-Stoffi, Francesco Locatello · *Under review, 2026* · [Website](https://riccardocadei.github.io/NEIS/) · [Workshop paper](assets/aistats26-workshop.pdf)
 
----
+**TL;DR:** We introduce NEXIS, an iterative procedure over sufficient and principally aligned representations for effect heterogeneity, to identify its causal characterization, i.e., answering questions as "*what if* or *how* should I modify my treatment assignement policy?".
 
-**TL;DR:** NEXIS identifies which features *causally* drive treatment effect heterogeneity — combining foundation-model representations of complex observations with a statistically rigorous sequential selection that provably controls false discoveries.
-
----
-
-## How it works
+## Causal and Interpretable Heterogeneous Treatment Effects Identification
 
 ![NEXIS pipeline](assets/pipeline.png)
 
-1. **Run a controlled experiment** and observe that the treatment effect varies across units — but which pre-treatment features actually *cause* that variation?
-2. **Represent complex measurements** (satellite imagery, medical imaging, …) via a foundation model + Sparse Autoencoder, producing thousands of sparse, interpretable candidate neurons alongside any structured covariates.
-3. **Identify the direct effect modifiers** — NEXIS runs a forward-backward Markov-blanket search over the candidate neurons, testing conditional CATE-equivalence at each step with Bonferroni-gated p-values, and returns a small set S\* with FWER ≤ α. Each selected neuron is automatically labelled by a VLM (Qwen-VL, GeoChat) using top/bottom activating patches.
-4. **Update policy accordingly** — the output is a causal and interpretable characterisation of who benefits most, directly actionable for program adaptation.
+<ol type="i">
+  <li>
+    <strong>Run a controlled experiment</strong> and observe that the treatment effect varies across units — but which pre-treatment features actually <em>cause</em> that variation?
+  </li>
+
+  <li>
+    <strong>Represent complex measurements</strong> (satellite imagery, medical imaging, …) via a foundation model + Sparse Autoencoder, producing thousands of sparse, interpretable candidate neurons alongside any structured covariates.
+  </li>
+
+  <li>
+    <strong>Identify the direct effect modifiers</strong> — NEXIS runs a forward-backward Markov-blanket search over the candidate neurons, testing conditional CATE-equivalence at each step with Bonferroni-gated p-values, and returns a small set S* with FWER ≤ α. Each selected neuron is automatically labelled by a VLM (Qwen-VL, GeoChat) using top/bottom activating patches.
+  </li>
+
+  <li>
+    <strong>Update policy accordingly</strong> — the output is a causal and interpretable characterisation of who benefits most, directly actionable for program adaptation.
+  </li>
+</ol>
+
 
 ---
 
@@ -120,11 +130,8 @@ See [`notebooks/ghana.ipynb`](notebooks/ghana.ipynb).
 
 ```bibtex
 @article{cadei2026nexis,
-  title   = {From Tokens to Policy: Causal and Interpretable
-             Heterogeneous Treatment Effects Identification},
-  author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and
-             Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J.
-             and Locatello, Francesco},
+  title   = {From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification},
+  author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J. and Locatello, Francesco},
   year    = {2026},
   note    = {Under review. Preprint coming soon.}
 }
