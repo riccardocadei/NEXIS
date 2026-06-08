@@ -12,7 +12,7 @@
   --text:#1a1a1a;--muted:#666;--light:#999;
   --accent:#1a56a0;--green:#1e7340;--gold:#b58900;--red:#c0392b;
   --border:#ddd;--bg:#f8f8f6;--bg2:#f0f4fb;
-  --sidebar:240px;--col:960px;
+  --sidebar:240px;--col:880px;
 }
 html{font-size:16px;scroll-behavior:smooth;}
 body{font-family:"Georgia",serif;color:var(--text);line-height:1.72;background:#fff;}
@@ -77,7 +77,10 @@ section h3{font-size:1.04rem;font-weight:bold;margin:1.3rem 0 0.45rem;}
 section p{margin-bottom:0.85rem;}
 section p:last-child{margin-bottom:0;}
 
-/* ── TL;DR ── */
+/* ── Introduction / TL;DR box ── */
+.tldr-label{display:block;font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.64rem;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;
+  color:var(--accent);font-style:normal;margin-bottom:0.45rem;}
 .tldr-box{background:var(--bg2);border-left:3px solid var(--accent);
   padding:1.1rem 1.4rem;font-size:0.96rem;margin-bottom:1.3rem;font-style:italic;}
 .tldr-box strong{font-style:normal;color:var(--accent);}
@@ -253,7 +256,7 @@ footer{padding:1.8rem 2rem;text-align:center;
   <a href="#top" class="brand">NEXIS</a>
   <span class="brand-sub">From Tokens to Policy</span>
   <nav><ul>
-    <li><a href="#tldr" data-s="tldr">TL;DR</a></li>
+    <li><a href="#tldr" data-s="tldr">Introduction</a></li>
     <li><a href="#method" data-s="method">Method</a></li>
     <li><a href="#paradox" data-s="paradox">Experimental Power Paradox</a></li>
     <li><a href="#ablation" data-s="ablation">Ablations (CelebA)</a></li>
@@ -287,7 +290,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
     Frank Otchere<sup>2</sup>,&ensp;
     Nyasha Tirivayi<sup>2</sup>,&ensp;
-    Gustavo Angeles Tagliaferro<sup>2</sup>,&ensp;
+    Gustavo A. Tagliaferro<sup>2</sup>,&ensp;
     Falco J. Bargagli-Stoffi<sup>3</sup>,&ensp;
     Francesco Locatello<sup>1</sup>
   </div>
@@ -321,11 +324,12 @@ footer{padding:1.8rem 2rem;text-align:center;
   </div>
 </header>
 
-<!-- TL;DR -->
+<!-- Introduction -->
 <section id="tldr">
   <div class="wrap">
-    <h2>TL;DR</h2>
+    <h2>Introduction</h2>
     <div class="tldr-box">
+      <span class="tldr-label">TL;DR</span>
       We introduce <strong>NEXIS</strong>, a principled iterative procedure over sufficient
       and interpretable pre-treatment representations to identify the
       <strong>causal</strong> characterization of treatment effect heterogeneity &#8212;
