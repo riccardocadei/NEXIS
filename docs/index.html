@@ -173,7 +173,7 @@ section p:last-child{margin-bottom:0;}
 .mc-label{font-weight:700;font-size:0.68rem;letter-spacing:0.1em;
   text-transform:uppercase;color:var(--muted);}
 .canvas-map-wrap{position:relative;border:1px solid var(--border);
-  border-radius:2px;overflow:hidden;background:#f0f0ec;height:290px;}
+  border-radius:2px;overflow:hidden;background:#f0f0ec;height:480px;}
 .canvas-map-wrap canvas{display:block;width:100%;height:100%;}
 
 /* ── GATE chart ── */
@@ -892,9 +892,17 @@ function boundsFromGeoJSON(geojson){
 
 function makeProjector(bounds,W,H,pad){
   pad=pad||16;
+  const cLat=(bounds.maxLat+bounds.minLat)/2;
+  const cosLat=Math.cos(cLat*Math.PI/180);
+  const dLon=(bounds.maxLon-bounds.minLon)*cosLat;
+  const dLat=bounds.maxLat-bounds.minLat;
+  const avail=W-2*pad,availH=H-2*pad;
+  const scale=Math.min(avail/dLon,availH/dLat);
+  const mw=dLon*scale,mh=dLat*scale;
+  const ox=pad+(avail-mw)/2,oy=pad+(availH-mh)/2;
   return(lat,lon)=>[
-    pad+(lon-bounds.minLon)/(bounds.maxLon-bounds.minLon)*(W-2*pad),
-    H-pad-(lat-bounds.minLat)/(bounds.maxLat-bounds.minLat)*(H-2*pad)
+    ox+(lon-bounds.minLon)*cosLat*scale,
+    oy+mh-(lat-bounds.minLat)*scale
   ];
 }
 
@@ -930,7 +938,7 @@ function drawUganda(){
   if(!ugData.regions)return;
   const wrap=document.getElementById('uganda-map-wrap');
   const canvas=document.getElementById('uganda-canvas');
-  const W=wrap.offsetWidth||700,H=290;
+  const W=wrap.offsetWidth||700,H=wrap.offsetHeight||480;
   const ctx=hiDPI(canvas,W,H);
   const proj=makeProjector(ugData.bounds,W,H,18);
   ctx.fillStyle='#eef0e8';ctx.fillRect(0,0,W,H);
@@ -998,7 +1006,7 @@ function drawGhana(){
   if(!ghRegions)return;
   const wrap=document.getElementById('ghana-map-wrap');
   const canvas=document.getElementById('ghana-canvas');
-  const W=wrap.offsetWidth||700,H=290;
+  const W=wrap.offsetWidth||700,H=wrap.offsetHeight||480;
   const ctx=hiDPI(canvas,W,H);
   const bounds={minLat:8.3,maxLat:11.35,minLon:-2.9,maxLon:0.75};
   const proj=makeProjector(bounds,W,H,18);
