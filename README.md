@@ -1,40 +1,38 @@
-# Generalised Heterogeneous Treatment Effect (HTE) Identification
+# From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification
 
-**TL;DR:** *Generalised identification of what drives heterogeneous treatment effects — combining complex pre-treatment measurements with interpretable domain priors.*
+**TL;DR:** *NEXIS identifies which features causally drive treatment effect heterogeneity — combining foundation-model representations of complex observations with a principled sequential selection procedure that controls false discoveries.*
 
-Understanding *why* treatment effects vary across individuals is a fundamental challenge in causal inference. Standard methods predict effect variation but cannot reliably identify which specific features actually drive the heterogeneity, nor do they offer statistical guarantees. To address this, we introduce **NEXIS** (Neural Exposure Interaction Search): a framework providing a powerful **hypothesis generation** component. It sequentially tests and selects genuine effect modifiers from a vast pool of candidates while strictly controlling the family-wise error rate (FWER).
+Real-world interventions rarely work the same way for everyone. Understanding *why* and *how* a treatment effect varies is essential to optimise policies accordingly. Existing HTE methods trade expressivity for interpretability, but as long as some active heterogeneity drivers are unmeasured, both ends of this spectrum allow for spurious characterisations with no causal reading.
 
-Our approach is generalised in the sense that the input feature space is unrestricted and can freely combine (i) complex, high-dimensional pre-treatment measurements such as representations from foundation models (satellite imagery, medical imaging), and (ii) interpretable prior variables (demographics, administrative records). By linking mechanistic interpretability with causal inference, NEXIS bridges the gap between opaque deep learning features and statistically rigorous hypothesis generation.
+We argue that **causal HTE identification** is now within reach, thanks to (i) more extensive pre-treatment measurements (multi-modal, satellite imagery, sensor streams) and (ii) representation learning pipelines that scale their analysis. We re-frame HTE identification as a **Markov-blanket discovery problem** on a sufficient and aligned pre-treatment representation, and introduce **NEXIS** (Neural EXposure Interaction Search): an iterative forward-backward procedure with provable consistent selection.
 
-### Problem setup
+We deploy NEXIS on two anti-poverty programs in Africa, augmenting each with satellite imagery capturing previously unmeasured environmental effect modifiers, and producing novel interpretable and prescriptive guidelines for program optimisation.
+
+### Problem setting and effect modification taxonomy
 
 <table>
 <tr>
-<td valign="middle" width="62%">
+<td valign="middle" width="60%">
 
-Consider a randomised experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. We posit a set of effect-modification factors **W** (some latent and some partially observed). Our framework is **generalised** as it aims to identify effects directly by combining complex measurements with domain priors, both of which serve as observable manifestations of **W** acting on **X** and driving the heterogeneous response to treatment (see figure).
+Consider a controlled experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. The treatment effect heterogeneity is causally explained by **direct effect modifiers** W<sup>dir</sup> — latent factors that interact with treatment to drive variation in Y. However, W<sup>dir</sup> is rarely measured directly, and other spurious correlates arise:
 
-The pre-treatment input **X** is the union of two complementary sources:
+- **W<sup>dir</sup>** — *direct* modifiers: have a causal pathway to τ; the only ones licensing policy intervention
+- **W<sup>ind</sup>** — *indirect* modifiers: ancestors of W<sup>dir</sup>; operate only via mediation
+- **W<sup>prx</sup>** — *proxies*: descendants of W<sup>dir</sup>; no causal pathway to τ
+- **W<sup>cc</sup>** — *common-cause* modifiers: share a common ancestor with W<sup>dir</sup>
 
-- **Complex measurements** — high-dimensional representations extracted from raw data (satellite imagery, sensor readings, omics), typically via a foundation model + Sparse Autoencoder, yielding thousands of candidate neurons
-- **Interpretable priors** — measured baseline variables the researcher already has (demographics, survey items, administrative records), entered directly as additional candidates
+W<sup>dir</sup> is entangled in complex pre-treatment observations **X** (e.g. satellite imagery). A representation map ψ: X → Z (foundation model + Sparse Autoencoder) yields thousands of candidate neurons. NEXIS screens Z for the principal proxies of W<sup>dir</sup>, conditioning each new test on already-selected features and applying a Bonferroni gate for FWER control.
 
-NEXIS screens the combined candidate set for treatment effect modification, conditioning each new test on the features already selected and applying a Bonferroni gate, so that FWER is controlled throughout regardless of the total number of candidates.
-
-*Shaded nodes are observed; the node **W** can be latent or partially observed.*
+*Gray nodes: observed. White nodes: latent.*
 
 </td>
-<td valign="middle" align="center" width="38%">
-<img src="assets/causal_model.png" width="260" alt="Causal model: observed nodes T, Y, X in grey; modifier W in white"/>
+<td valign="middle" align="center" width="40%">
+<img src="assets/causal_model.png" width="280" alt="Causal model showing T, Y, X, Z (observed) and W^dir, W^ind, W^prx, W^cc (latent) with effect modification taxonomy"/>
 <br/>
-<sub><b>Causal model:</b> Some pre-treatment variables <b>W</b>, latent (entangled in a complex measurement <b>X</b>) or partially observed, drive the heterogeneous response to treatment <b>T</b> on outcome <b>Y</b>.</sub>
+<sub><b>Effect modification taxonomy</b> (Van der Weele 2007). Only <b>W<sup>dir</sup></b> carries a causal interpretation and licenses policy intervention.</sub>
 </td>
 </tr>
 </table>
-
-### Motivating example — Uganda Youth Opportunities Programme
-
-A concrete instantiation pairs randomised experiments with satellite imagery: given an RCT with treatment `T` and outcomes `Y`, and pre-treatment satellite imagery from unit locations, modern vision models (e.g. Prithvi, DINOv2, DINOv3) extract rich spatial features. Sparse Autoencoders then map these dense embeddings to interpretable individual neurons. Given the resulting high-dimensional representation `Z`, the question becomes: *which learned features meaningfully interact with treatment to drive outcome differences?* NEXIS provides a principled selection, while simultaneously screening explicit covariates alongside the learned deep features.
 
 ---
 
@@ -48,13 +46,17 @@ Raw pre-treatment observations (e.g. satellite imagery) are first passed through
 
 ### Step 2 — Neural Exposure Interaction Search
 
-Given the combined candidate matrix $Z$ (SAE neurons + any additional measured covariates) and an RCT or observational dataset $(Y, T)$, NEXIS iteratively selects a feature or neuron $j$ by testing the conditional interaction hypothesis:
+Given Z (SAE neurons + any measured covariates) and an experiment (Y, T), NEXIS runs a forward-backward Markov-blanket discovery loop. At each step it tests the **CATE-equivalence null**:
 
 $$
-\mathcal{H}_0(j \mid S) : \quad \gamma_j = 0 \quad \text{in} \quad Y \sim 1 + T + Z_S + T \cdot Z_S + Z_j + T \cdot Z_j
+H_0(j \mid S) : \quad \mathbb{E}[\tau \mid \bm{Z}^{S \cup \{j\}}] = \mathbb{E}[\tau \mid \bm{Z}^{S}] \quad \text{a.s.}
 $$
 
-The null hypothesis $\mathcal{H}_0$ conditions on the already-selected set $S$. At each step, a Bonferroni gate is applied uniformly over all remaining candidates, sequentially narrowing the search while guaranteeing tight control over the family-wise error rate (FWER) throughout. Selection automatically halts when no remaining candidate clears the gated significance threshold.
+- **Forward**: add the candidate j\* with smallest p-value if it clears the Bonferroni gate α/|S̄|
+- **Backward**: re-test each selected coordinate and drop any that became redundant given the rest
+- Iterate until convergence; FWER ≤ α throughout
+
+Under Measurement and Representation Sufficiency, the output S\* identifies the direct modifier CATE: τ(W<sup>dir</sup>) = E[τ | Z<sup>S\*</sup>] a.s.
 
 ```python
 from src.method import nexis

@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Tokens to Policy: NEXIS</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --text: #1a1a1a;
+    --muted: #555;
+    --accent: #1a56a0;
+    --border: #ddd;
+    --bg-aside: #f7f7f7;
+    --col: 780px;
+    --wide: 1060px;
+  }
+
+  html { font-size: 17px; }
+
+  body {
+    font-family: "Georgia", "Times New Roman", serif;
+    color: var(--text);
+    line-height: 1.7;
+    background: #fff;
+  }
+
+  /* ── Layout ── */
+  .wrap {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  .wrap-wide {
+    max-width: var(--wide);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  /* ── Hero ── */
+  header {
+    padding: 4.5rem 1.5rem 2.8rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    max-width: var(--col);
+    margin: 0 auto;
+  }
+
+  header .venue {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  header h1 {
+    font-size: 2rem;
+    font-weight: normal;
+    line-height: 1.3;
+    margin-bottom: 1.5rem;
+  }
+
+  header h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .authors {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.93rem;
+    color: var(--muted);
+    line-height: 2;
+    margin-bottom: 1.6rem;
+  }
+
+  .authors a {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .authors a:hover { text-decoration: underline; }
+
+  .authors sup {
+    font-size: 0.65em;
+    color: var(--accent);
+  }
+
+  .affiliations {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    letter-spacing: 0.01em;
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .links a {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    padding: 0.35em 1.1em;
+    border-radius: 2px;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .links a:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* ── Sections ── */
+  section {
+    padding: 3.2rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  section h2 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.4rem;
+  }
+
+  section h3 {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 1.6rem 0 0.6rem;
+  }
+
+  section p {
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+
+  section p:last-child { margin-bottom: 0; }
+
+  /* ── Teaser ── */
+  .teaser-img {
+    width: 100%;
+    max-width: 100%;
+    display: block;
+    margin: 2rem auto 0;
+    border: 1px solid var(--border);
+  }
+
+  /* ── Abstract callout ── */
+  .abstract-box {
+    background: var(--bg-aside);
+    border-left: 3px solid var(--accent);
+    padding: 1.4rem 1.6rem;
+    margin-top: 1rem;
+    font-size: 0.97rem;
+  }
+
+  /* ── Pipeline steps ── */
+  .pipeline {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.88rem;
+    background: #f0f4fb;
+    border: 1px solid #c6d4eb;
+    border-radius: 4px;
+    padding: 1.2rem 1.4rem;
+    margin: 1.4rem 0;
+    line-height: 1.8;
+  }
+
+  .pipeline .arrow {
+    color: var(--accent);
+    font-weight: bold;
+    margin: 0 0.3em;
+  }
+
+  .pipeline ol {
+    padding-left: 1.4em;
+    margin-top: 0.6rem;
+  }
+
+  .pipeline li { margin-bottom: 0.3em; }
+
+  /* ── Figure containers ── */
+  .fig-full {
+    width: 100%;
+    max-width: 100%;
+    display: block;
+    margin: 1.4rem auto;
+    border: 1px solid var(--border);
+  }
+
+  .fig-caption {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 0.5rem;
+    line-height: 1.5;
+  }
+
+  .fig-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin: 1.4rem 0;
+  }
+
+  .fig-row img {
+    width: 100%;
+    border: 1px solid var(--border);
+    display: block;
+  }
+
+  .fig-col { text-align: center; }
+
+  /* ── CelebA tab switcher ── */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin: 1.4rem 0 0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.82rem;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    padding: 0.55em 1.2em;
+    cursor: pointer;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab-btn:hover { color: var(--accent); }
+
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Key finding callout ── */
+  .finding {
+    background: #fffdf0;
+    border-left: 3px solid #c9a227;
+    padding: 1rem 1.4rem;
+    margin: 1.2rem 0;
+    font-size: 0.95rem;
+  }
+
+  .finding strong {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.4rem;
+    color: #8a6d00;
+  }
+
+  /* ── BibTeX ── */
+  .bibtex-wrap {
+    position: relative;
+    margin-top: 1rem;
+  }
+
+  .bibtex-wrap pre {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 0.8rem;
+    background: var(--bg-aside);
+    border: 1px solid var(--border);
+    padding: 1.2rem;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.6;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 0.25em 0.8em;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.15s;
+  }
+
+  .copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .copy-btn.copied { background: #2a7a2a; color: #fff; border-color: #2a7a2a; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    html { font-size: 15px; }
+    header h1 { font-size: 1.55rem; }
+    .fig-row { grid-template-columns: 1fr; }
+    .tab-btn { padding: 0.5em 0.7em; font-size: 0.76rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════ HERO ══════════ -->
+<header>
+  <p class="venue">Preprint &nbsp;·&nbsp; 2025</p>
+
+  <h1><em>From Tokens to Policy:</em><br>
+    Causal and Interpretable Heterogeneous<br>
+    Treatment Effects Identification</h1>
+
+  <div class="authors">
+    <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
+    Frank Otchere<sup>2</sup>,&ensp;
+    Nyasha Tirivayi<sup>2</sup>,<br>
+    Gustavo Angeles Tagliaferro<sup>2</sup>,&ensp;
+    Falco J. Bargagli-Stoffi<sup>3</sup>,&ensp;
+    Francesco Locatello<sup>1</sup>
+  </div>
+
+  <div class="affiliations">
+    <sup>1</sup>ISTA &emsp;
+    <sup>2</sup>UNICEF &emsp;
+    <sup>3</sup>UCLA
+  </div>
+
+  <div class="links">
+    <a href="assets/NEXIS.pdf" title="Full paper PDF">Paper PDF</a>
+    <a href="assets/aistats26-workshop.pdf" title="Workshop version">Workshop PDF</a>
+    <a href="https://github.com/rcadei/NEXIS" title="GitHub repository">GitHub</a>
+    <a href="#citation">BibTeX</a>
+  </div>
+</header>
+
+<!-- ══════════ TEASER ══════════ -->
+<div class="wrap">
+  <img src="assets/teaser.png" alt="NEXIS pipeline teaser" class="teaser-img">
+</div>
+
+<!-- ══════════ ABSTRACT ══════════ -->
+<section>
+  <div class="wrap">
+    <h2>Abstract</h2>
+    <div class="abstract-box">
+      <p>
+        Heterogeneous Treatment Effect (HTE) identification is crucial to explain the impact of an
+        intervention and optimize our policies accordingly. Existing approaches trade expressivity
+        for interpretability, but as long as some active heterogeneity drivers are unmeasured,
+        both ends of this spectrum allow for spurious HTE characterization with no causal reading.
+      </p>
+      <p>
+        We focus on controlled experiments and argue that the oracle causal characterization via
+        the <em>direct effect modifiers</em> is now within reach, thanks to (i) more extensive
+        pre-treatment measurements, e.g., multi-modal, and (ii) representation learning pipelines
+        to scale their analyses. We re-frame HTE identification as a Markov-blanket discovery
+        problem on a sufficient and aligned pre-treatment representation, and introduce
+        <strong>Neural EXposure Interaction Search (NEXIS)</strong>, an iterative procedure with
+        provable and empirically validated consistent selection.
+      </p>
+      <p>
+        We deploy NEXIS on two anti-poverty programs in Africa, augmenting each with satellite
+        imagery capturing previously unmeasured environmental effect modifiers, leading to novel
+        interpretable and prescriptive guidelines to optimize the programs' next iterations.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ TL;DR ══════════ -->
+<section>
+  <div class="wrap">
+    <h2>TL;DR</h2>
+    <div class="finding">
+      <strong>Key insight</strong>
+      Among two distinct anti-poverty programs, the impact is almost invariant to
+      the target subpopulation demographics, and is mainly characterized by
+      <em>environmental factors</em>, previously untracked—now discoverable by
+      pairing trials with satellite imagery and running NEXIS.
+    </div>
+    <p>
+      Existing HTE methods either model effect heterogeneity flexibly but without interpretability,
+      or identify interpretable subgroups over curated structured covariates without guaranteeing
+      causal separation of treatment interactions from spurious correlates.
+      NEXIS bridges this gap: it is the first algorithm to identify a
+      <em>causal and human-interpretable</em> HTE characterization from complex, unstructured
+      observations.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ METHOD ══════════ -->
+<section>
+  <div class="wrap">
+    <h2>Method</h2>
+    <h3>From Tokens to Policy — a three-step pipeline</h3>
+
+    <div class="pipeline">
+      <strong>Controlled experiment</strong>
+      <span class="arrow">→</span>
+      <strong>Represent (interpretable)</strong>
+      <span class="arrow">→</span>
+      <strong>Identify (causal)</strong>
+      <span class="arrow">→</span>
+      <strong>Update policy</strong>
+      <ol>
+        <li>
+          <strong>Foundation model + SAE</strong> — pre-treatment observations
+          (e.g., satellite images, text, structured covariates) are embedded by a frozen
+          foundation model and then decomposed by a learned Sparse Autoencoder (SAE) into a
+          dictionary of <em>interpretable</em> atoms, each aligned with a latent factor of variation.
+        </li>
+        <li>
+          <strong>NEXIS</strong> — a forward-backward Markov-blanket discovery procedure
+          that iteratively selects atoms carrying independent residual heterogeneity signal,
+          and prunes any that become redundant given the rest.
+          Unlike marginal screening, NEXIS targets the <em>minimal and sufficient</em>
+          set of direct effect modifiers, avoiding the Experimental Power Paradox.
+        </li>
+        <li>
+          <strong>VLM interpretation</strong> — each retained atom is labelled post-hoc
+          by contrasting its top- and bottom-activating inputs with a vision-language model,
+          translating latent factors into human-readable descriptions for policy guidance.
+        </li>
+      </ol>
+    </div>
+
+    <img src="assets/causal_model.png" alt="Causal model and effect modification taxonomy" class="fig-full">
+    <p class="fig-caption">
+      Causal model and effect modification taxonomy. Shaded nodes are observed;
+      white nodes are latent. <strong>W<sup>dir</sup></strong> are the direct effect modifiers
+      (treatment interactors); NEXIS identifies their principal proxies within the learned
+      dictionary <strong>Z</strong> = ψ(<strong>X</strong>).
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ CELEBA BENCHMARK ══════════ -->
+<section>
+  <div class="wrap">
+    <h2>CelebA Semi-Synthetic Benchmark</h2>
+    <h3>The Experimental Power Paradox</h3>
+    <p>
+      We construct a semi-synthetic RCT benchmark on CelebA with
+      |S*| = 2 known direct modifiers (<em>wearing a hat</em>, <em>wearing eyeglasses</em>);
+      pre-treatment information is face images only.
+      A trained SAE (m = 13,824 codes) on SigLIP representations provides the candidate
+      dictionary.
+    </p>
+    <p>
+      As sample size <em>n</em> or effect magnitude <em>η</em> grow, marginal screening
+      accumulates non-direct modifiers (precision collapse), faithfully tracking the much larger
+      set M* ≈ [m] of all entangled effect modifiers rather than the two true interactors.
+      NEXIS robustly recovers S* monotonically with power.
+    </p>
+
+    <div class="tab-bar" id="celeba-tabs">
+      <button class="tab-btn active" data-tab="effect">Effect sweep</button>
+      <button class="tab-btn" data-tab="n">Sample sweep</button>
+      <button class="tab-btn" data-tab="abl-effect">Ablation – effect</button>
+      <button class="tab-btn" data-tab="abl-n">Ablation – sample</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-effect">
+      <img src="assets/celeba_effect_sweep.png" alt="CelebA precision/recall vs. effect size" class="fig-full">
+      <p class="fig-caption">
+        Precision and Recall of S* recovery as effect magnitude η increases.
+        Marginal screening diverges; NEXIS converges.
+      </p>
+    </div>
+    <div class="tab-panel" id="tab-n">
+      <img src="assets/celeba_n_sweep.png" alt="CelebA precision/recall vs. sample size" class="fig-full">
+      <p class="fig-caption">
+        Precision and Recall of S* recovery as sample size n increases.
+        Larger n makes precision collapse worse for marginal screening; NEXIS is unaffected.
+      </p>
+    </div>
+    <div class="tab-panel" id="tab-abl-effect">
+      <img src="assets/celeba_ablation_effect_sweep.png" alt="Ablation: effect sweep" class="fig-full">
+      <p class="fig-caption">
+        Ablation study: varying NEXIS components under increasing effect magnitude.
+      </p>
+    </div>
+    <div class="tab-panel" id="tab-abl-n">
+      <img src="assets/celeba_ablation_n_sweep.png" alt="Ablation: sample sweep" class="fig-full">
+      <p class="fig-caption">
+        Ablation study: varying NEXIS components under increasing sample size.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ UGANDA ══════════ -->
+<section>
+  <div class="wrap">
+    <h2>Application 1 — Uganda (Youth Opportunities Program)</h2>
+    <h3>Youth Opportunities Program (YOP, 2008)</h3>
+    <p>
+      YOP awarded cash grants to self-organised youth groups across 439 groups in 331 communities
+      in post-conflict Northern Uganda, randomized to measure impact on productive economic capacity.
+      We extend the original trial by pairing it with Landsat-7 multispectral satellite imagery
+      (2005–2007 composite, pre-program), embedded via the Prithvi-EO geospatial foundation model,
+      and summarised with a learned SAE dictionary.
+      NEXIS then selects from the pooled candidate set of landscape atoms, spectral indices,
+      and demographic covariates.
+    </p>
+
+    <div class="finding">
+      <strong>Key finding</strong>
+      NEXIS identifies two satellite-derived environmental direct modifiers for each outcome,
+      plus linguistic-group interactions for skilled employment—confirming an <em>outside-option
+      logic</em>: the grant's pull into a skilled trade is strongest where economic alternatives
+      are weakest. Demographic covariates (age, sex, parental education) show negligible heterogeneity.
+      A naive marginal screen on the same representation returns several dozen correlated
+      "discoveries" per outcome—a real-world instance of the Experimental Power Paradox.
+    </div>
+
+    <div class="fig-row">
+      <div class="fig-col">
+        <img src="assets/uganda_skilled_employed.png" alt="Skilled employment modifiers — Uganda">
+        <p class="fig-caption">
+          Satellite-derived direct modifiers of <em>skilled employment</em>.
+          Each row: Uganda community map (modifier activation) + top/bottom Landsat tiles.
+        </p>
+      </div>
+      <div class="fig-col">
+        <img src="assets/uganda_biz_assets.png" alt="Business assets modifiers — Uganda">
+        <p class="fig-caption">
+          Satellite-derived direct modifiers of <em>business asset accumulation</em>.
+          High NDVI (vegetation greenness) amplifies impact; structured agriculture dampens it.
+        </p>
+      </div>
+    </div>
+
+    <p>
+      <strong>Skilled employment</strong> — unified by outside-option logic: Karamojong speakers
+      (marginalized pastoralists) observe a significantly higher impact; Teso and Acholi
+      communities, already affording productive pathways, exhibit dampened effects.
+      Perennial river presence and vegetation spatial heterogeneity dampen impact by enabling
+      subsistence fishing or bush/crop alternatives.
+    </p>
+    <p>
+      <strong>Business assets</strong> — high-NDVI (green, productive) regions show amplified
+      program impact; structured agricultural landscape dampens returns, consistent with
+      crowding-out by incumbent commercial-scale agriculture.
+    </p>
+
+    <div class="fig-row">
+      <div class="fig-col">
+        <img src="assets/uganda_districts.png" alt="Uganda districts map">
+        <p class="fig-caption">Trial sites by district.</p>
+      </div>
+      <div class="fig-col">
+        <img src="assets/uganda_languages.png" alt="Uganda linguistic groups">
+        <p class="fig-caption">Linguistic-group heterogeneity in skilled employment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ GHANA ══════════ -->
+<section>
+  <div class="wrap">
+    <h2>Application 2 — Ghana (LEAP 1000)</h2>
+    <h3>Livelihood Empowerment Against Poverty 1000 (2015–2017)</h3>
+    <p>
+      LEAP 1000 provided quarterly cash transfers to extremely poor households with newborns
+      across 2,331 households in 162 communities in Northern and Upper East Ghana,
+      evaluated via a two-wave cluster-randomized trial.
+      We extend the analysis with Landsat-8 imagery (2015), embedded via Prithvi-EO and
+      pooled with 24 survey covariates and spectral indices. NEXIS then selects from this
+      enriched candidate pool.
+    </p>
+
+    <div class="finding">
+      <strong>Key finding</strong>
+      NEXIS identifies two satellite-derived direct modifiers—<em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em>—and <em>no</em> demographic modifiers, suggesting invariant
+      impact across household demographics within the already homogeneous target population.
+      Communities with seasonal water corridors or forest patches exhibit program effects
+      several times the overall average.
+    </div>
+
+    <img src="assets/ghana_combined.png" alt="LEAP 1000 Ghana: NEXIS satellite-derived modifiers" class="fig-full">
+    <p class="fig-caption">
+      <em>Left</em>: Satellite-derived direct modifiers retained by NEXIS on LEAP 1000,
+      with VLM interpretations from top/bottom activating tiles.
+      <em>Right</em>: Temporal evolution for waterway-active communities (2015→2017),
+      showing cropland extension — supporting the complementarity hypothesis.
+    </p>
+
+    <p>
+      The interpretation is <em>complementarity</em>-based: water-adjacent smallholders can
+      direct transfers into irrigation-season agriculture, while forest-edge households can layer
+      cash onto existing non-timber livelihood strategies unavailable elsewhere. Cropland
+      expansion and denser riparian vegetation from 2015 to 2017 (satellite VLM tracking)
+      further support the waterway hypothesis.
+    </p>
+
+    <div class="fig-row">
+      <div class="fig-col">
+        <img src="assets/ghana_marginal_vs_nexis.png" alt="Marginal vs NEXIS comparison — Ghana">
+        <p class="fig-caption">
+          Marginal screening vs. NEXIS: NEXIS selects the minimal causal set;
+          marginal screening accumulates dozens of correlated proxies.
+        </p>
+      </div>
+      <div class="fig-col">
+        <img src="assets/ghana_gate_discoveries.png" alt="GATE discoveries — Ghana">
+        <p class="fig-caption">
+          Group Average Treatment Effects for discovered modifiers.
+        </p>
+      </div>
+    </div>
+
+    <img src="assets/ghana_gate_neurons.png" alt="GATE by neuron activations — Ghana" class="fig-full">
+    <p class="fig-caption">
+      GATE estimates stratified by SAE atom activations for the two retained direct modifiers.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════ CITATION ══════════ -->
+<section id="citation">
+  <div class="wrap">
+    <h2>Citation</h2>
+    <div class="bibtex-wrap">
+      <button class="copy-btn" id="copy-btn" onclick="copyBibtex()">Copy</button>
+      <pre id="bibtex-text">@article{cadei2025nexis,
+  title   = {From Tokens to Policy: Causal and Interpretable
+             Heterogeneous Treatment Effects Identification},
+  author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and
+             Tagliaferro, Gustavo Angeles and Bargagli-Stoffi, Falco J.
+             and Locatello, Francesco},
+  year    = {2025},
+  note    = {Preprint}
+}</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Riccardo Cadei is supported by a Google Research Scholar Award
+    and a Google-initiated gift to Francesco Locatello.
+  </div>
+</footer>
+
+<script>
+  /* ── Tab switcher ── */
+  const tabMap = {
+    'effect':     'tab-effect',
+    'n':          'tab-n',
+    'abl-effect': 'tab-abl-effect',
+    'abl-n':      'tab-abl-n',
+  };
+
+  document.getElementById('celeba-tabs').addEventListener('click', function(e) {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    const key = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(tabMap[key]).classList.add('active');
+  });
+
+  /* ── Copy BibTeX ── */
+  function copyBibtex() {
+    const text = document.getElementById('bibtex-text').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+</script>
+</body>
+</html>
