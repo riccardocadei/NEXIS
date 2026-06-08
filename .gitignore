@@ -15,6 +15,7 @@ results/
 models/
 neuralscience-main/
 assets/
+!docs/assets/
 outputs/
 paper/
 
