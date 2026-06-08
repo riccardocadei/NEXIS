@@ -492,15 +492,22 @@ footer{padding:1.8rem 2rem;text-align:center;
   <div class="wrap">
     <h2>Ablations &#8212; CelebA Benchmark</h2>
     <div class="abl-tabs" id="abl-tabs">
+      <span class="abl-group-label">Representation</span>
+      <button class="abl-tab active" data-abl="representation">SAE configuration</button>
+      <span class="abl-flex-break"></span>
       <span class="abl-group-label">Algorithm</span>
-      <button class="abl-tab active" data-abl="test">Statistical test</button>
+      <button class="abl-tab" data-abl="test">Statistical test</button>
       <button class="abl-tab" data-abl="correction">Multiple-testing correction</button>
       <button class="abl-tab" data-abl="rho">Spectral gap &rho;</button>
       <button class="abl-tab" data-abl="backward">Backward elimination</button>
-      <span class="abl-flex-break"></span>
-      <span class="abl-group-label">Representation</span>
-      <button class="abl-tab" data-abl="sae_k">SAE sparsity k</button>
-      <button class="abl-tab" data-abl="sae_view">Feature view (Z vs Z<sub>pre</sub>)</button>
+    </div>
+    <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;">
+      <span class="mc-label">Sparsity:</span>
+      <label><input type="radio" name="repr-k" value="k20" checked> k=20</label>
+      <label><input type="radio" name="repr-k" value="k5"> k=5</label>
+      <span style="margin-left:1.1rem;font-family:'Helvetica Neue',sans-serif;font-size:0.74rem;color:var(--muted);">Features:</span>
+      <label><input type="radio" name="repr-view" value="sae" checked> Z (post-TopK)</label>
+      <label><input type="radio" name="repr-view" value="precode"> Z<sub>pre</sub> (pre-TopK)</label>
     </div>
     <div id="abl-desc" style="font-size:0.87rem;color:var(--muted);margin-bottom:0.8rem;font-family:'Helvetica Neue',sans-serif;"></div>
     <div class="two-charts-shared">
@@ -1499,9 +1506,8 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   }
 
   const PM=[
-    {key:'NEXIS',label:'NEXIS'},
-    {key:'Marginal Testing',label:'Marginal Testing (raw)'},
-    {key:'Marginal Testing (FWER)',label:'Marginal Testing (FWER)'},
+    {key:'Marginal Testing (FWER)', label:'Marginal Testing', c:'#c0392b'},
+    {key:'NEXIS',                   label:'NEXIS',            c:'#1a56a0'},
   ];
   const pNC=mkChart('paradox-n-chart','Sample size n','logarithmic');
   const pEC=mkChart('paradox-e-chart','Effect size η','linear');
@@ -1524,14 +1530,11 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
         {key:'NEXIS (test=GCM: quadratic)',label:'GCM: quadratic',   c:'#2d9a60'},
         {key:'NEXIS (test=GCM: lgbm)',     label:'GCM: lgbm',        c:'#9c27b0'},
       ]},
-    correction:{desc:'Multiple-testing correction. FWER (Bonferroni) and FDR (BH) are equivalent at |S*|=2; no correction inflates false positives at large η or n.',
+    correction:{desc:'Multiple-testing correction applied to NEXIS. FWER (Bonferroni) and FDR (Benjamini–Hochberg) are equivalent at |S*|=2; no correction inflates false positives at large η or n.',
       v:'k20_sae',methods:[
-        {key:'NEXIS',                    label:'NEXIS / FWER (default)', c:'#1a56a0'},
-        {key:'NEXIS (adjust=FDR)',       label:'NEXIS / FDR',            c:'#42a5f5'},
-        {key:'NEXIS (adjust=None)',      label:'NEXIS / none',            c:'#26a69a'},
-        {key:'Marginal Testing (FWER)', label:'Marginal / FWER',          c:'#c0392b'},
-        {key:'Marginal Testing (FDR)',  label:'Marginal / FDR',           c:'#f59e0b'},
-        {key:'Marginal Testing',        label:'Marginal / none',          c:'#e05c1a'},
+        {key:'NEXIS',               label:'FWER (default)', c:'#1a56a0'},
+        {key:'NEXIS (adjust=FDR)', label:'FDR',             c:'#42a5f5'},
+        {key:'NEXIS (adjust=None)',label:'none',             c:'#26a69a'},
       ]},
     rho:{desc:'Spectral-gap threshold ρ: minimum ratio of a candidate\'s |t|-statistic to selected ones. Low ρ admits correlated companions (↓ precision); high ρ blocks weaker principals (↓ recall).',
       v:'k20_sae',methods:[
@@ -1545,25 +1548,11 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
         {key:'NEXIS',                   label:'with backward (default)', c:'#1a56a0'},
         {key:'NEXIS (backward=False)', label:'forward-only',             c:'#e91e63'},
       ]},
-    sae_k:{desc:'SAE sparsity k. Higher k=20 yields sparser codes with better principal alignment; k=5 spreads information across more correlated neurons.',
-      v:'k20_sae',methods:[
-        {key:'NEXIS',          label:'NEXIS / k=20 (default)', c:'#1a56a0'},
-        {key:'NEXIS',          label:'NEXIS / k=5',            c:'#4db6ac', v:'k5_sae'},
-        {key:'Marginal Testing',label:'Marginal / k=20',       c:'#e05c1a'},
-        {key:'Marginal Testing',label:'Marginal / k=5',        c:'#ef9a9a', v:'k5_sae'},
-      ]},
-    sae_view:{desc:'Feature view: sparse post-TopK codes (Z) vs. dense pre-TopK activations (Z_pre). Both methods shift right with Z_pre; qualitative ordering preserved.',
-      v:'k20_sae',methods:[
-        {key:'NEXIS',          label:'NEXIS / Z (default)', c:'#1a56a0'},
-        {key:'NEXIS',          label:'NEXIS / Z_pre',       c:'#00bcd4', v:'k20_precode'},
-        {key:'Marginal Testing',label:'Marginal / Z',       c:'#e05c1a'},
-        {key:'Marginal Testing',label:'Marginal / Z_pre',   c:'#ef9a9a', v:'k20_precode'},
-      ]},
   };
 
   const aNC=mkChart('abl-n-chart','Sample size n','logarithmic');
   const aEC=mkChart('abl-e-chart','Effect size η','linear');
-  let curAbl='test';
+  let curAbl='representation';
 
   function getAblDS(ak,sweep,metric,fval){
     const abl=ABL[ak];const all=[];
@@ -1574,21 +1563,40 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     return all;
   }
 
+  function reprVariant(){
+    const k=document.querySelector('input[name=repr-k]:checked').value;
+    const view=document.querySelector('input[name=repr-view]:checked').value;
+    return k+'_'+view;
+  }
+
   function updAbl(){
     const m=document.querySelector('input[name=am]:checked').value;
     const fe=parseFloat(document.querySelector('input[name=a-feta]:checked').value);
     const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
-    document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
-    updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
-    updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+    if(curAbl==='representation'){
+      const variant=reprVariant();
+      const labels={'k20_sae':'k=20, Z','k5_sae':'k=5, Z','k20_precode':'k=20, Zₚₑ','k5_precode':'k=5, Zₚₑ'};
+      document.getElementById('abl-desc').textContent=
+        'NEXIS vs. marginal screening across SAE configurations. Shown: '+( labels[variant]||variant)+'.';
+      updChart(aNC,getDS(variant,'n_sweep',m,PM,fe),m,'Sample size n');
+      updChart(aEC,getDS(variant,'effect_sweep',m,PM,fn),m,'Effect size η');
+    } else {
+      document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
+      updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
+      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+    }
   }
 
   document.getElementById('abl-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.abl-tab');if(!btn)return;
     document.querySelectorAll('.abl-tab').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');curAbl=btn.dataset.abl;updAbl();
+    btn.classList.add('active');curAbl=btn.dataset.abl;
+    document.getElementById('repr-controls').style.display=curAbl==='representation'?'':'none';
+    updAbl();
   });
   document.querySelectorAll('input[name=am],input[name=a-feta],input[name=a-fn]')
+    .forEach(i=>i.addEventListener('change',updAbl));
+  document.querySelectorAll('input[name=repr-k],input[name=repr-view]')
     .forEach(i=>i.addEventListener('change',updAbl));
   updAbl();
 
