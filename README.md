@@ -1,128 +1,153 @@
-# From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification
+# NEXIS — Neural EXposure Interaction Search
 
-**TL;DR:** *NEXIS identifies which features causally drive treatment effect heterogeneity — combining foundation-model representations of complex observations with a principled sequential selection procedure that controls false discoveries.*
+**From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification**
 
-Real-world interventions rarely work the same way for everyone. Understanding *why* and *how* a treatment effect varies is essential to optimise policies accordingly. Existing HTE methods trade expressivity for interpretability, but as long as some active heterogeneity drivers are unmeasured, both ends of this spectrum allow for spurious characterisations with no causal reading.
+Cadei et al. · *Under review* · [Website](https://riccardocadei.github.io/NEIS/) · [Workshop paper](assets/aistats26-workshop.pdf)
 
-We argue that **causal HTE identification** is now within reach, thanks to (i) more extensive pre-treatment measurements (multi-modal, satellite imagery, sensor streams) and (ii) representation learning pipelines that scale their analysis. We re-frame HTE identification as a **Markov-blanket discovery problem** on a sufficient and aligned pre-treatment representation, and introduce **NEXIS** (Neural EXposure Interaction Search): an iterative forward-backward procedure with provable consistent selection.
+---
 
-We deploy NEXIS on two anti-poverty programs in Africa, augmenting each with satellite imagery capturing previously unmeasured environmental effect modifiers, and producing novel interpretable and prescriptive guidelines for program optimisation.
+**TL;DR:** NEXIS finds which features *causally* drive treatment effect heterogeneity — combining foundation-model representations of complex observations (satellite imagery, medical imaging) with a statistically rigorous sequential selection that provably controls false discoveries.
 
-### Problem setting and effect modification taxonomy
+---
+
+## Pipeline
+
+![NEXIS pipeline: raw observations → foundation model → sparse autoencoder → NEXIS → VLM interpreter → policy guidelines](assets/pipeline.png)
+
+Given pre-treatment observations **X** (e.g. satellite imagery) and a randomised experiment **(Y, T)**, NEXIS:
+1. Extracts dense embeddings via a **foundation model** (Prithvi, DINOv2, DINOv3)
+2. Decomposes them into sparse, near-monosemantic neurons via a **Sparse Autoencoder** (SAE), yielding a candidate matrix **Z ∈ Rⁿˣᵐ** (m ~ 10⁴)
+3. Runs **NEXIS** — a forward-backward Markov-blanket discovery loop — to select S* ⊂ [m], the principal proxies of the direct effect modifiers, with FWER ≤ α
+4. Passes top/bottom activating patches of each selected neuron through a **VLM** (Qwen-VL, GeoChat) to produce human-readable descriptions
+5. Returns **causal and interpretable policy guidelines**
+
+## Problem setting
 
 <table>
 <tr>
-<td valign="middle" width="60%">
+<td valign="middle" width="58%">
 
-Consider a controlled experiment with treatment **T**, outcome **Y**, and pre-treatment observations **X**. The treatment effect heterogeneity is causally explained by **direct effect modifiers** W<sup>dir</sup> — latent factors that interact with treatment to drive variation in Y. However, W<sup>dir</sup> is rarely measured directly, and other spurious correlates arise:
+HTE is causally explained by **direct effect modifiers** W<sup>dir</sup>, but these are rarely measured and typically entangled in complex observations. NEXIS targets W<sup>dir</sup> — the only modifiers that license policy intervention — while provably excluding indirect modifiers (W<sup>ind</sup>), proxies (W<sup>prx</sup>), and common-cause spurious correlates (W<sup>cc</sup>).
 
-- **W<sup>dir</sup>** — *direct* modifiers: have a causal pathway to τ; the only ones licensing policy intervention
-- **W<sup>ind</sup>** — *indirect* modifiers: ancestors of W<sup>dir</sup>; operate only via mediation
-- **W<sup>prx</sup>** — *proxies*: descendants of W<sup>dir</sup>; no causal pathway to τ
-- **W<sup>cc</sup>** — *common-cause* modifiers: share a common ancestor with W<sup>dir</sup>
+Under Measurement and Representation Sufficiency, the NEXIS output S* satisfies:
 
-W<sup>dir</sup> is entangled in complex pre-treatment observations **X** (e.g. satellite imagery). A representation map ψ: X → Z (foundation model + Sparse Autoencoder) yields thousands of candidate neurons. NEXIS screens Z for the principal proxies of W<sup>dir</sup>, conditioning each new test on already-selected features and applying a Bonferroni gate for FWER control.
+```
+τ(W^dir) = E[τ | Z^{S*}]   a.s.    with P(Ŝ_n = S*) ≥ 1 − α
+```
 
-*Gray nodes: observed. White nodes: latent.*
+*Gray: observed. White: latent.*
 
 </td>
-<td valign="middle" align="center" width="40%">
-<img src="assets/causal_model.png" width="280" alt="Causal model showing T, Y, X, Z (observed) and W^dir, W^ind, W^prx, W^cc (latent) with effect modification taxonomy"/>
+<td valign="middle" align="center" width="42%">
+<img src="assets/causal_model.png" width="270" alt="Effect modification taxonomy: T, Y, X, Z observed; W^dir, W^ind, W^prx, W^cc latent"/>
 <br/>
-<sub><b>Effect modification taxonomy</b> (Van der Weele 2007). Only <b>W<sup>dir</sup></b> carries a causal interpretation and licenses policy intervention.</sub>
+<sub>Effect modification taxonomy (VanderWeele 2007). Only <b>W<sup>dir</sup></b> has a causal pathway to τ.</sub>
 </td>
 </tr>
 </table>
 
 ---
 
-## Method
+## Install
 
-The pipeline proceeds in three distinct stages.
+```bash
+pip install -e .
+```
 
-### Step 1 — Representation learning
-
-Raw pre-treatment observations (e.g. satellite imagery) are first passed through a **foundation model** — such as Prithvi (geospatial) or DINOv2/DINOv3 (vision) — to obtain dense, high-dimensional patch embeddings. These embeddings are then fed to a **Sparse Autoencoder (SAE)**, which decomposes the dense representation into a large number of sparse, near-monosemantic neurons. Each neuron captures a specific, human-interpretable visual concept (e.g. *presence of water*, *road density*, *vegetation type*). The result is a high-dimensional but structured feature matrix $Z \in \mathbb{R}^{n \times p}$, with $p$ potentially reaching thousands of candidates, that forms the input to the selection stage.
-
-### Step 2 — Neural Exposure Interaction Search
-
-Given Z (SAE neurons + any measured covariates) and an experiment (Y, T), NEXIS runs a forward-backward Markov-blanket discovery loop. At each step it tests the **CATE-equivalence null**:
-
-$$
-H_0(j \mid S) : \quad \mathbb{E}[\tau \mid \bm{Z}^{S \cup \{j\}}] = \mathbb{E}[\tau \mid \bm{Z}^{S}] \quad \text{a.s.}
-$$
-
-- **Forward**: add the candidate j\* with smallest p-value if it clears the Bonferroni gate α/|S̄|
-- **Backward**: re-test each selected coordinate and drop any that became redundant given the rest
-- Iterate until convergence; FWER ≤ α throughout
-
-Under Measurement and Representation Sufficiency, the output S\* identifies the direct modifier CATE: τ(W<sup>dir</sup>) = E[τ | Z<sup>S\*</sup>] a.s.
+## Quick start
 
 ```python
 from src.method import nexis
 
 result = nexis(y=Y, t=T, z=Z, alpha=0.05)
-print(result.selected)   # list of selected neuron indices
+print(result.selected)        # indices of selected neurons in Z
+print(result.pvalues)         # Bonferroni-gated p-values at each step
 ```
 
-### Step 3 — Interpretation
+**Key parameters:**
 
-Once NEXIS selects a set of neurons, each selected neuron is interpreted using a **Vision-Language Model (VLM)** pipeline. For every selected neuron $j$, the top-activating and bottom-activating satellite patches are retrieved and passed to a VLM (e.g. Qwen-VL, GeoChat) with a structured prompt asking what visual concept the neuron responds to. The per-patch captions are then aggregated by an LLM into a concise, human-readable description (e.g. *"areas without perennial water sources"*). This yields a fully interpretable summary of each effect modifier, grounding statistically selected neurons in domain-meaningful language.
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `alpha` | `0.05` | FWER significance level |
+| `test` | `"parametric"` | Test type: `"parametric"` (linear interaction) or `"gcm"` (GCM, model-free) |
+| `adjust` | `True` | Forward-backward pruning (backward step) |
+| `rho` | `0.5` | Cross-fitting ratio for nuisance estimation |
+
+See `src/method/nexis.py` for all options and method variants.
 
 ---
 
-## Experiments
+## Reproducing experiments
 
-### Uganda Youth Opportunities Programme
-
-![Uganda study sites](results/uganda/map.png)
-
-We apply NEXIS to the Uganda YOP, a cash-and-training RCT in northern Uganda ([Blattman, Fiala & Martinez, 2014](https://chrisblattman.com/documents/research/2014.GeneratingSkilledEmployment.QJE.pdf)). We pair each participant with pre-treatment satellite imagery (year 2000) and extract learned features using **Prithvi** (geospatial foundation model), **DINOv2**, and **DINOv3**. A Sparse Autoencoder trained on top maps the dense embedding to sparse, interpretable neurons; NEXIS then screens these neurons — together with any additional measured covariates — for treatment effect modification.
-
-For the primary outcome **log skilled-trade hours** (n = 2,372, ATE = +0.020, p < 0.001), NEXIS selects 2 effect modifiers:
-
-| Rank | Feature | Interpretation | GATE (inactive) | GATE (active) | Δ CATE | p-value |
-|------|---------|----------------|----------------|--------------|--------|---------|
-| 1 | SAE\_659 | No perennial water source | −0.001 | +0.038 | **+0.039\*** | 3.0 × 10⁻⁶ |
-| 2 | lang\_6  | Lugbara language region    | +0.030 | −0.003 | **−0.033\*** | 1.8 × 10⁻³ |
-
-> \* 95% CI of Δ CATE excludes zero.
-
-The programme is substantially more effective in drier areas without perennial water — a finding invisible to average-effect analysis and not surfaced by prior work on this trial. Below: GATE estimates, geographic distribution, treatment balance, and the satellite patches most/least activating each selected neuron (Prithvi encoder).
-
-![NEXIS results — skilled employment (Prithvi)](results/uganda/figures/figure_neural_skilled_employed.png)
-
-**To reproduce**, note that notebooks are primarily for visualisation: [notebooks/uganda.ipynb](notebooks/uganda.ipynb). The actual reproducible end-to-end experiments (supporting eight outcomes like labour, earnings, assets, wellbeing) run via the pipeline script:
-
-```bash
-bash scripts/uganda/run.sh --models=prithvi,dinov2,dinov3 --all-outcomes
-```
-
-### Ghana LEAP 1000
-
-![Ghana study sites](results/ghana/map/map_paper.png)
-
-We apply NEXIS to the Ghana Livelihood Empowerment Against Poverty 1000 (LEAP 1000) programme, a cluster-randomised cash-transfer trial targeting extremely poor households in Northern and Upper East Ghana ([ISSER, 2018](https://www.unicef.org/ghana/reports/ghana-leap-1000-evaluation)). The outcome is adult-equivalent household consumption expenditure per month (n = 2,331, 162 communities). Pre-treatment satellite imagery is extracted using **DINOv2**; a Sparse Autoencoder maps the embeddings to 4,096 sparse neurons.
-
-NEXIS selects 1 effect modifier:
-
-| Rank | Feature | Interpretation | GATE (inactive) | GATE (active) | Δ CATE | p-value |
-|------|---------|----------------|----------------|--------------|--------|---------|
-| 1 | SAE\_1777 | Presence of water infrastructure | — | — | **significant** | < 0.05 |
-
-The selected neuron highlights areas with surface water infrastructure as a key moderator of the cash-transfer effect on household welfare.
-
-![NEXIS results — Ghana consumption (DINOv2)](results/ghana/figures/figure_neural_ghana_combined.png)
-
-**To reproduce**: [notebooks/ghana.ipynb](notebooks/ghana.ipynb).
+All experiments require a GPU. Scripts are designed for SLURM but also run via `bash` locally.
 
 ### CelebA — semi-synthetic benchmark
 
-To validate FWER control and power, we construct a semi-synthetic RCT benchmark on CelebA face images with **2 known direct effect modifiers** (*wearing a hat*, *wearing eyeglasses*). A Sparse Autoencoder (13,824 codes) trained on SigLIP representations provides the candidate dictionary. We sweep over effect size and sample size and compare NEXIS against marginal interaction screening (unadjusted and Bonferroni-adjusted).
+**Data**: CelebA face images (download from the [official source](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html); place at `data/celeba/`).
 
-Marginal screening exhibits a **precision collapse** as power grows — accumulating indirect modifiers correlated with the true ones. NEXIS consistently recovers the true modifier set by iterative conditioning.
+```bash
+# 1. Extract SigLIP embeddings and train SAE
+bash scripts/celeba/submit_embed.sh
+bash scripts/celeba/submit_sae.sh
 
-**To reproduce**: [notebooks/celeba.ipynb](notebooks/celeba.ipynb).
+# 2. Run NEXIS experiments (effect size × sample size sweeps)
+bash scripts/celeba/submit_experiment.sh
+
+# 3. Generate figures
+python src/apps/celeba/figure_main.py
+python src/apps/celeba/figure_appendix.py
+```
+
+See `notebooks/celeba.ipynb` for interactive exploration.
+
+### Uganda YOP — real-world application
+
+**Satellite data**: Landsat 7 via Google Earth Engine. One-time setup:
+```bash
+pip install earthengine-api
+earthengine authenticate --auth_mode notebook
+earthengine set_project <your-gee-project-id>
+python src/apps/uganda/download_tiles.py --mode rct
+```
+
+**Survey data**: Available from the [World Bank Microdata Library](https://microdata.worldbank.org/) — search "Uganda Youth Opportunities Programme".
+
+```bash
+# Full pipeline (embedding → SAE → NEXIS → VLM interpretation → figures)
+bash scripts/uganda/run.sh --models=prithvi,dinov2,dinov3 --all-outcomes
+
+# Skip embedding/SAE training (use existing embeddings)
+bash scripts/uganda/reanalyze.sh --models=prithvi --all-outcomes
+```
+
+Available backbone presets for `--models=`: `prithvi`, `dinov2`, `dinov3`, `dinov2_large`.  
+Available outcome aliases for `--outcomes=`: `log_skilled_hours`, `skilled_employed`, `skilled_fulltime`, `log_training_hours`, `log_earnings`, `log_biz_assets`, `wellbeing`, `wealth_index`.
+
+See `notebooks/uganda.ipynb` for interactive visualisation.
+
+### Ghana LEAP 1000 — real-world application
+
+**Satellite data**: Landsat 8 via Google Earth Engine (same setup as Uganda):
+```bash
+python src/apps/ghana/download_satellite_images.py --year 2015
+```
+
+**Survey data**: The LEAP 1000 2015–2017 household panel is not publicly available. Contact UNICEF Ghana directly if you are interested in access.
+
+```bash
+# Train SAE and run NEXIS
+bash scripts/ghana/slurm_train_sae.sh
+bash scripts/ghana/slurm_stats.sh
+
+# VLM interpretation
+bash scripts/ghana/slurm_interpret_7b.sh   # Qwen-VL 7B
+bash scripts/ghana/slurm_interpret.sh      # Qwen-VL 72B
+
+# Generate figures
+bash scripts/ghana/run_figure_neural.sh
+```
+
+See `notebooks/ghana.ipynb` for interactive visualisation.
 
 ---
 
@@ -131,61 +156,55 @@ Marginal screening exhibits a **precision collapse** as power grows — accumula
 ```
 src/
   method/
-    nexis.py        # core NEXIS algorithm, CATE-equivalence tests, evaluation utilities
+    nexis.py          # core algorithm, CATE-equivalence tests, evaluation utilities
   causality/
-    estimation.py   # ATE/GATE estimation utilities
+    estimation.py     # ATE/GATE estimation
   apps/
-    celeba/         # CelebA semi-synthetic benchmark (embed, train SAE, run experiments)
-    ghana/          # Ghana LEAP 1000 pipeline (data, embed, interpret, visualize)
-    synthetic/      # synthetic DGP and sweep scripts
-    uganda/         # Uganda YOP pipeline (data, embed, interpret, summarize, visualize)
+    celeba/           # CelebA benchmark (embed, SAE, experiments, figures)
+    ghana/            # Ghana LEAP 1000 pipeline
+    synthetic/        # synthetic DGP utilities
+    uganda/           # Uganda YOP pipeline
 
 notebooks/
-  synthetic.ipynb   # synthetic benchmark (effect size & sample size sweeps)
-  celeba.ipynb      # CelebA semi-synthetic benchmark
-  uganda.ipynb      # Uganda YOP real-data analysis and visualisation
-  ghana.ipynb       # Ghana LEAP 1000 real-data analysis and visualisation
+  celeba.ipynb        # CelebA semi-synthetic benchmark
+  synthetic.ipynb     # synthetic sweeps
+  uganda.ipynb        # Uganda YOP analysis
+  ghana.ipynb         # Ghana LEAP 1000 analysis
 
 scripts/
+  celeba/             # SLURM/bash scripts for CelebA
+  ghana/              # SLURM/bash scripts for Ghana
   uganda/
-    run.sh          # full Uganda pipeline (embedding → SAE → NEXIS → interpret → summarize → plot)
-    reanalyze.sh    # re-run Uganda analysis steps only (skips embedding/SAE training)
-  ghana/            # analogous scripts for Ghana
-  celeba/           # analogous scripts for CelebA benchmark
+    run.sh            # full Uganda pipeline
+    reanalyze.sh      # re-run analysis steps only (skip embedding/SAE)
 
 assets/
-  NEXIS.pdf               # full paper (NeurIPS 2026 submission)
-  aistats26-workshop.pdf  # AISTATS 2026 workshop version
-  causal_model.png        # causal DAG figure used in README
+  pipeline.png              # pipeline overview diagram
+  causal_model.png          # effect modification taxonomy (TikZ)
+  aistats26-workshop.pdf    # CauScale @ AISTATS 2026 workshop version
 
 results/
-  uganda/
-    map/                         # study site maps
-    figures/                     # summary figures for paper
-    {model}_{dim}/{outcome}/     # NEXIS results per (model, outcome)
-  ghana/
-    map/  gate/  figures/        # maps, GATE estimates, selected-neuron figures
-  celeba/
-    experiment/{k}/{encoder}/    # power/FWER sweeps per (k, encoder) configuration
+  uganda/prithvi_1024/      # selected Uganda results (narratives + figures)
 
-data/              # real-world datasets (not tracked by git)
+docs/
+  index.html                # project website (GitHub Pages)
+  assets/                   # figures served by the website
+
+data/                       # local only — not tracked
 ```
 
 ---
 
 ## Citation
 
-If you use NEXIS, please cite our paper (preprint coming soon; see [assets/aistats26-workshop.pdf](assets/aistats26-workshop.pdf) for the workshop version):
-
 ```bibtex
-@inproceedings{cadei2026nexis,
-  title     = {From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification},
-  author    = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and
-               Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J. and Locatello, Francesco},
-  booktitle = {Advances in Neural Information Processing Systems},
-  year      = {2026},
-  note      = {Preprint available at TODO}
+@article{cadei2025nexis,
+  title   = {From Tokens to Policy: Causal and Interpretable
+             Heterogeneous Treatment Effects Identification},
+  author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and
+             Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J.
+             and Locatello, Francesco},
+  year    = {2025},
+  note    = {Under review. Preprint coming soon.}
 }
 ```
-
-

@@ -1,21 +1,31 @@
+# Python
 __pycache__/
 *.egg-info/
-.claude
+*.pyc
 
-**.npz
-**.pt
-**.json
-**bin
-**.safetensors
+# Claude Code settings (local only)
+.claude/
 
+# Large binary artifacts — models, embeddings, checkpoints
+*.pt
+*.safetensors
+*.npz
+*.bin
+
+# All real-world data stays local
 data/
+
+# Runtime outputs
 logs/
-results/uganda/dino*
-results/
+outputs/
 models/
 neuralscience-main/
-assets/
-!docs/assets/
-outputs/
+
+# Local LaTeX paper source
 paper/
 
+# Results (large; only specific outputs are tracked via git add -f)
+results/
+
+# Root-level assets (PDFs, large figures) — only docs/assets/ is tracked
+/assets/
