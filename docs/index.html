@@ -60,6 +60,11 @@ header h1 em{font-style:italic;color:var(--accent);}
   border:1.5px solid var(--accent);color:var(--accent);
   padding:0.28em 0.9em;border-radius:2px;transition:background 0.13s,color 0.13s;}
 .links a:hover{background:var(--accent);color:#fff;}
+.links-abstract-btn{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.75rem;
+  letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;
+  border:1.5px solid var(--accent);color:var(--accent);background:none;
+  padding:0.28em 0.9em;border-radius:2px;transition:background 0.13s,color 0.13s;}
+.links-abstract-btn:hover,.links-abstract-btn.open{background:var(--accent);color:#fff;}
 .abstract-box{font-size:0.91rem;line-height:1.76;background:var(--bg);
   border:1px solid var(--border);padding:1rem 1.3rem;border-radius:2px;
   margin-top:0.9rem;color:var(--text);}
@@ -92,7 +97,7 @@ section p:last-child{margin-bottom:0;}
   display:flex;align-items:center;justify-content:space-between;
   list-style:none;user-select:none;}
 .contributions summary::-webkit-details-marker{display:none;}
-.contributions summary::after{content:"&#9654;";font-size:0.62em;color:var(--muted);
+.contributions summary::after{content:"\25B6";font-size:0.62em;color:var(--muted);
   transition:transform 0.2s;flex-shrink:0;margin-left:0.6em;}
 .contributions details[open] summary::after{transform:rotate(90deg);}
 .contrib-body{padding:0.5em 0.85em 0.75em;font-size:0.88rem;line-height:1.66;
@@ -281,7 +286,7 @@ footer{padding:1.8rem 2rem;text-align:center;
   <div class="authors">
     <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
     Frank Otchere<sup>2</sup>,&ensp;
-    Nyasha Tirivayi<sup>2</sup>,<br>
+    Nyasha Tirivayi<sup>2</sup>,&ensp;
     Gustavo Angeles Tagliaferro<sup>2</sup>,&ensp;
     Falco J. Bargagli-Stoffi<sup>3</sup>,&ensp;
     Francesco Locatello<sup>1</sup>
@@ -291,12 +296,13 @@ footer{padding:1.8rem 2rem;text-align:center;
   </div>
 
   <div class="links">
+    <button class="links-abstract-btn" id="abs-btn" onclick="toggleAbstract()">Abstract</button>
     <a href="assets/NEXIS.pdf">arXiv</a>
     <a href="https://github.com/riccardocadei/NEIS">GitHub</a>
     <a href="#citation">BibTeX</a>
   </div>
 
-  <div class="abstract-box">
+  <div class="abstract-box" id="abstract-box" style="display:none">
     Heterogeneous Treatment Effect (HTE) identification is crucial to explain the impact of
     an intervention and optimize our policies accordingly. Existing approaches trade
     expressivity for interpretability, but as long as some active heterogeneity drivers are
@@ -819,6 +825,15 @@ document.querySelectorAll('.zoomable').forEach(i=>i.addEventListener('click',()=
 }));
 function closeLB(){document.getElementById('lb').classList.remove('open');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLB();});
+
+/* ── Abstract toggle ── */
+function toggleAbstract(){
+  const box=document.getElementById('abstract-box');
+  const btn=document.getElementById('abs-btn');
+  const open=box.style.display==='block';
+  box.style.display=open?'none':'block';
+  btn.classList.toggle('open',!open);
+}
 
 /* ── BibTeX ── */
 function copyBibtex(){
