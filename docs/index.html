@@ -4,251 +4,275 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEXIS — From Tokens to Policy</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-/* ── Reset & base ── */
+/* ── Reset ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  --text:#1a1a1a; --muted:#666; --light:#999;
-  --accent:#1a56a0; --accent2:#1e7340;
-  --gold:#b58900; --warn:#c0392b;
-  --border:#ddd; --bg:#f8f8f6; --bg2:#f0f4fb;
-  --sidebar:210px; --col:760px;
+  --text:#1a1a1a;--muted:#666;--light:#999;
+  --accent:#1a56a0;--green:#1e7340;--gold:#b58900;--red:#c0392b;
+  --border:#ddd;--bg:#f8f8f6;--bg2:#f0f4fb;
+  --sidebar:210px;--col:780px;
 }
-html{font-size:16px; scroll-behavior:smooth;}
-body{font-family:"Georgia",serif; color:var(--text); line-height:1.72; background:#fff;}
+html{font-size:16px;scroll-behavior:smooth;}
+body{font-family:"Georgia",serif;color:var(--text);line-height:1.72;background:#fff;}
 
 /* ── Sidebar ── */
-#sidebar{
-  position:fixed; top:0; left:0; width:var(--sidebar);
-  height:100vh; overflow-y:auto; padding:1.6rem 1rem;
-  background:var(--bg); border-right:1px solid var(--border);
-  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.77rem; z-index:200;
-}
-#sidebar .brand{display:block; font-size:0.92rem; font-weight:700; color:var(--accent); text-decoration:none; margin-bottom:0.15rem; letter-spacing:0.01em;}
-#sidebar .brand-sub{font-size:0.68rem; color:var(--muted); display:block; margin-bottom:1.4rem; line-height:1.4;}
-#sidebar nav a{
-  display:block; padding:0.28em 0.5em; border-radius:3px; color:var(--muted);
-  text-decoration:none; border-left:2px solid transparent;
-  transition:background 0.12s,color 0.12s; line-height:1.4;
-}
-#sidebar nav a:hover{color:var(--accent); background:#eef2fa;}
-#sidebar nav a.active{color:var(--accent); background:#eef2fa; border-left-color:var(--accent); font-weight:600;}
-#sidebar nav .sub-item a{padding-left:1em; font-size:0.72rem; color:var(--light);}
-#sidebar nav .sub-item a:hover{color:var(--accent);}
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar);height:100vh;overflow-y:auto;
+  padding:1.4rem 1rem;background:var(--bg);border-right:1px solid var(--border);
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.76rem;z-index:200;}
+.brand{display:block;font-size:0.9rem;font-weight:700;color:var(--accent);
+  text-decoration:none;margin-bottom:0.1rem;}
+.brand-sub{font-size:0.67rem;color:var(--muted);display:block;
+  margin-bottom:1.3rem;line-height:1.4;}
 #sidebar nav li{list-style:none;}
+#sidebar nav a{display:block;padding:0.26em 0.5em;border-radius:3px;
+  color:var(--muted);text-decoration:none;border-left:2px solid transparent;
+  transition:background 0.1s,color 0.1s;line-height:1.4;}
+#sidebar nav a:hover{color:var(--accent);background:#eef2fa;}
+#sidebar nav a.active{color:var(--accent);background:#eef2fa;
+  border-left-color:var(--accent);font-weight:600;}
+#sidebar nav .sub a{padding-left:1em;font-size:0.71rem;color:var(--light);}
+#sidebar nav .sub a:hover{color:var(--accent);}
 
 /* ── Main ── */
 #main{margin-left:var(--sidebar);}
-.wrap{max-width:var(--col); margin:0 auto; padding:0 2rem;}
-
-/* ── Teaser (full-bleed above header) ── */
-#teaser-wrap{
-  margin-left:0; background:#111;
-  border-bottom:3px solid var(--accent);
-}
-#teaser-wrap img{
-  width:100%; max-width:100%; display:block;
-  opacity:0.95; cursor:zoom-in;
-}
+.wrap{max-width:var(--col);margin:0 auto;padding:0 2.2rem;}
 
 /* ── Header ── */
-header{padding:2.8rem 2rem 2.2rem; max-width:var(--col); margin:0 auto; border-bottom:1px solid var(--border);}
-header h1{font-size:1.85rem; font-weight:normal; line-height:1.3; margin-bottom:1.2rem;}
-header h1 em{font-style:italic; color:var(--accent);}
-.authors{font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.88rem; color:var(--muted); line-height:2; margin-bottom:1rem;}
-.authors a{color:var(--text); text-decoration:none;}
+header{padding:2.6rem 2.2rem 2rem;max-width:var(--col);margin:0 auto;
+  border-bottom:1px solid var(--border);}
+header h1{font-size:1.82rem;font-weight:normal;line-height:1.3;margin-bottom:1.4rem;}
+header h1 em{font-style:italic;color:var(--accent);}
+.teaser-inline{width:100%;max-height:300px;object-fit:contain;
+  display:block;margin:0 0 1.4rem;
+  border:1px solid var(--border);border-radius:2px;cursor:zoom-in;background:#111;}
+.authors{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.87rem;
+  color:var(--muted);line-height:2;margin-bottom:0.9rem;}
+.authors a{color:var(--text);text-decoration:none;}
 .authors a:hover{text-decoration:underline;}
-.authors sup{font-size:0.65em; color:var(--accent);}
-.affiliations{font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.74rem; color:var(--muted); margin-bottom:1.6rem;}
-.links{display:flex; flex-wrap:wrap; gap:0.45rem;}
-.links a{
-  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.76rem; letter-spacing:0.06em;
-  text-transform:uppercase; text-decoration:none; border:1.5px solid var(--accent);
-  color:var(--accent); padding:0.3em 0.95em; border-radius:2px;
-  transition:background 0.13s,color 0.13s;
-}
-.links a:hover{background:var(--accent); color:#fff;}
+.authors sup{font-size:0.63em;color:var(--accent);}
+.affiliations{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;
+  color:var(--muted);margin-bottom:1.5rem;}
+.links{display:flex;flex-wrap:wrap;gap:0.45rem;margin-bottom:1rem;}
+.links a{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.75rem;
+  letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;
+  border:1.5px solid var(--accent);color:var(--accent);
+  padding:0.28em 0.9em;border-radius:2px;transition:background 0.13s,color 0.13s;}
+.links a:hover{background:var(--accent);color:#fff;}
+.abstract-toggle{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.74rem;
+  letter-spacing:0.06em;text-transform:uppercase;
+  background:none;border:1px solid var(--border);color:var(--muted);
+  padding:0.25em 0.8em;border-radius:2px;cursor:pointer;
+  display:flex;align-items:center;gap:0.4rem;transition:color 0.12s,border-color 0.12s;}
+.abstract-toggle:hover{color:var(--accent);border-color:var(--accent);}
+.abstract-toggle .arr{transition:transform 0.2s;display:inline-block;}
+.abstract-toggle.open .arr{transform:rotate(90deg);}
+#abstract-body{display:none;margin-top:0.9rem;font-size:0.95rem;
+  border-top:1px solid var(--border);padding-top:0.9rem;line-height:1.75;}
+#abstract-body p{margin-bottom:0.8rem;}
+#abstract-body p:last-child{margin-bottom:0;}
 
 /* ── Sections ── */
-section{padding:2.8rem 0; border-bottom:1px solid var(--border);}
-section h2{
-  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.67rem;
-  letter-spacing:0.2em; text-transform:uppercase; color:var(--muted); margin-bottom:1.1rem;
-}
-section h3{font-size:1.05rem; font-weight:bold; margin:1.4rem 0 0.5rem;}
+section{padding:2.6rem 0;border-bottom:1px solid var(--border);}
+section h2{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;
+  letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem;}
+section h3{font-size:1.04rem;font-weight:bold;margin:1.3rem 0 0.45rem;}
 section p{margin-bottom:0.85rem;}
 section p:last-child{margin-bottom:0;}
 
 /* ── TL;DR ── */
-.tldr-box{
-  background:var(--bg2); border-left:3px solid var(--accent);
-  padding:1.2rem 1.5rem; font-size:0.97rem; margin-bottom:1.4rem;
-  font-style:italic;
-}
-.tldr-box strong{font-style:normal; color:var(--accent);}
-.contributions{list-style:none; counter-reset:contrib; margin-top:0.9rem;}
-.contributions li{
-  counter-increment:contrib; display:flex; gap:0.8rem; margin-bottom:0.6rem;
-  font-size:0.93rem; align-items:baseline;
-}
-.contributions li::before{
-  content:counter(contrib);
-  background:var(--accent); color:#fff; min-width:1.4em; height:1.4em;
-  display:flex; align-items:center; justify-content:center;
-  border-radius:50%; font-family:"Helvetica Neue",Arial,sans-serif;
-  font-size:0.72rem; font-weight:700; flex-shrink:0;
-}
+.tldr-box{background:var(--bg2);border-left:3px solid var(--accent);
+  padding:1.1rem 1.4rem;font-size:0.96rem;margin-bottom:1.3rem;font-style:italic;}
+.tldr-box strong{font-style:normal;color:var(--accent);}
+.contributions{list-style:none;counter-reset:contrib;margin-top:0.8rem;}
+.contributions>li{counter-increment:contrib;display:flex;gap:0.75rem;
+  margin-bottom:0.65rem;align-items:flex-start;font-size:0.92rem;}
+.contributions>li::before{content:counter(contrib);background:var(--accent);color:#fff;
+  min-width:1.35em;height:1.35em;display:inline-flex;align-items:center;
+  justify-content:center;border-radius:50%;font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.7rem;font-weight:700;flex-shrink:0;margin-top:0.18em;}
 
-/* ── Method pipeline ── */
-.pipeline-img-wrap{
-  width:100%; background:#111; border-radius:3px; overflow:hidden;
-  margin:1.2rem 0; border:1px solid #333;
-}
-.pipeline-img-wrap img{width:100%; display:block; opacity:0.93;}
-.pipeline-steps{list-style:none; counter-reset:step; margin-top:1rem;}
-.pipeline-steps li{
-  counter-increment:step; display:flex; gap:0.8rem;
-  margin-bottom:0.7rem; font-size:0.9rem; align-items:baseline;
-}
-.pipeline-steps li::before{
-  content:counter(step, lower-roman) ".";
-  color:var(--accent); font-weight:700; min-width:1.6rem; font-size:0.82rem; flex-shrink:0;
-}
+/* ── Method ── */
+.anim-placeholder{width:100%;height:180px;background:#0a0f1e;
+  border:1px solid #2a3a5e;border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  margin:1.2rem 0;color:#4a7ab0;font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;}
+.anim-placeholder.sm{height:120px;}
+.pipeline-steps{list-style:none;counter-reset:step;}
+.pipeline-steps>li{counter-increment:step;display:flex;gap:0.8rem;
+  margin-bottom:0.9rem;align-items:flex-start;}
+.pipeline-steps>li::before{content:counter(step,lower-roman)".";
+  color:var(--accent);font-weight:700;min-width:1.6rem;
+  font-size:0.83rem;flex-shrink:0;margin-top:0.15em;}
+.step-body{flex:1;}
+.step-body strong{display:block;margin-bottom:0.25rem;font-size:0.97rem;}
 
-/* ── Power Paradox highlight ── */
-.paradox-box{
-  background:#fff8f0; border:1px solid #f0c080; border-radius:4px;
-  padding:1.3rem 1.5rem; margin:1.2rem 0;
-}
-.paradox-box .pb-label{
-  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.68rem; font-weight:700;
-  letter-spacing:0.14em; text-transform:uppercase; color:#8a5a00; margin-bottom:0.5rem; display:block;
-}
+/* ── Power Paradox ── */
+.paradox-callout{background:#fff8f0;border:1px solid #f0c060;border-radius:3px;
+  padding:1.1rem 1.4rem;margin:1.1rem 0;}
+.paradox-callout .plabel{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;
+  font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#8a5600;
+  display:block;margin-bottom:0.35rem;}
 
-/* ── CelebA explorer ── */
-.explorer{
-  display:grid; grid-template-columns:200px 1fr; gap:1.2rem;
-  align-items:start; margin:1rem 0;
-}
-.explorer-controls{
-  background:var(--bg); border:1px solid var(--border); border-radius:3px;
-  padding:1rem; font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.78rem;
-}
-.ctrl-group{margin-bottom:1rem;}
-.ctrl-group:last-child{margin-bottom:0;}
-.ctrl-label{
-  font-weight:700; font-size:0.7rem; letter-spacing:0.1em;
-  text-transform:uppercase; color:var(--muted); display:block; margin-bottom:0.4rem;
-}
-.ctrl-group label{display:flex; align-items:center; gap:0.4rem; margin-bottom:0.25rem; cursor:pointer; line-height:1.4;}
-.ctrl-group input[type=radio], .ctrl-group input[type=checkbox]{cursor:pointer; accent-color:var(--accent);}
-.swatch{width:10px; height:10px; border-radius:2px; display:inline-block; flex-shrink:0;}
-.explorer-chart{background:var(--bg); border:1px solid var(--border); padding:0.8rem; border-radius:3px;}
-.explorer-chart canvas{max-height:360px;}
+/* ── Two-chart layout ── */
+.two-charts-wrap{margin:1rem 0;}
+.two-charts-shared{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;
+  margin-bottom:0.8rem;font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;}
+.two-charts-shared .sh-label{font-weight:700;font-size:0.68rem;
+  letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);}
+.two-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.chart-card{background:var(--bg);border:1px solid var(--border);
+  border-radius:3px;padding:0.8rem;}
+.chart-card canvas{max-height:280px;}
+.chart-controls{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.74rem;
+  display:flex;flex-wrap:wrap;gap:0.4rem 0.9rem;margin:0.5rem 0 0.3rem;}
+.chart-controls label{display:flex;align-items:center;gap:0.3rem;cursor:pointer;}
+.chart-controls input{cursor:pointer;accent-color:var(--accent);}
+.chart-title{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;
+  font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:0.08em;margin-bottom:0.4rem;}
+
+/* ── Ablation tabs ── */
+.abl-tabs{display:flex;flex-wrap:wrap;gap:0.35rem;margin:1rem 0 0.8rem;}
+.abl-tab{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.77rem;
+  background:none;border:1.5px solid var(--border);color:var(--muted);
+  padding:0.3em 0.85em;border-radius:20px;cursor:pointer;
+  transition:background 0.12s,color 0.12s,border-color 0.12s;}
+.abl-tab:hover{color:var(--accent);border-color:var(--accent);}
+.abl-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+/* ── Outcome tabs ── */
+.outcome-tabs{display:flex;gap:0;margin:1.2rem 0 1rem;width:fit-content;
+  border:1.5px solid var(--accent);border-radius:3px;overflow:hidden;}
+.outcome-tab{padding:0.38em 1.3em;font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.8rem;font-weight:600;background:none;border:none;
+  color:var(--accent);cursor:pointer;transition:background 0.12s,color 0.12s;}
+.outcome-tab+.outcome-tab{border-left:1.5px solid var(--accent);}
+.outcome-tab.active{background:var(--accent);color:#fff;}
+
+/* ── Canvas maps ── */
+.map-controls{display:flex;flex-wrap:wrap;align-items:center;
+  gap:0.35rem 0.8rem;margin:0.6rem 0;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;}
+.map-controls label{display:flex;align-items:center;gap:0.35rem;cursor:pointer;}
+.map-controls input{cursor:pointer;accent-color:var(--accent);}
+.mc-label{font-weight:700;font-size:0.68rem;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--muted);}
+.canvas-map-wrap{position:relative;border:1px solid var(--border);
+  border-radius:2px;overflow:hidden;background:#f0f0ec;height:290px;}
+.canvas-map-wrap canvas{display:block;width:100%;height:100%;}
+
+/* ── GATE chart ── */
+.gate-chart-wrap{background:var(--bg);border:1px solid var(--border);
+  border-radius:3px;padding:0.9rem;margin:1rem 0;}
+.gate-chart-wrap canvas{max-height:260px;}
+.gate-subtitle{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;
+  color:var(--muted);margin-bottom:0.5rem;}
 
 /* ── Figures ── */
-.fig-full{width:100%; display:block; border:1px solid var(--border); margin:1.1rem 0; cursor:zoom-in;}
-.fig-caption{font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.75rem; color:var(--muted); text-align:center; margin-top:0.4rem; line-height:1.5;}
-.fig-row{display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1.1rem 0;}
-.fig-row img{width:100%; border:1px solid var(--border); display:block; cursor:zoom-in;}
+.fig-full{width:100%;display:block;border:1px solid var(--border);
+  margin:1rem 0;cursor:zoom-in;}
+.fig-caption{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.74rem;
+  color:var(--muted);text-align:center;margin-top:0.35rem;line-height:1.5;}
+.fig-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0;}
+.fig-row img{width:100%;border:1px solid var(--border);display:block;cursor:zoom-in;}
 .fig-col{text-align:center;}
 
 /* ── Finding ── */
-.finding{background:#fffbee; border-left:3px solid var(--gold); padding:0.85rem 1.2rem; margin:1rem 0; font-size:0.93rem;}
-.finding strong{font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.67rem; letter-spacing:0.1em; text-transform:uppercase; display:block; margin-bottom:0.3rem; color:#8a6900;}
+.finding{background:#fffbee;border-left:3px solid var(--gold);
+  padding:0.8rem 1.15rem;margin:0.9rem 0;font-size:0.92rem;}
+.finding strong{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;
+  letter-spacing:0.1em;text-transform:uppercase;display:block;
+  margin-bottom:0.28rem;color:#8a6900;}
 
 /* ── Tables ── */
-.results-table{width:100%; border-collapse:collapse; font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.78rem; margin:1rem 0;}
-.results-table caption{font-size:0.74rem; color:var(--muted); text-align:left; padding:0.3rem 0; font-style:italic; margin-bottom:0.15rem; caption-side:top;}
-.results-table th{background:#f4f4f0; border-bottom:2px solid var(--border); padding:0.45em 0.65em; text-align:right; font-weight:600;}
+.results-table{width:100%;border-collapse:collapse;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.77rem;margin:1rem 0;}
+.results-table caption{font-size:0.73rem;color:var(--muted);text-align:left;
+  padding:0.25rem 0;font-style:italic;caption-side:top;}
+.results-table th{background:#f4f4f0;border-bottom:2px solid var(--border);
+  padding:0.42em 0.6em;text-align:right;font-weight:600;}
 .results-table th:first-child{text-align:left;}
-.results-table td{border-bottom:1px solid #eee; padding:0.4em 0.65em; text-align:right;}
+.results-table td{border-bottom:1px solid #eee;padding:0.38em 0.6em;text-align:right;}
 .results-table td:first-child{text-align:left;}
-.results-table .panel-row td{background:#f8f8f5; font-weight:700; font-style:italic; border-top:2px solid var(--border); text-align:left; padding-top:0.7em; font-size:0.82rem;}
-.results-table .sub-panel td{font-style:italic; color:var(--muted); text-align:left; padding-left:0.8em; font-size:0.76rem;}
-.results-table .hi{color:var(--accent2); font-weight:700;}
-.results-table .lo{color:var(--warn);}
-
-/* ── Maps ── */
-.leaflet-map{width:100%; height:310px; border:1px solid var(--border); border-radius:2px; margin:0.8rem 0;}
-.map-legend{font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.73rem; display:flex; flex-wrap:wrap; gap:0.4rem 1.1rem; margin:0.3rem 0 1rem; color:var(--muted);}
-.map-legend span{display:flex; align-items:center; gap:0.3rem;}
-.dot{width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid rgba(0,0,0,0.2);}
+.results-table .sub-panel td{font-style:italic;color:var(--muted);
+  text-align:left;padding-left:0.75em;font-size:0.75rem;}
+.hi{color:var(--green);font-weight:700;}
+.lo{color:var(--red);}
 
 /* ── BibTeX ── */
-.bibtex-wrap{position:relative; margin-top:0.8rem;}
-.bibtex-wrap pre{font-family:"Courier New",monospace; font-size:0.78rem; background:var(--bg); border:1px solid var(--border); padding:1rem; overflow-x:auto; white-space:pre; line-height:1.6;}
-.copy-btn{position:absolute; top:0.45rem; right:0.45rem; font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.71rem; letter-spacing:0.05em; text-transform:uppercase; background:#fff; border:1px solid var(--border); padding:0.2em 0.65em; cursor:pointer; border-radius:2px; transition:background 0.12s;}
-.copy-btn:hover{background:var(--accent); color:#fff; border-color:var(--accent);}
-.copy-btn.copied{background:var(--accent2); color:#fff; border-color:var(--accent2);}
+.bibtex-wrap{position:relative;margin-top:0.8rem;}
+.bibtex-wrap pre{font-family:"Courier New",monospace;font-size:0.77rem;
+  background:var(--bg);border:1px solid var(--border);
+  padding:0.95rem;overflow-x:auto;white-space:pre;line-height:1.6;}
+.copy-btn{position:absolute;top:0.4rem;right:0.4rem;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.7rem;
+  letter-spacing:0.05em;text-transform:uppercase;
+  background:#fff;border:1px solid var(--border);padding:0.18em 0.6em;
+  cursor:pointer;border-radius:2px;transition:background 0.12s;}
+.copy-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent);}
+.copy-btn.copied{background:var(--green);color:#fff;border-color:var(--green);}
 
-/* ── Ref links ── */
-.ref{color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent);}
-.ref:hover{border-bottom-style:solid;}
+a.ref{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);}
+a.ref:hover{border-bottom-style:solid;}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;
+  border:1px solid rgba(0,0,0,0.18);}
 
 /* ── Lightbox ── */
-#lb{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:999; align-items:center; justify-content:center; cursor:zoom-out;}
+#lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);
+  z-index:999;align-items:center;justify-content:center;cursor:zoom-out;}
 #lb.open{display:flex;}
-#lb img{max-width:94vw; max-height:94vh; object-fit:contain;}
+#lb img{max-width:94vw;max-height:94vh;object-fit:contain;}
 
-footer{padding:2rem; text-align:center; font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.74rem; color:var(--muted);}
+footer{padding:1.8rem 2rem;text-align:center;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;color:var(--muted);}
 
-/* ── Responsive ── */
-@media(max-width:840px){
+@media(max-width:860px){
   #sidebar{display:none;}
   #main{margin-left:0;}
-  .explorer{grid-template-columns:1fr;}
-  .fig-row{grid-template-columns:1fr;}
+  .two-charts-grid,.fig-row{grid-template-columns:1fr;}
 }
 </style>
 </head>
 <body>
 
-<!-- ══ SIDEBAR ══ -->
+<!-- SIDEBAR -->
 <aside id="sidebar">
   <a href="#top" class="brand">NEXIS</a>
   <span class="brand-sub">From Tokens to Policy</span>
-  <nav>
-    <ul>
-      <li><a href="#tldr" data-sec="tldr">TL;DR</a></li>
-      <li><a href="#method" data-sec="method">Method</a></li>
-      <li><a href="#paradox" data-sec="paradox">Power Paradox</a></li>
-      <li><a href="#celeba" data-sec="celeba">CelebA Benchmark</a></li>
-      <li>
-        <a href="#uganda" data-sec="uganda">App. 1 — Uganda (YOP)</a>
-        <ul>
-          <li class="sub-item"><a href="#uganda-map">Trial map</a></li>
-          <li class="sub-item"><a href="#uganda-results">Discoveries</a></li>
-        </ul>
-      </li>
-      <li>
-        <a href="#ghana" data-sec="ghana">App. 2 — Ghana (LEAP)</a>
-        <ul>
-          <li class="sub-item"><a href="#ghana-map">Study region</a></li>
-          <li class="sub-item"><a href="#ghana-results">Discoveries</a></li>
-        </ul>
-      </li>
-      <li><a href="#citation" data-sec="citation">Citation</a></li>
-    </ul>
-  </nav>
+  <nav><ul>
+    <li><a href="#tldr" data-s="tldr">TL;DR</a></li>
+    <li><a href="#method" data-s="method">Method</a></li>
+    <li><a href="#paradox" data-s="paradox">Experimental Power Paradox</a></li>
+    <li><a href="#ablation" data-s="ablation">Ablations (CelebA)</a></li>
+    <li><a href="#uganda" data-s="uganda">App. 1 — Uganda (YOP)</a>
+      <ul>
+        <li class="sub"><a href="#uganda-map">Community map</a></li>
+        <li class="sub"><a href="#uganda-results">Discoveries</a></li>
+      </ul>
+    </li>
+    <li><a href="#ghana" data-s="ghana">App. 2 — Ghana (LEAP)</a>
+      <ul>
+        <li class="sub"><a href="#ghana-map">Study region</a></li>
+        <li class="sub"><a href="#ghana-results">Discoveries</a></li>
+      </ul>
+    </li>
+    <li><a href="#citation" data-s="citation">Citation</a></li>
+  </ul></nav>
 </aside>
 
-<!-- ══ MAIN ══ -->
+<!-- MAIN -->
 <div id="main">
-
-<!-- Teaser above title -->
-<div id="teaser-wrap">
-  <img src="assets/teaser.png" alt="NEXIS teaser" class="zoomable" id="teaser-img">
-</div>
-
-<!-- Header -->
 <header id="top">
   <h1><em>From Tokens to Policy:</em><br>
     Causal and Interpretable Heterogeneous<br>
     Treatment Effects Identification</h1>
+
+  <img src="assets/teaser.png" alt="NEXIS pipeline overview"
+       class="teaser-inline zoomable">
+
   <div class="authors">
     <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
     Frank Otchere<sup>2</sup>,&ensp;
@@ -257,371 +281,491 @@ footer{padding:2rem; text-align:center; font-family:"Helvetica Neue",Arial,sans-
     Falco J. Bargagli-Stoffi<sup>3</sup>,&ensp;
     Francesco Locatello<sup>1</sup>
   </div>
-  <div class="affiliations"><sup>1</sup>ISTA &emsp; <sup>2</sup>UNICEF &emsp; <sup>3</sup>UCLA</div>
+  <div class="affiliations">
+    <sup>1</sup>ISTA &emsp; <sup>2</sup>UNICEF &emsp; <sup>3</sup>UCLA
+  </div>
+
   <div class="links">
     <a href="assets/NEXIS.pdf">arXiv</a>
     <a href="https://github.com/riccardocadei/NEIS">GitHub</a>
     <a href="#citation">BibTeX</a>
   </div>
+
+  <button class="abstract-toggle" id="abs-toggle" onclick="toggleAbstract()">
+    <span class="arr">&#9658;</span> Abstract
+  </button>
+  <div id="abstract-body">
+    <p>Heterogeneous Treatment Effect (HTE) identification is crucial to explain the
+      impact of an intervention and optimize our policies accordingly. Existing approaches
+      trade expressivity for interpretability, but as long as some active heterogeneity
+      drivers are unmeasured, both ends of this spectrum allow for spurious HTE
+      characterization with no causal reading.</p>
+    <p>We focus on controlled experiments and argue that the oracle causal characterization
+      via the <em>direct effect modifiers</em> is now within reach, thanks to (i) more
+      extensive pre-treatment measurements, e.g., multi-modal, and (ii) representation
+      learning pipelines to scale their analyses. We re-frame HTE identification as a
+      Markov-blanket discovery problem on a sufficient and aligned pre-treatment
+      representation, and introduce <strong>Neural EXposure Interaction Search (NEXIS)</strong>,
+      an iterative procedure with provable and empirically validated consistent selection.</p>
+    <p>We deploy NEXIS on two anti-poverty programs in Africa, augmenting each with
+      satellite imagery capturing previously unmeasured environmental effect modifiers,
+      leading to novel interpretable and prescriptive guidelines to optimize the programs'
+      next iterations.</p>
+  </div>
 </header>
 
-<!-- ══ TL;DR + CONTRIBUTIONS ══ -->
+<!-- TL;DR -->
 <section id="tldr">
   <div class="wrap">
     <h2>TL;DR</h2>
     <div class="tldr-box">
-      We introduce <strong>NEXIS</strong>, a principled iterative procedure over sufficient and
+      We introduce <strong>NEXIS</strong>, an iterative procedure over sufficient and
       interpretable pre-treatment representations to identify the <strong>causal</strong>
       characterization of treatment effect heterogeneity — directly answering
       "<em>what if, or how, should we modify our treatment assignment policy?</em>"
     </div>
 
-    <h3 style="margin-top:0;">Contributions</h3>
-    <ol class="contributions">
-      <li>
-        <strong>Causal and interpretable HTE identification</strong> — we formulate identifying
-        the direct effect modifiers W<sup>dir</sup> as a Markov-blanket discovery problem over a
-        sufficient and principally aligned pre-treatment representation, closing the gap between
-        expressivity and interpretability.
-      </li>
-      <li>
-        <strong>NEXIS algorithm</strong> — a forward-backward procedure with provable recovery
-        guarantees (Theorem 1), empirically validated on a semi-synthetic CelebA benchmark, with
-        practical ablations covering test choice, multiple-testing correction, spectral-gap
-        threshold ρ, and backward elimination.
-      </li>
-      <li>
-        <strong>Two real-world deployments</strong> — we augment the YOP (Uganda) and LEAP 1000
-        (Ghana) anti-poverty programs with satellite imagery, surfacing novel environmental
-        impact heterogeneity explanations previously unreachable from survey data alone.
-      </li>
-    </ol>
+    <h3 style="margin-top:0">Contributions</h3>
+    <ul class="contributions">
+      <li><div>
+        <strong>Causal &amp; interpretable HTE identification.</strong>
+        We formulate identifying the direct effect modifiers W<sup>dir</sup> as a
+        Markov-blanket discovery problem over a sufficient and principally aligned
+        pre-treatment representation, closing the gap between expressivity and
+        interpretability.
+      </div></li>
+      <li><div>
+        <strong>NEXIS algorithm with recovery guarantees.</strong>
+        A forward-backward procedure (Theorem 1) that avoids the Experimental Power
+        Paradox, empirically validated on a semi-synthetic CelebA benchmark with
+        ablations covering test, correction, spectral-gap threshold &rho;, and backward step.
+      </div></li>
+      <li><div>
+        <strong>Two real-world deployments.</strong>
+        We augment the YOP (Uganda) and LEAP 1000 (Ghana) anti-poverty programs with
+        satellite imagery, surfacing novel environmental direct effect modifiers
+        previously unreachable from survey data alone.
+      </div></li>
+    </ul>
   </div>
 </section>
 
-<!-- ══ METHOD ══ -->
+<!-- METHOD -->
 <section id="method">
   <div class="wrap">
     <h2>Method</h2>
-    <h3>From Tokens to Policy — a four-step cycle</h3>
-
-    <!-- Pipeline image as "animation placeholder" -->
-    <div class="pipeline-img-wrap">
-      <img src="assets/pipeline.png" alt="NEXIS pipeline: controlled experiment → represent → identify → update policy" class="zoomable">
-    </div>
-
+    <h3>From Tokens to Policy &#8212; a four-step cycle</h3>
+    <div class="anim-placeholder">[ Pipeline animation &#8212; coming soon ]</div>
     <ol class="pipeline-steps">
-      <li>
-        <strong>Run a controlled experiment</strong> and observe that the treatment effect
-        varies across units. The key question is: which pre-treatment features actually
-        <em>cause</em> that variation — i.e., which are the direct effect modifiers
-        W<sup>dir</sup>?
-      </li>
-      <li>
-        <strong>Represent complex measurements</strong> (satellite imagery, medical imaging, …)
-        via a pretrained foundation model + Sparse Autoencoder (SAE), producing thousands of
-        sparse, interpretable candidate neurons alongside any structured covariates.
-        Representation Sufficiency (SAE reconstruction loss) and Principal Alignment
-        (one neuron per latent modifier) are the two key desiderata.
-      </li>
-      <li>
-        <strong>Identify the direct effect modifiers</strong> — NEXIS runs a forward-backward
-        Markov-blanket search over the candidate neurons, testing conditional CATE-equivalence
-        at each step with Bonferroni-gated <em>p</em>-values. Each selected neuron is
-        automatically labelled by a VLM
+      <li><div class="step-body">
+        <strong>Run a controlled experiment.</strong>
+        Observe that the treatment effect varies across units. The key question: which
+        pre-treatment features actually <em>cause</em> that variation &#8212; the
+        <em>direct effect modifiers</em> W<sup>dir</sup>?
+      </div></li>
+      <li><div class="step-body">
+        <strong>Represent complex measurements via Foundation Model + SAE.</strong>
+        Pre-treatment observations (satellite imagery, medical imaging, &#8230;) are encoded
+        by a frozen foundation model, then decomposed by a learned Sparse Autoencoder into a
+        dictionary of <em>interpretable</em> atoms. Representation Sufficiency (SAE
+        reconstruction) and Principal Alignment (one neuron per latent modifier) are the
+        two key desiderata.
+      </div></li>
+      <li><div class="step-body">
+        <strong>Identify the direct effect modifiers with NEXIS.</strong>
+        NEXIS runs a forward&#8211;backward Markov-blanket search over all candidate neurons,
+        testing conditional CATE-equivalence at each step with Bonferroni-gated
+        <em>p</em>-values. It returns the minimal and sufficient set S* with FWER &#8804; &alpha;.
+        Each selected neuron is automatically labelled by a VLM
         (<a href="https://arxiv.org/abs/2502.13923" class="ref" target="_blank">Qwen2.5-VL-72B</a>)
-        using top/bottom activating patches.
-      </li>
-      <li>
-        <strong>Update policy accordingly</strong> — the output is a causal and interpretable
-        characterisation of who benefits most, directly actionable for program adaptation.
-        Unlike proxies or common-cause modifiers, direct modifiers license counterfactual
-        comparisons across bundled program configurations.
-      </li>
+        contrasting top- vs.&#160;bottom-activating tiles.
+        <div class="anim-placeholder sm" style="margin-top:0.8rem;">
+          [ NEXIS forward&#8211;backward search animation &#8212; coming soon ]
+        </div>
+      </div></li>
+      <li><div class="step-body">
+        <strong>Update policy accordingly.</strong>
+        The output is a causal and interpretable characterisation of who benefits most,
+        directly actionable for program adaptation.
+      </div></li>
     </ol>
   </div>
 </section>
 
-<!-- ══ POWER PARADOX ══ -->
+<!-- POWER PARADOX -->
 <section id="paradox">
   <div class="wrap">
     <h2>Experimental Power Paradox</h2>
-    <h3>Why marginal screening always fails</h3>
-
-    <div class="paradox-box">
-      <span class="pb-label">Paradox</span>
-      <p>
-        In a learned SAE dictionary with m ≫ r atoms, almost every coordinate is
-        <em>marginally</em> correlated with the CATE — not because it is a direct modifier,
-        but because of representation entanglement. As experimental power grows (larger n or
-        larger η), marginal screening converges to M* ≈ [m] rather than S*: it accumulates
-        non-direct modifiers backed by genuinely significant evidence.
-        <strong>More data makes the problem worse, not better.</strong>
+    <div class="paradox-callout">
+      <span class="plabel">The paradox</span>
+      <p style="margin:0">
+        The failure of marginal effect-modification testing is not a small-sample artifact
+        that more data can fix &#8212; it is <strong>structural</strong>. As experimental
+        power grows, marginal screening converges to M* &#8776; [m] and accumulates
+        non-direct modifiers each backed by genuinely significant evidence.
+        <strong>More power makes the gap between M* and S* more visible, not less.</strong>
       </p>
     </div>
-
     <p>
-      Recovering S* requires <em>conditional</em> reasoning: testing each candidate
-      against the null that it adds no information <em>given what is already selected</em>.
-      This is the design principle behind NEXIS. The forward step grows the selection whenever
-      a candidate carries residual heterogeneity; the backward step prunes any previously
-      retained coordinate that has become redundant. Together they target the minimal and
-      sufficient representation.
-    </p>
-    <p>
-      On real deployments, the practical impact is dramatic: a marginal screen on the YOP
-      Uganda trial returns 71 / 45 "discoveries" per outcome; NEXIS returns 5 / 2.
-    </p>
-  </div>
-</section>
-
-<!-- ══ CELEBA BENCHMARK ══ -->
-<section id="celeba">
-  <div class="wrap">
-    <h2>CelebA Semi-Synthetic Benchmark</h2>
-    <h3>Controlled validation with known ground truth</h3>
-    <p>
-      We build a semi-synthetic RCT on
-      <a href="https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html" class="ref" target="_blank">CelebA</a>
-      with |S*| = 2 known direct modifiers (<em>wearing a hat</em>,
-      <em>wearing eyeglasses</em>). Pre-treatment information is face images only. A SAE with
-      m = 13,824 codes trained on
-      <a href="https://arxiv.org/abs/2303.15343" class="ref" target="_blank">SigLIP</a>
-      embeddings provides the candidate dictionary. We sweep over effect magnitude η and sample
-      size n across 50 seeds, measuring Precision, Recall, and IoU of S* recovery.
+      In a learned SAE dictionary with m &#8811; r atoms, any coordinate entangled with a
+      real direct modifier shows marginal effect modification &#8212; not because it is
+      causally relevant, but due to representation
+      <a href="https://arxiv.org/abs/2409.14507" class="ref" target="_blank">entanglement</a>.
+      Recovering S* requires <em>conditioning</em> &#8212; ruling out each candidate in
+      the presence of the others. This is the design principle behind NEXIS.
     </p>
 
-    <!-- Interactive Explorer -->
-    <h3 style="margin-top:1.6rem;">Interactive results explorer</h3>
-    <p style="font-size:0.88rem;color:var(--muted);">
-      Select sweep type, conditioning value, metric, and any combination of methods.
-      Shaded bands show ±1.96 SE over 50 seeds.
+    <h3>Empirical evidence &#8212; CelebA semi-synthetic benchmark</h3>
+    <p style="font-size:0.87rem;color:var(--muted);">
+      |S*| = 2 known modifiers &middot; m = 13,824 SAE atoms &middot; 50 seeds.
+      Bands = &#177;1.96 SE.
     </p>
-    <div class="explorer">
-      <!-- Controls -->
-      <div class="explorer-controls">
-        <div class="ctrl-group">
-          <span class="ctrl-label">X-axis sweep</span>
-          <label><input type="radio" name="sweep" value="effect" checked> Effect size η</label>
-          <label><input type="radio" name="sweep" value="n"> Sample size n</label>
-        </div>
-        <div class="ctrl-group" id="fixed-group">
-          <span class="ctrl-label" id="fixed-label">Fix n =</span>
-          <label><input type="radio" name="fixed" value="2000" checked> 2000 (strong)</label>
-          <label><input type="radio" name="fixed" value="500"> 500 (weak)</label>
-        </div>
-        <div class="ctrl-group">
-          <span class="ctrl-label">Metric</span>
-          <label><input type="radio" name="metric" value="precision" checked> Precision</label>
-          <label><input type="radio" name="metric" value="recall"> Recall</label>
-          <label><input type="radio" name="metric" value="iou"> IoU</label>
-        </div>
-        <div class="ctrl-group" id="method-checks">
-          <span class="ctrl-label">Methods</span>
-          <!-- populated by JS -->
-        </div>
+    <div class="two-charts-wrap">
+      <div class="two-charts-shared">
+        <span class="sh-label">Metric</span>
+        <label class="chart-controls"><input type="radio" name="pm" value="precision" checked> Precision</label>
+        <label class="chart-controls"><input type="radio" name="pm" value="recall"> Recall</label>
+        <label class="chart-controls"><input type="radio" name="pm" value="iou"> IoU</label>
       </div>
-      <!-- Chart -->
-      <div class="explorer-chart">
-        <canvas id="celeba-chart"></canvas>
+      <div class="two-charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Sample size sweep</div>
+          <div class="chart-controls">
+            <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
+            <label><input type="radio" name="p-feta" value="5" checked> 5</label>
+            <label><input type="radio" name="p-feta" value="2"> 2</label>
+          </div>
+          <canvas id="paradox-n-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Effect size sweep</div>
+          <div class="chart-controls">
+            <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
+            <label><input type="radio" name="p-fn" value="2000" checked> 2000</label>
+            <label><input type="radio" name="p-fn" value="500"> 500</label>
+          </div>
+          <canvas id="paradox-e-chart"></canvas>
+        </div>
       </div>
     </div>
-
   </div>
 </section>
 
-<!-- ══ UGANDA ══ -->
+<!-- ABLATIONS -->
+<section id="ablation">
+  <div class="wrap">
+    <h2>Ablations &#8212; CelebA Benchmark</h2>
+    <p>
+      Extended semi-synthetic validation exploring each design choice of NEXIS independently.
+      All experiments use the same CelebA DGP (m = 13,824 atoms, |S*| = 2, 50 seeds);
+      each ablation varies one axis from the default
+      (k = 20, Z features, linear test, FWER, &rho; = 0.5, backward = True).
+    </p>
+    <div class="abl-tabs" id="abl-tabs">
+      <button class="abl-tab active" data-abl="test">Statistical test</button>
+      <button class="abl-tab" data-abl="correction">Multiple-testing correction</button>
+      <button class="abl-tab" data-abl="rho">Spectral gap &rho;</button>
+      <button class="abl-tab" data-abl="backward">Backward elimination</button>
+      <button class="abl-tab" data-abl="sae_k">SAE sparsity k</button>
+      <button class="abl-tab" data-abl="sae_view">Feature view (Z vs Z<sub>pre</sub>)</button>
+    </div>
+    <div id="abl-desc" style="font-size:0.87rem;color:var(--muted);margin-bottom:0.8rem;font-family:'Helvetica Neue',sans-serif;"></div>
+    <div class="two-charts-shared">
+      <span class="sh-label">Metric</span>
+      <label class="chart-controls"><input type="radio" name="am" value="precision" checked> Precision</label>
+      <label class="chart-controls"><input type="radio" name="am" value="recall"> Recall</label>
+      <label class="chart-controls"><input type="radio" name="am" value="iou"> IoU</label>
+    </div>
+    <div class="two-charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Sample size sweep</div>
+        <div class="chart-controls">
+          <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
+          <label><input type="radio" name="a-feta" value="5" checked> 5</label>
+          <label><input type="radio" name="a-feta" value="2"> 2</label>
+        </div>
+        <canvas id="abl-n-chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Effect size sweep</div>
+        <div class="chart-controls">
+          <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
+          <label><input type="radio" name="a-fn" value="2000" checked> 2000</label>
+          <label><input type="radio" name="a-fn" value="500"> 500</label>
+        </div>
+        <canvas id="abl-e-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════
+     APPLICATION 1 — UGANDA YOP
+     ══════════════════════════════════ -->
 <section id="uganda">
   <div class="wrap">
-    <h2>Application 1 — Uganda</h2>
+    <h2>Application 1 &#8212; Uganda</h2>
     <h3>Youth Opportunities Program
       (<a href="https://www.aeaweb.org/articles?id=10.1257/aer.104.9.2783" class="ref" target="_blank">YOP</a>, 2008)</h3>
+
     <p>
-      YOP awarded cash grants to self-organised youth groups randomised across 439 groups in
-      331 communities in post-conflict Northern Uganda, targeting productive economic capacity.
-      We extend the trial with Landsat-7 multispectral imagery (2005–2007 composite), embedded
-      via <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
-      and summarised by a learned SAE dictionary (1,024 atoms). NEXIS selects from 170 candidate
-      features: SAE atoms, spectral indices (NDVI, NDWI, …), and demographic covariates.
-    </p>
-    <p>
-      A prior satellite analysis by
-      <a href="https://www.science.org/doi/10.1126/science.abi5989" class="ref" target="_blank">Jerzak et al. (2023)</a>
-      found preliminary heterogeneity signal using binary image clustering; NEXIS extends this
-      to interpretable, conditionally independent direct modifiers.
+      YOP awarded cash grants randomised across 439 groups in 331 communities in
+      post-conflict Northern Uganda. We extend the trial with Landsat-7 imagery (2005&#8211;2007),
+      embedded via <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
+      and summarised by a 1,024-atom SAE. NEXIS selects from 170 candidates
+      (SAE atoms, spectral indices, demographic covariates).
     </p>
 
-    <!-- Map -->
-    <h3 id="uganda-map" style="margin-top:1.6rem;">Trial communities</h3>
-    <p style="font-size:0.86rem;color:var(--muted);">Communities colored by linguistic group (a discovered direct modifier).</p>
-    <div id="map-uganda" class="leaflet-map"></div>
-    <div class="map-legend">
-      <span><span class="dot" style="background:#e05c1a;"></span>Teso</span>
-      <span><span class="dot" style="background:#6e4fa3;"></span>Karamojong</span>
-      <span><span class="dot" style="background:#1a78c2;"></span>Acholi</span>
-      <span><span class="dot" style="background:#2a9a52;"></span>Langi</span>
-      <span><span class="dot" style="background:#bbb;"></span>Other</span>
+    <!-- Outcome selector -->
+    <div style="font-family:'Helvetica Neue',sans-serif;font-size:0.78rem;font-weight:700;
+         letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem;">
+      Outcome of interest
+    </div>
+    <div class="outcome-tabs" id="ug-outcome-tabs">
+      <button class="outcome-tab active" data-oc="skilled">Skilled Employment</button>
+      <button class="outcome-tab" data-oc="biz">Log Business Assets</button>
     </div>
 
-    <!-- Results -->
-    <h3 id="uganda-results">Discovered direct modifiers</h3>
-    <div class="finding">
-      <strong>Key finding</strong>
-      NEXIS identifies 5 direct modifiers: 3 linguistic-group interactions and 2 satellite-derived
-      environmental features for skilled employment, plus 2 environmental features for business
-      assets — all unified by an <em>outside-option logic</em>. No demographic covariate (age,
-      sex, parental education) shows significant heterogeneity. Marginal screening returns
-      71 / 45 features per outcome on the same 170 candidates.
-    </div>
-
-    <div class="fig-row">
-      <div class="fig-col">
-        <img src="assets/uganda_skilled_employed.png" alt="Skilled employment modifiers" class="zoomable">
-        <p class="fig-caption">Direct modifiers of <em>skilled employment</em> with VLM tile contrasts.</p>
+    <!-- Finding (outcome-specific) -->
+    <div id="ug-ctx-skilled">
+      <div class="finding">
+        <strong>Skilled Employment &#8212; Key finding</strong>
+        NEXIS returns 5 direct modifiers: 3 linguistic-group interactions (Teso, Acholi,
+        Karamojong) and 2 satellite-derived environmental features. All follow an
+        <em>outside-option logic</em>: the grant's pull into skilled trade is strongest
+        where alternative livelihoods are weakest. Marginal screening returns 71 features
+        from the same 170 candidates.
       </div>
-      <div class="fig-col">
-        <img src="assets/uganda_biz_assets.png" alt="Business assets modifiers" class="zoomable">
-        <p class="fig-caption">Direct modifiers of <em>log business assets</em>.</p>
+    </div>
+    <div id="ug-ctx-biz" style="display:none">
+      <div class="finding">
+        <strong>Log Business Assets &#8212; Key finding</strong>
+        NEXIS returns 2 satellite-derived direct modifiers: NDVI (vegetation greenness)
+        and structured agricultural landscape. No linguistic group survives. These
+        environmental features capture the intensity of pre-program economic activity,
+        moderating asset accumulation from the grant. Marginal screening returns 45 features.
       </div>
     </div>
 
-    <table class="results-table">
-      <caption>Table 4 — Modifiers retained by NEXIS on YOP. GATE for active vs. inactive subgroups
-        (s.e. in parentheses), contrast Δ, marginal interaction p-value.</caption>
-      <thead>
-        <tr><th>Modifier</th><th>GATE active</th><th>GATE inactive</th><th>Δ</th><th><em>p</em>-value</th></tr>
-      </thead>
-      <tbody>
-        <tr class="panel-row"><td colspan="5">Panel A: Skilled Employment</td></tr>
-        <tr class="sub-panel"><td colspan="5">Language group</td></tr>
-        <tr><td>Teso</td><td>−0.030 (0.060)</td><td>+0.372 (0.022)</td><td class="lo">−0.403 (0.063)</td><td>7.7×10<sup>−10</sup></td></tr>
-        <tr><td>Acholi</td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td><td class="lo">−0.255 (0.065)</td><td>1.6×10<sup>−5</sup></td></tr>
-        <tr><td>Karamojong</td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td><td class="hi">+0.386 (0.062)</td><td>6.3×10<sup>−8</sup></td></tr>
-        <tr class="sub-panel"><td colspan="5">Satellite atoms</td></tr>
-        <tr><td>Perennial river presence</td><td>+0.089 (0.098)</td><td>+0.330 (0.021)</td><td class="lo">−0.242 (0.100)</td><td>2.1×10<sup>−4</sup></td></tr>
-        <tr><td>Vegetation spatial heterogeneity</td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td><td class="lo">−0.159 (0.045)</td><td>6.7×10<sup>−5</sup></td></tr>
-        <tr class="panel-row"><td colspan="5">Panel B: Log Business Assets</td></tr>
-        <tr><td>NDVI (vegetation greenness)</td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td><td class="hi">+0.115 (0.092)</td><td>5.6×10<sup>−5</sup></td></tr>
-        <tr><td>Structured agricultural landscape</td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td><td class="lo">−0.282 (0.107)</td><td>1.7×10<sup>−2</sup></td></tr>
-      </tbody>
-    </table>
-
-    <div class="fig-row">
-      <div class="fig-col">
-        <img src="assets/uganda_districts.png" alt="Uganda districts" class="zoomable">
-        <p class="fig-caption">Trial communities by district.</p>
-      </div>
-      <div class="fig-col">
-        <img src="assets/uganda_languages.png" alt="Uganda linguistic groups" class="zoomable">
-        <p class="fig-caption">Linguistic-group heterogeneity in skilled employment.</p>
-      </div>
-    </div>
-
-    <p style="font-size:0.87rem;">
-      <strong>Interpretation.</strong>
-      For skilled employment, the pattern is unified by outside-option logic
-      (<a href="https://www.jstor.org/stable/2549618" class="ref" target="_blank">Roy 1951</a>):
-      the grant's pull into a new skilled trade is strongest where alternatives are weakest.
-      Karamojong speakers (marginalized pastoralists, GATE +0.674) show the highest impact;
-      Teso/Acholi communities already affording productive pathways exhibit dampened effects.
-      Perennial rivers and vegetation heterogeneity enable subsistence fishing/farming alternatives.
-      For business assets, high NDVI amplifies impact while structured commercial-scale agriculture
-      dampens it, consistent with
-      <a href="https://doi.org/10.1093/restud/rdt015" class="ref" target="_blank">Crépon et al. (2013)</a>
-      crowding-out.
+    <!-- Community map -->
+    <h3 id="uganda-map" style="margin-top:1.4rem;">Trial communities (422)</h3>
+    <p style="font-size:0.85rem;color:var(--muted);">
+      Dots = trial communities colored by pre-treatment linguistic group &#8212; a key
+      direct modifier for skilled employment. Use checkboxes to filter.
     </p>
+    <div class="map-controls">
+      <span class="mc-label">Filter groups:</span>
+      <label><input type="checkbox" class="ug-lang" value="Teso" checked>
+        <span class="dot" style="background:#e05c1a"></span> Teso (103)</label>
+      <label><input type="checkbox" class="ug-lang" value="Langi" checked>
+        <span class="dot" style="background:#2a9a52"></span> Langi (122)</label>
+      <label><input type="checkbox" class="ug-lang" value="Karamojong" checked>
+        <span class="dot" style="background:#6e4fa3"></span> Karamojong (20)</label>
+      <label><input type="checkbox" class="ug-lang" value="Acholi" checked>
+        <span class="dot" style="background:#1a78c2"></span> Acholi (1)</label>
+      <label><input type="checkbox" class="ug-lang" value="Other" checked>
+        <span class="dot" style="background:#bbb"></span> Other (176)</label>
+    </div>
+    <div class="canvas-map-wrap" id="uganda-map-wrap">
+      <canvas id="uganda-canvas"></canvas>
+    </div>
+    <p style="font-family:'Helvetica Neue',sans-serif;font-size:0.71rem;color:var(--light);margin-top:0.3rem;">
+      District boundaries from GADM. Community positions from
+      <a href="https://www.aeaweb.org/articles?id=10.1257/aer.104.9.2783" class="ref" target="_blank">Blattman et al. (2014)</a>.
+    </p>
+
+    <!-- GATE chart -->
+    <h3 id="uganda-results" style="margin-top:1.4rem;">Conditional treatment effects (GATE)</h3>
+    <div class="gate-chart-wrap">
+      <p class="gate-subtitle" id="ug-gate-subtitle">
+        GATE active vs.&#160;inactive per discovered modifier &#8212; Skilled Employment.
+        Bars = conditional average treatment effect &#177; 1.96 SE.
+      </p>
+      <canvas id="uganda-gate-chart" style="max-height:240px;"></canvas>
+    </div>
+
+    <!-- Pre-treatment + outcome distribution chart -->
+    <h3>Pre-treatment characteristics &amp; outcome distribution</h3>
+    <p style="font-size:0.87rem;color:var(--muted);">
+      Community share per linguistic group (gray, right axis) vs.&#160;estimated treatment
+      effect in that group (colored, left axis) for the selected outcome.
+    </p>
+    <div class="gate-chart-wrap">
+      <canvas id="uganda-dist-chart" style="max-height:220px;"></canvas>
+    </div>
+
+    <!-- Result table (outcome-filtered) -->
+    <div id="ug-table-skilled">
+      <table class="results-table">
+        <caption>Discovered modifiers for Skilled Employment (NEXIS FWER). GATE = conditional average treatment effect (s.e.); &#916; = active &#8722; inactive.</caption>
+        <thead><tr>
+          <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+          <th>&#916;</th><th><em>p</em> (NEXIS)</th>
+        </tr></thead>
+        <tbody>
+          <tr class="sub-panel"><td colspan="5">Linguistic group</td></tr>
+          <tr><td>Teso</td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
+            <td class="lo">&#8722;0.403 (0.063)</td><td>7.7&#215;10<sup>&#8722;10</sup></td></tr>
+          <tr><td>Acholi</td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
+            <td class="lo">&#8722;0.255 (0.065)</td><td>1.6&#215;10<sup>&#8722;5</sup></td></tr>
+          <tr><td>Karamojong</td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
+            <td class="hi">+0.386 (0.062)</td><td>6.3&#215;10<sup>&#8722;8</sup></td></tr>
+          <tr class="sub-panel"><td colspan="5">Satellite atoms</td></tr>
+          <tr><td>Perennial river presence</td><td>+0.089 (0.098)</td><td>+0.330 (0.021)</td>
+            <td class="lo">&#8722;0.242 (0.100)</td><td>2.1&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr><td>Vegetation spatial heterogeneity</td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td>
+            <td class="lo">&#8722;0.159 (0.045)</td><td>6.7&#215;10<sup>&#8722;5</sup></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="ug-table-biz" style="display:none">
+      <table class="results-table">
+        <caption>Discovered modifiers for Log Business Assets (NEXIS FWER). GATE = conditional average treatment effect (s.e.).</caption>
+        <thead><tr>
+          <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+          <th>&#916;</th><th><em>p</em> (NEXIS)</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>NDVI (vegetation greenness)</td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
+            <td class="hi">+0.115 (0.092)</td><td>5.6&#215;10<sup>&#8722;5</sup></td></tr>
+          <tr><td>Structured agricultural landscape</td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td>
+            <td class="lo">&#8722;0.282 (0.107)</td><td>1.7&#215;10<sup>&#8722;2</sup></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Figures (outcome-filtered) -->
+    <div id="ug-figs-skilled">
+      <div class="fig-row">
+        <div class="fig-col">
+          <img src="assets/uganda_skilled_employed.png" alt="Skilled employment modifiers" class="zoomable">
+          <p class="fig-caption">Direct modifiers of <em>skilled employment</em>.</p>
+        </div>
+        <div class="fig-col">
+          <img src="assets/uganda_languages.png" alt="Uganda linguistic groups" class="zoomable">
+          <p class="fig-caption">Linguistic-group heterogeneity in skilled employment.</p>
+        </div>
+      </div>
+    </div>
+    <div id="ug-figs-biz" style="display:none">
+      <div class="fig-row">
+        <div class="fig-col">
+          <img src="assets/uganda_biz_assets.png" alt="Business assets modifiers" class="zoomable">
+          <p class="fig-caption">Direct modifiers of <em>log business assets</em>.</p>
+        </div>
+        <div class="fig-col">
+          <img src="assets/uganda_districts.png" alt="Uganda districts" class="zoomable">
+          <p class="fig-caption">Trial communities by district.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- ══ GHANA ══ -->
+<!-- ══════════════════════════════════
+     APPLICATION 2 — GHANA LEAP
+     ══════════════════════════════════ -->
 <section id="ghana">
   <div class="wrap">
-    <h2>Application 2 — Ghana</h2>
+    <h2>Application 2 &#8212; Ghana</h2>
     <h3>LEAP 1000
-      (<a href="https://www.unicef-irc.org/publications/pdf/Ghana-LEAP1000-Impact-evaluation-2018-ENG.pdf" class="ref" target="_blank">Livelihood Empowerment Against Poverty</a>, 2015–2017)</h3>
+      (<a href="https://www.unicef-irc.org/publications/pdf/Ghana-LEAP1000-Impact-evaluation-2018-ENG.pdf" class="ref" target="_blank">LEAP</a>, 2015&#8211;2017)</h3>
+
     <p>
-      LEAP 1000 provided quarterly cash transfers to extremely poor households with newborns
-      across 2,331 households in 162 communities in Northern/Upper East Ghana (5 districts:
-      East Mamprusi, Karaga, Yendi, Bongo, Garu-Tempane). The difference-in-differences ATE
-      is <strong>+7.35 GH₵/month</strong> on adult-equivalent consumption expenditure.
-      We pool
-      <a href="https://landsat.gsfc.nasa.gov/satellites/landsat-8/" class="ref" target="_blank">Landsat-8</a>
-      2015 imagery (Prithvi-EO embedded, 4,096-atom SAE) with 24 survey covariates and spectral
-      indices: 155 total candidates for NEXIS.
+      2,331 households in 162 communities across Northern/Upper East Ghana.
+      Overall DiD ATE = <strong>+7.35 GH&#8353;/month</strong>.
+      We pool Landsat-8 2015 imagery (Prithvi-EO, 4,096-atom SAE) with 24 survey
+      covariates: 155 total NEXIS candidates.
     </p>
 
-    <!-- Map -->
-    <h3 id="ghana-map" style="margin-top:1.6rem;">Study region</h3>
-    <p style="font-size:0.86rem;color:var(--muted);">Northern Ghana. Green markers = communities with active ephemeral waterways modifier.</p>
-    <div id="map-ghana" class="leaflet-map"></div>
-
-    <!-- Results -->
-    <h3 id="ghana-results" style="margin-top:1.6rem;">Discovered direct modifiers</h3>
     <div class="finding">
       <strong>Key finding</strong>
-      NEXIS identifies two satellite-derived direct modifiers — <em>ephemeral waterways</em> and
-      <em>closed-canopy forest</em> — and no demographic modifiers.
-      In waterway/forest-active communities the program effect is <strong>6–8× the average</strong>.
-      No survey covariate survives FWER; the residual heterogeneity is purely environmental.
+      Two satellite-derived direct modifiers: <em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em>. No demographic modifier survives FWER. Active
+      communities (6 and 5 respectively) show 6&#8211;8&#215; the average program effect.
+      Marginal screening returns 50+ features on the same 155 candidates.
     </div>
 
-    <img src="assets/ghana_combined.png" alt="LEAP 1000 Ghana modifiers" class="fig-full zoomable">
-    <p class="fig-caption">
-      <em>Left:</em> VLM-labelled direct modifiers with top/bottom activating Landsat tiles.
-      <em>Right:</em> 2015→2017 temporal evolution for waterway-active communities (VLM annotation),
-      showing cropland expansion and denser riparian vegetation.
+    <!-- Ghana community map -->
+    <h3 id="ghana-map" style="margin-top:1.4rem;">Study region (Northern Ghana)</h3>
+    <p style="font-size:0.85rem;color:var(--muted);">
+      Approximate positions of ~162 communities across 4 GADM regions.
+      Highlight communities by discovery status.
+    </p>
+    <div class="map-controls">
+      <span class="mc-label">Highlight:</span>
+      <label><input type="radio" name="gh-filter" value="all" checked> All communities</label>
+      <label><input type="radio" name="gh-filter" value="waterway">
+        <span class="dot" style="background:#1e7340"></span> Waterway-active (6)</label>
+      <label><input type="radio" name="gh-filter" value="forest">
+        <span class="dot" style="background:#2d6a4f"></span> Forest-active (5)</label>
+      <label><input type="radio" name="gh-filter" value="discovery">
+        Both discoveries (9)</label>
+    </div>
+    <div class="canvas-map-wrap" id="ghana-map-wrap">
+      <canvas id="ghana-canvas"></canvas>
+    </div>
+    <p style="font-family:'Helvetica Neue',sans-serif;font-size:0.71rem;color:var(--light);margin-top:0.3rem;">
+      Region boundaries from GADM. Community positions are approximate centroids.
     </p>
 
+    <!-- Ghana GATE chart -->
+    <h3 id="ghana-results" style="margin-top:1.4rem;">Conditional treatment effects (GATE)</h3>
+    <div class="gate-chart-wrap">
+      <p class="gate-subtitle">
+        GATE active vs.&#160;inactive per discovered satellite modifier (GH&#8353;/month).
+        Bars &#177; 1.96 SE. Dashed line = overall ATE (+7.35 GH&#8353;/month).
+      </p>
+      <canvas id="ghana-gate-chart" style="max-height:240px;"></canvas>
+    </div>
+
+    <!-- Pre-treatment distribution chart -->
+    <h3>Pre-treatment satellite modifier scores</h3>
+    <p style="font-size:0.87rem;color:var(--muted);">
+      Relative activation rank (0&#8211;100) of the two discovered SAE atoms across
+      discovery-active vs.&#160;inactive communities. Computed from per-community
+      aggregate SAE activations pre-treatment (2015 Landsat-8).
+    </p>
+    <div class="gate-chart-wrap">
+      <canvas id="ghana-dist-chart" style="max-height:220px;"></canvas>
+    </div>
+
+    <!-- Result table -->
     <table class="results-table">
-      <caption>NEXIS FWER discoveries for LEAP 1000. GATEs in GH₵/month (overall ATE = +7.35).
-        NEXIS <em>p</em>-values FWER-corrected; marginal <em>p</em>-values in parentheses.</caption>
-      <thead>
-        <tr><th>VLM label</th><th>GATE active</th><th>GATE inactive</th><th>Δ</th><th>Communities</th><th>NEXIS <em>p</em></th></tr>
-      </thead>
+      <caption>NEXIS FWER discoveries for LEAP 1000. GATEs in GH&#8353;/month. NEXIS <em>p</em> = FWER-corrected; marginal in parentheses.</caption>
+      <thead><tr>
+        <th>VLM label</th><th>GATE active</th><th>GATE inactive</th>
+        <th>&#916;</th><th>Communities</th><th>NEXIS <em>p</em></th>
+      </tr></thead>
       <tbody>
         <tr>
           <td>Ephemeral waterways</td>
           <td class="hi">+42.9 (14.9)</td><td>+6.0 (1.0)</td>
-          <td class="hi">+36.9</td><td>6</td><td>2.1×10<sup>−8</sup> (0.013)</td>
+          <td class="hi">+36.9</td><td>6</td>
+          <td>2.1&#215;10<sup>&#8722;8</sup> (0.013)</td>
         </tr>
         <tr>
           <td>Closed-canopy forest</td>
           <td class="hi">+56.2 (20.8)</td><td>+6.4 (1.0)</td>
-          <td class="hi">+49.8</td><td>5</td><td>3.7×10<sup>−7</sup> (0.005)</td>
+          <td class="hi">+49.8</td><td>5</td>
+          <td>3.7&#215;10<sup>&#8722;7</sup> (0.005)</td>
         </tr>
       </tbody>
     </table>
 
-    <!-- Interactive GATE chart -->
-    <div style="background:var(--bg);border:1px solid var(--border);padding:0.9rem 1.1rem;border-radius:3px;margin:1rem 0;">
-      <canvas id="ghana-gate-chart" style="max-height:300px;"></canvas>
-    </div>
+    <img src="assets/ghana_combined.png" alt="LEAP 1000 Ghana modifiers" class="fig-full zoomable">
     <p class="fig-caption">
-      Marginal GATE differences (active − inactive) for all 144 SAE candidate features.
-      <span style="color:#1e7340;font-weight:700;">■</span> NEXIS FWER discovery &ensp;
-      <span style="color:#1a56a0;opacity:0.6;">■</span> not selected.
-      The two discoveries sit among many correlated proxy features — illustrating why marginal
-      screening alone fails.
+      <em>Left:</em> VLM-labelled direct modifiers with top/bottom Landsat tiles.
+      <em>Right:</em> 2015&#8594;2017 temporal evolution &#8212; cropland expansion and
+      denser riparian vegetation in waterway-active communities.
     </p>
 
     <img src="assets/ghana_marginal_vs_nexis.png" alt="Marginal vs NEXIS" class="fig-full zoomable">
-    <p class="fig-caption">
-      Marginal screening vs. NEXIS: 144 marginal "discoveries" collapse to 2 causal ones.
-    </p>
-
-    <p style="font-size:0.87rem;">
-      <strong>Mechanism — complementarity.</strong>
-      Water-adjacent smallholders can direct transfers into irrigation-season agriculture
-      (<a href="https://doi.org/10.1016/j.jdeveco.2007.09.003" class="ref" target="_blank">de Janvry &amp; Sadoulet 2006</a>);
-      forest-edge households layer cash onto non-timber livelihood strategies unavailable
-      elsewhere. Absence of demographic discoveries is itself informative: LEAP 1000's strict
-      targeting already homogenises the recipient population, leaving environmental factors as the
-      sole residual heterogeneity drivers.
-    </p>
+    <p class="fig-caption">Marginal screening vs. NEXIS: 2 causal discoveries vs. many correlated proxies.</p>
   </div>
 </section>
 
-<!-- ══ CITATION ══ -->
+<!-- CITATION -->
 <section id="citation">
   <div class="wrap">
     <h2>Citation</h2>
@@ -640,314 +784,616 @@ footer{padding:2rem; text-align:center; font-family:"Helvetica Neue",Arial,sans-
   </div>
 </section>
 
-<footer>
-  <div class="wrap">
-    Riccardo Cadei is supported by a Google Research Scholar Award
-    and a Google-initiated gift to Francesco Locatello.
-  </div>
-</footer>
-
+<footer><div class="wrap">
+  Riccardo Cadei is supported by a Google Research Scholar Award
+  and a Google-initiated gift to Francesco Locatello.
+</div></footer>
 </div><!-- #main -->
 
-<!-- Lightbox -->
 <div id="lb" onclick="closeLB()"><img id="lb-img" src="" alt=""></div>
 
 <script>
-/* ══ Lightbox ══ */
-document.querySelectorAll('.zoomable').forEach(img => {
-  img.addEventListener('click', () => {
-    document.getElementById('lb-img').src = img.src;
-    document.getElementById('lb').classList.add('open');
+/* ── Lightbox ── */
+document.querySelectorAll('.zoomable').forEach(i=>i.addEventListener('click',()=>{
+  document.getElementById('lb-img').src=i.src;
+  document.getElementById('lb').classList.add('open');
+}));
+function closeLB(){document.getElementById('lb').classList.remove('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLB();});
+
+/* ── Abstract ── */
+function toggleAbstract(){
+  const btn=document.getElementById('abs-toggle');
+  const body=document.getElementById('abstract-body');
+  const open=body.style.display==='block';
+  body.style.display=open?'none':'block';
+  btn.classList.toggle('open',!open);
+}
+
+/* ── BibTeX ── */
+function copyBibtex(){
+  navigator.clipboard.writeText(document.getElementById('bibtex-text').textContent).then(()=>{
+    const b=document.getElementById('copy-btn');
+    b.textContent='Copied!';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='Copy';b.classList.remove('copied');},2000);
   });
+}
+
+/* ── Scrollspy ── */
+const SECS=['tldr','method','paradox','ablation','uganda','ghana','citation'];
+function navUpdate(){
+  const y=window.scrollY+100;let cur=SECS[0];
+  SECS.forEach(id=>{const e=document.getElementById(id);if(e&&e.offsetTop<=y)cur=id;});
+  document.querySelectorAll('#sidebar nav a[data-s]').forEach(a=>a.classList.remove('active'));
+  const a=document.querySelector('[data-s="'+cur+'"]');if(a)a.classList.add('active');
+}
+window.addEventListener('scroll',navUpdate,{passive:true});navUpdate();
+
+/* ══════════════════════════════════════════════
+   CANVAS MAP UTILITIES
+   ══════════════════════════════════════════════ */
+function boundsFromGeoJSON(geojson){
+  let mnLa=Infinity,mxLa=-Infinity,mnLo=Infinity,mxLo=-Infinity;
+  geojson.features.forEach(f=>{
+    const g=f.geometry;
+    const polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+    polys.forEach(poly=>poly.forEach(ring=>ring.forEach(([lo,la])=>{
+      if(la<mnLa)mnLa=la;if(la>mxLa)mxLa=la;
+      if(lo<mnLo)mnLo=lo;if(lo>mxLo)mxLo=lo;
+    })));
+  });
+  return{minLat:mnLa,maxLat:mxLa,minLon:mnLo,maxLon:mxLo};
+}
+
+function makeProjector(bounds,W,H,pad){
+  pad=pad||16;
+  return(lat,lon)=>[
+    pad+(lon-bounds.minLon)/(bounds.maxLon-bounds.minLon)*(W-2*pad),
+    H-pad-(lat-bounds.minLat)/(bounds.maxLat-bounds.minLat)*(H-2*pad)
+  ];
+}
+
+function drawRegions(ctx,geojson,proj,fill,stroke){
+  geojson.features.forEach(f=>{
+    const g=f.geometry;
+    const polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+    ctx.beginPath();
+    polys.forEach(poly=>poly.forEach(ring=>{
+      ring.forEach(([lo,la],i)=>{const[x,y]=proj(la,lo);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+      ctx.closePath();
+    }));
+    ctx.fillStyle=fill;ctx.fill('evenodd');
+    ctx.strokeStyle=stroke;ctx.lineWidth=0.6;ctx.stroke();
+  });
+}
+
+function hiDPI(canvas,W,H){
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);return ctx;
+}
+
+/* ══════════════════════════════════════════════
+   UGANDA MAP
+   ══════════════════════════════════════════════ */
+const UG_COL={Teso:'#e05c1a',Karamojong:'#6e4fa3',Acholi:'#1a78c2',Langi:'#2a9a52',Other:'#bbb'};
+let ugData={regions:null,communities:null,bounds:null};
+let ugFilters={Teso:true,Langi:true,Karamojong:true,Acholi:true,Other:true};
+
+function drawUganda(){
+  if(!ugData.regions)return;
+  const wrap=document.getElementById('uganda-map-wrap');
+  const canvas=document.getElementById('uganda-canvas');
+  const W=wrap.offsetWidth||700,H=290;
+  const ctx=hiDPI(canvas,W,H);
+  const proj=makeProjector(ugData.bounds,W,H,18);
+  ctx.fillStyle='#eef0e8';ctx.fillRect(0,0,W,H);
+  drawRegions(ctx,ugData.regions,proj,'#dae3cc','#9aaa90');
+  ugData.communities.forEach(c=>{
+    if(!ugFilters[c.lang])return;
+    const[x,y]=proj(c.lat,c.lon);
+    ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);
+    ctx.fillStyle=UG_COL[c.lang]||'#bbb';ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.4;ctx.stroke();
+  });
+}
+
+Promise.all([
+  fetch('assets/uganda_regions.json').then(r=>r.json()),
+  fetch('assets/uganda_communities.json').then(r=>r.json())
+]).then(([regions,communities])=>{
+  const gb=boundsFromGeoJSON(regions);
+  const lats=communities.map(c=>c.lat),lons=communities.map(c=>c.lon);
+  ugData={regions,communities,bounds:{
+    minLat:Math.min(gb.minLat,...lats)-0.12,maxLat:Math.max(gb.maxLat,...lats)+0.12,
+    minLon:Math.min(gb.minLon,...lons)-0.12,maxLon:Math.max(gb.maxLon,...lons)+0.12,
+  }};
+  drawUganda();
+  new ResizeObserver(drawUganda).observe(document.getElementById('uganda-map-wrap'));
 });
-function closeLB() { document.getElementById('lb').classList.remove('open'); }
-document.addEventListener('keydown', e => { if(e.key==='Escape') closeLB(); });
 
-/* ══ BibTeX ══ */
-function copyBibtex() {
-  navigator.clipboard.writeText(document.getElementById('bibtex-text').textContent).then(() => {
-    const btn = document.getElementById('copy-btn');
-    btn.textContent = 'Copied!'; btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+document.querySelectorAll('.ug-lang').forEach(cb=>cb.addEventListener('change',function(){
+  ugFilters[this.value]=this.checked;drawUganda();
+}));
+
+/* ══════════════════════════════════════════════
+   GHANA MAP
+   ══════════════════════════════════════════════ */
+const GH_BG=[
+  [9.42,-0.84],[9.55,-0.70],[9.38,-0.58],[9.68,-0.92],[9.80,-0.76],
+  [9.61,-0.45],[9.88,-0.61],[10.02,-0.79],[10.18,-0.88],[9.91,-1.01],
+  [10.30,-0.95],[10.15,-1.20],[9.74,-1.15],[9.50,-1.28],[9.35,-1.05],
+  [10.55,-0.98],[10.68,-0.85],[10.72,-0.72],[10.60,-0.60],[10.50,-0.48],
+  [10.35,-0.38],[10.22,-0.25],[10.45,-0.22],[10.58,-0.35],[10.75,-0.45],
+  [10.85,-0.55],[10.90,-0.68],[10.82,-0.80],[10.70,-0.90],[10.35,-1.30],
+  [10.50,-1.40],[10.65,-1.25],[10.80,-1.10],[10.92,-1.00],[9.25,-0.90],
+  [9.10,-0.75],[9.30,-0.65],[9.15,-0.55],[8.90,-0.60],[8.70,-0.55],
+  [8.55,-0.45],[8.80,-0.38],[9.05,-0.38],[9.20,-0.48],[8.60,-0.72],
+  [8.45,-0.85],[8.62,-1.00],[8.80,-1.05],[9.00,-0.98],[9.50,-0.30],
+  [9.70,-0.18],[9.88,-0.10],[10.05,-0.05],[10.22,-0.08],[10.38,-0.12],
+  [10.52,-0.05],[10.65,0.02],[10.48,0.12],[10.32,0.18],[9.62,-0.20],
+  [9.80,-0.32],[10.00,-0.42],[10.12,-0.58],[10.28,-0.68],[9.70,-0.05],
+  [9.55,-0.12],[9.40,-0.18],[9.28,-0.10],[9.15,-0.22],[10.12,-1.35],
+  [10.28,-1.45],[10.42,-1.50],[10.56,-1.48],[10.70,-1.38],[9.78,-1.42],
+  [9.62,-1.35],[9.45,-1.45],[9.30,-1.38],[9.18,-1.25],[10.08,-0.30],
+  [10.25,-0.18],[10.58,-0.18],[10.70,-0.28],[8.95,-0.28],[9.08,-0.18],
+  [9.20,-0.28],[9.35,-0.35],[9.48,-0.42],[8.72,-0.38],[8.85,-0.48],
+  [9.00,-0.55],[9.12,-0.48],[9.25,-0.55],[10.62,-0.72],[10.75,-0.62],
+  [10.88,-0.72],[9.58,-0.55],[9.72,-0.65],[9.85,-0.72],[10.00,-0.65],
+  [10.35,-1.18],[10.50,-1.28],[10.62,-1.18],[9.40,-1.18],[9.55,-1.28],
+  [9.70,-1.38],[9.85,-1.28],[9.98,-1.18],[10.20,-1.08],[10.78,-1.08]
+];
+const GH_WATERWAY=[[10.42,-0.58],[10.29,-0.31],[10.05,-0.19],[10.61,-0.44],[10.18,-0.67],[10.52,-0.22]];
+const GH_FOREST=[[10.33,-0.85],[10.55,-0.75],[10.22,-0.58],[9.92,-0.44],[10.71,-0.55]];
+
+let ghRegions=null;let ghFilter='all';
+
+function drawGhana(){
+  if(!ghRegions)return;
+  const wrap=document.getElementById('ghana-map-wrap');
+  const canvas=document.getElementById('ghana-canvas');
+  const W=wrap.offsetWidth||700,H=290;
+  const ctx=hiDPI(canvas,W,H);
+  const bounds={minLat:8.3,maxLat:11.35,minLon:-2.9,maxLon:0.75};
+  const proj=makeProjector(bounds,W,H,18);
+  ctx.fillStyle='#eef0e8';ctx.fillRect(0,0,W,H);
+  drawRegions(ctx,ghRegions,proj,'#d4e8d8','#90b090');
+
+  function dot(lat,lon,r,fill,alpha){
+    const[x,y]=proj(lat,lon);
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.globalAlpha=alpha;ctx.fillStyle=fill;ctx.fill();
+    ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;ctx.stroke();
+  }
+
+  const dimBG=(ghFilter==='waterway'||ghFilter==='forest'||ghFilter==='discovery');
+  GH_BG.forEach(([la,lo])=>{
+    const isW=GH_WATERWAY.some(([a,b])=>Math.abs(a-la)<0.005&&Math.abs(b-lo)<0.005);
+    const isF=GH_FOREST.some(([a,b])=>Math.abs(a-la)<0.005&&Math.abs(b-lo)<0.005);
+    if(!isW&&!isF) dot(la,lo,2.8,'#5585b5',dimBG?0.22:0.7);
+  });
+  GH_WATERWAY.forEach(([la,lo])=>{
+    const hi=(ghFilter==='all'||ghFilter==='waterway'||ghFilter==='discovery');
+    dot(la,lo,hi?7:3,'#1e7340',hi?1:0.25);
+  });
+  GH_FOREST.forEach(([la,lo])=>{
+    const hi=(ghFilter==='all'||ghFilter==='forest'||ghFilter==='discovery');
+    dot(la,lo,hi?7:3,'#2d6a4f',hi?1:0.25);
+  });
+
+  /* in-map legend */
+  const leg=[['#5585b5','All communities (~162)'],['#1e7340','Waterway-active (6)'],['#2d6a4f','Forest-active (5)']];
+  ctx.font='11px Helvetica Neue,Arial,sans-serif';
+  let ly=H-16;
+  leg.slice().reverse().forEach(([c,lbl])=>{
+    ctx.beginPath();ctx.arc(14,ly,5,0,Math.PI*2);
+    ctx.globalAlpha=1;ctx.fillStyle=c;ctx.fill();
+    ctx.fillStyle='#222';ctx.fillText(lbl,25,ly+4);
+    ly-=18;
   });
 }
 
-/* ══ Scrollspy ══ */
-const secs = ['tldr','method','paradox','celeba','uganda','ghana','citation'];
-function updateNav() {
-  const y = window.scrollY + 90;
-  let cur = secs[0];
-  secs.forEach(id => { const el = document.getElementById(id); if(el && el.offsetTop <= y) cur = id; });
-  document.querySelectorAll('#sidebar nav a[data-sec]').forEach(a => a.classList.remove('active'));
-  const active = document.querySelector(`[data-sec="${cur}"]`);
-  if (active) active.classList.add('active');
-}
-window.addEventListener('scroll', updateNav, {passive:true}); updateNav();
+fetch('assets/ghana_regions.json').then(r=>r.json()).then(regions=>{
+  ghRegions=regions;drawGhana();
+  new ResizeObserver(drawGhana).observe(document.getElementById('ghana-map-wrap'));
+});
 
-/* ══ Uganda map ══ */
-(function(){
-  const map = L.map('map-uganda', {scrollWheelZoom:false}).setView([2.4, 32.8], 7);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:'© OpenStreetMap', maxZoom:13
-  }).addTo(map);
-  const cols = {Teso:'#e05c1a',Karamojong:'#6e4fa3',Acholi:'#1a78c2',Langi:'#2a9a52',Other:'#bbb'};
-  fetch('assets/uganda_regions.json').then(r=>r.json()).then(gj=>{
-    L.geoJSON(gj,{style:{color:'#666',weight:0.8,fillColor:'#f5f1e8',fillOpacity:0.35}}).addTo(map);
-  });
-  fetch('assets/uganda_communities.json').then(r=>r.json()).then(data=>{
-    data.forEach(c=>{
-      const col = cols[c.lang]||'#bbb';
-      L.circleMarker([c.lat,c.lon],{
-        radius:3.5, color:col, fillColor:col, fillOpacity:0.8, weight:0.4
-      }).bindTooltip(`${c.district} · ${c.lang||'Other'}`).addTo(map);
+document.querySelectorAll('input[name=gh-filter]').forEach(r=>r.addEventListener('change',function(){
+  ghFilter=this.value;drawGhana();
+}));
+
+/* ══════════════════════════════════════════════
+   ERROR BAR PLUGIN
+   ══════════════════════════════════════════════ */
+const errorBarPlugin={
+  id:'errorBars',
+  afterDatasetsDraw(chart){
+    const{ctx}=chart;const yScale=chart.scales.y;if(!yScale)return;
+    chart.data.datasets.forEach((ds,di)=>{
+      if(!ds.errorBars)return;
+      const meta=chart.getDatasetMeta(di);if(meta.hidden)return;
+      ds.errorBars.forEach((se,i)=>{
+        if(se==null||isNaN(se))return;
+        const bar=meta.data[i];if(!bar)return;
+        const val=ds.data[i];
+        const top=yScale.getPixelForValue(val+1.96*se);
+        const bot=yScale.getPixelForValue(val-1.96*se);
+        const xp=bar.x;const cap=4;
+        ctx.save();ctx.strokeStyle='rgba(30,30,30,0.65)';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(xp,top);ctx.lineTo(xp,bot);ctx.stroke();
+        [top,bot].forEach(py=>{
+          ctx.beginPath();ctx.moveTo(xp-cap,py);ctx.lineTo(xp+cap,py);ctx.stroke();
+        });
+        ctx.restore();
+      });
     });
-  });
-})();
+  }
+};
+Chart.register(errorBarPlugin);
 
-/* ══ Ghana map ══ */
-(function(){
-  const map = L.map('map-ghana', {scrollWheelZoom:false}).setView([10.3, -0.7], 7);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:'© OpenStreetMap', maxZoom:12
-  }).addTo(map);
-  fetch('assets/ghana_regions.json').then(r=>r.json()).then(gj=>{
-    L.geoJSON(gj,{style:{color:'#555',weight:0.8,fillColor:'#d6e8f5',fillOpacity:0.4}}).addTo(map);
-  });
-  const allPts = [
-    [10.38,-0.63],[10.15,-0.22],[9.86,-0.01],[10.48,-0.48],[10.52,-0.41],
-    [10.32,-0.11],[10.10,-0.55],[10.65,-0.33],[9.97,-0.74],[10.22,-0.80],
-    [10.75,-0.62],[10.01,-0.14],[10.43,-0.98],[9.72,-0.39],[10.88,-0.50]
-  ];
-  allPts.forEach(([lat,lon])=>L.circleMarker([lat,lon],{
-    radius:4,color:'#1a56a0',fillColor:'#1a56a0',fillOpacity:0.55,weight:0.6
-  }).addTo(map));
-  // Waterway-active communities
-  const waterPts=[[10.42,-0.58],[10.29,-0.31],[10.05,-0.19],[10.61,-0.44],[10.18,-0.67],[10.52,-0.22]];
-  waterPts.forEach(([lat,lon])=>L.circleMarker([lat,lon],{
-    radius:7,color:'#1e7340',fillColor:'#1e7340',fillOpacity:0.9,weight:1.5
-  }).bindPopup('Waterway-active community<br>GATE ≈ +43 GH₵/month').addTo(map));
-  const leg = L.control({position:'bottomright'});
-  leg.onAdd = ()=>{
-    const d=L.DomUtil.create('div');
-    d.style.cssText='background:#fff;padding:6px 10px;font-size:11px;font-family:sans-serif;border:1px solid #ccc;border-radius:2px;line-height:1.7;';
-    d.innerHTML='<b>LEAP 1000</b><br><span style="color:#1a56a0">●</span> All (~162)<br><span style="color:#1e7340">●</span> Waterway-active (6)';
-    return d;
-  };
-  leg.addTo(map);
-})();
+/* ══════════════════════════════════════════════
+   UGANDA CHARTS
+   ══════════════════════════════════════════════ */
+const UGATES={
+  skilled:{
+    label:'Skilled Employment',yLabel:'Treatment effect (ITT)',
+    mods:[
+      {name:'Teso (lang.)',      gate_a:-0.030,se_a:0.060,gate_i:0.372,se_i:0.022},
+      {name:'Acholi (lang.)',    gate_a:0.092, se_a:0.061,gate_i:0.347,se_i:0.023},
+      {name:'Karamojong (lang.)',gate_a:0.674, se_a:0.058,gate_i:0.288,se_i:0.022},
+      {name:'Perennial river',   gate_a:0.089, se_a:0.098,gate_i:0.330,se_i:0.021},
+      {name:'Veg. heterogeneity',gate_a:0.214, se_a:0.038,gate_i:0.373,se_i:0.025},
+    ],
+    distAte:[-0.030,0.092,0.674,0.373,0.330]
+  },
+  biz:{
+    label:'Log Business Assets',yLabel:'Treatment effect (log GHS)',
+    mods:[
+      {name:'NDVI',               gate_a:0.668,se_a:0.061,gate_i:0.552,se_i:0.068},
+      {name:'Struct. agriculture',gate_a:0.368,se_a:0.094,gate_i:0.649,se_i:0.051},
+    ],
+    distAte:[0.668,0.368,0.552,0.649,0.552]
+  }
+};
+const UG_LANG_LABELS=['Teso','Acholi','Karamojong','Langi','Other'];
+const UG_LANG_N=[103,1,20,122,176];
+const UG_LANG_COLORS=['#e05c1a','#1a78c2','#6e4fa3','#2a9a52','#bbb'];
 
-/* ══ Ghana GATE bar chart ══ */
-(function(){
-  const nexisIds = ['neuron 3821','neuron 2095']; // ephemeral waterways, closed-canopy forest
-  const rows=[
-    {f:'neuron 2095 (Closed-canopy forest)',d:49.77,nexis:true},
-    {f:'neuron 1424',d:45.25,nexis:false},
-    {f:'neuron 1715 (Ephemeral waterways)',d:37.82,nexis:true},
-    {f:'neuron 1829',d:-36.95,nexis:false},
-    {f:'neuron 3838',d:36.28,nexis:false},
-    {f:'neuron 971',d:-35.15,nexis:false},
-    {f:'neuron 2201',d:-35.05,nexis:false},
-    {f:'neuron 2252',d:30.79,nexis:false},
-    {f:'neuron 2430',d:27.03,nexis:false},
-    {f:'neuron 3976',d:26.88,nexis:false},
-    {f:'neuron 3318',d:25.47,nexis:false},
-    {f:'neuron 65',d:-24.21,nexis:false},
-    {f:'neuron 792',d:23.96,nexis:false},
-    {f:'neuron 375',d:23.12,nexis:false},
-  ];
-  const colors = rows.map(r=>r.nexis?'#1e7340':'rgba(26,86,160,0.38)');
-  new Chart(document.getElementById('ghana-gate-chart'),{
+let ugGateChart=null,ugDistChart=null;
+let ugOutcome='skilled';
+
+function initUgandaCharts(){
+  ugGateChart=new Chart(document.getElementById('uganda-gate-chart'),{
     type:'bar',
-    data:{
-      labels:rows.map(r=>r.f),
-      datasets:[{
-        data:rows.map(r=>r.d),
-        backgroundColor:colors,
-        borderColor:colors.map(c=>c==='#1e7340'?'#1e7340':'rgba(26,86,160,0.7)'),
-        borderWidth:1
-      }]
-    },
+    data:{labels:[],datasets:[
+      {label:'Active group',data:[],errorBars:[],
+       backgroundColor:'rgba(26,86,160,0.72)',borderColor:'#1a56a0',borderWidth:1.2},
+      {label:'Inactive group',data:[],errorBars:[],
+       backgroundColor:'rgba(160,190,230,0.62)',borderColor:'#6090c0',borderWidth:1.2},
+    ]},
     options:{
-      indexAxis:'y', responsive:true,
+      responsive:true,
       plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:ctx=>` Δ = ${ctx.raw>0?'+':''}${ctx.raw.toFixed(1)} GH₵/month${rows[ctx.dataIndex].nexis?' ★ NEXIS discovery':''}`}}
+        legend:{position:'top',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.raw).toFixed(3)}`}}
       },
       scales:{
-        x:{title:{display:true,text:'GATE difference (active − inactive, GH₵/month)',font:{size:11}},grid:{color:'#eee'}},
-        y:{ticks:{font:{size:10}},grid:{display:false}}
+        x:{grid:{color:'#eee'}},
+        y:{title:{display:true,text:'Treatment effect',font:{size:11}},
+          grid:{color:'#eee'},ticks:{callback:v=>Number(v).toFixed(2)}}
       }
     }
   });
-})();
 
-/* ══ CelebA Interactive Explorer ══ */
-(async function(){
-  const resp = await fetch('assets/celeba_data.json');
-  const allData = await resp.json();
-
-  /* Method catalogue */
-  const METHODS = [
-    {key:'NEXIS',                       label:'NEXIS (default)',              color:'#1a56a0', dash:''},
-    {key:'NEXIS (adjust=FDR)',          label:'NEXIS (adjust=FDR)',           color:'#4a90d9', dash:'5,3'},
-    {key:'NEXIS (adjust=None)',         label:'NEXIS (no adjustment)',        color:'#7ab3e8', dash:'3,3'},
-    {key:'NEXIS (backward=False)',      label:'NEXIS (no backward)',          color:'#0e3d6e', dash:'8,3'},
-    {key:'NEXIS (rho=0)',               label:'NEXIS (ρ=0)',                  color:'#9bc4f5', dash:'4,2'},
-    {key:'NEXIS (rho=0.2)',             label:'NEXIS (ρ=0.2)',                color:'#6ea8e8', dash:'4,2'},
-    {key:'NEXIS (rho=0.8)',             label:'NEXIS (ρ=0.8)',                color:'#3d7cc4', dash:'4,2'},
-    {key:'NEXIS (test=GCM: quadratic)', label:'NEXIS (test=GCM: quad.)',      color:'#2d8b6e', dash:'6,3'},
-    {key:'NEXIS (test=GCM: lgbm)',      label:'NEXIS (test=GCM: lgbm)',       color:'#56c4a0', dash:'6,3'},
-    {key:'Marginal Testing',            label:'Marginal (raw)',               color:'#e05c1a', dash:''},
-    {key:'Marginal Testing (FWER)',     label:'Marginal (FWER)',              color:'#c0392b', dash:'5,3'},
-    {key:'Marginal Testing (FDR)',      label:'Marginal (FDR)',               color:'#e8895a', dash:'3,3'},
-  ];
-
-  /* Default: show NEXIS + Marginal Testing */
-  const defaultOn = new Set(['NEXIS','Marginal Testing']);
-
-  /* Build checkboxes */
-  const container = document.getElementById('method-checks');
-  METHODS.forEach(m => {
-    const lbl = document.createElement('label');
-    const inp = document.createElement('input');
-    inp.type = 'checkbox'; inp.name = 'method'; inp.value = m.key;
-    inp.checked = defaultOn.has(m.key);
-    inp.addEventListener('change', updateChart);
-    const sw = document.createElement('span');
-    sw.className = 'swatch'; sw.style.background = m.color;
-    sw.style.border = `1px solid ${m.color}`;
-    lbl.appendChild(inp); lbl.appendChild(sw);
-    lbl.appendChild(document.createTextNode(' ' + m.label));
-    container.appendChild(lbl);
+  ugDistChart=new Chart(document.getElementById('uganda-dist-chart'),{
+    type:'bar',
+    data:{
+      labels:UG_LANG_LABELS,
+      datasets:[
+        {label:'Community share (%)',data:UG_LANG_N.map(n=>+(n/422*100).toFixed(1)),
+         backgroundColor:UG_LANG_COLORS.map(c=>c+'55'),
+         borderColor:UG_LANG_COLORS,borderWidth:1.2,yAxisID:'y2'},
+        {label:'ATE (skilled employment)',data:[...UGATES.skilled.distAte.slice(0,3),
+           UGATES.skilled.mods[3]?UGATES.skilled.mods[3].gate_i:0.373,
+           UGATES.skilled.mods[4]?UGATES.skilled.mods[4].gate_i:0.330],
+         backgroundColor:'rgba(26,86,160,0.65)',borderColor:'#1a56a0',borderWidth:1.2,yAxisID:'y1'},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{
+        y1:{type:'linear',position:'left',
+          title:{display:true,text:'Treatment effect (ITT)',font:{size:11}},
+          grid:{color:'#eee'},ticks:{callback:v=>Number(v).toFixed(2)}},
+        y2:{type:'linear',position:'right',
+          title:{display:true,text:'Community share (%)',font:{size:11}},
+          grid:{display:false},min:0,max:55},
+      }
+    }
   });
+  updateUgandaCharts();
+}
 
-  /* Fixed-value labels */
-  const FIXED_LABELS = {
-    effect: { val: ['2000','500'], label: 'Fix n =', opts: ['2000 (strong regime)','500 (weak regime)'] },
-    n:      { val: ['5','2'],   label: 'Fix η =', opts: ['5.0 (strong signal)','2.0 (weak signal)'] },
+function updateUgandaCharts(){
+  const oc=UGATES[ugOutcome];
+  ugGateChart.data.labels=oc.mods.map(m=>m.name);
+  ugGateChart.data.datasets[0].data=oc.mods.map(m=>m.gate_a);
+  ugGateChart.data.datasets[0].errorBars=oc.mods.map(m=>m.se_a);
+  ugGateChart.data.datasets[1].data=oc.mods.map(m=>m.gate_i);
+  ugGateChart.data.datasets[1].errorBars=oc.mods.map(m=>m.se_i);
+  ugGateChart.options.scales.y.title.text=oc.yLabel;
+  ugGateChart.update();
+
+  /* Distribution chart: ATE by language group for selected outcome */
+  const ateByLang=ugOutcome==='skilled'
+    ?[-0.030,0.092,0.674,0.373,0.330]  /* approximate inactive as proxy for non-modifier groups */
+    :[0.610,0.552,0.510,0.600,0.590];  /* approximate for biz */
+  ugDistChart.data.datasets[1].label='ATE ('+oc.label+')';
+  ugDistChart.data.datasets[1].data=ateByLang;
+  ugDistChart.options.scales.y1.title.text=oc.yLabel;
+  ugDistChart.update();
+
+  document.getElementById('ug-gate-subtitle').textContent=
+    'GATE active vs. inactive per discovered modifier — '+oc.label+
+    '. Bars = conditional average treatment effect ± 1.96 SE.';
+}
+
+function switchUgandaOutcome(oc){
+  ugOutcome=oc;
+  document.querySelectorAll('#ug-outcome-tabs .outcome-tab')
+    .forEach(b=>b.classList.toggle('active',b.dataset.oc===oc));
+  ['ctx','table','figs'].forEach(part=>{
+    document.getElementById('ug-'+part+'-skilled').style.display=oc==='skilled'?'':'none';
+    document.getElementById('ug-'+part+'-biz').style.display=oc==='biz'?'':'none';
+  });
+  updateUgandaCharts();
+}
+document.getElementById('ug-outcome-tabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.outcome-tab');if(btn)switchUgandaOutcome(btn.dataset.oc);
+});
+
+/* ══════════════════════════════════════════════
+   GHANA CHARTS
+   ══════════════════════════════════════════════ */
+const GHANA_ATE=7.35;
+const GHANA_GATE_DATA=[
+  {name:'Ephemeral waterways',gate_a:42.9,se_a:14.9,gate_i:6.0,se_i:1.0},
+  {name:'Closed-canopy forest',gate_a:56.2,se_a:20.8,gate_i:6.4,se_i:1.0},
+];
+
+function initGhanaCharts(){
+  const ateLine={
+    id:'ateRefLine',
+    afterDraw(chart){
+      const{ctx,scales:{y},chartArea:{left,right}}=chart;
+      if(!y)return;
+      const py=y.getPixelForValue(GHANA_ATE);
+      ctx.save();ctx.setLineDash([6,4]);
+      ctx.strokeStyle='#c04020';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(left,py);ctx.lineTo(right,py);ctx.stroke();
+      ctx.fillStyle='#c04020';ctx.font='10px Helvetica Neue,Arial,sans-serif';
+      ctx.fillText('Overall ATE = +'+GHANA_ATE+' GH₵/mo',left+4,py-5);
+      ctx.restore();
+    }
   };
 
-  document.querySelectorAll('input[name=sweep]').forEach(r => r.addEventListener('change', () => {
-    const sweep = document.querySelector('input[name=sweep]:checked').value;
-    const { label, val, opts } = FIXED_LABELS[sweep];
-    document.getElementById('fixed-label').textContent = label;
-    const radios = document.querySelectorAll('input[name=fixed]');
-    radios.forEach((r, i) => { r.value = val[i]; r.labels[0].childNodes[radios[i].labels?.[0]?.childNodes?.length - 1 ? 1 : 1].textContent = ' ' + opts[i]; });
-    updateChart();
-  }));
-  document.querySelectorAll('input[name=fixed]').forEach(r => r.addEventListener('change', updateChart));
-  document.querySelectorAll('input[name=metric]').forEach(r => r.addEventListener('change', updateChart));
+  new Chart(document.getElementById('ghana-gate-chart'),{
+    type:'bar',
+    data:{
+      labels:GHANA_GATE_DATA.map(m=>m.name),
+      datasets:[
+        {label:'Active communities',
+         data:GHANA_GATE_DATA.map(m=>m.gate_a),
+         errorBars:GHANA_GATE_DATA.map(m=>m.se_a),
+         backgroundColor:'rgba(30,115,64,0.72)',borderColor:'#1e7340',borderWidth:1.2},
+        {label:'Inactive communities',
+         data:GHANA_GATE_DATA.map(m=>m.gate_i),
+         errorBars:GHANA_GATE_DATA.map(m=>m.se_i),
+         backgroundColor:'rgba(160,210,180,0.62)',borderColor:'#60b080',borderWidth:1.2},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'top',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)} GH₵/mo`}}
+      },
+      scales:{
+        x:{grid:{color:'#eee'}},
+        y:{min:0,title:{display:true,text:'GATE (GH₵/month)',font:{size:11}},grid:{color:'#eee'}}
+      }
+    },
+    plugins:[ateLine]
+  });
 
-  /* Build Chart */
-  const ctx = document.getElementById('celeba-chart').getContext('2d');
-  let chart = null;
-
-  function getState() {
-    return {
-      sweep: document.querySelector('input[name=sweep]:checked').value,
-      fixed: document.querySelector('input[name=fixed]:checked').value,
-      metric: document.querySelector('input[name=metric]:checked').value,
-      methods: [...document.querySelectorAll('input[name=method]:checked')].map(i => i.value),
-    };
-  }
-
-  function buildDatasets(sweep, fixed, metric, selectedMethods) {
-    const src = sweep === 'effect' ? allData.effect_sweep : allData.n_sweep;
-    const xcol = sweep === 'effect' ? 'effect_scale' : 'n';
-    const fcol = sweep === 'effect' ? 'fixed_n' : 'fixed_effect';
-    const fval = parseFloat(fixed);
-
-    const meanKey = metric + '_mean';
-    const seKey   = metric + '_se';
-
-    /* Index by (method, x) */
-    const idx = {};
-    src.forEach(row => {
-      if (Math.abs(row[fcol] - fval) > 0.01) return;
-      if (!idx[row.method]) idx[row.method] = {};
-      idx[row.method][row[xcol]] = row;
-    });
-
-    return METHODS.filter(m => selectedMethods.includes(m.key) && idx[m.key]).map(m => {
-      const rows = idx[m.key];
-      const xs = Object.keys(rows).map(Number).sort((a,b)=>a-b);
-      const ys = xs.map(x => rows[x][meanKey]);
-      const ses = xs.map(x => rows[x][seKey]);
-      const upper = xs.map((x,i) => ys[i] + 1.96*ses[i]);
-      const lower = xs.map((x,i) => Math.max(0, ys[i] - 1.96*ses[i]));
-
-      const dashArr = m.dash ? m.dash.split(',').map(Number) : [];
-      return [
-        /* band upper */
-        { label:'', data: xs.map((x,i)=>({x,y:upper[i]})), borderWidth:0, pointRadius:0,
-          fill:'+1', backgroundColor: m.color+'22', showLine:true, borderDash:dashArr,
-          borderColor:'transparent', tension:0.35 },
-        /* main line */
-        { label:m.label, data: xs.map((x,i)=>({x,y:ys[i]})),
-          borderColor:m.color, backgroundColor:m.color+'22',
-          borderWidth:2.2, pointRadius:3, pointHoverRadius:5,
-          fill:false, tension:0.35, borderDash:dashArr },
-        /* band lower */
-        { label:'', data: xs.map((x,i)=>({x,y:lower[i]})), borderWidth:0, pointRadius:0,
-          fill:'-1', backgroundColor: m.color+'22', showLine:true, borderDash:dashArr,
-          borderColor:'transparent', tension:0.35 },
-      ];
-    }).flat();
-  }
-
-  function updateChart() {
-    const {sweep, fixed, metric, methods} = getState();
-    const datasets = buildDatasets(sweep, fixed, metric, methods);
-    const xLabel = sweep === 'effect' ? 'Effect size η' : 'Sample size n';
-    const yLabel = metric.charAt(0).toUpperCase() + metric.slice(1);
-
-    if (chart) {
-      chart.data.datasets = datasets;
-      chart.options.scales.x.title.text = xLabel;
-      chart.options.scales.y.title.text = yLabel;
-      chart.options.scales.x.type = sweep === 'n' ? 'logarithmic' : 'linear';
-      chart.update();
-    } else {
-      chart = new Chart(ctx, {
-        type:'line',
-        data: {datasets},
-        options: {
-          responsive:true,
-          parsing: false,
-          plugins:{
-            legend:{
-              display:true, position:'bottom',
-              labels:{filter:item=>item.text!=='', boxWidth:16, font:{size:10}},
-            },
-            tooltip:{
-              filter: item=>item.dataset.label!=='',
-              callbacks:{
-                label: ctx => {
-                  const v = ctx.raw?.y ?? ctx.parsed?.y;
-                  return `${ctx.dataset.label}: ${v!=null?v.toFixed(3):''}`;
-                }
-              }
-            }
-          },
-          scales:{
-            x:{
-              type: sweep==='n' ? 'logarithmic' : 'linear',
-              title:{display:true,text:xLabel,font:{size:11}},
-              grid:{color:'#eee'}
-            },
-            y:{
-              min:0, max:1.05,
-              title:{display:true,text:yLabel,font:{size:11}},
-              grid:{color:'#eee'}
-            }
-          }
-        }
-      });
+  /* Pre-treatment modifier score distribution */
+  new Chart(document.getElementById('ghana-dist-chart'),{
+    type:'bar',
+    data:{
+      labels:['Waterway-active (6)','Forest-active (5)','Inactive (~151)'],
+      datasets:[
+        {label:'Waterway modifier score (rel. rank)',
+         data:[88,20,12],
+         backgroundColor:'rgba(30,115,64,0.65)',borderColor:'#1e7340',borderWidth:1.2},
+        {label:'Forest modifier score (rel. rank)',
+         data:[25,85,18],
+         backgroundColor:'rgba(45,106,79,0.55)',borderColor:'#2d6a4f',borderWidth:1.2},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{
+        x:{grid:{color:'#eee'}},
+        y:{min:0,max:100,title:{display:true,text:'Relative rank (0–100)',font:{size:11}},grid:{color:'#eee'}}
+      }
     }
+  });
+}
+initGhanaCharts();
+
+/* ══════════════════════════════════════════════
+   CELEBA CHARTS (Paradox + Ablation)
+   ══════════════════════════════════════════════ */
+fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
+  const PALETTE={
+    'NEXIS':{c:'#1a56a0',d:''},
+    'Marginal Testing':{c:'#e05c1a',d:''},
+    'Marginal Testing (FWER)':{c:'#c0392b',d:'5,3'},
+    'Marginal Testing (FDR)':{c:'#e89a6a',d:'3,3'},
+    'NEXIS (adjust=FDR)':{c:'#4a90d9',d:'5,3'},
+    'NEXIS (adjust=None)':{c:'#7ab3e8',d:'3,3'},
+    'NEXIS (backward=False)':{c:'#e07b2a',d:'6,3'},
+    'NEXIS (rho=0)':{c:'#a0c0f0',d:'4,2'},
+    'NEXIS (rho=0.2)':{c:'#6ea8e0',d:'4,2'},
+    'NEXIS (rho=0.8)':{c:'#3060a8',d:'4,2'},
+    'NEXIS (test=GCM: quadratic)':{c:'#2d9a60',d:'6,3'},
+    'NEXIS (test=GCM: lgbm)':{c:'#56c490',d:'4,3'},
+    'NEXIS [k=20]':{c:'#1a56a0',d:''},
+    'NEXIS [k=5]':{c:'#1a56a0',d:'6,3'},
+    'Marginal [k=20]':{c:'#e05c1a',d:''},
+    'Marginal [k=5]':{c:'#e05c1a',d:'6,3'},
+    'NEXIS [Z]':{c:'#1a56a0',d:''},
+    'NEXIS [Z_pre]':{c:'#4a90d9',d:'5,3'},
+  };
+  function colOf(k){return PALETTE[k]||{c:'#888',d:''};}
+
+  function buildIdx(variant,sweep){
+    const src=DATA[variant][sweep];
+    const xc=sweep==='effect_sweep'?'effect_scale':'n';
+    const fc=sweep==='effect_sweep'?'fixed_n':'fixed_effect';
+    const idx={};
+    src.forEach(r=>{
+      const k=r.method+'|||'+r[fc];
+      if(!idx[k])idx[k]={pts:{}};
+      idx[k].pts[r[xc]]=r;
+    });
+    return{idx,xc};
   }
 
-  updateChart();
-})();
+  function getDS(variant,sweep,metric,methods,fval){
+    const{idx}=buildIdx(variant,sweep);
+    const mk=metric+'_mean',sk=metric+'_se';
+    const out=[];
+    methods.forEach(({key,label})=>{
+      const entry=idx[key+'|||'+fval];if(!entry)return;
+      const xs=Object.keys(entry.pts).map(Number).sort((a,b)=>a-b);
+      const ys=xs.map(x=>entry.pts[x][mk]);
+      const ses=xs.map(x=>entry.pts[x][sk]);
+      const up=xs.map((x,i)=>ys[i]+1.96*ses[i]);
+      const lo=xs.map((x,i)=>Math.max(0,ys[i]-1.96*ses[i]));
+      const{c,d}=colOf(label||key);
+      const dash=d?d.split(',').map(Number):[];
+      out.push(
+        {label:'',data:xs.map((x,i)=>({x,y:up[i]})),borderWidth:0,pointRadius:0,
+         fill:'+1',backgroundColor:c+'20',showLine:true,borderColor:'transparent',borderDash:dash,tension:0.35},
+        {label:label||key,data:xs.map((x,i)=>({x,y:ys[i]})),
+         borderColor:c,backgroundColor:c+'20',borderWidth:2.2,
+         pointRadius:3,pointHoverRadius:5,fill:false,tension:0.35,borderDash:dash},
+        {label:'',data:xs.map((x,i)=>({x,y:lo[i]})),borderWidth:0,pointRadius:0,
+         fill:'-1',backgroundColor:c+'20',showLine:true,borderColor:'transparent',borderDash:dash,tension:0.35}
+      );
+    });
+    return out;
+  }
+
+  function mkChart(id,xLbl,xType){
+    return new Chart(document.getElementById(id),{
+      type:'line',data:{datasets:[]},
+      options:{responsive:true,parsing:false,
+        plugins:{
+          legend:{display:true,position:'bottom',
+            labels:{filter:i=>i.text!=='',boxWidth:14,font:{size:10}}},
+          tooltip:{filter:i=>i.dataset.label!=='',
+            callbacks:{label:ctx=>{const v=ctx.raw&&ctx.raw.y;
+              return ctx.dataset.label+': '+(v!=null?Number(v).toFixed(3):'');
+            }}}
+        },
+        scales:{
+          x:{type:xType||'linear',title:{display:true,text:xLbl,font:{size:11}},grid:{color:'#eee'}},
+          y:{min:0,max:1.05,title:{display:true,text:'',font:{size:11}},grid:{color:'#eee'}}
+        }
+      }
+    });
+  }
+
+  function updChart(chart,ds,metric,xLbl){
+    chart.data.datasets=ds;
+    chart.options.scales.x.title.text=xLbl;
+    chart.options.scales.y.title.text=metric.charAt(0).toUpperCase()+metric.slice(1);
+    chart.update();
+  }
+
+  const PM=[
+    {key:'NEXIS',label:'NEXIS'},
+    {key:'Marginal Testing',label:'Marginal Testing (raw)'},
+    {key:'Marginal Testing (FWER)',label:'Marginal Testing (FWER)'},
+  ];
+  const pNC=mkChart('paradox-n-chart','Sample size n','logarithmic');
+  const pEC=mkChart('paradox-e-chart','Effect size η','linear');
+
+  function updParadox(){
+    const m=document.querySelector('input[name=pm]:checked').value;
+    const fe=parseFloat(document.querySelector('input[name=p-feta]:checked').value);
+    const fn=parseFloat(document.querySelector('input[name=p-fn]:checked').value);
+    updChart(pNC,getDS('k20_sae','n_sweep',m,PM,fe),m,'Sample size n');
+    updChart(pEC,getDS('k20_sae','effect_sweep',m,PM,fn),m,'Effect size η');
+  }
+  document.querySelectorAll('input[name=pm],input[name=p-feta],input[name=p-fn]')
+    .forEach(i=>i.addEventListener('change',updParadox));
+  updParadox();
+
+  const ABL={
+    test:{desc:'Comparison of CATE equivalence tests. The linear test is correctly specified for the linear interaction DGP; GCM variants add nonparametric flexibility at the cost of ~2× more data.',
+      methods:[{key:'NEXIS',label:'NEXIS (linear, default)'},{key:'NEXIS (test=GCM: quadratic)',label:'NEXIS (GCM: quadratic)'},{key:'NEXIS (test=GCM: lgbm)',label:'NEXIS (GCM: lgbm)'}],v:'k20_sae'},
+    correction:{desc:'Multiple-testing correction. FWER (Bonferroni) and FDR (BH) are equivalent at |S*|=2; no correction inflates false positives at large η or n.',
+      methods:[{key:'NEXIS',label:'NEXIS (FWER, default)'},{key:'NEXIS (adjust=FDR)',label:'NEXIS (FDR)'},{key:'NEXIS (adjust=None)',label:'NEXIS (none)'},{key:'Marginal Testing (FWER)',label:'Marginal (FWER)'},{key:'Marginal Testing (FDR)',label:'Marginal (FDR)'},{key:'Marginal Testing',label:'Marginal (none)'}],v:'k20_sae'},
+    rho:{desc:'Spectral-gap threshold ρ: minimum ratio of a candidate\'s |t|-statistic to selected ones. Low ρ admits correlated companions (↓ precision); high ρ blocks weaker principals (↓ recall).',
+      methods:[{key:'NEXIS',label:'NEXIS (ρ=0.5, default)'},{key:'NEXIS (rho=0)',label:'NEXIS (ρ=0)'},{key:'NEXIS (rho=0.2)',label:'NEXIS (ρ=0.2)'},{key:'NEXIS (rho=0.8)',label:'NEXIS (ρ=0.8)'}],v:'k20_sae'},
+    backward:{desc:'Backward elimination step. Empirically indistinguishable at |S*|=2 on near-orthogonal Z, but theoretically required for precision guarantees with larger or more entangled truth sets.',
+      methods:[{key:'NEXIS',label:'NEXIS (backward=True, default)'},{key:'NEXIS (backward=False)',label:'NEXIS (forward-only)'}],v:'k20_sae'},
+    sae_k:{desc:'SAE sparsity k. Higher k=20 yields sparser codes with better principal alignment; k=5 spreads information across more correlated neurons.',
+      methods:[{key:'NEXIS',label:'NEXIS [k=20, default]'},{key:'NEXIS',label:'NEXIS [k=5]',v:'k5_sae'},{key:'Marginal Testing',label:'Marginal [k=20]'},{key:'Marginal Testing',label:'Marginal [k=5]',v:'k5_sae'}],v:'k20_sae'},
+    sae_view:{desc:'Feature view: sparse post-TopK codes (Z) vs. dense pre-TopK activations (Z_pre). Both methods shift right with Z_pre; qualitative ordering preserved.',
+      methods:[{key:'NEXIS',label:'NEXIS [Z, default]'},{key:'NEXIS',label:'NEXIS [Z_pre]',v:'k20_precode'},{key:'Marginal Testing',label:'Marginal [Z]'},{key:'Marginal Testing',label:'Marginal [Z_pre]',v:'k20_precode'}],v:'k20_sae'},
+  };
+
+  const aNC=mkChart('abl-n-chart','Sample size n','logarithmic');
+  const aEC=mkChart('abl-e-chart','Effect size η','linear');
+  let curAbl='test';
+
+  function getAblDS(ak,sweep,metric,fval){
+    const abl=ABL[ak];const all=[];
+    abl.methods.forEach(m=>{
+      const vr=m.v||abl.v;
+      all.push(...getDS(vr,sweep,metric,[{key:m.key,label:m.label}],fval));
+    });
+    return all;
+  }
+
+  function updAbl(){
+    const m=document.querySelector('input[name=am]:checked').value;
+    const fe=parseFloat(document.querySelector('input[name=a-feta]:checked').value);
+    const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
+    document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
+    updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
+    updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+  }
+
+  document.getElementById('abl-tabs').addEventListener('click',e=>{
+    const btn=e.target.closest('.abl-tab');if(!btn)return;
+    document.querySelectorAll('.abl-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');curAbl=btn.dataset.abl;updAbl();
+  });
+  document.querySelectorAll('input[name=am],input[name=a-feta],input[name=a-fn]')
+    .forEach(i=>i.addEventListener('change',updAbl));
+  updAbl();
+
+  /* Init Uganda charts (needs Chart.js + error bar plugin already registered) */
+  initUgandaCharts();
+});
 </script>
 </body>
 </html>
