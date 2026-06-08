@@ -3,341 +3,319 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>From Tokens to Policy: NEXIS</title>
+<title>NEXIS — From Tokens to Policy</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  /* ── Reset & base ── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --text:#1a1a1a; --muted:#666; --light:#999;
+  --accent:#1a56a0; --accent2:#1e7340;
+  --gold:#b58900;
+  --border:#ddd; --bg:#f8f8f6;
+  --sidebar:220px; --gap:2.4rem;
+  --col:760px;
+}
+html{font-size:16px; scroll-behavior:smooth;}
+body{font-family:"Georgia",serif; color:var(--text); line-height:1.72; background:#fff;}
 
-  :root {
-    --text: #1a1a1a;
-    --muted: #555;
-    --accent: #1a56a0;
-    --border: #ddd;
-    --bg-aside: #f7f7f7;
-    --col: 780px;
-    --wide: 1060px;
-  }
+/* ── Sidebar ── */
+#sidebar{
+  position:fixed; top:0; left:0; width:var(--sidebar);
+  height:100vh; overflow-y:auto; padding:2rem 1.2rem;
+  background:var(--bg); border-right:1px solid var(--border);
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.78rem;
+  z-index:100;
+}
+#sidebar .site-title{
+  font-size:0.95rem; font-weight:700; letter-spacing:0.02em;
+  color:var(--accent); margin-bottom:0.3rem;
+  text-decoration:none; display:block;
+}
+#sidebar .site-sub{
+  font-size:0.7rem; color:var(--muted); line-height:1.4;
+  margin-bottom:1.6rem; display:block;
+}
+#sidebar nav ul{list-style:none;}
+#sidebar nav li{margin-bottom:0.1rem;}
+#sidebar nav a{
+  display:block; padding:0.3em 0.5em; border-radius:3px;
+  color:var(--muted); text-decoration:none;
+  transition:background 0.12s, color 0.12s;
+  border-left:2px solid transparent;
+}
+#sidebar nav a:hover{color:var(--accent); background:#eef2fa;}
+#sidebar nav a.active{
+  color:var(--accent); background:#eef2fa;
+  border-left-color:var(--accent); font-weight:600;
+}
+#sidebar nav .sub a{padding-left:1.2em; font-size:0.74rem;}
 
-  html { font-size: 17px; }
+/* ── Main content ── */
+#main{
+  margin-left:var(--sidebar);
+  max-width:calc(var(--sidebar) + var(--col) + 4rem);
+}
+.wrap{max-width:var(--col); margin:0 auto; padding:0 2rem;}
 
-  body {
-    font-family: "Georgia", "Times New Roman", serif;
-    color: var(--text);
-    line-height: 1.7;
-    background: #fff;
-  }
+/* ── Header ── */
+header{
+  padding:3.5rem 2rem 2.4rem;
+  max-width:var(--col); margin:0 auto;
+  border-bottom:1px solid var(--border);
+}
+header h1{
+  font-size:1.9rem; font-weight:normal; line-height:1.3;
+  margin-bottom:1.4rem;
+}
+header h1 em{font-style:italic; color:var(--accent);}
+.authors{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.88rem;
+  color:var(--muted); line-height:2; margin-bottom:1.2rem;
+}
+.authors a{color:var(--text); text-decoration:none;}
+.authors a:hover{text-decoration:underline;}
+.authors sup{font-size:0.65em; color:var(--accent);}
+.affiliations{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.75rem;
+  color:var(--muted); margin-bottom:1.8rem;
+}
+.links{display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.3rem;}
+.links a{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.77rem;
+  letter-spacing:0.06em; text-transform:uppercase; text-decoration:none;
+  border:1.5px solid var(--accent); color:var(--accent);
+  padding:0.3em 1em; border-radius:2px;
+  transition:background 0.14s,color 0.14s;
+}
+.links a:hover{background:var(--accent); color:#fff;}
 
-  /* ── Layout ── */
-  .wrap {
-    max-width: var(--col);
-    margin: 0 auto;
-    padding: 0 1.5rem;
-  }
-  .wrap-wide {
-    max-width: var(--wide);
-    margin: 0 auto;
-    padding: 0 1.5rem;
-  }
+/* ── Sections ── */
+section{padding:3rem 0; border-bottom:1px solid var(--border);}
+section h2{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.68rem;
+  letter-spacing:0.2em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:1.2rem;
+}
+section h3{font-size:1.05rem; margin:1.4rem 0 0.5rem;}
+section p{margin-bottom:0.9rem;}
+section p:last-child{margin-bottom:0;}
 
-  /* ── Hero ── */
-  header {
-    padding: 4.5rem 1.5rem 2.8rem;
-    text-align: center;
-    border-bottom: 1px solid var(--border);
-    max-width: var(--col);
-    margin: 0 auto;
-  }
+/* ── Teaser ── */
+.teaser-img{width:100%; display:block; border:1px solid var(--border); margin:1.6rem 0 0;}
 
-  header .venue {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.8rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 1rem;
-  }
+/* ── Abstract ── */
+.abstract-box{
+  background:#f4f7fb; border-left:3px solid var(--accent);
+  padding:1.3rem 1.5rem; font-size:0.96rem; margin-top:0.8rem;
+}
 
-  header h1 {
-    font-size: 2rem;
-    font-weight: normal;
-    line-height: 1.3;
-    margin-bottom: 1.5rem;
-  }
+/* ── Pipeline diagram ── */
+.pipeline-box{
+  background:#f0f5ff; border:1px solid #c5d5f0; border-radius:4px;
+  padding:1.5rem 1.8rem; margin:1.4rem 0; font-family:"Helvetica Neue",Arial,sans-serif;
+}
+.pipeline-box .pb-title{
+  font-weight:700; font-size:0.8rem; letter-spacing:0.06em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:1rem;
+}
+.pipeline-flow{
+  display:flex; align-items:center; flex-wrap:wrap; gap:0.4rem;
+  font-size:0.85rem; margin-bottom:1.2rem;
+}
+.pipeline-flow .step{
+  background:#fff; border:1px solid #b0c8e8; border-radius:3px;
+  padding:0.3em 0.7em; white-space:nowrap;
+}
+.pipeline-flow .step em{font-style:italic; color:var(--muted); font-size:0.8em; display:block;}
+.pipeline-flow .arr{color:var(--accent); font-weight:bold; font-size:1.1em;}
+.pipeline-flow .loop{
+  display:flex; align-items:center; gap:0.4rem; width:100%;
+  font-size:0.78rem; color:var(--muted); margin-top:0.5rem;
+  padding-top:0.5rem; border-top:1px dashed #c5d5f0;
+}
+.pipeline-steps{
+  list-style:none; counter-reset:step;
+  font-size:0.84rem; line-height:1.6;
+}
+.pipeline-steps li{
+  counter-increment:step; display:flex; gap:0.7rem;
+  margin-bottom:0.6rem; align-items:baseline;
+}
+.pipeline-steps li::before{
+  content:counter(step, lower-roman)".";
+  color:var(--accent); font-weight:600; min-width:1.4rem;
+  font-size:0.8rem;
+}
 
-  header h1 em {
-    font-style: italic;
-    color: var(--accent);
-  }
+/* ── Figures ── */
+.fig-full{width:100%; display:block; border:1px solid var(--border); margin:1.2rem 0; cursor:zoom-in;}
+.fig-caption{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.76rem;
+  color:var(--muted); text-align:center; margin-top:0.4rem; line-height:1.5;
+}
+.fig-row{display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1.2rem 0;}
+.fig-row img{width:100%; border:1px solid var(--border); display:block; cursor:zoom-in;}
+.fig-col{text-align:center;}
 
-  .authors {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.93rem;
-    color: var(--muted);
-    line-height: 2;
-    margin-bottom: 1.6rem;
-  }
+/* ── Tab switcher ── */
+.tab-bar{
+  display:flex; border-bottom:2px solid var(--border);
+  margin:1.2rem 0 0; font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.79rem; gap:0; flex-wrap:wrap;
+}
+.tab-btn{
+  background:none; border:none; border-bottom:3px solid transparent;
+  margin-bottom:-2px; padding:0.5em 1.1em; cursor:pointer;
+  color:var(--muted); white-space:nowrap;
+  transition:color 0.13s,border-color 0.13s;
+}
+.tab-btn:hover{color:var(--accent);}
+.tab-btn.active{color:var(--accent); border-bottom-color:var(--accent); font-weight:600;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
 
-  .authors a {
-    color: var(--text);
-    text-decoration: none;
-  }
-  .authors a:hover { text-decoration: underline; }
+/* ── Finding callout ── */
+.finding{
+  background:#fffbee; border-left:3px solid var(--gold);
+  padding:0.9rem 1.3rem; margin:1.1rem 0; font-size:0.94rem;
+}
+.finding strong{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.68rem;
+  letter-spacing:0.1em; text-transform:uppercase; display:block;
+  margin-bottom:0.35rem; color:#8a6900;
+}
 
-  .authors sup {
-    font-size: 0.65em;
-    color: var(--accent);
-  }
+/* ── Tables ── */
+.results-table{
+  width:100%; border-collapse:collapse; font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.8rem; margin:1rem 0;
+}
+.results-table caption{
+  font-size:0.75rem; color:var(--muted); text-align:left;
+  padding:0.4rem 0; font-style:italic; margin-bottom:0.2rem;
+}
+.results-table th{
+  background:#f4f4f0; border-bottom:2px solid var(--border);
+  padding:0.5em 0.7em; text-align:right; font-weight:600;
+}
+.results-table th:first-child{text-align:left;}
+.results-table td{
+  border-bottom:1px solid #eee; padding:0.45em 0.7em; text-align:right;
+}
+.results-table td:first-child{text-align:left;}
+.results-table .panel-row td{
+  background:#f8f8f8; font-weight:600; font-style:italic;
+  border-top:1px solid var(--border); text-align:left; padding-top:0.8em;
+}
+.results-table .sub-panel td{
+  font-style:italic; color:var(--muted); text-align:left; padding-left:1em;
+}
+.results-table .highlight{color:var(--accent2); font-weight:600;}
+.results-table .neg{color:#b22;}
 
-  .affiliations {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-bottom: 2rem;
-    letter-spacing: 0.01em;
-  }
+/* ── Maps ── */
+.leaflet-map{
+  width:100%; height:320px; border:1px solid var(--border);
+  border-radius:2px; margin:1rem 0;
+}
+.map-legend{
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.75rem;
+  display:flex; flex-wrap:wrap; gap:0.5rem 1.2rem; margin:0.4rem 0 1rem;
+  color:var(--muted);
+}
+.map-legend span{display:flex; align-items:center; gap:0.3rem;}
+.map-legend .dot{
+  width:10px; height:10px; border-radius:50%; display:inline-block;
+  border:1px solid rgba(0,0,0,0.15);
+}
 
-  .links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-    justify-content: center;
-    margin-bottom: 0.5rem;
-  }
+/* ── Chart ── */
+.chart-wrap{background:var(--bg); border:1px solid var(--border); padding:1rem 1.2rem; margin:1rem 0; border-radius:2px;}
+.chart-wrap canvas{max-height:320px;}
 
-  .links a {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.82rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    text-decoration: none;
-    border: 1.5px solid var(--accent);
-    color: var(--accent);
-    padding: 0.35em 1.1em;
-    border-radius: 2px;
-    transition: background 0.15s, color 0.15s;
-  }
+/* ── BibTeX ── */
+.bibtex-wrap{position:relative; margin-top:0.9rem;}
+.bibtex-wrap pre{
+  font-family:"Courier New",monospace; font-size:0.79rem;
+  background:var(--bg); border:1px solid var(--border);
+  padding:1.1rem; overflow-x:auto; white-space:pre; line-height:1.6;
+}
+.copy-btn{
+  position:absolute; top:0.5rem; right:0.5rem;
+  font-family:"Helvetica Neue",Arial,sans-serif; font-size:0.72rem;
+  letter-spacing:0.05em; text-transform:uppercase;
+  background:#fff; border:1px solid var(--border); padding:0.22em 0.7em;
+  cursor:pointer; border-radius:2px; transition:background 0.13s;
+}
+.copy-btn:hover{background:var(--accent); color:#fff; border-color:var(--accent);}
+.copy-btn.copied{background:#1e7340; color:#fff; border-color:#1e7340;}
 
-  .links a:hover {
-    background: var(--accent);
-    color: #fff;
-  }
+/* ── Lightbox ── */
+#lightbox{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85);
+  z-index:999; align-items:center; justify-content:center; cursor:zoom-out;
+}
+#lightbox.open{display:flex;}
+#lightbox img{max-width:92vw; max-height:92vh; object-fit:contain;}
 
-  /* ── Sections ── */
-  section {
-    padding: 3.2rem 0;
-    border-bottom: 1px solid var(--border);
-  }
+/* ── Footer ── */
+footer{
+  padding:2rem; text-align:center;
+  font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.75rem; color:var(--muted);
+}
 
-  section h2 {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 1.4rem;
-  }
+/* ── Ref links ── */
+.ref-link{color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent);}
+.ref-link:hover{border-bottom-style:solid;}
 
-  section h3 {
-    font-size: 1.1rem;
-    font-weight: bold;
-    margin: 1.6rem 0 0.6rem;
-  }
-
-  section p {
-    margin-bottom: 1rem;
-    color: var(--text);
-  }
-
-  section p:last-child { margin-bottom: 0; }
-
-  /* ── Teaser ── */
-  .teaser-img {
-    width: 100%;
-    max-width: 100%;
-    display: block;
-    margin: 2rem auto 0;
-    border: 1px solid var(--border);
-  }
-
-  /* ── Abstract callout ── */
-  .abstract-box {
-    background: var(--bg-aside);
-    border-left: 3px solid var(--accent);
-    padding: 1.4rem 1.6rem;
-    margin-top: 1rem;
-    font-size: 0.97rem;
-  }
-
-  /* ── Pipeline steps ── */
-  .pipeline {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.88rem;
-    background: #f0f4fb;
-    border: 1px solid #c6d4eb;
-    border-radius: 4px;
-    padding: 1.2rem 1.4rem;
-    margin: 1.4rem 0;
-    line-height: 1.8;
-  }
-
-  .pipeline .arrow {
-    color: var(--accent);
-    font-weight: bold;
-    margin: 0 0.3em;
-  }
-
-  .pipeline ol {
-    padding-left: 1.4em;
-    margin-top: 0.6rem;
-  }
-
-  .pipeline li { margin-bottom: 0.3em; }
-
-  /* ── Figure containers ── */
-  .fig-full {
-    width: 100%;
-    max-width: 100%;
-    display: block;
-    margin: 1.4rem auto;
-    border: 1px solid var(--border);
-  }
-
-  .fig-caption {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.78rem;
-    color: var(--muted);
-    text-align: center;
-    margin-top: 0.5rem;
-    line-height: 1.5;
-  }
-
-  .fig-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.2rem;
-    margin: 1.4rem 0;
-  }
-
-  .fig-row img {
-    width: 100%;
-    border: 1px solid var(--border);
-    display: block;
-  }
-
-  .fig-col { text-align: center; }
-
-  /* ── CelebA tab switcher ── */
-  .tab-bar {
-    display: flex;
-    gap: 0;
-    border-bottom: 2px solid var(--border);
-    margin: 1.4rem 0 0;
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.82rem;
-  }
-
-  .tab-btn {
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-    margin-bottom: -2px;
-    padding: 0.55em 1.2em;
-    cursor: pointer;
-    color: var(--muted);
-    white-space: nowrap;
-    transition: color 0.15s, border-color 0.15s;
-  }
-
-  .tab-btn:hover { color: var(--accent); }
-
-  .tab-btn.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-    font-weight: 600;
-  }
-
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* ── Key finding callout ── */
-  .finding {
-    background: #fffdf0;
-    border-left: 3px solid #c9a227;
-    padding: 1rem 1.4rem;
-    margin: 1.2rem 0;
-    font-size: 0.95rem;
-  }
-
-  .finding strong {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    display: block;
-    margin-bottom: 0.4rem;
-    color: #8a6d00;
-  }
-
-  /* ── BibTeX ── */
-  .bibtex-wrap {
-    position: relative;
-    margin-top: 1rem;
-  }
-
-  .bibtex-wrap pre {
-    font-family: "Courier New", Courier, monospace;
-    font-size: 0.8rem;
-    background: var(--bg-aside);
-    border: 1px solid var(--border);
-    padding: 1.2rem;
-    overflow-x: auto;
-    white-space: pre;
-    line-height: 1.6;
-  }
-
-  .copy-btn {
-    position: absolute;
-    top: 0.6rem;
-    right: 0.6rem;
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    background: #fff;
-    border: 1px solid var(--border);
-    padding: 0.25em 0.8em;
-    cursor: pointer;
-    border-radius: 2px;
-    transition: background 0.15s;
-  }
-
-  .copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .copy-btn.copied { background: #2a7a2a; color: #fff; border-color: #2a7a2a; }
-
-  /* ── Footer ── */
-  footer {
-    padding: 2rem 1.5rem;
-    text-align: center;
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 0.78rem;
-    color: var(--muted);
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 640px) {
-    html { font-size: 15px; }
-    header h1 { font-size: 1.55rem; }
-    .fig-row { grid-template-columns: 1fr; }
-    .tab-btn { padding: 0.5em 0.7em; font-size: 0.76rem; }
-  }
+/* ── Responsive ── */
+@media(max-width:820px){
+  #sidebar{display:none;}
+  #main{margin-left:0;}
+  header,section .wrap{padding-left:1.2rem; padding-right:1.2rem;}
+  .fig-row{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
 
-<!-- ══════════ HERO ══════════ -->
-<header>
-  <p class="venue">Preprint &nbsp;·&nbsp; 2025</p>
+<!-- ══════════ SIDEBAR ══════════ -->
+<aside id="sidebar">
+  <a href="#top" class="site-title">NEXIS</a>
+  <span class="site-sub">From Tokens to Policy</span>
+  <nav>
+    <ul>
+      <li><a href="#abstract" data-section="abstract">Abstract</a></li>
+      <li><a href="#method" data-section="method">Method</a></li>
+      <li><a href="#celeba" data-section="celeba">CelebA Benchmark</a></li>
+      <li>
+        <a href="#uganda" data-section="uganda">Uganda (YOP)</a>
+        <ul class="sub">
+          <li><a href="#uganda-map">Map</a></li>
+          <li><a href="#uganda-results">Discoveries</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#ghana" data-section="ghana">Ghana (LEAP 1000)</a>
+        <ul class="sub">
+          <li><a href="#ghana-map">Map</a></li>
+          <li><a href="#ghana-results">Discoveries</a></li>
+        </ul>
+      </li>
+      <li><a href="#citation" data-section="citation">Citation</a></li>
+    </ul>
+  </nav>
+</aside>
 
+<!-- ══════════ MAIN ══════════ -->
+<div id="main">
+
+<!-- Hero -->
+<header id="top">
   <h1><em>From Tokens to Policy:</em><br>
     Causal and Interpretable Heterogeneous<br>
     Treatment Effects Identification</h1>
@@ -350,304 +328,408 @@
     Falco J. Bargagli-Stoffi<sup>3</sup>,&ensp;
     Francesco Locatello<sup>1</sup>
   </div>
-
   <div class="affiliations">
-    <sup>1</sup>ISTA &emsp;
-    <sup>2</sup>UNICEF &emsp;
-    <sup>3</sup>UCLA
+    <sup>1</sup>ISTA &emsp; <sup>2</sup>UNICEF &emsp; <sup>3</sup>UCLA
   </div>
 
   <div class="links">
-    <a href="assets/NEXIS.pdf" title="Full paper PDF">Paper PDF</a>
-    <a href="assets/aistats26-workshop.pdf" title="Workshop version">Workshop PDF</a>
-    <a href="https://github.com/rcadei/NEXIS" title="GitHub repository">GitHub</a>
+    <a href="assets/NEXIS.pdf">arXiv</a>
+    <a href="https://github.com/riccardocadei/NEIS">GitHub</a>
     <a href="#citation">BibTeX</a>
   </div>
 </header>
 
-<!-- ══════════ TEASER ══════════ -->
+<!-- Teaser -->
 <div class="wrap">
-  <img src="assets/teaser.png" alt="NEXIS pipeline teaser" class="teaser-img">
+  <img src="assets/teaser.png" alt="NEXIS pipeline teaser" class="teaser-img zoomable">
 </div>
 
 <!-- ══════════ ABSTRACT ══════════ -->
-<section>
+<section id="abstract">
   <div class="wrap">
     <h2>Abstract</h2>
     <div class="abstract-box">
-      <p>
-        Heterogeneous Treatment Effect (HTE) identification is crucial to explain the impact of an
-        intervention and optimize our policies accordingly. Existing approaches trade expressivity
-        for interpretability, but as long as some active heterogeneity drivers are unmeasured,
-        both ends of this spectrum allow for spurious HTE characterization with no causal reading.
-      </p>
-      <p>
-        We focus on controlled experiments and argue that the oracle causal characterization via
-        the <em>direct effect modifiers</em> is now within reach, thanks to (i) more extensive
+      <p>Heterogeneous Treatment Effect (HTE) identification is crucial to explain the impact
+        of an intervention and optimize our policies accordingly. Existing approaches trade
+        expressivity for interpretability, but as long as some active heterogeneity drivers are
+        unmeasured, both ends of this spectrum allow for spurious HTE characterization with no
+        causal reading.</p>
+      <p>We focus on controlled experiments and argue that the oracle causal characterization
+        via the <em>direct effect modifiers</em> is now within reach, thanks to (i) more extensive
         pre-treatment measurements, e.g., multi-modal, and (ii) representation learning pipelines
         to scale their analyses. We re-frame HTE identification as a Markov-blanket discovery
         problem on a sufficient and aligned pre-treatment representation, and introduce
         <strong>Neural EXposure Interaction Search (NEXIS)</strong>, an iterative procedure with
-        provable and empirically validated consistent selection.
-      </p>
-      <p>
-        We deploy NEXIS on two anti-poverty programs in Africa, augmenting each with satellite
+        provable and empirically validated consistent selection.</p>
+      <p>We deploy NEXIS on two anti-poverty programs in Africa, augmenting each with satellite
         imagery capturing previously unmeasured environmental effect modifiers, leading to novel
-        interpretable and prescriptive guidelines to optimize the programs' next iterations.
-      </p>
+        interpretable and prescriptive guidelines to optimize the programs' next iterations.</p>
     </div>
-  </div>
-</section>
-
-<!-- ══════════ TL;DR ══════════ -->
-<section>
-  <div class="wrap">
-    <h2>TL;DR</h2>
-    <div class="finding">
-      <strong>Key insight</strong>
-      Among two distinct anti-poverty programs, the impact is almost invariant to
-      the target subpopulation demographics, and is mainly characterized by
-      <em>environmental factors</em>, previously untracked—now discoverable by
-      pairing trials with satellite imagery and running NEXIS.
-    </div>
-    <p>
-      Existing HTE methods either model effect heterogeneity flexibly but without interpretability,
-      or identify interpretable subgroups over curated structured covariates without guaranteeing
-      causal separation of treatment interactions from spurious correlates.
-      NEXIS bridges this gap: it is the first algorithm to identify a
-      <em>causal and human-interpretable</em> HTE characterization from complex, unstructured
-      observations.
-    </p>
   </div>
 </section>
 
 <!-- ══════════ METHOD ══════════ -->
-<section>
+<section id="method">
   <div class="wrap">
     <h2>Method</h2>
-    <h3>From Tokens to Policy — a three-step pipeline</h3>
+    <h3>From Tokens to Policy — a four-step cycle</h3>
 
-    <div class="pipeline">
-      <strong>Controlled experiment</strong>
-      <span class="arrow">→</span>
-      <strong>Represent (interpretable)</strong>
-      <span class="arrow">→</span>
-      <strong>Identify (causal)</strong>
-      <span class="arrow">→</span>
-      <strong>Update policy</strong>
-      <ol>
-        <li>
-          <strong>Foundation model + SAE</strong> — pre-treatment observations
-          (e.g., satellite images, text, structured covariates) are embedded by a frozen
-          foundation model and then decomposed by a learned Sparse Autoencoder (SAE) into a
-          dictionary of <em>interpretable</em> atoms, each aligned with a latent factor of variation.
-        </li>
-        <li>
-          <strong>NEXIS</strong> — a forward-backward Markov-blanket discovery procedure
-          that iteratively selects atoms carrying independent residual heterogeneity signal,
-          and prunes any that become redundant given the rest.
-          Unlike marginal screening, NEXIS targets the <em>minimal and sufficient</em>
-          set of direct effect modifiers, avoiding the Experimental Power Paradox.
-        </li>
-        <li>
-          <strong>VLM interpretation</strong> — each retained atom is labelled post-hoc
-          by contrasting its top- and bottom-activating inputs with a vision-language model,
-          translating latent factors into human-readable descriptions for policy guidance.
-        </li>
+    <div class="pipeline-box">
+      <div class="pb-title">From Tokens to Policy</div>
+      <div class="pipeline-flow">
+        <div class="step"><strong>i.</strong> Controlled experiment<em>T → Y ← <strong>X</strong></em></div>
+        <div class="arr">→</div>
+        <div class="step"><strong>ii.</strong> Represent<em>ψ: <strong>X</strong> → <strong>Z</strong> &nbsp;<span style="color:var(--accent2)">(interpretable)</span></em></div>
+        <div class="arr">→</div>
+        <div class="step"><strong>iii.</strong> Identify<em>NEXIS: <strong>Z</strong> → <strong>Z</strong><sup>S*</sup> ≈ <strong>W</strong><sup>dir</sup> &nbsp;<span style="color:var(--accent)">(causal)</span></em></div>
+        <div class="loop">
+          <span style="font-size:1.2em;color:var(--accent)">⟳</span>
+          <strong>iv. update policy</strong> — prescriptive guidelines for the next program iteration
+        </div>
+      </div>
+      <ol class="pipeline-steps">
+        <li><strong>Foundation model + SAE</strong> — Pre-treatment observations (satellite imagery,
+          structured covariates) are encoded by a frozen foundation model, then decomposed by a
+          learned Sparse Autoencoder into a dictionary of <em>interpretable</em> atoms, each aligned
+          with a latent factor of variation.</li>
+        <li><strong>NEXIS</strong> — A forward-backward Markov-blanket discovery procedure that
+          iteratively selects atoms with independent residual heterogeneity signal and prunes
+          redundant ones. Unlike marginal screening, NEXIS avoids the
+          <em>Experimental Power Paradox</em>: more data never degrades precision.</li>
+        <li><strong>VLM interpretation</strong> — Each retained atom is labelled post-hoc by
+          contrasting its top- and bottom-activating tiles with a vision-language model
+          (<a href="https://arxiv.org/abs/2502.13923" class="ref-link" target="_blank">Qwen2.5-VL-72B</a>),
+          translating latent factors into human-readable descriptions for policy guidance.</li>
       </ol>
     </div>
 
-    <img src="assets/causal_model.png" alt="Causal model and effect modification taxonomy" class="fig-full">
+    <img src="assets/causal_model.png" alt="Causal model and effect modification taxonomy" class="fig-full zoomable">
     <p class="fig-caption">
-      Causal model and effect modification taxonomy. Shaded nodes are observed;
-      white nodes are latent. <strong>W<sup>dir</sup></strong> are the direct effect modifiers
-      (treatment interactors); NEXIS identifies their principal proxies within the learned
-      dictionary <strong>Z</strong> = ψ(<strong>X</strong>).
+      Causal model and effect modification taxonomy
+      (<a href="https://doi.org/10.1097/EDE.0b013e3181961edb" class="ref-link" target="_blank">VanderWeele &amp; Robins 2007</a>).
+      Shaded: observed; white: latent.
+      <strong>W<sup>dir</sup></strong> are the direct effect modifiers; NEXIS identifies their
+      principal proxies in the learned dictionary <strong>Z</strong> = ψ(<strong>X</strong>).
     </p>
   </div>
 </section>
 
-<!-- ══════════ CELEBA BENCHMARK ══════════ -->
-<section>
+<!-- ══════════ CELEBA ══════════ -->
+<section id="celeba">
   <div class="wrap">
     <h2>CelebA Semi-Synthetic Benchmark</h2>
     <h3>The Experimental Power Paradox</h3>
-    <p>
-      We construct a semi-synthetic RCT benchmark on CelebA with
-      |S*| = 2 known direct modifiers (<em>wearing a hat</em>, <em>wearing eyeglasses</em>);
-      pre-treatment information is face images only.
-      A trained SAE (m = 13,824 codes) on SigLIP representations provides the candidate
-      dictionary.
+    <p>We construct a semi-synthetic RCT benchmark on
+      <a href="https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html" class="ref-link" target="_blank">CelebA</a>
+      with |S*| = 2 known direct modifiers (<em>wearing a hat</em>, <em>wearing eyeglasses</em>);
+      pre-treatment information is face images only. A trained SAE (m = 13,824 codes) on
+      <a href="https://arxiv.org/abs/2303.15343" class="ref-link" target="_blank">SigLIP</a>
+      representations provides the candidate dictionary.
     </p>
-    <p>
-      As sample size <em>n</em> or effect magnitude <em>η</em> grow, marginal screening
-      accumulates non-direct modifiers (precision collapse), faithfully tracking the much larger
-      set M* ≈ [m] of all entangled effect modifiers rather than the two true interactors.
-      NEXIS robustly recovers S* monotonically with power.
-    </p>
+    <div class="finding">
+      <strong>Paradox</strong>
+      As sample size <em>n</em> or effect magnitude <em>η</em> grows, marginal screening
+      accumulates non-direct modifiers — precision collapses to zero while recall saturates.
+      NEXIS recovers S* monotonically with power: more data never hurts.
+    </div>
 
     <div class="tab-bar" id="celeba-tabs">
-      <button class="tab-btn active" data-tab="effect">Effect sweep</button>
-      <button class="tab-btn" data-tab="n">Sample sweep</button>
-      <button class="tab-btn" data-tab="abl-effect">Ablation – effect</button>
-      <button class="tab-btn" data-tab="abl-n">Ablation – sample</button>
+      <button class="tab-btn active" data-tab="effect">Effect size sweep (η)</button>
+      <button class="tab-btn" data-tab="n">Sample size sweep (n)</button>
+      <button class="tab-btn" data-tab="abl-effect">Ablation — effect</button>
+      <button class="tab-btn" data-tab="abl-n">Ablation — sample</button>
     </div>
 
     <div class="tab-panel active" id="tab-effect">
-      <img src="assets/celeba_effect_sweep.png" alt="CelebA precision/recall vs. effect size" class="fig-full">
+      <img src="assets/celeba_effect_sweep.png" alt="Precision/Recall vs. effect size" class="fig-full zoomable">
       <p class="fig-caption">
-        Precision and Recall of S* recovery as effect magnitude η increases.
-        Marginal screening diverges; NEXIS converges.
+        Precision · Recall · IoU of S* recovery as effect magnitude η increases (n fixed).
+        Rows: four DGP conditions; columns: three metrics. NEXIS converges; marginal screening diverges.
       </p>
     </div>
     <div class="tab-panel" id="tab-n">
-      <img src="assets/celeba_n_sweep.png" alt="CelebA precision/recall vs. sample size" class="fig-full">
+      <img src="assets/celeba_n_sweep.png" alt="Precision/Recall vs. sample size" class="fig-full zoomable">
       <p class="fig-caption">
-        Precision and Recall of S* recovery as sample size n increases.
+        Precision · Recall · IoU as sample size n increases (η fixed).
         Larger n makes precision collapse worse for marginal screening; NEXIS is unaffected.
       </p>
     </div>
     <div class="tab-panel" id="tab-abl-effect">
-      <img src="assets/celeba_ablation_effect_sweep.png" alt="Ablation: effect sweep" class="fig-full">
+      <img src="assets/celeba_ablation_effect_sweep.png" alt="Ablation: effect sweep" class="fig-full zoomable">
       <p class="fig-caption">
-        Ablation study: varying NEXIS components under increasing effect magnitude.
+        Ablation across NEXIS design choices (SAE sparsity, test, correction, ρ, backward step)
+        under increasing effect magnitude. The linear test with FWER and ρ = 0.5 is the recommended
+        default.
       </p>
     </div>
     <div class="tab-panel" id="tab-abl-n">
-      <img src="assets/celeba_ablation_n_sweep.png" alt="Ablation: sample sweep" class="fig-full">
+      <img src="assets/celeba_ablation_n_sweep.png" alt="Ablation: sample sweep" class="fig-full zoomable">
       <p class="fig-caption">
-        Ablation study: varying NEXIS components under increasing sample size.
+        Same ablation under increasing sample size. Results are consistent across settings.
       </p>
     </div>
   </div>
 </section>
 
 <!-- ══════════ UGANDA ══════════ -->
-<section>
+<section id="uganda">
   <div class="wrap">
-    <h2>Application 1 — Uganda (Youth Opportunities Program)</h2>
-    <h3>Youth Opportunities Program (YOP, 2008)</h3>
+    <h2>Application 1 — Uganda</h2>
+    <h3>Youth Opportunities Program
+      (<a href="https://www.aeaweb.org/articles?id=10.1257/aer.104.9.2783" class="ref-link" target="_blank">YOP</a>, 2008)</h3>
     <p>
       YOP awarded cash grants to self-organised youth groups across 439 groups in 331 communities
       in post-conflict Northern Uganda, randomized to measure impact on productive economic capacity.
-      We extend the original trial by pairing it with Landsat-7 multispectral satellite imagery
-      (2005–2007 composite, pre-program), embedded via the Prithvi-EO geospatial foundation model,
-      and summarised with a learned SAE dictionary.
-      NEXIS then selects from the pooled candidate set of landscape atoms, spectral indices,
-      and demographic covariates.
+      We extend the original trial by pairing it with Landsat-7 multispectral imagery (2005–2007
+      composite, pre-program), embedded via the
+      <a href="https://arxiv.org/abs/2310.18660" class="ref-link" target="_blank">Prithvi-EO</a>
+      geospatial foundation model, and summarised with a learned SAE dictionary.
+      NEXIS selects from the pooled candidate set of 170 landscape atoms,
+      spectral indices, and demographic covariates.
+    </p>
+    <p>
+      An earlier satellite-based analysis by
+      <a href="https://www.science.org/doi/10.1126/science.abi5989" class="ref-link" target="_blank">Jerzak et al. (2023)</a>
+      found preliminary heterogeneity signal but was limited to binary image clustering and
+      a single marginal investigation. NEXIS conditions each forward step on already-selected
+      features, resolving the entanglement.
     </p>
 
+    <!-- Uganda Map -->
+    <h3 id="uganda-map" style="margin-top:1.8rem;">Trial communities</h3>
+    <p style="font-size:0.88rem;color:var(--muted);">
+      422 geolocated households across Northern Uganda, colored by linguistic group
+      (a discovered direct modifier for skilled employment).
+    </p>
+    <div id="map-uganda" class="leaflet-map"></div>
+    <div class="map-legend">
+      <span><span class="dot" style="background:#e05c1a;"></span>Teso</span>
+      <span><span class="dot" style="background:#6e4fa3;"></span>Karamojong</span>
+      <span><span class="dot" style="background:#1a78c2;"></span>Acholi</span>
+      <span><span class="dot" style="background:#2a9a52;"></span>Langi</span>
+      <span><span class="dot" style="background:#aaa;"></span>Other</span>
+    </div>
+
+    <!-- Uganda Results -->
+    <h3 id="uganda-results">Discovered direct modifiers</h3>
     <div class="finding">
       <strong>Key finding</strong>
       NEXIS identifies two satellite-derived environmental direct modifiers for each outcome,
-      plus linguistic-group interactions for skilled employment—confirming an <em>outside-option
-      logic</em>: the grant's pull into a skilled trade is strongest where economic alternatives
-      are weakest. Demographic covariates (age, sex, parental education) show negligible heterogeneity.
-      A naive marginal screen on the same representation returns several dozen correlated
-      "discoveries" per outcome—a real-world instance of the Experimental Power Paradox.
+      plus linguistic-group interactions for skilled employment — unified by an
+      <em>outside-option logic</em>: the grant's pull into a skilled trade is strongest where
+      economic alternatives are weakest. Demographic covariates (age, sex, parental education)
+      show no significant heterogeneity. A marginal screen on the same 170 candidates returns
+      71 / 45 "discoveries" per outcome — a real-world Experimental Power Paradox.
     </div>
 
     <div class="fig-row">
       <div class="fig-col">
-        <img src="assets/uganda_skilled_employed.png" alt="Skilled employment modifiers — Uganda">
-        <p class="fig-caption">
-          Satellite-derived direct modifiers of <em>skilled employment</em>.
-          Each row: Uganda community map (modifier activation) + top/bottom Landsat tiles.
-        </p>
+        <img src="assets/uganda_skilled_employed.png" alt="Skilled employment — direct modifiers" class="zoomable">
+        <p class="fig-caption">Satellite-derived direct modifiers of <em>skilled employment</em>.</p>
       </div>
       <div class="fig-col">
-        <img src="assets/uganda_biz_assets.png" alt="Business assets modifiers — Uganda">
-        <p class="fig-caption">
-          Satellite-derived direct modifiers of <em>business asset accumulation</em>.
-          High NDVI (vegetation greenness) amplifies impact; structured agriculture dampens it.
-        </p>
+        <img src="assets/uganda_biz_assets.png" alt="Business assets — direct modifiers" class="zoomable">
+        <p class="fig-caption">Satellite-derived direct modifiers of <em>log business assets</em>.</p>
       </div>
     </div>
 
-    <p>
-      <strong>Skilled employment</strong> — unified by outside-option logic: Karamojong speakers
-      (marginalized pastoralists) observe a significantly higher impact; Teso and Acholi
-      communities, already affording productive pathways, exhibit dampened effects.
-      Perennial river presence and vegetation spatial heterogeneity dampen impact by enabling
-      subsistence fishing or bush/crop alternatives.
-    </p>
-    <p>
-      <strong>Business assets</strong> — high-NDVI (green, productive) regions show amplified
-      program impact; structured agricultural landscape dampens returns, consistent with
-      crowding-out by incumbent commercial-scale agriculture.
-    </p>
+    <table class="results-table">
+      <caption>Table 4 — Modifiers retained by NEXIS on YOP. GATE estimates for active vs. inactive
+        subgroups (s.e. in parentheses), contrast Δ, and marginal interaction p-value.</caption>
+      <thead>
+        <tr>
+          <th>Modifier</th>
+          <th>GATE active</th>
+          <th>GATE inactive</th>
+          <th>Δ</th>
+          <th><em>p</em>-value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="panel-row"><td colspan="5">Panel A: Skilled Employment</td></tr>
+        <tr class="sub-panel"><td colspan="5">Language group</td></tr>
+        <tr>
+          <td>Teso</td>
+          <td>−0.030 (0.060)</td>
+          <td>+0.372 (0.022)</td>
+          <td class="neg">−0.403 (0.063)</td>
+          <td>7.7×10<sup>−10</sup></td>
+        </tr>
+        <tr>
+          <td>Acholi</td>
+          <td>+0.092 (0.061)</td>
+          <td>+0.347 (0.023)</td>
+          <td class="neg">−0.255 (0.065)</td>
+          <td>1.6×10<sup>−5</sup></td>
+        </tr>
+        <tr>
+          <td>Karamojong</td>
+          <td>+0.674 (0.058)</td>
+          <td>+0.288 (0.022)</td>
+          <td class="highlight">+0.386 (0.062)</td>
+          <td>6.3×10<sup>−8</sup></td>
+        </tr>
+        <tr class="sub-panel"><td colspan="5">Satellite atoms</td></tr>
+        <tr>
+          <td>Perennial river presence</td>
+          <td>+0.089 (0.098)</td>
+          <td>+0.330 (0.021)</td>
+          <td class="neg">−0.242 (0.100)</td>
+          <td>2.1×10<sup>−4</sup></td>
+        </tr>
+        <tr>
+          <td>Vegetation spatial heterogeneity</td>
+          <td>+0.214 (0.038)</td>
+          <td>+0.373 (0.025)</td>
+          <td class="neg">−0.159 (0.045)</td>
+          <td>6.7×10<sup>−5</sup></td>
+        </tr>
+        <tr class="panel-row"><td colspan="5">Panel B: Log Business Assets</td></tr>
+        <tr>
+          <td>NDVI (vegetation greenness)</td>
+          <td>+0.668 (0.061)</td>
+          <td>+0.552 (0.068)</td>
+          <td class="highlight">+0.115 (0.092)</td>
+          <td>5.6×10<sup>−5</sup></td>
+        </tr>
+        <tr>
+          <td>Structured agricultural landscape</td>
+          <td>+0.368 (0.094)</td>
+          <td>+0.649 (0.051)</td>
+          <td class="neg">−0.282 (0.107)</td>
+          <td>1.7×10<sup>−2</sup></td>
+        </tr>
+      </tbody>
+    </table>
 
     <div class="fig-row">
       <div class="fig-col">
-        <img src="assets/uganda_districts.png" alt="Uganda districts map">
-        <p class="fig-caption">Trial sites by district.</p>
+        <img src="assets/uganda_districts.png" alt="Uganda districts" class="zoomable">
+        <p class="fig-caption">Trial communities by district.</p>
       </div>
       <div class="fig-col">
-        <img src="assets/uganda_languages.png" alt="Uganda linguistic groups">
+        <img src="assets/uganda_languages.png" alt="Uganda linguistic groups" class="zoomable">
         <p class="fig-caption">Linguistic-group heterogeneity in skilled employment.</p>
       </div>
     </div>
+
+    <p style="font-size:0.88rem;">
+      <strong>Skilled employment</strong> — Outside-option logic:
+      Karamojong speakers (marginalized pastoralists, GATE +0.674) show the highest impact;
+      Teso and Acholi communities, already affording productive pathways, exhibit dampened
+      effects. Perennial river presence and vegetation heterogeneity dampen impact by enabling
+      subsistence fishing or bush/crop alternatives. &ensp;
+      <strong>Business assets</strong> — High NDVI (productive green land) amplifies impact;
+      structured commercial-scale agriculture dampens returns, consistent with
+      <a href="https://doi.org/10.1093/restud/rdt015" class="ref-link" target="_blank">Crépon et al. (2013)</a>
+      and
+      <a href="https://doi.org/10.3982/ECTA15633" class="ref-link" target="_blank">Egger et al. (2022)</a>
+      crowding-out.
+    </p>
   </div>
 </section>
 
 <!-- ══════════ GHANA ══════════ -->
-<section>
+<section id="ghana">
   <div class="wrap">
-    <h2>Application 2 — Ghana (LEAP 1000)</h2>
-    <h3>Livelihood Empowerment Against Poverty 1000 (2015–2017)</h3>
+    <h2>Application 2 — Ghana</h2>
+    <h3>Livelihood Empowerment Against Poverty 1000
+      (<a href="https://www.unicef-irc.org/publications/pdf/Ghana-LEAP1000-Impact-evaluation-2018-ENG.pdf" class="ref-link" target="_blank">LEAP 1000</a>, 2015–2017)</h3>
     <p>
-      LEAP 1000 provided quarterly cash transfers to extremely poor households with newborns
-      across 2,331 households in 162 communities in Northern and Upper East Ghana,
-      evaluated via a two-wave cluster-randomized trial.
-      We extend the analysis with Landsat-8 imagery (2015), embedded via Prithvi-EO and
-      pooled with 24 survey covariates and spectral indices. NEXIS then selects from this
-      enriched candidate pool.
+      LEAP 1000 provided quarterly cash transfers to extremely poor households with newborns across
+      2,331 households in 162 communities in Northern and Upper East Ghana. The overall
+      difference-in-differences ATE is <strong>+7.35 GH₵/month</strong> on adult-equivalent
+      consumption expenditure. We extend the analysis with
+      <a href="https://landsat.gsfc.nasa.gov/satellites/landsat-8/" class="ref-link" target="_blank">Landsat-8</a>
+      imagery (2015), embedded via Prithvi-EO, pooled with 24 survey covariates and spectral
+      indices. NEXIS selects from 155 candidates.
     </p>
 
+    <!-- Ghana Map -->
+    <h3 id="ghana-map" style="margin-top:1.8rem;">Study region</h3>
+    <p style="font-size:0.88rem;color:var(--muted);">
+      Northern Ghana — the 5 LEAP districts span the Northern, North East, and Upper East regions
+      (East Mamprusi, Karaga, Yendi, Bongo, Garu-Tempane).
+    </p>
+    <div id="map-ghana" class="leaflet-map"></div>
+
+    <!-- Ghana Results -->
+    <h3 id="ghana-results" style="margin-top:1.8rem;">Discovered direct modifiers</h3>
     <div class="finding">
       <strong>Key finding</strong>
-      NEXIS identifies two satellite-derived direct modifiers—<em>ephemeral waterways</em> and
-      <em>closed-canopy forest</em>—and <em>no</em> demographic modifiers, suggesting invariant
-      impact across household demographics within the already homogeneous target population.
-      Communities with seasonal water corridors or forest patches exhibit program effects
-      several times the overall average.
+      NEXIS identifies two satellite-derived direct modifiers — <em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em> — and <em>no</em> demographic modifiers.
+      In the small number of communities where these features are present, the estimated program
+      effect is <strong>6–8× the overall average</strong>. No environmental direct modifier was
+      reachable from the 24 survey covariates alone.
     </div>
 
-    <img src="assets/ghana_combined.png" alt="LEAP 1000 Ghana: NEXIS satellite-derived modifiers" class="fig-full">
+    <img src="assets/ghana_combined.png" alt="LEAP 1000 Ghana: NEXIS modifiers" class="fig-full zoomable">
     <p class="fig-caption">
       <em>Left</em>: Satellite-derived direct modifiers retained by NEXIS on LEAP 1000,
-      with VLM interpretations from top/bottom activating tiles.
+      with VLM interpretations from top/bottom activating Landsat tiles.
       <em>Right</em>: Temporal evolution for waterway-active communities (2015→2017),
-      showing cropland extension — supporting the complementarity hypothesis.
+      showing cropland extension — supporting the water-complementarity hypothesis.
+    </p>
+
+    <!-- Ghana GATE table -->
+    <table class="results-table">
+      <caption>NEXIS FWER discoveries for LEAP 1000. GATEs in GH₵/month
+        (overall ATE = +7.35 GH₵/month). NEXIS <em>p</em>-values are FWER-corrected;
+        marginal <em>p</em>-values in parentheses.</caption>
+      <thead>
+        <tr>
+          <th>VLM label</th>
+          <th>GATE (active)</th>
+          <th>GATE (inactive)</th>
+          <th>Δ</th>
+          <th>NEXIS <em>p</em></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ephemeral waterways</td>
+          <td class="highlight">+42.9 (14.9)</td>
+          <td>+6.0 (1.0)</td>
+          <td class="highlight">+36.9</td>
+          <td>2.1×10<sup>−8</sup> (0.013)</td>
+        </tr>
+        <tr>
+          <td>Closed-canopy forest</td>
+          <td class="highlight">+56.2 (20.8)</td>
+          <td>+6.4 (1.0)</td>
+          <td class="highlight">+49.8</td>
+          <td>3.7×10<sup>−7</sup> (0.005)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Interactive GATE bar chart -->
+    <div class="chart-wrap">
+      <canvas id="ghana-gate-chart"></canvas>
+    </div>
+    <p class="fig-caption">
+      Marginal GATE estimates for all 144 SAE-derived candidate features (gray),
+      with the two NEXIS FWER discoveries highlighted (colored).
+      The vast majority of high-GATE features are correlated proxies of the two direct modifiers.
     </p>
 
     <p>
-      The interpretation is <em>complementarity</em>-based: water-adjacent smallholders can
-      direct transfers into irrigation-season agriculture, while forest-edge households can layer
-      cash onto existing non-timber livelihood strategies unavailable elsewhere. Cropland
-      expansion and denser riparian vegetation from 2015 to 2017 (satellite VLM tracking)
-      further support the waterway hypothesis.
+      The interpretation is <em>complementarity-based</em>
+      (<a href="https://doi.org/10.1016/j.jdeveco.2007.09.003" class="ref-link" target="_blank">de Janvry &amp; Sadoulet 2006</a>):
+      water-adjacent smallholders can direct transfers into irrigation-season agriculture, while
+      forest-edge households layer cash onto existing non-timber livelihood strategies unavailable
+      elsewhere. Cropland expansion and denser riparian vegetation tracked from 2015 to 2017
+      (VLM temporal analysis) further support the waterway hypothesis.
+      No demographic discovery is itself informative: LEAP 1000's strict targeting already
+      selects a highly homogeneous population where residual heterogeneity is environmental.
     </p>
 
-    <div class="fig-row">
-      <div class="fig-col">
-        <img src="assets/ghana_marginal_vs_nexis.png" alt="Marginal vs NEXIS comparison — Ghana">
-        <p class="fig-caption">
-          Marginal screening vs. NEXIS: NEXIS selects the minimal causal set;
-          marginal screening accumulates dozens of correlated proxies.
-        </p>
-      </div>
-      <div class="fig-col">
-        <img src="assets/ghana_gate_discoveries.png" alt="GATE discoveries — Ghana">
-        <p class="fig-caption">
-          Group Average Treatment Effects for discovered modifiers.
-        </p>
-      </div>
-    </div>
-
-    <img src="assets/ghana_gate_neurons.png" alt="GATE by neuron activations — Ghana" class="fig-full">
+    <img src="assets/ghana_marginal_vs_nexis.png" alt="Marginal screening vs. NEXIS — Ghana" class="fig-full zoomable">
     <p class="fig-caption">
-      GATE estimates stratified by SAE atom activations for the two retained direct modifiers.
+      Marginal screening vs. NEXIS: NEXIS selects the minimal causal set (2 features);
+      marginal screening accumulates many correlated proxies — another instance of the
+      Experimental Power Paradox.
     </p>
   </div>
 </section>
@@ -678,38 +760,226 @@
   </div>
 </footer>
 
+</div><!-- #main -->
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="">
+</div>
+
 <script>
-  /* ── Tab switcher ── */
-  const tabMap = {
-    'effect':     'tab-effect',
-    'n':          'tab-n',
-    'abl-effect': 'tab-abl-effect',
-    'abl-n':      'tab-abl-n',
+/* ══ Tab switcher ══ */
+const tabMap = {
+  'effect':'tab-effect','n':'tab-n','abl-effect':'tab-abl-effect','abl-n':'tab-abl-n'
+};
+document.getElementById('celeba-tabs').addEventListener('click', function(e) {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabMap[btn.dataset.tab]).classList.add('active');
+});
+
+/* ══ Lightbox ══ */
+document.querySelectorAll('.zoomable').forEach(img => {
+  img.addEventListener('click', function() {
+    document.getElementById('lightbox-img').src = this.src;
+    document.getElementById('lightbox').classList.add('open');
+  });
+});
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeLightbox(); });
+
+/* ══ BibTeX copy ══ */
+function copyBibtex() {
+  navigator.clipboard.writeText(document.getElementById('bibtex-text').textContent).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+/* ══ Scrollspy ══ */
+const sections = ['abstract','method','celeba','uganda','ghana','citation'];
+const navLinks = {};
+sections.forEach(id => { navLinks[id] = document.querySelector(`[data-section="${id}"]`); });
+function updateNav() {
+  const y = window.scrollY + 80;
+  let current = sections[0];
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.offsetTop <= y) current = id;
+  });
+  Object.values(navLinks).forEach(a => a && a.classList.remove('active'));
+  if (navLinks[current]) navLinks[current].classList.add('active');
+}
+window.addEventListener('scroll', updateNav, {passive:true});
+updateNav();
+
+/* ══ Uganda Leaflet map ══ */
+(function() {
+  const map = L.map('map-uganda', {scrollWheelZoom: false}).setView([2.4, 32.8], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 13
+  }).addTo(map);
+
+  const langColors = {
+    'Teso':'#e05c1a','Karamojong':'#6e4fa3','Acholi':'#1a78c2','Langi':'#2a9a52','Other':'#aaa'
   };
 
-  document.getElementById('celeba-tabs').addEventListener('click', function(e) {
-    const btn = e.target.closest('.tab-btn');
-    if (!btn) return;
-    const key = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById(tabMap[key]).classList.add('active');
+  fetch('assets/uganda_regions.json').then(r=>r.json()).then(gj => {
+    L.geoJSON(gj, {
+      style: { color:'#555', weight:1, fillColor:'#f5f0e8', fillOpacity:0.4 }
+    }).addTo(map);
   });
 
-  /* ── Copy BibTeX ── */
-  function copyBibtex() {
-    const text = document.getElementById('bibtex-text').textContent;
-    navigator.clipboard.writeText(text).then(function() {
-      const btn = document.getElementById('copy-btn');
-      btn.textContent = 'Copied!';
-      btn.classList.add('copied');
-      setTimeout(function() {
-        btn.textContent = 'Copy';
-        btn.classList.remove('copied');
-      }, 2000);
+  fetch('assets/uganda_communities.json').then(r=>r.json()).then(data => {
+    data.forEach(c => {
+      const col = langColors[c.lang] || '#aaa';
+      L.circleMarker([c.lat, c.lon], {
+        radius:4, color:col, fillColor:col, fillOpacity:0.75, weight:0.5
+      }).bindPopup(`<b>${c.district}</b><br>Language: ${c.lang || 'Other'}`).addTo(map);
     });
-  }
+  });
+})();
+
+/* ══ Ghana Leaflet map ══ */
+(function() {
+  const map = L.map('map-ghana', {scrollWheelZoom: false}).setView([10.3, -0.7], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 12
+  }).addTo(map);
+
+  const leapDistricts = ['East Mamprusi', 'Karaga', 'Yendi', 'Bongo', 'Garu-Tempane',
+                          'East Mamprusi Municipal', 'EastMamprusi'];
+
+  fetch('assets/ghana_regions.json').then(r=>r.json()).then(gj => {
+    L.geoJSON(gj, {
+      style: feat => ({
+        color:'#555', weight:1,
+        fillColor:'#d6e8f5', fillOpacity:0.5
+      })
+    }).bindPopup(layer => layer.feature.properties.NAME_1 || '').addTo(map);
+  });
+
+  /* Approximate LEAP community cluster (Northern + Upper East Ghana) */
+  const leapApproxPts = [
+    [10.38,-0.63],[10.15,-0.22],[9.86,-0.01],[10.48,-0.48],[10.52,-0.41],
+    [10.32,-0.11],[10.10,-0.55],[10.65,-0.33],[9.97,-0.74],[10.22,-0.80],
+    [10.75,-0.62],[10.01,-0.14],[10.43,-0.98],[9.72,-0.39],[10.88,-0.50]
+  ];
+  leapApproxPts.forEach(([lat,lon]) => {
+    L.circleMarker([lat,lon], {
+      radius:5, color:'#1a56a0', fillColor:'#1a56a0',
+      fillOpacity:0.6, weight:0.8
+    }).addTo(map);
+  });
+
+  /* Waterway-active communities (approximate centroids) */
+  const waterwayActive = [
+    [10.42,-0.58],[10.29,-0.31],[10.05,-0.19],[10.61,-0.44],[10.18,-0.67],[10.52,-0.22]
+  ];
+  waterwayActive.forEach(([lat,lon]) => {
+    L.circleMarker([lat,lon], {
+      radius:7, color:'#1e7340', fillColor:'#1e7340',
+      fillOpacity:0.85, weight:1.5
+    }).bindPopup('Waterway-active community<br>(GATE ≈ +43 GH₵/month)').addTo(map);
+  });
+
+  /* Legend */
+  const legend = L.control({position:'bottomright'});
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div');
+    div.style.cssText = 'background:white;padding:6px 10px;font-size:11px;font-family:sans-serif;border:1px solid #ccc;border-radius:2px;';
+    div.innerHTML = '<b>LEAP communities</b><br>'
+      + '<span style="color:#1a56a0">●</span> All (~162)<br>'
+      + '<span style="color:#1e7340">●</span> Waterway-active (6)';
+    return div;
+  };
+  legend.addTo(map);
+})();
+
+/* ══ Ghana GATE chart ══ */
+(function() {
+  /* Full marginal GATE data from gate_Z.csv — top features by |diff| */
+  const allFeatures = [
+    {label:'neuron 2095\n(Closed-canopy forest)',diff:49.77,nexis:true},
+    {label:'neuron 1424',diff:45.25,nexis:false},
+    {label:'neuron 1715\n(Ephemeral waterways)',diff:37.82,nexis:true},
+    {label:'neuron 1829',diff:-36.95,nexis:false},
+    {label:'neuron 3821',diff:36.94,nexis:false},
+    {label:'neuron 3838',diff:36.28,nexis:false},
+    {label:'neuron 971',diff:-35.15,nexis:false},
+    {label:'neuron 2201',diff:-35.05,nexis:false},
+    {label:'neuron 2252',diff:30.79,nexis:false},
+    {label:'neuron 2430',diff:27.03,nexis:false},
+    {label:'neuron 3976',diff:26.88,nexis:false},
+    {label:'neuron 3318',diff:25.47,nexis:false},
+    {label:'neuron 65',diff:-24.21,nexis:false},
+    {label:'neuron 792',diff:23.96,nexis:false},
+    {label:'neuron 375',diff:23.12,nexis:false},
+    {label:'neuron 255',diff:22.84,nexis:false},
+    {label:'neuron 3918',diff:21.77,nexis:false},
+    {label:'neuron 3821',diff:20.55,nexis:false},
+    {label:'(+126 more)',diff:0,nexis:false},
+  ];
+
+  /* Keep top 15 by |diff| for clarity */
+  const top15 = allFeatures.slice(0,15);
+  const labels = top15.map(d => d.label.replace('\n',' '));
+  const values = top15.map(d => d.diff);
+  const colors = top15.map(d => {
+    if (d.nexis && d.diff > 0) return '#1e7340';
+    if (d.nexis) return '#b22';
+    return d.diff >= 0 ? 'rgba(26,86,160,0.35)' : 'rgba(180,40,40,0.3)';
+  });
+
+  new Chart(document.getElementById('ghana-gate-chart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'GATE difference (active − inactive, GH₵/month)',
+        data: values,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.35','0.8').replace('0.3','0.7')),
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = top15[ctx.dataIndex];
+              return `Δ = ${ctx.raw > 0 ? '+' : ''}${ctx.raw.toFixed(1)} GH₵/month${d.nexis ? ' ★ NEXIS discovery' : ''}`;
+            }
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        x: {
+          title: {display:true, text:'GATE difference (GH₵/month)', font:{size:11}},
+          grid: {color:'#eee'}
+        },
+        y: {
+          ticks: {font:{size:10}},
+          grid: {display:false}
+        }
+      }
+    }
+  });
+})();
 </script>
 </body>
 </html>
