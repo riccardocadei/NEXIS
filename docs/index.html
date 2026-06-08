@@ -594,7 +594,18 @@ footer{padding:1.8rem 2rem;text-align:center;
       Dots = trial communities colored by pre-treatment linguistic group &#8212; a key
       direct modifier for skilled employment. Use checkboxes to filter.
     </p>
-    <div class="map-controls">
+    <!-- View mode selector -->
+    <div class="map-controls" style="margin-bottom:0.5rem;">
+      <span class="mc-label">View:</span>
+      <label><input type="radio" name="ug-mode" value="lang" checked>
+        Language groups</label>
+      <label><input type="radio" name="ug-mode" value="treat">
+        Treatment assignment</label>
+      <label><input type="radio" name="ug-mode" value="outcome">
+        Mean outcome</label>
+    </div>
+    <!-- Language filter — only relevant in Language mode -->
+    <div id="ug-lang-filters" class="map-controls">
       <span class="mc-label">Filter groups:</span>
       <label><input type="checkbox" class="ug-lang" value="Teso" checked>
         <span class="dot" style="background:#e05c1a"></span> Teso (103)</label>
@@ -923,40 +934,133 @@ function hiDPI(canvas,W,H){
   const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);return ctx;
 }
 
+function drawWaterPolys(ctx,polys,proj){
+  polys.forEach(ring=>{
+    ctx.beginPath();
+    ring.forEach(([lo,la],i)=>{const[x,y]=proj(la,lo);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+    ctx.closePath();
+    ctx.fillStyle='#9ecae1';ctx.fill();
+    ctx.strokeStyle='#6baed6';ctx.lineWidth=0.5;ctx.stroke();
+  });
+}
+
+// [lon, lat] arrays — simplified lake polygons
+const UG_WATER = [
+  // Lake Victoria (Uganda northern shore)
+  [[32.0,0.1],[32.5,0.28],[33.0,0.28],[33.8,0.08],[34.2,-0.15],[34.8,-0.95],[34.8,-1.48],[32.0,-1.48]],
+  // Lake Albert (western border)
+  [[30.86,1.08],[31.20,1.08],[31.22,2.28],[30.88,2.28]],
+  // Lake Kyoga (central, irregular)
+  [[32.6,1.35],[33.4,1.25],[33.95,1.55],[33.82,2.0],[33.1,2.1],[32.48,1.88],[32.28,1.55]],
+  // Lake Edward (SW corner)
+  [[29.44,-0.68],[29.95,-0.68],[29.95,0.22],[29.44,0.22]],
+  // Lake George
+  [[30.08,-0.02],[30.32,-0.02],[30.32,0.22],[30.08,0.22]],
+];
+const GH_WATER = [
+  // Lake Volta (simplified — large central reservoir)
+  [[-0.15,10.95],[0.05,10.60],[0.30,10.20],[0.38,9.80],[0.22,9.40],
+   [0.10,9.00],[-0.05,8.60],[0.05,8.20],[0.02,7.75],[-0.20,7.50],
+   [-0.50,7.80],[-0.72,8.20],[-0.55,8.60],[-0.38,9.00],
+   [-0.45,9.40],[-0.28,9.80],[-0.18,10.30],[-0.15,10.95]],
+];
+
 /* ══════════════════════════════════════════════
    UGANDA MAP
    ══════════════════════════════════════════════ */
 const UG_COL={Teso:'#e05c1a',Karamojong:'#6e4fa3',Acholi:'#1a78c2',Langi:'#2a9a52',Other:'#bbb'};
-let ugData={regions:null,communities:null,bounds:null};
+let ugData={country:null,regions:null,communities:null,bounds:null};
 let ugFilters={Teso:true,Langi:true,Karamojong:true,Acholi:true,Other:true};
+let ugMode='lang'; // 'lang' | 'treat' | 'outcome'
 
 function drawUganda(){
-  if(!ugData.regions)return;
+  if(!ugData.country)return;
   const wrap=document.getElementById('uganda-map-wrap');
   const canvas=document.getElementById('uganda-canvas');
   const W=wrap.offsetWidth||700,H=wrap.offsetHeight||480;
   const ctx=hiDPI(canvas,W,H);
   const proj=makeProjector(ugData.bounds,W,H,18);
-  ctx.fillStyle='#eef0e8';ctx.fillRect(0,0,W,H);
-  drawRegions(ctx,ugData.regions,proj,'#dae3cc','#9aaa90');
-  ugData.communities.forEach(c=>{
-    if(!ugFilters[c.lang])return;
-    const[x,y]=proj(c.lat,c.lon);
-    ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);
-    ctx.fillStyle=UG_COL[c.lang]||'#bbb';ctx.fill();
-    ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.4;ctx.stroke();
-  });
+  ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
+  drawRegions(ctx,ugData.country,proj,'#e8ede4','#b0bba8');
+  drawRegions(ctx,ugData.regions,proj,'#d5e8cc','#7a9e72');
+  drawWaterPolys(ctx,UG_WATER,proj);
+
+  if(ugMode==='lang'){
+    ugData.communities.forEach(c=>{
+      if(!ugFilters[c.lang])return;
+      const[x,y]=proj(c.lat,c.lon);
+      ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);
+      ctx.fillStyle=UG_COL[c.lang]||'#bbb';ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.4;ctx.stroke();
+    });
+    // in-canvas legend
+    const legEntries=Object.entries(UG_COL);
+    ctx.font='11px Helvetica Neue,Arial,sans-serif';
+    let ly=H-16;
+    legEntries.slice().reverse().forEach(([lang,col])=>{
+      if(!ugFilters[lang])return;
+      ctx.beginPath();ctx.arc(14,ly,5,0,Math.PI*2);
+      ctx.globalAlpha=1;ctx.fillStyle=col;ctx.fill();
+      ctx.fillStyle='#222';ctx.fillText(lang,25,ly+4);
+      ly-=18;
+    });
+  } else if(ugMode==='treat'){
+    const withData=ugData.communities.filter(c=>c.n_treat!=null&&c.n_ctrl!=null);
+    const maxN=Math.max(...withData.map(c=>c.n_treat+c.n_ctrl));
+    const dots=ugData.communities.map(c=>{
+      if(c.n_treat==null||c.n_ctrl==null){
+        return{c,r:1.5,fill:'#aaa',alpha:0.3};
+      }
+      const r=2+6*Math.sqrt((c.n_treat+c.n_ctrl)/maxN);
+      const fill=c.n_treat>c.n_ctrl?'#e6600a':'#2c7bb6';
+      return{c,r,fill,alpha:1};
+    });
+    dots.sort((a,b)=>a.r-b.r);
+    dots.forEach(({c,r,fill,alpha})=>{
+      const[x,y]=proj(c.lat,c.lon);
+      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+      ctx.globalAlpha=alpha;ctx.fillStyle=fill;ctx.fill();
+      ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.4;ctx.stroke();
+    });
+  } else if(ugMode==='outcome'){
+    const oc=document.querySelector('.outcome-tab.active')?.dataset.oc;
+    const field=oc==='biz'?'mean_biz':'mean_skilled';
+    const vals=ugData.communities.map(c=>c[field]).filter(v=>v!=null);
+    const maxVal=Math.max(...vals);
+    function interpColor(t){
+      const r1=0xed,g1=0xf8,b1=0xfb;
+      const r2=0x6e,g2=0x01,b2=0x6b;
+      const r=Math.round(r1+(r2-r1)*t);
+      const g=Math.round(g1+(g2-g1)*t);
+      const b=Math.round(b1+(b2-b1)*t);
+      return`rgb(${r},${g},${b})`;
+    }
+    const dots=ugData.communities.map(c=>{
+      const val=c[field];
+      if(val==null)return{c,r:1.5,fill:'#aaa',alpha:0.3};
+      const t=val/maxVal;
+      const r=2+6*Math.sqrt(t);
+      return{c,r,fill:interpColor(t),alpha:1};
+    });
+    dots.sort((a,b)=>a.r-b.r);
+    dots.forEach(({c,r,fill,alpha})=>{
+      const[x,y]=proj(c.lat,c.lon);
+      ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+      ctx.globalAlpha=alpha;ctx.fillStyle=fill;ctx.fill();
+      ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.4;ctx.stroke();
+    });
+  }
 }
 
 Promise.all([
+  fetch('assets/uganda_country.json').then(r=>r.json()),
   fetch('assets/uganda_regions.json').then(r=>r.json()),
   fetch('assets/uganda_communities.json').then(r=>r.json())
-]).then(([regions,communities])=>{
-  const gb=boundsFromGeoJSON(regions);
-  const lats=communities.map(c=>c.lat),lons=communities.map(c=>c.lon);
-  ugData={regions,communities,bounds:{
-    minLat:Math.min(gb.minLat,...lats)-0.12,maxLat:Math.max(gb.maxLat,...lats)+0.12,
-    minLon:Math.min(gb.minLon,...lons)-0.12,maxLon:Math.max(gb.maxLon,...lons)+0.12,
+]).then(([country,regions,communities])=>{
+  const gb=boundsFromGeoJSON(country);  // use full country bounds
+  ugData={country,regions,communities,bounds:{
+    minLat:gb.minLat-0.1, maxLat:gb.maxLat+0.1,
+    minLon:gb.minLon-0.1, maxLon:gb.maxLon+0.1,
   }};
   drawUganda();
   new ResizeObserver(drawUganda).observe(document.getElementById('uganda-map-wrap'));
@@ -964,6 +1068,12 @@ Promise.all([
 
 document.querySelectorAll('.ug-lang').forEach(cb=>cb.addEventListener('change',function(){
   ugFilters[this.value]=this.checked;drawUganda();
+}));
+
+document.querySelectorAll('input[name=ug-mode]').forEach(r=>r.addEventListener('change',function(){
+  ugMode=this.value;
+  document.getElementById('ug-lang-filters').style.display=ugMode==='lang'?'':'none';
+  drawUganda();
 }));
 
 /* ══════════════════════════════════════════════
@@ -996,18 +1106,26 @@ const GH_BG=[
 const GH_WATERWAY=[[10.42,-0.58],[10.29,-0.31],[10.05,-0.19],[10.61,-0.44],[10.18,-0.67],[10.52,-0.22]];
 const GH_FOREST=[[10.33,-0.85],[10.55,-0.75],[10.22,-0.58],[9.92,-0.44],[10.71,-0.55]];
 
-let ghRegions=null;let ghFilter='all';
+let ghData={country:null,regions:null};
+let ghFilter='all';
 
 function drawGhana(){
-  if(!ghRegions)return;
+  if(!ghData.country)return;
   const wrap=document.getElementById('ghana-map-wrap');
   const canvas=document.getElementById('ghana-canvas');
   const W=wrap.offsetWidth||700,H=wrap.offsetHeight||480;
   const ctx=hiDPI(canvas,W,H);
-  const bounds={minLat:8.3,maxLat:11.35,minLon:-2.9,maxLon:0.75};
+  const gb=boundsFromGeoJSON(ghData.country);
+  const bounds={minLat:gb.minLat-0.1,maxLat:gb.maxLat+0.1,
+                minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1};
   const proj=makeProjector(bounds,W,H,18);
-  ctx.fillStyle='#eef0e8';ctx.fillRect(0,0,W,H);
-  drawRegions(ctx,ghRegions,proj,'#d4e8d8','#90b090');
+  ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
+  // Full country background
+  drawRegions(ctx,ghData.country,proj,'#e8ede4','#b0bba8');
+  // Study regions highlighted
+  drawRegions(ctx,ghData.regions,proj,'#d5e8cc','#7a9e72');
+  // Lake Volta
+  drawWaterPolys(ctx,GH_WATER,proj);
 
   function dot(lat,lon,r,fill,alpha){
     const[x,y]=proj(lat,lon);
@@ -1031,7 +1149,6 @@ function drawGhana(){
     dot(la,lo,hi?7:3,'#2d6a4f',hi?1:0.25);
   });
 
-  /* in-map legend */
   const leg=[['#5585b5','All communities (~162)'],['#1e7340','Waterway-active (6)'],['#2d6a4f','Forest-active (5)']];
   ctx.font='11px Helvetica Neue,Arial,sans-serif';
   let ly=H-16;
@@ -1043,8 +1160,11 @@ function drawGhana(){
   });
 }
 
-fetch('assets/ghana_regions.json').then(r=>r.json()).then(regions=>{
-  ghRegions=regions;drawGhana();
+Promise.all([
+  fetch('assets/ghana_country.json').then(r=>r.json()),
+  fetch('assets/ghana_regions.json').then(r=>r.json()),
+]).then(([country,regions])=>{
+  ghData={country,regions};drawGhana();
   new ResizeObserver(drawGhana).observe(document.getElementById('ghana-map-wrap'));
 });
 
@@ -1198,6 +1318,7 @@ function switchUgandaOutcome(oc){
     document.getElementById('ug-'+part+'-biz').style.display=oc==='biz'?'':'none';
   });
   updateUgandaCharts();
+  if(ugMode==='outcome')drawUganda();
 }
 document.getElementById('ug-outcome-tabs').addEventListener('click',e=>{
   const btn=e.target.closest('.outcome-tab');if(btn)switchUgandaOutcome(btn.dataset.oc);
