@@ -127,6 +127,9 @@ section p:last-child{margin-bottom:0;}
 .paradox-callout .plabel{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;
   font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#8a5600;
   display:block;margin-bottom:0.35rem;}
+.def-box{border-left:2px solid #555;padding:0.45em 0 0.45em 1.1em;margin:0.85rem 0;}
+.def-label{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.81rem;
+  font-weight:700;margin-bottom:0.18rem;color:var(--text);}
 
 /* ── Two-chart layout ── */
 .two-charts-wrap{margin:1rem 0;}
@@ -385,37 +388,32 @@ footer{padding:1.8rem 2rem;text-align:center;
 <section id="paradox">
   <div class="wrap">
     <h2>Experimental Power Paradox</h2>
-    <h3>On the distinction between Effect Modification and Interaction</h3>
-    <p>
-      An <strong>effect modifier</strong> is any variable whose distribution predicts
-      heterogeneity in average treatment effects &#8212; a statistical notion.
-      An <strong>interactor</strong> (direct effect modifier) is a variable that
-      <em>causally</em> moderates the treatment: removing it eliminates the heterogeneity
-      it captures.
-    </p>
-    <p>
-      Every interactor is an effect modifier, but not vice versa. In a cash transfer
-      program, road proximity may predict who benefits most &#8212; yet the true interactor
-      could be soil quality, which determines what farmers can do with capital and
-      happens to correlate with roads. Targeting road-adjacent communities misdirects policy;
-      targeting communities with favorable soil does not.
-    </p>
+    <div class="def-box">
+      <div class="def-label">Effect Modifier</div>
+      <p style="margin:0">A variable X is an <strong>effect modifier</strong> if the
+      conditional average treatment effect &tau;(x)&nbsp;=&nbsp;E[Y(1)&minus;Y(0)&thinsp;|&thinsp;X=x]
+      is not constant in x. This is a marginal, statistical notion: it can be detected by
+      testing whether X predicts heterogeneity in &tau; independently of other covariates.</p>
+    </div>
+    <div class="def-box">
+      <div class="def-label">Direct Effect Modifier (Interactor)</div>
+      <p style="margin:0">X is a <strong>direct effect modifier</strong> if it causally
+      moderates the treatment response &#8212; formally, X&thinsp;&isin;&thinsp;S&#x22C6;,
+      the minimal set conditioning on which renders &tau; constant in any remaining candidate.
+      Every interactor is an effect modifier, but not vice versa: proximity to a market may
+      predict heterogeneity in a cash transfer program merely because it correlates with soil
+      quality, the true interactor.</p>
+    </div>
     <div class="paradox-callout">
-      <span class="plabel">The Paradox</span>
+      <span class="plabel">Experimental Power Paradox</span>
       <p style="margin:0">
         Marginal screening tests each variable independently. As experimental power grows,
         it flags <em>every</em> variable correlated with the CATE &#8212; proxies included.
         <strong>More data makes spurious discoveries more significant, not fewer.</strong>
         NEXIS conditions on competing candidates and recovers only the minimal sufficient
-        set of true interactors.
+        set S&#x22C6; of true interactors.
       </p>
     </div>
-
-    <h3>Empirical evidence &#8212; CelebA semi-synthetic benchmark</h3>
-    <p style="font-size:0.87rem;color:var(--muted);">
-      |S*| = 2 known modifiers &middot; m = 13,824 SAE atoms &middot; 50 seeds.
-      Bands = &#177;1.96 SE.
-    </p>
     <div class="two-charts-wrap">
       <div class="two-charts-shared">
         <span class="sh-label">Metric</span>
@@ -428,8 +426,8 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="chart-title">Sample size sweep</div>
           <div class="chart-controls">
             <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-            <label><input type="radio" name="p-feta" value="5" checked> 5</label>
-            <label><input type="radio" name="p-feta" value="2"> 2</label>
+            <label><input type="radio" name="p-feta" value="2" checked> 2</label>
+            <label><input type="radio" name="p-feta" value="5"> 5</label>
           </div>
           <canvas id="paradox-n-chart"></canvas>
         </div>
@@ -437,8 +435,8 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="chart-title">Effect size sweep</div>
           <div class="chart-controls">
             <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-            <label><input type="radio" name="p-fn" value="2000" checked> 2000</label>
-            <label><input type="radio" name="p-fn" value="500"> 500</label>
+            <label><input type="radio" name="p-fn" value="500" checked> 500</label>
+            <label><input type="radio" name="p-fn" value="2000"> 2000</label>
           </div>
           <canvas id="paradox-e-chart"></canvas>
         </div>
@@ -493,12 +491,6 @@ footer{padding:1.8rem 2rem;text-align:center;
 <section id="ablation">
   <div class="wrap">
     <h2>Ablations &#8212; CelebA Benchmark</h2>
-    <p>
-      Extended semi-synthetic validation exploring each design choice of NEXIS independently.
-      All experiments use the same CelebA DGP (m = 13,824 atoms, |S*| = 2, 50 seeds);
-      each ablation varies one axis from the default
-      (k = 20, Z features, linear test, FWER, &rho; = 0.5, backward = True).
-    </p>
     <div class="abl-tabs" id="abl-tabs">
       <span class="abl-group-label">Algorithm</span>
       <button class="abl-tab active" data-abl="test">Statistical test</button>
@@ -522,8 +514,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <div class="chart-title">Sample size sweep</div>
         <div class="chart-controls">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-          <label><input type="radio" name="a-feta" value="5" checked> 5</label>
-          <label><input type="radio" name="a-feta" value="2"> 2</label>
+          <label><input type="radio" name="a-feta" value="2" checked> 2</label>
+          <label><input type="radio" name="a-feta" value="5"> 5</label>
         </div>
         <canvas id="abl-n-chart"></canvas>
       </div>
@@ -531,8 +523,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <div class="chart-title">Effect size sweep</div>
         <div class="chart-controls">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-          <label><input type="radio" name="a-fn" value="2000" checked> 2000</label>
-          <label><input type="radio" name="a-fn" value="500"> 500</label>
+          <label><input type="radio" name="a-fn" value="500" checked> 500</label>
+          <label><input type="radio" name="a-fn" value="2000"> 2000</label>
         </div>
         <canvas id="abl-e-chart"></canvas>
       </div>
@@ -1459,7 +1451,7 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
       const up=xs.map((x,i)=>ys[i]+1.96*ses[i]);
       const lo=xs.map((x,i)=>Math.max(0,ys[i]-1.96*ses[i]));
       const c=cOver||colOf(label||key).c;
-      const band=hexToRgba(c,0.12);
+      const band='rgba(0,0,0,0.07)';
       out.push(
         {label:'',data:xs.map((x,i)=>({x,y:up[i]})),borderWidth:0,pointRadius:0,
          fill:'+1',backgroundColor:band,showLine:true,borderColor:'transparent',tension:0.35},
