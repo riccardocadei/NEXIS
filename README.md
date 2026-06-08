@@ -57,9 +57,9 @@ $$
 The null hypothesis $\mathcal{H}_0$ conditions on the already-selected set $S$. At each step, a Bonferroni gate is applied uniformly over all remaining candidates, sequentially narrowing the search while guaranteeing tight control over the family-wise error rate (FWER) throughout. Selection automatically halts when no remaining candidate clears the gated significance threshold.
 
 ```python
-from src import nexis_select
+from src.method import nexis
 
-result = nexis_select(y=Y, t=T, z=Z, alpha=0.05)
+result = nexis(y=Y, t=T, z=Z, alpha=0.05)
 print(result.selected)   # list of selected neuron indices
 ```
 
@@ -88,19 +88,39 @@ For the primary outcome **log skilled-trade hours** (n = 2,372, ATE = +0.020, p 
 
 The programme is substantially more effective in drier areas without perennial water — a finding invisible to average-effect analysis and not surfaced by prior work on this trial. Below: GATE estimates, geographic distribution, treatment balance, and the satellite patches most/least activating each selected neuron (Prithvi encoder).
 
-![NEXIS results — log skilled-trade hours (Prithvi)](results/uganda/prithvi_1024/log_skilled_hours/qwen7b/summary_illustration.png)
+![NEXIS results — skilled employment (Prithvi)](results/uganda/figures/figure_neural_skilled_employed.png)
 
-**To reproduce**, note that notebooks are primarily for visualisation: [notebooks/uganda.ipynb](notebooks/uganda.ipynb). The actual reproducible end-to-end experiments (supporting eight outcomes like labour, earnings, assets, wellbeing) run via the overarching command pipeline script:
+**To reproduce**, note that notebooks are primarily for visualisation: [notebooks/uganda.ipynb](notebooks/uganda.ipynb). The actual reproducible end-to-end experiments (supporting eight outcomes like labour, earnings, assets, wellbeing) run via the pipeline script:
 
 ```bash
-bash scripts/run.sh --models=prithvi,dinov2,dinov3 --all-outcomes
+bash scripts/uganda/run.sh --models=prithvi,dinov2,dinov3 --all-outcomes
 ```
 
-### Synthetic benchmarks
+### Ghana LEAP 1000
 
-To validate FWER control and power, we run experiments on synthetic data where the true effect modifiers are known. The benchmark sweeps over effect size and sample size, comparing NEXIS against marginal interaction testing (unadjusted and Bonferroni-adjusted). Across all settings NEXIS achieves higher power at controlled FWER.
+![Ghana study sites](results/ghana/map/map_paper.png)
 
-See [notebooks/synthetic.ipynb](notebooks/synthetic.ipynb) to reproduce the benchmark.
+We apply NEXIS to the Ghana Livelihood Empowerment Against Poverty 1000 (LEAP 1000) programme, a cluster-randomised cash-transfer trial targeting extremely poor households in Northern and Upper East Ghana ([ISSER, 2018](https://www.unicef.org/ghana/reports/ghana-leap-1000-evaluation)). The outcome is adult-equivalent household consumption expenditure per month (n = 2,331, 162 communities). Pre-treatment satellite imagery is extracted using **DINOv2**; a Sparse Autoencoder maps the embeddings to 4,096 sparse neurons.
+
+NEXIS selects 1 effect modifier:
+
+| Rank | Feature | Interpretation | GATE (inactive) | GATE (active) | Δ CATE | p-value |
+|------|---------|----------------|----------------|--------------|--------|---------|
+| 1 | SAE\_1777 | Presence of water infrastructure | — | — | **significant** | < 0.05 |
+
+The selected neuron highlights areas with surface water infrastructure as a key moderator of the cash-transfer effect on household welfare.
+
+![NEXIS results — Ghana consumption (DINOv2)](results/ghana/figures/figure_neural_ghana_combined.png)
+
+**To reproduce**: [notebooks/ghana.ipynb](notebooks/ghana.ipynb).
+
+### CelebA — semi-synthetic benchmark
+
+To validate FWER control and power, we construct a semi-synthetic RCT benchmark on CelebA face images with **2 known direct effect modifiers** (*wearing a hat*, *wearing eyeglasses*). A Sparse Autoencoder (13,824 codes) trained on SigLIP representations provides the candidate dictionary. We sweep over effect size and sample size and compare NEXIS against marginal interaction screening (unadjusted and Bonferroni-adjusted).
+
+Marginal screening exhibits a **precision collapse** as power grows — accumulating indirect modifiers correlated with the true ones. NEXIS consistently recovers the true modifier set by iterative conditioning.
+
+**To reproduce**: [notebooks/celeba.ipynb](notebooks/celeba.ipynb).
 
 ---
 
@@ -108,34 +128,43 @@ See [notebooks/synthetic.ipynb](notebooks/synthetic.ipynb) to reproduce the benc
 
 ```
 src/
-  nexis.py          # core selection algorithm and evaluation utilities
-  synthetic.py     # synthetic DGP (loading matrix, RCT generator)
-  uganda.py        # Uganda YOP helpers (outcome aliases, mapping, causal utilities)
-  train.py         # DINOv2/Prithvi patch embedding extraction + SAE training
-  analyze.py       # NEXIS feature selection for a given outcome
-  interpret.py     # VLM→LLM interpretation of selected SAE features
-  summarize.py     # ATE + CATE/GATE summary for a given outcome
-  plot_features.py # feature image grids
+  method/
+    nexis.py        # core NEXIS algorithm, CATE-equivalence tests, evaluation utilities
+  causality/
+    estimation.py   # ATE/GATE estimation utilities
+  apps/
+    celeba/         # CelebA semi-synthetic benchmark (embed, train SAE, run experiments)
+    ghana/          # Ghana LEAP 1000 pipeline (data, embed, interpret, visualize)
+    synthetic/      # synthetic DGP and sweep scripts
+    uganda/         # Uganda YOP pipeline (data, embed, interpret, summarize, visualize)
 
 notebooks/
-  synthetic.ipynb  # synthetic benchmark (effect size & sample size sweeps)
-  uganda.ipynb     # Uganda YOP real-data analysis
+  synthetic.ipynb   # synthetic benchmark (effect size & sample size sweeps)
+  celeba.ipynb      # CelebA semi-synthetic benchmark
+  uganda.ipynb      # Uganda YOP real-data analysis and visualisation
+  ghana.ipynb       # Ghana LEAP 1000 real-data analysis and visualisation
 
 scripts/
-  run.sh           # full pipeline (embedding → SAE → NEXIS → interpret → summarize → plot)
-  reanalyze.sh     # re-run analysis steps only (skips embedding/SAE training)
+  uganda/
+    run.sh          # full Uganda pipeline (embedding → SAE → NEXIS → interpret → summarize → plot)
+    reanalyze.sh    # re-run Uganda analysis steps only (skips embedding/SAE training)
+  ghana/            # analogous scripts for Ghana
+  celeba/           # analogous scripts for CelebA benchmark
 
 assets/
-  aistats26-workshop.pdf  # NEXIS workshop paper (AISTATS 2026)
+  NEXIS.pdf               # full paper (NeurIPS 2026 submission)
+  aistats26-workshop.pdf  # AISTATS 2026 workshop version
   causal_model.png        # causal DAG figure used in README
 
 results/
   uganda/
-    map.png
-    {model}_{dim}/{outcome}/   # NEXIS results per (model, outcome)
-  synthetic/
-    linear/        # saved PDF figures — linear DGP
-    quadratic/     # saved PDF figures — quadratic DGP
+    map/                         # study site maps
+    figures/                     # summary figures for paper
+    {model}_{dim}/{outcome}/     # NEXIS results per (model, outcome)
+  ghana/
+    map/  gate/  figures/        # maps, GATE estimates, selected-neuron figures
+  celeba/
+    experiment/{k}/{encoder}/    # power/FWER sweeps per (k, encoder) configuration
 
 data/              # real-world datasets (not tracked by git)
 ```
@@ -144,15 +173,16 @@ data/              # real-world datasets (not tracked by git)
 
 ## Citation
 
-If you use NEXIS, please cite our paper (see [assets/aistats26-workshop.pdf](assets/aistats26-workshop.pdf)):
+If you use NEXIS, please cite our paper (preprint coming soon; see [assets/aistats26-workshop.pdf](assets/aistats26-workshop.pdf) for the workshop version):
 
 ```bibtex
-@article{nexis2025,
-  title   = {},
-  author  = {},
-  journal = {},
-  year    = {2025},
-  note    = {Preprint coming soon}
+@inproceedings{cadei2026nexis,
+  title     = {From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification},
+  author    = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and
+               Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J. and Locatello, Francesco},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2026},
+  note      = {Preprint available at TODO}
 }
 ```
 
