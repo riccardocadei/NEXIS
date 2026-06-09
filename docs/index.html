@@ -265,15 +265,15 @@ footer{padding:1.8rem 2rem;text-align:center;
     <li><a href="#paradox" data-s="paradox">Experimental Power Paradox</a></li>
     <li><a href="#method" data-s="method">Method</a></li>
     <li><a href="#ablation" data-s="ablation">Controlled Experiments</a></li>
-    <li><a href="#uganda" data-s="uganda">App. 1 — Uganda (YOP)</a>
+    <li><a href="#uganda" data-s="uganda">Application 1: YOP (Uganda)</a>
       <ul>
         <li class="sub"><a href="#uganda-map">Community map</a></li>
         <li class="sub"><a href="#uganda-results">Discoveries</a></li>
       </ul>
     </li>
-    <li><a href="#ghana" data-s="ghana">App. 2 — Ghana (LEAP)</a>
+    <li><a href="#ghana" data-s="ghana">Application 2: LEAP 1000 (Ghana)</a>
       <ul>
-        <li class="sub"><a href="#ghana-map">Study region</a></li>
+        <li class="sub"><a href="#ghana-map">Community map</a></li>
         <li class="sub"><a href="#ghana-results">Discoveries</a></li>
       </ul>
     </li>
@@ -560,56 +560,33 @@ footer{padding:1.8rem 2rem;text-align:center;
      ══════════════════════════════════ -->
 <section id="uganda">
   <div class="wrap">
-    <h2>Application 1 &#8212; Uganda</h2>
-    <h3>Youth Opportunities Program
-      (<a href="https://www.aeaweb.org/articles?id=10.1257/aer.104.9.2783" class="ref" target="_blank">YOP</a>, 2008)</h3>
+    <h2>Application 1: Youth Opportunities Program (Uganda)</h2>
 
+    <h3>Program</h3>
     <p>
-      YOP awarded cash grants randomised across 439 groups in 331 communities in
-      post-conflict Northern Uganda. We extend the trial with Landsat-7 imagery (2005&#8211;2007),
-      embedded via <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
-      and summarised by a 1,024-atom SAE. NEXIS selects from 170 candidates
-      (SAE atoms, spectral indices, demographic covariates).
+      The <a href="https://chrisblattman.com/documents/research/2014.GeneratingSkilledEmployment.QJE.pdf" class="ref" target="_blank">Youth Opportunities Program (YOP)</a>
+      was a randomised cash-grant experiment conducted in post-conflict Northern Uganda in 2008.
+      The government awarded one-time grants (~$7,500 USD) to randomly selected groups of young adults,
+      enabling them to pursue skilled artisan or business activity. The program targeted communities
+      in five linguistic sub-regions severely affected by the LRA conflict.
     </p>
 
-    <!-- Outcome selector -->
-    <div style="font-family:'Helvetica Neue',sans-serif;font-size:0.78rem;font-weight:700;
-         letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem;">
-      Outcome of interest
-    </div>
-    <div class="outcome-tabs" id="ug-outcome-tabs">
-      <button class="outcome-tab active" data-oc="skilled">Skilled Employment</button>
-      <button class="outcome-tab" data-oc="biz">Log Business Assets</button>
-    </div>
-
-    <!-- Finding (outcome-specific) -->
-    <div id="ug-ctx-skilled">
-      <div class="finding">
-        <strong>Skilled Employment &#8212; Key finding</strong>
-        NEXIS returns 5 direct modifiers: 3 linguistic-group interactions (Teso, Acholi,
-        Karamojong) and 2 satellite-derived environmental features. All follow an
-        <em>outside-option logic</em>: the grant's pull into skilled trade is strongest
-        where alternative livelihoods are weakest. Marginal screening returns 71 features
-        from the same 170 candidates.
-      </div>
-    </div>
-    <div id="ug-ctx-biz" style="display:none">
-      <div class="finding">
-        <strong>Log Business Assets &#8212; Key finding</strong>
-        NEXIS returns 2 satellite-derived direct modifiers: NDVI (vegetation greenness)
-        and structured agricultural landscape. No linguistic group survives. These
-        environmental features capture the intensity of pre-program economic activity,
-        moderating asset accumulation from the grant. Marginal screening returns 45 features.
-      </div>
-    </div>
-
-    <!-- Community map -->
-    <h3 id="uganda-map" style="margin-top:1.4rem;">Trial communities (422)</h3>
-    <p style="font-size:0.85rem;color:var(--muted);">
-      Dots = trial communities colored by pre-treatment linguistic group &#8212; a key
-      direct modifier for skilled employment. Use checkboxes to filter.
+    <h3>Data</h3>
+    <p>
+      The trial enrolled 439 groups across 331 communities (422 geo-coded sites),
+      with individual-level baseline and endline surveys covering labour-market outcomes
+      (skilled employment, business assets) and pre-treatment demographic covariates
+      (age, education, household composition, linguistic group).
     </p>
-    <!-- View mode selector -->
+
+    <h3 id="uganda-map">Satellite extension</h3>
+    <p>
+      We extend the trial with Landsat-7 imagery (2005&#8211;2007), embedded via
+      <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
+      and summarised by a 1,024-atom SAE, adding 146 active SAE atoms and spectral indices
+      to the demographic covariates — 170 total NEXIS candidates.
+      The map below shows trial communities colored by linguistic group or treatment assignment.
+    </p>
     <div class="map-controls" style="margin-bottom:0.5rem;">
       <span class="mc-label">View:</span>
       <label><input type="radio" name="ug-mode" value="lang" checked>
@@ -619,7 +596,6 @@ footer{padding:1.8rem 2rem;text-align:center;
       <label><input type="radio" name="ug-mode" value="outcome">
         Mean outcome</label>
     </div>
-    <!-- Language filter — only relevant in Language mode -->
     <div id="ug-lang-filters" class="map-controls">
       <span class="mc-label">Filter groups:</span>
       <label><input type="checkbox" class="ug-lang" value="Teso" checked>
@@ -642,10 +618,39 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <p style="font-family:'Helvetica Neue',sans-serif;font-size:0.71rem;color:var(--light);margin-top:0.3rem;">
       District boundaries from GADM. Community positions from
-      <a href="https://www.aeaweb.org/articles?id=10.1257/aer.104.9.2783" class="ref" target="_blank">Blattman et al. (2014)</a>.
+      <a href="https://chrisblattman.com/documents/research/2014.GeneratingSkilledEmployment.QJE.pdf" class="ref" target="_blank">Blattman et al. (2014)</a>.
     </p>
 
-    <!-- Result table (outcome-filtered) -->
+    <h3 id="uganda-results">Results</h3>
+    <div style="font-family:'Helvetica Neue',sans-serif;font-size:0.78rem;font-weight:700;
+         letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem;">
+      Outcome of interest
+    </div>
+    <div class="outcome-tabs" id="ug-outcome-tabs">
+      <button class="outcome-tab active" data-oc="skilled">Skilled Employment</button>
+      <button class="outcome-tab" data-oc="biz">Log Business Assets</button>
+    </div>
+
+    <div id="ug-ctx-skilled">
+      <div class="finding">
+        <strong>Skilled Employment &#8212; Key finding</strong>
+        NEXIS returns 5 direct modifiers: 3 linguistic-group interactions (Teso, Acholi,
+        Karamojong) and 2 satellite-derived environmental features. All follow an
+        <em>outside-option logic</em>: the grant's pull into skilled trade is strongest
+        where alternative livelihoods are weakest. Marginal screening returns 71 features
+        from the same 170 candidates.
+      </div>
+    </div>
+    <div id="ug-ctx-biz" style="display:none">
+      <div class="finding">
+        <strong>Log Business Assets &#8212; Key finding</strong>
+        NEXIS returns 2 satellite-derived direct modifiers: NDVI (vegetation greenness)
+        and structured agricultural landscape. No linguistic group survives. These
+        environmental features capture the intensity of pre-program economic activity,
+        moderating asset accumulation from the grant. Marginal screening returns 45 features.
+      </div>
+    </div>
+
     <div id="ug-table-skilled">
       <table class="results-table">
         <caption>Discovered modifiers for Skilled Employment (NEXIS FWER). GATE = conditional average treatment effect (s.e.); &#916; = active &#8722; inactive.</caption>
@@ -685,7 +690,6 @@ footer{padding:1.8rem 2rem;text-align:center;
       </table>
     </div>
 
-    <!-- Figures (outcome-filtered) -->
     <div id="ug-figs-skilled">
       <div class="fig-row">
         <div class="fig-col">
@@ -714,30 +718,33 @@ footer{padding:1.8rem 2rem;text-align:center;
      ══════════════════════════════════ -->
 <section id="ghana">
   <div class="wrap">
-    <h2>Application 2 &#8212; Ghana</h2>
-    <h3>LEAP 1000
-      (<a href="https://www.unicef-irc.org/publications/pdf/Ghana-LEAP1000-Impact-evaluation-2018-ENG.pdf" class="ref" target="_blank">LEAP</a>, 2015&#8211;2017)</h3>
+    <h2>Application 2: Livelihood Empowerment Against Poverty (Ghana)</h2>
 
+    <h3>Program</h3>
     <p>
-      2,331 households in 162 communities across Northern/Upper East Ghana.
-      Overall DiD ATE = <strong>+7.35 GH&#8353;/month</strong>.
-      We pool Landsat-8 2015 imagery (Prithvi-EO, 4,096-atom SAE) with 24 survey
-      covariates: 155 total NEXIS candidates.
+      The <a href="https://www.unicef.org/innocenti/reports/ghana-leap-1000-programme" class="ref" target="_blank">Livelihood Empowerment Against Poverty 1000 (LEAP 1000)</a>
+      is Ghana's national unconditional cash transfer program, targeting pregnant women and
+      mothers of children under one year of age in the country's poorest districts.
+      A randomised evaluation was conducted in Northern Ghana between 2015 and 2017,
+      measuring the program's impact on household consumption and welfare.
     </p>
 
-    <div class="finding">
-      <strong>Key finding</strong>
-      Two satellite-derived direct modifiers: <em>ephemeral waterways</em> and
-      <em>closed-canopy forest</em>. No demographic modifier survives FWER. Active
-      communities (6 and 5 respectively) show 6&#8211;8&#215; the average program effect.
-      Marginal screening returns 50+ features on the same 155 candidates.
-    </div>
+    <h3>Data</h3>
+    <p>
+      The trial enrolled 2,331 households in 162 communities across the NorthEast, Northern,
+      Savannah, and Upper East regions. Baseline (2015) and endline (2017) surveys provide
+      household-level consumption outcomes and 24 pre-treatment covariates (demographics,
+      asset ownership, household composition). The overall difference-in-differences
+      ATE is <strong>+7.35 GH&#8353;/month</strong>.
+    </p>
 
-    <!-- Ghana community map -->
-    <h3 id="ghana-map" style="margin-top:1.4rem;">Study region (Northern Ghana)</h3>
-    <p style="font-size:0.85rem;color:var(--muted);">
-      GPS centroids of 162 communities across 4 GADM regions.
-      Highlight communities by discovery status.
+    <h3 id="ghana-map">Satellite extension</h3>
+    <p>
+      We extend the trial with Landsat-8 2015 imagery, embedded via
+      <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
+      and summarised by a 4,096-atom SAE, combined with the 24 survey covariates
+      — 155 total NEXIS candidates.
+      The map below shows GPS centroids of the 162 trial communities, colored by study region.
     </p>
     <div class="map-controls">
       <span class="mc-label">Highlight:</span>
@@ -753,10 +760,18 @@ footer{padding:1.8rem 2rem;text-align:center;
       <canvas id="ghana-canvas"></canvas>
     </div>
     <p style="font-family:'Helvetica Neue',sans-serif;font-size:0.71rem;color:var(--light);margin-top:0.3rem;">
-      Region boundaries from GADM. Community positions are approximate centroids.
+      Region boundaries from GADM. Community GPS centroids from the LEAP 1000 survey.
     </p>
 
-    <!-- Result table -->
+    <h3 id="ghana-results">Results</h3>
+    <div class="finding">
+      <strong>Key finding</strong>
+      Two satellite-derived direct modifiers: <em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em>. No demographic modifier survives FWER. Active
+      communities (6 and 5 respectively) show 6&#8211;8&#215; the average program effect.
+      Marginal screening returns 50+ features on the same 155 candidates.
+    </div>
+
     <table class="results-table">
       <caption>NEXIS FWER discoveries for LEAP 1000. GATEs in GH&#8353;/month. NEXIS <em>p</em> = FWER-corrected; marginal in parentheses.</caption>
       <thead><tr>
