@@ -396,27 +396,30 @@ footer{padding:1.8rem 2rem;text-align:center;
       treatment-effect heterogeneity, independently of all other covariates.</p>
     </div>
     <div class="def-box">
-      <div class="def-label">Direct Effect Modifier (Interactor)</div>
+      <div class="def-label">Direct Effect Modifier <em>(Interactor)</em></div>
       <p style="margin:0">A variable is a <strong>direct effect modifier</strong> if it
       <em>causally</em> drives the heterogeneity &#8212; its effect on the treatment response
       remains after conditioning on every other candidate. Every interactor is an effect
       modifier, but not vice versa.</p>
     </div>
     <p>
-      <strong>Example:</strong> Consider an anti-poverty program where
-      <em>market presence</em> is the latent direct modifier &#8212; communities
-      near markets benefit more. Road density, visible from satellite imagery, correlates
-      with market presence and surfaces as an effect modifier, but only by common cause.
+      <strong>Example:</strong> <em>Consider a cash transfer program (LEAP 1000) targeting
+      mothers in Northern Ghana, where the outcome is monthly household expenditure on
+      infant care. Market presence is the latent direct modifier &#8212; communities
+      near markets can convert the cash into goods for the newborn more effectively.
+      Road density, visible from satellite imagery, correlates with market presence and
+      surfaces as an effect modifier, but only by common cause.
       A naive interpretation suggests building roads to amplify the program effect;
       the actual driver is market presence, so a road built where no market exists
-      leaves the effect unchanged.
+      leaves the effect unchanged.</em>
     </p>
     <div class="paradox-callout">
       <span class="plabel">Experimental Power Paradox</span>
       <p style="margin:0">
-        Marginal screening tests each variable independently. As experimental power grows,
+        Marginal screening tests each variable independently and cannot distinguish
+        <em>effect modifiers</em> from <em>interactors</em>: as experimental power grows,
         it flags <em>every</em> variable correlated with the treatment effect &#8212;
-        including proxies like market proximity.
+        including non-causal proxies like road density.
         <strong>More data makes spurious discoveries more significant, not fewer.</strong>
         NEXIS conditions on competing candidates and recovers only the minimal set of
         true interactors.
