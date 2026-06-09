@@ -661,8 +661,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <option value="bsi">Bare soil (BSI)</option>
       </select>
       <select id="ug-out-sub" class="map-sel" style="display:none">
-        <option value="skilled">Skilled employment</option>
-        <option value="biz">Business assets</option>
+        <option value="skilled">Skilled employment (hrs)</option>
+        <option value="biz">Log business assets (ln UGX)</option>
       </select>
     </div>
     <div class="canvas-map-wrap" id="uganda-map-wrap">
@@ -1382,7 +1382,7 @@ function drawUganda(){
     drawLegendGrad(ctx,'Treatment (%)',gradColor(0,LO,HI),gradColor(1,LO,HI),'0%','100%');
   } else if(ugView==='outcome'){
     const field=ugOutSub==='biz'?'mean_biz':'mean_skilled';
-    const label=ugOutSub==='biz'?'Log biz. assets':'Skilled empl. (hrs)';
+    const label=ugOutSub==='biz'?'Log business assets (ln UGX)':'Skilled employment (hrs)';
     const[lo,hi]=ugOutSub==='biz'?[4,10]:[0,90];
     const[loLbl,hiLbl]=ugOutSub==='biz'?['4','10']:['0','90'];
     const LO=[237,248,251],HI=[110,1,107];
