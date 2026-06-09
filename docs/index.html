@@ -1512,8 +1512,9 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   }
 
   const PM=[
-    {key:'Marginal Testing (FWER)', label:'Marginal Testing', c:'#c0392b'},
-    {key:'NEXIS',                   label:'NEXIS',            c:'#1a56a0'},
+    {key:'Marginal Testing',        label:'Marginal Testing',        c:'#e05c1a'},
+    {key:'Marginal Testing (FWER)', label:'Marginal Testing (FWER)', c:'#c0392b'},
+    {key:'NEXIS',                   label:'NEXIS',                   c:'#1a56a0'},
   ];
   const pNC=mkChart('paradox-n-chart','Sample size n','logarithmic');
   const pEC=mkChart('paradox-e-chart','Effect size η','linear');
