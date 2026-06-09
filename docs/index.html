@@ -1355,22 +1355,21 @@ function drawUganda(){
         drawLegendGrad(ctx,'Population (n)',gradColor(0,LO,HI),gradColor(1,LO,HI),'5','85');
       } else {
         const SPEC_CFG={
-          ndvi:{lo:-0.24,hi:0.64,label:'Vegetation (NDVI)',LO:[210,230,170],HI:[0,100,0]},
-          ndwi:{lo:-0.62,hi:0.35,label:'Water content (NDWI)',LO:[250,230,180],HI:[0,80,200]},
-          mndwi:{lo:-0.54,hi:0.61,label:'Water bodies (MNDWI)',LO:[250,230,180],HI:[0,80,200]},
-          ndbi:{lo:-0.37,hi:0.12,label:'Built-up (NDBI)',LO:[240,240,220],HI:[120,60,20]},
-          evi:{lo:-0.04,hi:0.42,label:'Vegetation enhanced (EVI)',LO:[210,230,170],HI:[0,100,0]},
-          bsi:{lo:-0.21,hi:0.20,label:'Bare soil (BSI)',LO:[240,240,220],HI:[160,100,40]}
+          ndvi:{label:'Vegetation (NDVI)',LO:[210,230,170],HI:[0,100,0]},
+          ndwi:{label:'Water content (NDWI)',LO:[250,230,180],HI:[0,80,200]},
+          mndwi:{label:'Water bodies (MNDWI)',LO:[250,230,180],HI:[0,80,200]},
+          ndbi:{label:'Built-up (NDBI)',LO:[240,240,220],HI:[120,60,20]},
+          evi:{label:'Vegetation enhanced (EVI)',LO:[210,230,170],HI:[0,100,0]},
+          bsi:{label:'Bare soil (BSI)',LO:[240,240,220],HI:[160,100,40]}
         };
         const cfg=SPEC_CFG[ugComVar]||SPEC_CFG.ndvi;
-        const sorted=[...ugData.communities].sort((a,b)=>(a[ugComVar]??cfg.lo)-(b[ugComVar]??cfg.lo));
+        const sorted=[...ugData.communities].sort((a,b)=>(a[ugComVar]??-1)-(b[ugComVar]??-1));
         sorted.forEach(c=>{
           const v=c[ugComVar];
           if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
-          dot(c.lat,c.lon,3.2,gradColor(clamp01(v,cfg.lo,cfg.hi),cfg.LO,cfg.HI),0.95);
+          dot(c.lat,c.lon,3.2,gradColor(clamp01(v,-1,1),cfg.LO,cfg.HI),0.95);
         });
-        drawLegendGrad(ctx,cfg.label,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),
-          cfg.lo.toFixed(2),cfg.hi.toFixed(2));
+        drawLegendGrad(ctx,cfg.label,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),'-1','1');
       }
     }
   } else if(ugView==='treatment'){
@@ -1544,22 +1543,21 @@ function drawGhana(){
       drawLegendGrad(ctx,'Population (n)',gradColor(0,LO,HI),gradColor(1,LO,HI),'2','92');
     } else {
       const SPEC_CFG={
-        ndvi:{lo:0.21,hi:0.41,label:'Vegetation (NDVI)',LO:[210,230,170],HI:[0,100,0]},
-        ndwi:{lo:-0.47,hi:-0.35,label:'Water content (NDWI)',LO:[250,230,180],HI:[0,80,200]},
-        mndwi:{lo:-0.52,hi:-0.41,label:'Water bodies (MNDWI)',LO:[250,230,180],HI:[0,80,200]},
-        ndbi:{lo:-0.05,hi:0.15,label:'Built-up (NDBI)',LO:[240,240,220],HI:[120,60,20]},
-        evi:{lo:0.15,hi:0.27,label:'Vegetation enhanced (EVI)',LO:[210,230,170],HI:[0,100,0]},
-        bsi:{lo:0.05,hi:0.21,label:'Bare soil (BSI)',LO:[240,240,220],HI:[160,100,40]}
+        ndvi:{label:'Vegetation (NDVI)',LO:[210,230,170],HI:[0,100,0]},
+        ndwi:{label:'Water content (NDWI)',LO:[250,230,180],HI:[0,80,200]},
+        mndwi:{label:'Water bodies (MNDWI)',LO:[250,230,180],HI:[0,80,200]},
+        ndbi:{label:'Built-up (NDBI)',LO:[240,240,220],HI:[120,60,20]},
+        evi:{label:'Vegetation enhanced (EVI)',LO:[210,230,170],HI:[0,100,0]},
+        bsi:{label:'Bare soil (BSI)',LO:[240,240,220],HI:[160,100,40]}
       };
       const cfg=SPEC_CFG[ghComVar]||SPEC_CFG.ndvi;
-      const sorted=[...comms].sort((a,b)=>(a[ghComVar]??cfg.lo)-(b[ghComVar]??cfg.lo));
+      const sorted=[...comms].sort((a,b)=>(a[ghComVar]??-1)-(b[ghComVar]??-1));
       sorted.forEach(c=>{
         const v=c[ghComVar];
         if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
-        dot(c.lat,c.lon,2.8,gradColor(clamp01(v,cfg.lo,cfg.hi),cfg.LO,cfg.HI),0.95);
+        dot(c.lat,c.lon,2.8,gradColor(clamp01(v,-1,1),cfg.LO,cfg.HI),0.95);
       });
-      drawLegendGrad(ctx,cfg.label,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),
-        cfg.lo.toFixed(2),cfg.hi.toFixed(2));
+      drawLegendGrad(ctx,cfg.label,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),'-1','1');
     }
   } else if(ghView==='treatment'){
     const LO=[44,123,182],HI=[215,48,39];
