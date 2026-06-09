@@ -629,15 +629,24 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="map-controls" style="margin-bottom:0.4rem;flex-wrap:wrap;gap:0.5rem;">
       <span class="mc-label">View:</span>
       <select id="ug-view" class="map-sel">
-        <option value="covariates">Covariates</option>
+        <option value="cov_ind">Covariates (individual)</option>
+        <option value="cov_com">Covariates (community)</option>
         <option value="treatment">Treatment</option>
         <option value="outcome">Outcome</option>
       </select>
-      <select id="ug-cov-sub" class="map-sel">
+      <select id="ug-ind-var" class="map-sel">
+        <option value="age">Age</option>
+        <option value="hhsize">Household size</option>
+        <option value="pct_female">% female</option>
+      </select>
+      <select id="ug-ind-agg" class="map-sel">
+        <option value="mean">Mean</option>
+        <option value="min">Min</option>
+        <option value="max">Max</option>
+      </select>
+      <select id="ug-com-var" class="map-sel" style="display:none">
         <option value="lang">Language</option>
         <option value="district">District</option>
-        <option value="age">Mean age</option>
-        <option value="pct_female">% female groups</option>
       </select>
       <select id="ug-out-sub" class="map-sel" style="display:none">
         <option value="skilled">Skilled employment</option>
@@ -771,13 +780,22 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="map-controls" style="flex-wrap:wrap;gap:0.5rem;">
       <span class="mc-label">View:</span>
       <select id="gh-view" class="map-sel">
-        <option value="covariates">Covariates</option>
+        <option value="cov_ind">Covariates (individual)</option>
+        <option value="cov_com">Covariates (community)</option>
         <option value="treatment">Treatment</option>
         <option value="outcome">Outcome</option>
       </select>
-      <select id="gh-cov-sub" class="map-sel">
-        <option value="region">Region</option>
+      <select id="gh-ind-var" class="map-sel">
         <option value="age">Age</option>
+        <option value="hhsize">Household size</option>
+      </select>
+      <select id="gh-ind-agg" class="map-sel">
+        <option value="mean">Mean</option>
+        <option value="min">Min</option>
+        <option value="max">Max</option>
+      </select>
+      <select id="gh-com-var" class="map-sel" style="display:none">
+        <option value="region">Region</option>
       </select>
     </div>
     <div class="canvas-map-wrap" id="ghana-map-wrap">
@@ -1204,7 +1222,7 @@ const UG_DIST_COL={
   PALLISA:'#888',                                                 // Other
 };
 let ugData={country:null,regions:null,communities:null,bounds:null};
-let ugView='covariates',ugCovSub='lang',ugOutSub='skilled';
+let ugView='cov_ind',ugIndVar='age',ugIndAgg='mean',ugComVar='lang',ugOutSub='skilled';
 
 function gradColor(t,lo,hi){
   return`rgb(${Math.round(lo[0]+(hi[0]-lo[0])*t)},${Math.round(lo[1]+(hi[1]-lo[1])*t)},${Math.round(lo[2]+(hi[2]-lo[2])*t)})`;
@@ -1263,31 +1281,31 @@ function drawUganda(){
     ctx.globalAlpha=alpha;ctx.fillStyle=fill;ctx.fill();
     ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.4;ctx.stroke();
   }
-  if(ugView==='covariates'){
-    if(ugCovSub==='lang'){
-      ugData.communities.forEach(c=>{
-        dot(c.lat,c.lon,3.2,UG_COL[c.lang]||'#bbb',1);
-      });
+  if(ugView==='cov_ind'){
+    const AGE_FIELDS={mean:'mean_age',min:'min_age',max:'max_age'};
+    const HHS_FIELDS={mean:'mean_hhsize',min:'min_hhsize',max:'max_hhsize'};
+    const PF_FIELDS={mean:'pct_female',min:'pct_female',max:'pct_female'};
+    const isAge=ugIndVar==='age', isHhs=ugIndVar==='hhsize';
+    const fieldMap=isAge?AGE_FIELDS:isHhs?HHS_FIELDS:PF_FIELDS;
+    const field=fieldMap[ugIndAgg];
+    const[lo,hi]=isAge?[15,55]:isHhs?[1,15]:[0,1];
+    const[loLbl,hiLbl]=isAge?['15','55']:isHhs?['1','15']:['0%','100%'];
+    const label=isAge?`Age (yr) — ${ugIndAgg}`:isHhs?`Household size — ${ugIndAgg}`:`Female (%) — ${ugIndAgg}`;
+    const LO=[220,230,255],HI=[30,80,200];
+    ugData.communities.forEach(c=>{
+      const v=c[field];
+      if(v==null||v===0){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
+      dot(c.lat,c.lon,3.2,gradColor(clamp01(v,lo,hi),LO,HI),0.95);
+    });
+    drawLegendGrad(ctx,label,gradColor(0,LO,HI),gradColor(1,LO,HI),loLbl,hiLbl);
+  } else if(ugView==='cov_com'){
+    if(ugComVar==='lang'){
+      ugData.communities.forEach(c=>{dot(c.lat,c.lon,3.2,UG_COL[c.lang]||'#bbb',1);});
       drawLegendCat(ctx,Object.entries(UG_COL));
-    } else if(ugCovSub==='district'){
-      ugData.communities.forEach(c=>{
-        dot(c.lat,c.lon,3.2,UG_DIST_COL[c.district]||'#aaa',0.9);
-      });
+    } else {
+      ugData.communities.forEach(c=>{dot(c.lat,c.lon,3.2,UG_DIST_COL[c.district]||'#aaa',0.9);});
       const shown=new Set(ugData.communities.map(c=>c.district));
       drawLegendCat(ctx,Object.entries(UG_DIST_COL).filter(([d])=>shown.has(d)));
-    } else {
-      const isAge=ugCovSub==='age';
-      const field=isAge?'mean_age':'pct_female';
-      const label=isAge?'Age (yr)':'Female (%)';
-      const[lo,hi]=isAge?[18,45]:[0,1];
-      const[loLbl,hiLbl]=isAge?['18','45']:['0%','100%'];
-      const LO=[220,230,255],HI=[30,80,200];
-      ugData.communities.forEach(c=>{
-        const v=c[field];
-        if(v==null||v===0){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
-        dot(c.lat,c.lon,3.2,gradColor(clamp01(v,lo,hi),LO,HI),0.95);
-      });
-      drawLegendGrad(ctx,label,gradColor(0,LO,HI),gradColor(1,LO,HI),loLbl,hiLbl);
     }
   } else if(ugView==='treatment'){
     const LO=[44,123,182],HI=[215,48,39];
@@ -1328,17 +1346,25 @@ Promise.all([
   new ResizeObserver(drawUganda).observe(document.getElementById('uganda-map-wrap'));
 });
 
-document.getElementById('ug-view').addEventListener('change',function(){
-  ugView=this.value;
-  const cov=ugView==='covariates',out=ugView==='outcome';
-  document.getElementById('ug-cov-sub').style.display=cov?'':'none';
+function ugSyncSelectors(){
+  const ind=ugView==='cov_ind',com=ugView==='cov_com',out=ugView==='outcome';
+  document.getElementById('ug-ind-var').style.display=ind?'':'none';
+  document.getElementById('ug-ind-agg').style.display=ind?'':'none';
+  document.getElementById('ug-com-var').style.display=com?'':'none';
   document.getElementById('ug-out-sub').style.display=out?'':'none';
-  drawUganda();
+}
+ugSyncSelectors();
+document.getElementById('ug-view').addEventListener('change',function(){
+  ugView=this.value;ugSyncSelectors();drawUganda();
 });
-document.getElementById('ug-cov-sub').addEventListener('change',function(){
-  ugCovSub=this.value;
-  document.getElementById('ug-lang-filters').style.display=(ugCovSub==='lang')?'':'none';
-  drawUganda();
+document.getElementById('ug-ind-var').addEventListener('change',function(){
+  ugIndVar=this.value;drawUganda();
+});
+document.getElementById('ug-ind-agg').addEventListener('change',function(){
+  ugIndAgg=this.value;drawUganda();
+});
+document.getElementById('ug-com-var').addEventListener('change',function(){
+  ugComVar=this.value;drawUganda();
 });
 document.getElementById('ug-out-sub').addEventListener('change',function(){
   ugOutSub=this.value;drawUganda();
@@ -1370,7 +1396,7 @@ function communityRegion(lat,lon,regions){
 }
 
 let ghData={country:null,regions:null,communities:null};
-let ghView='covariates',ghCovSub='region';
+let ghView='cov_ind',ghIndVar='age',ghIndAgg='mean';
 
 function drawGhana(){
   if(!ghData.country||!ghData.communities)return;
@@ -1397,22 +1423,28 @@ function drawGhana(){
     ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;ctx.stroke();
   }
   const comms=ghData.communities;
-  if(ghView==='covariates'){
-    if(ghCovSub==='region'){
-      comms.forEach(c=>{
-        const ri=c.region_idx??-1;
-        dot(c.lat,c.lon,2.8,ri>=0?GH_REGION_PALETTE.dot[ri]:'#aaa',0.8);
-      });
-      const shownRegions=new Set(comms.map(c=>c.region_idx).filter(r=>r>=0));
-      drawLegendCat(ctx,GH_REGION_NAMES.map((n,i)=>[n,GH_REGION_PALETTE.dot[i]]).filter((_,i)=>shownRegions.has(i)));
-    } else {
-      const LO=[220,230,255],HI=[30,80,200];
-      comms.forEach(c=>{
-        if(c.mean_age==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
-        dot(c.lat,c.lon,2.8,gradColor(clamp01(c.mean_age,25,60),LO,HI),0.9);
-      });
-      drawLegendGrad(ctx,'Age (yr)',gradColor(0,LO,HI),gradColor(1,LO,HI),'25','60');
-    }
+  if(ghView==='cov_ind'){
+    const AGE_FIELDS={mean:'mean_age',min:'min_age',max:'max_age'};
+    const HHS_FIELDS={mean:'mean_hhsize',min:'min_hhsize',max:'max_hhsize'};
+    const isAge=ghIndVar==='age';
+    const field=(isAge?AGE_FIELDS:HHS_FIELDS)[ghIndAgg];
+    const[lo,hi]=isAge?[20,65]:[1,15];
+    const[loLbl,hiLbl]=isAge?['20','65']:['1','15'];
+    const label=isAge?`Age (yr) — ${ghIndAgg}`:`Household size — ${ghIndAgg}`;
+    const LO=[220,230,255],HI=[30,80,200];
+    comms.forEach(c=>{
+      const v=c[field];
+      if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
+      dot(c.lat,c.lon,2.8,gradColor(clamp01(v,lo,hi),LO,HI),0.9);
+    });
+    drawLegendGrad(ctx,label,gradColor(0,LO,HI),gradColor(1,LO,HI),loLbl,hiLbl);
+  } else if(ghView==='cov_com'){
+    comms.forEach(c=>{
+      const ri=c.region_idx??-1;
+      dot(c.lat,c.lon,2.8,ri>=0?GH_REGION_PALETTE.dot[ri]:'#aaa',0.8);
+    });
+    const shownRegions=new Set(comms.map(c=>c.region_idx).filter(r=>r>=0));
+    drawLegendCat(ctx,GH_REGION_NAMES.map((n,i)=>[n,GH_REGION_PALETTE.dot[i]]).filter((_,i)=>shownRegions.has(i)));
   } else if(ghView==='treatment'){
     const LO=[44,123,182],HI=[215,48,39];
     const sorted=[...comms].sort((a,b)=>(a.pct_treated??0)-(b.pct_treated??0));
@@ -1447,13 +1479,24 @@ Promise.all([
   new ResizeObserver(drawGhana).observe(document.getElementById('ghana-map-wrap'));
 });
 
+function ghSyncSelectors(){
+  const ind=ghView==='cov_ind',com=ghView==='cov_com';
+  document.getElementById('gh-ind-var').style.display=ind?'':'none';
+  document.getElementById('gh-ind-agg').style.display=ind?'':'none';
+  document.getElementById('gh-com-var').style.display=com?'':'none';
+}
+ghSyncSelectors();
 document.getElementById('gh-view').addEventListener('change',function(){
-  ghView=this.value;
-  document.getElementById('gh-cov-sub').style.display=(ghView==='covariates')?'':'none';
-  drawGhana();
+  ghView=this.value;ghSyncSelectors();drawGhana();
 });
-document.getElementById('gh-cov-sub').addEventListener('change',function(){
-  ghCovSub=this.value;drawGhana();
+document.getElementById('gh-ind-var').addEventListener('change',function(){
+  ghIndVar=this.value;drawGhana();
+});
+document.getElementById('gh-ind-agg').addEventListener('change',function(){
+  ghIndAgg=this.value;drawGhana();
+});
+document.getElementById('gh-com-var').addEventListener('change',function(){
+  drawGhana();
 });
 
 /* ══════════════════════════════════════════════
