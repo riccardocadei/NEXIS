@@ -299,6 +299,7 @@ footer{padding:1.8rem 2rem;text-align:center;
         <li class="sub"><a href="#ghana-results">Discoveries</a></li>
       </ul>
     </li>
+    <li><a href="#conclusion" data-s="conclusion">Conclusion</a></li>
     <li><a href="#citation" data-s="citation">Citation</a></li>
   </ul></nav>
 </aside>
@@ -891,6 +892,37 @@ footer{padding:1.8rem 2rem;text-align:center;
   </div>
 </section>
 
+<!-- CONCLUSION -->
+<section id="conclusion">
+  <div class="wrap">
+    <h2>Conclusion</h2>
+    <p>
+      This work introduces the first procedure that targets a <strong>causal and interpretable
+      characterisation of treatment effect heterogeneity</strong> — a step beyond existing methods
+      that either estimate heterogeneity flexibly but uninterpretably, or require the analyst to
+      supply semantically meaningful covariates upfront.
+      By combining foundation-model representations with sparse dictionary learning and principled
+      conditional testing, NEXIS recovers exactly the latent direct effect modifiers, with
+      formal recovery guarantees under transparent assumptions.
+    </p>
+    <p>
+      Deployed on two anti-poverty programs, the results reveal a consistent pattern: <strong>satellite-derived
+      environmental features are significant drivers of treatment effect heterogeneity</strong>, explaining
+      variation that classical survey covariates fail to capture.
+      In both Uganda (YOP) and Ghana (LEAP 1000), the strongest modifiers are landscape and
+      hydrology features visible only from imagery — factors that previous evaluations had no
+      way to consider.
+      This points to a broader opportunity: environments shape how programs work, and accounting
+      for them is actionable, since the same imagery is available before a program is deployed.
+    </p>
+    <p style="color:var(--muted);font-size:0.85em;">
+      The main limitations are in the assumptions: measurement sufficiency cannot be tested without
+      auxiliary experiments, principal alignment is only verifiable with supervision, and any
+      result should be interpreted and validated carefully before informing policy decisions.
+    </p>
+  </div>
+</section>
+
 <!-- CITATION -->
 <section id="citation">
   <div class="wrap">
@@ -946,7 +978,7 @@ function copyBibtex(){
 }
 
 /* ── Scrollspy ── */
-const SECS=['tldr','paradox','method','ablation','uganda','ghana','citation'];
+const SECS=['tldr','paradox','method','ablation','uganda','ghana','conclusion','citation'];
 function navUpdate(){
   const y=window.scrollY+100;let cur=SECS[0];
   SECS.forEach(id=>{const e=document.getElementById(id);if(e&&e.offsetTop<=y)cur=id;});
