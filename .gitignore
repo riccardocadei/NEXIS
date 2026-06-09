@@ -29,3 +29,7 @@ results/
 
 # Root-level assets (PDFs, large figures) — only docs/assets/ is tracked
 /assets/
+
+# Manim build artefacts
+animations/media/
+animations/__pycache__/
