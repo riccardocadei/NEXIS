@@ -1370,11 +1370,9 @@ document.getElementById('ug-out-sub').addEventListener('change',function(){
    GHANA MAP
    ══════════════════════════════════════════════ */
 const GH_REGION_PALETTE={
-  fill:  ['#cde4f5','#d0edce','#fce8c3','#e8d4f0'],
-  stroke:['#6aafd4','#6dbe80','#e8a050','#b080d0'],
-  dot:   ['#3d92c4','#3c9e54','#cb7a1e','#8e4fad'],
+  dot: ['#3d92c4','#cb7a1e','#8e4fad'],
 };
-const GH_REGION_NAMES=['NorthEast','Northern','Savannah','Upper East'];
+const GH_REGION_NAMES=['NorthEast','Northern','Upper East'];
 
 function pointInPolygon(lat,lon,ring){
   let inside=false;
@@ -1409,10 +1407,7 @@ function drawGhana(){
   ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
   drawRegions(ctx,ghData.country,proj,'#e8ede4','#b0bba8');
   if(ghData.regions){
-    ghData.regions.features.forEach((f,i)=>{
-      drawRegions(ctx,{type:'FeatureCollection',features:[f]},proj,
-        GH_REGION_PALETTE.fill[i]||'#d5e8cc',GH_REGION_PALETTE.stroke[i]||'#7a9e72');
-    });
+    drawRegions(ctx,ghData.regions,proj,'#e8f4e2','#b8d9b0');
   }
   drawWaterPolys(ctx,GH_WATER,proj);
   ctx.font='11px Helvetica Neue,Arial,sans-serif';
