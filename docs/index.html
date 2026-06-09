@@ -198,7 +198,10 @@ section p:last-child{margin-bottom:0;}
   text-transform:uppercase;color:var(--muted);}
 .canvas-map-wrap{position:relative;border:1px solid var(--border);
   border-radius:2px;overflow:hidden;background:#f0f0ec;height:480px;}
-.canvas-map-wrap canvas{display:block;width:100%;height:100%;}
+.canvas-map-wrap canvas{display:block;width:100%;height:100%;cursor:grab;}
+.canvas-map-wrap canvas.dragging{cursor:grabbing;}
+.map-zoom-hint{position:absolute;bottom:6px;right:8px;font-size:0.65rem;
+  color:rgba(0,0,0,0.35);pointer-events:none;font-family:'Helvetica Neue',Arial,sans-serif;}
 
 /* ── GATE chart ── */
 .gate-chart-wrap{background:var(--bg);border:1px solid var(--border);
@@ -668,6 +671,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <div class="canvas-map-wrap" id="uganda-map-wrap">
       <canvas id="uganda-canvas"></canvas>
+      <span class="map-zoom-hint">scroll to zoom · drag to pan · dbl-click to reset</span>
     </div>
 
     <h3 id="uganda-results">Results</h3>
@@ -844,6 +848,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <div class="canvas-map-wrap" id="ghana-map-wrap">
       <canvas id="ghana-canvas"></canvas>
+      <span class="map-zoom-hint">scroll to zoom · drag to pan · dbl-click to reset</span>
     </div>
 
     <h3 id="ghana-results">Results</h3>
@@ -1267,6 +1272,42 @@ const UG_DIST_COL={
 };
 let ugData={country:null,regions:null,communities:null,bounds:null};
 let ugView='treatment',ugCovLevel='individual',ugIndVar='age',ugIndAgg='mean',ugGrpVar='pct_female',ugComVar='lang',ugOutSub='skilled';
+let ugVP={z:1,px:0,py:0};
+
+function applyVP(baseProj,vp){
+  return(lat,lon)=>{const[x,y]=baseProj(lat,lon);return[x*vp.z+vp.px,y*vp.z+vp.py];};
+}
+function zoomVP(vp,factor,mx,my){
+  vp.px=mx+(vp.px-mx)*factor;
+  vp.py=my+(vp.py-my)*factor;
+  vp.z*=factor;
+}
+function addMapInteraction(canvasId,vpObj,redrawFn){
+  const el=document.getElementById(canvasId);
+  let drag=null;
+  el.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const r=el.getBoundingClientRect();
+    const mx=(e.clientX-r.left)*(el.width/(window.devicePixelRatio||1))/el.offsetWidth;
+    const my=(e.clientY-r.top)*(el.height/(window.devicePixelRatio||1))/el.offsetHeight;
+    const f=e.deltaY<0?1.15:1/1.15;
+    zoomVP(vpObj,f,mx,my);
+    redrawFn();
+  },{passive:false});
+  el.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY};el.classList.add('dragging');});
+  el.addEventListener('mousemove',e=>{
+    if(!drag)return;
+    const scaleX=el.offsetWidth?(el.width/(window.devicePixelRatio||1))/el.offsetWidth:1;
+    const scaleY=el.offsetHeight?(el.height/(window.devicePixelRatio||1))/el.offsetHeight:1;
+    vpObj.px+=(e.clientX-drag.x)*scaleX;
+    vpObj.py+=(e.clientY-drag.y)*scaleY;
+    drag={x:e.clientX,y:e.clientY};
+    redrawFn();
+  });
+  el.addEventListener('mouseup',()=>{drag=null;el.classList.remove('dragging');});
+  el.addEventListener('mouseleave',()=>{drag=null;el.classList.remove('dragging');});
+  el.addEventListener('dblclick',()=>{vpObj.z=1;vpObj.px=0;vpObj.py=0;redrawFn();});
+}
 
 function gradColor(t,lo,hi){
   return`rgb(${Math.round(lo[0]+(hi[0]-lo[0])*t)},${Math.round(lo[1]+(hi[1]-lo[1])*t)},${Math.round(lo[2]+(hi[2]-lo[2])*t)})`;
@@ -1307,7 +1348,7 @@ function drawUganda(){
   const canvas=document.getElementById('uganda-canvas');
   const W=wrap.offsetWidth||700,H=wrap.offsetHeight||480;
   const ctx=hiDPI(canvas,W,H);
-  const proj=makeProjector(ugData.bounds,W,H,18);
+  const proj=applyVP(makeProjector(ugData.bounds,W,H,18),ugVP);
   ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
   drawRegions(ctx,ugData.country,proj,'#e8ede4','#b0bba8');
   drawRegions(ctx,ugData.regions,proj,'#e8f4e2','#b8d9b0');
@@ -1409,7 +1450,7 @@ Promise.all([
     minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1,
   }};
   drawUganda();
-  new ResizeObserver(drawUganda).observe(document.getElementById('uganda-map-wrap'));
+  new ResizeObserver(()=>{ugVP={z:1,px:0,py:0};drawUganda();}).observe(document.getElementById('uganda-map-wrap'));
 });
 
 function ugSyncSelectors(){
@@ -1430,6 +1471,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('ug-grp-var').addEventListener('change',function(){ugGrpVar=this.value;drawUganda();});
   document.getElementById('ug-com-var').addEventListener('change',function(){ugComVar=this.value;drawUganda();});
   document.getElementById('ug-out-sub').addEventListener('change',function(){ugOutSub=this.value;drawUganda();});
+  addMapInteraction('uganda-canvas',ugVP,drawUganda);
 });
 
 /* ══════════════════════════════════════════════
@@ -1459,6 +1501,7 @@ function communityRegion(lat,lon,regions){
 
 let ghData={country:null,regions:null,communities:null};
 let ghView='treatment',ghCovLevel='individual',ghIndVar='age',ghIndAgg='mean',ghComVar='region';
+let ghVP={z:1,px:0,py:0};
 const GH_BINARY_VARS=new Set(['headfemale','headmarried','headschool','headformal',
   'noelec','mudwall','thatchroof','mudfloor','water',
   'anypoultry','anylivestock','anybusiness','anyfarming']);
@@ -1487,7 +1530,7 @@ function drawGhana(){
   const gb=boundsFromGeoJSON(ghData.country);
   const bounds={minLat:gb.minLat-0.1,maxLat:gb.maxLat+0.1,
                 minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1};
-  const proj=makeProjector(bounds,W,H,18);
+  const proj=applyVP(makeProjector(bounds,W,H,18),ghVP);
   ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
   drawRegions(ctx,ghData.country,proj,'#e8ede4','#b0bba8');
   if(ghData.regions){
@@ -1591,7 +1634,7 @@ Promise.all([
   });
   ghData={country,regions,communities};
   drawGhana();
-  new ResizeObserver(drawGhana).observe(document.getElementById('ghana-map-wrap'));
+  new ResizeObserver(()=>{ghVP={z:1,px:0,py:0};drawGhana();}).observe(document.getElementById('ghana-map-wrap'));
 });
 
 function ghSyncSelectors(){
@@ -1610,6 +1653,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('gh-ind-var').addEventListener('change',function(){ghIndVar=this.value;ghSyncSelectors();drawGhana();});
   document.getElementById('gh-ind-agg').addEventListener('change',function(){ghIndAgg=this.value;drawGhana();});
   document.getElementById('gh-com-var').addEventListener('change',function(){ghComVar=this.value;drawGhana();});
+  addMapInteraction('ghana-canvas',ghVP,drawGhana);
 });
 
 /* ══════════════════════════════════════════════
