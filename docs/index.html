@@ -131,6 +131,19 @@ section p:last-child{margin-bottom:0;}
 .def-label{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.81rem;
   font-weight:700;margin-bottom:0.18rem;color:var(--text);}
 
+/* ── Theorem box ── */
+.thm-box{background:#f5f7ff;border:1px solid #c0caf0;border-radius:3px;
+  padding:1.1rem 1.4rem;margin:1.4rem 0;}
+.thm-box .thm-label{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.64rem;
+  font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3a4aaa;
+  display:block;margin-bottom:0.7rem;}
+.thm-box .thm-title{font-weight:700;margin-bottom:0.55rem;display:block;}
+.thm-ass{margin:0 0 0.55rem 0;padding:0;list-style:none;}
+.thm-ass li{display:flex;gap:0.55rem;margin-bottom:0.28rem;font-size:0.94rem;line-height:1.55;}
+.thm-ass li::before{content:"A"attr(data-n)".";font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.7rem;font-weight:700;color:#3a4aaa;min-width:1.9em;flex-shrink:0;padding-top:0.18em;}
+.thm-result{border-top:1px solid #c0caf0;margin-top:0.65rem;padding-top:0.65rem;font-size:0.94rem;line-height:1.6;}
+
 /* ── Two-chart layout ── */
 .two-charts-wrap{margin:1rem 0;}
 .two-charts-shared{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;
@@ -495,6 +508,25 @@ footer{padding:1.8rem 2rem;text-align:center;
         directly actionable for program adaptation.
       </div></li>
     </ol>
+
+    <div class="thm-box">
+      <span class="thm-label">Theoretical guarantee</span>
+      <span class="thm-title">Theorem (Causal Identification)</span>
+      Three assumptions are required:
+      <ul class="thm-ass">
+        <li data-n="1"><span><strong>Measurement Sufficiency.</strong> The measured pre-treatment variables X contain all heterogeneous treatment effect information — i.e., knowing X is as informative about who benefits as knowing the latent direct modifiers W<sup>dir</sup> themselves.</span></li>
+        <li data-n="2"><span><strong>Representation Sufficiency.</strong> The SAE representation Z = ψ(X) preserves all HTE information from X — enforced in practice by the SAE reconstruction loss.</span></li>
+        <li data-n="3"><span><strong>Principal Alignment.</strong> Each direct modifier is captured by a unique dominant SAE coordinate, with no residual signal scattered across others. This is the population-level regime that SAEs are trained to achieve.</span></li>
+      </ul>
+      <div class="thm-result">
+        Under A1–A3, mean-faithfulness, and valid conditional tests, NEXIS recovers the principal proxy coordinates S* with
+        probability at least 1&#8722;&#945; asymptotically (<em>selection consistency</em>).
+        Under A1–A3 additionally, the selected coordinates identify the joint interventional effect of the latent direct modifiers:
+        the group average treatment effect conditional on S* equals the effect of directly intervening on W<sup>dir</sup>
+        (<em>causal identification</em>), licensing counterfactual comparisons and prescriptive policy design.
+      </div>
+    </div>
+
   </div>
 </section>
 
