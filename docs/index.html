@@ -267,13 +267,13 @@ footer{padding:1.8rem 2rem;text-align:center;
     <li><a href="#ablation" data-s="ablation">Controlled Experiments</a></li>
     <li><a href="#uganda" data-s="uganda">Application 1: YOP (Uganda)</a>
       <ul>
-        <li class="sub"><a href="#uganda-map">Community map</a></li>
+        <li class="sub"><a href="#uganda-map">Overview</a></li>
         <li class="sub"><a href="#uganda-results">Discoveries</a></li>
       </ul>
     </li>
     <li><a href="#ghana" data-s="ghana">Application 2: LEAP 1000 (Ghana)</a>
       <ul>
-        <li class="sub"><a href="#ghana-map">Community map</a></li>
+        <li class="sub"><a href="#ghana-map">Overview</a></li>
         <li class="sub"><a href="#ghana-results">Discoveries</a></li>
       </ul>
     </li>
@@ -565,8 +565,8 @@ footer{padding:1.8rem 2rem;text-align:center;
   <div class="wrap">
     <h2>Application 1: Youth Opportunities Program (Uganda)</h2>
 
-    <h3>Program</h3>
-    <p>
+    <p id="uganda-program">
+      <strong>Program.</strong>
       The <a href="https://chrisblattman.com/documents/research/2014.GeneratingSkilledEmployment.QJE.pdf" class="ref" target="_blank">Youth Opportunities Program (YOP)</a>
       was a randomised cash-grant experiment conducted in post-conflict Northern Uganda in 2008.
       The government awarded one-time grants (~$7,500 USD) to randomly selected groups of young adults,
@@ -574,16 +574,15 @@ footer{padding:1.8rem 2rem;text-align:center;
       in five linguistic sub-regions severely affected by the LRA conflict.
     </p>
 
-    <h3>Data</h3>
     <p>
+      <strong>Data.</strong>
       The trial enrolled 439 groups across 331 communities (422 geo-coded sites),
       with individual-level baseline and endline surveys covering labour-market outcomes
       (skilled employment, business assets) and pre-treatment demographic covariates
       (age, education, household composition, linguistic group).
     </p>
 
-    <h3 id="uganda-map">Satellite extension</h3>
-    <p>
+    <p id="uganda-map"><strong>Satellite extension.</strong>
       We extend the trial with Landsat-7 imagery (2005&#8211;2007), embedded via
       <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
       and summarised by a 1,024-atom SAE, adding 146 active SAE atoms and spectral indices
@@ -723,8 +722,8 @@ footer{padding:1.8rem 2rem;text-align:center;
   <div class="wrap">
     <h2>Application 2: Livelihood Empowerment Against Poverty (Ghana)</h2>
 
-    <h3>Program</h3>
-    <p>
+    <p id="ghana-program">
+      <strong>Program.</strong>
       The <a href="https://www.unicef.org/innocenti/reports/ghana-leap-1000-programme" class="ref" target="_blank">Livelihood Empowerment Against Poverty 1000 (LEAP 1000)</a>
       is Ghana's national unconditional cash transfer program, targeting pregnant women and
       mothers of children under one year of age in the country's poorest districts.
@@ -732,8 +731,8 @@ footer{padding:1.8rem 2rem;text-align:center;
       measuring the program's impact on household consumption and welfare.
     </p>
 
-    <h3>Data</h3>
     <p>
+      <strong>Data.</strong>
       The trial enrolled 2,331 households in 162 communities across the NorthEast, Northern,
       Savannah, and Upper East regions. Baseline (2015) and endline (2017) surveys provide
       household-level consumption outcomes and 24 pre-treatment covariates (demographics,
@@ -741,8 +740,7 @@ footer{padding:1.8rem 2rem;text-align:center;
       ATE is <strong>+7.35 GH&#8353;/month</strong>.
     </p>
 
-    <h3 id="ghana-map">Satellite extension</h3>
-    <p>
+    <p id="ghana-map"><strong>Satellite extension.</strong>
       We extend the trial with Landsat-8 2015 imagery, embedded via
       <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
       and summarised by a 4,096-atom SAE, combined with the 24 survey covariates
@@ -1191,7 +1189,7 @@ function drawUganda(){
   const proj=makeProjector(ugData.bounds,W,H,18);
   ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
   drawRegions(ctx,ugData.country,proj,'#e8ede4','#b0bba8');
-  drawRegions(ctx,ugData.regions,proj,'#d5e8cc','#7a9e72');
+  drawRegions(ctx,ugData.regions,proj,'#e8f4e2','#b8d9b0');
   drawWaterPolys(ctx,UG_WATER,proj);
 
   if(ugMode==='lang'){
