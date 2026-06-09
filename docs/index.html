@@ -390,28 +390,34 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h2>Experimental Power Paradox</h2>
     <div class="def-box">
       <div class="def-label">Effect Modifier</div>
-      <p style="margin:0">A variable X is an <strong>effect modifier</strong> if the
-      conditional average treatment effect &tau;(x)&nbsp;=&nbsp;E[Y(1)&minus;Y(0)&thinsp;|&thinsp;X=x]
-      is not constant in x. This is a marginal, statistical notion: it can be detected by
-      testing whether X predicts heterogeneity in &tau; independently of other covariates.</p>
+      <p style="margin:0">A variable is an <strong>effect modifier</strong> if its value
+      is associated with how much a unit benefits from the treatment. This is a purely
+      statistical notion: it can be detected by testing whether the variable predicts
+      treatment-effect heterogeneity, independently of all other covariates.</p>
     </div>
     <div class="def-box">
       <div class="def-label">Direct Effect Modifier (Interactor)</div>
-      <p style="margin:0">X is a <strong>direct effect modifier</strong> if it causally
-      moderates the treatment response &#8212; formally, X&thinsp;&isin;&thinsp;S&#x22C6;,
-      the minimal set conditioning on which renders &tau; constant in any remaining candidate.
-      Every interactor is an effect modifier, but not vice versa: proximity to a market may
-      predict heterogeneity in a cash transfer program merely because it correlates with soil
-      quality, the true interactor.</p>
+      <p style="margin:0">A variable is a <strong>direct effect modifier</strong> if it
+      <em>causally</em> drives the heterogeneity &#8212; its effect on the treatment response
+      remains after conditioning on every other candidate. Every interactor is an effect
+      modifier, but not vice versa.</p>
     </div>
+    <p>
+      Consider a road-building program: villages near a market show larger economic gains.
+      Market proximity is an effect modifier &#8212; but the true interactor may be soil
+      quality, which determines what farmers can produce once the road arrives and which
+      happens to correlate with proximity to markets. Targeting villages near markets
+      misdirects resources; targeting villages with favorable soil does not.
+    </p>
     <div class="paradox-callout">
       <span class="plabel">Experimental Power Paradox</span>
       <p style="margin:0">
         Marginal screening tests each variable independently. As experimental power grows,
-        it flags <em>every</em> variable correlated with the CATE &#8212; proxies included.
+        it flags <em>every</em> variable correlated with the treatment effect &#8212;
+        including proxies like market proximity.
         <strong>More data makes spurious discoveries more significant, not fewer.</strong>
-        NEXIS conditions on competing candidates and recovers only the minimal sufficient
-        set S&#x22C6; of true interactors.
+        NEXIS conditions on competing candidates and recovers only the minimal set of
+        true interactors.
       </p>
     </div>
     <div class="two-charts-wrap">
