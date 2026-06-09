@@ -1473,7 +1473,7 @@ Promise.all([
     minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1,
   }};
   drawUganda();
-  new ResizeObserver(()=>{ugVP={z:1,px:0,py:0};drawUganda();}).observe(document.getElementById('uganda-map-wrap'));
+  new ResizeObserver(()=>{ugVP.z=1;ugVP.px=0;ugVP.py=0;drawUganda();}).observe(document.getElementById('uganda-map-wrap'));
 });
 
 function ugSyncSelectors(){
@@ -1657,7 +1657,7 @@ Promise.all([
   });
   ghData={country,regions,communities};
   drawGhana();
-  new ResizeObserver(()=>{ghVP={z:1,px:0,py:0};drawGhana();}).observe(document.getElementById('ghana-map-wrap'));
+  new ResizeObserver(()=>{ghVP.z=1;ghVP.px=0;ghVP.py=0;drawGhana();}).observe(document.getElementById('ghana-map-wrap'));
 });
 
 function ghSyncSelectors(){
