@@ -520,18 +520,17 @@ footer{padding:1.8rem 2rem;text-align:center;
 
     <div class="thm-box">
       <span class="thm-label">Theoretical guarantee</span>
-      <span class="thm-title">Theorem (Causal Identification)</span>
-      Three assumptions are required:
+      Three conditions are required:
       <ul class="thm-ass">
-        <li data-n="1"><span><strong>Measurement Sufficiency.</strong> The measured pre-treatment variables X contain all heterogeneous treatment effect information — i.e., knowing X is as informative about who benefits as knowing the latent direct modifiers W<sup>dir</sup> themselves.</span></li>
-        <li data-n="2"><span><strong>Representation Sufficiency.</strong> The SAE representation Z = ψ(X) preserves all HTE information from X — enforced in practice by the SAE reconstruction loss.</span></li>
-        <li data-n="3"><span><strong>Principal Alignment.</strong> Each direct modifier is captured by a unique dominant SAE coordinate, with no residual signal scattered across others. This is the population-level regime that SAEs are trained to achieve.</span></li>
+        <li data-n="1"><span><strong>Measurement sufficiency.</strong> The pre-treatment data collected is rich enough to fully explain who benefits — no direct modifier is left unmeasured, so the measurements are as predictive of effect heterogeneity as the latent modifiers themselves.</span></li>
+        <li data-n="2"><span><strong>Representation sufficiency.</strong> The learned representation retains all heterogeneity signal from the measurements. In practice, the SAE reconstruction loss enforces this.</span></li>
+        <li data-n="3"><span><strong>Principal alignment.</strong> Each direct effect modifier is captured by a unique dedicated coordinate in the representation dictionary, with no residual signal scattered across the others — the regime SAEs are trained to achieve.</span></li>
       </ul>
       <div class="thm-result">
-        Under A1–A3, mean-faithfulness, and valid conditional tests, NEXIS recovers the principal proxy coordinates S* with
+        Under A3, faithfulness, and valid conditional tests, NEXIS recovers the correct proxy coordinates with
         probability at least 1&#8722;&#945; asymptotically (<em>selection consistency</em>).
-        Under A1–A3 additionally, the selected coordinates identify the joint interventional effect of the latent direct modifiers:
-        the group average treatment effect conditional on S* equals the effect of directly intervening on W<sup>dir</sup>
+        Under A1–A3 additionally, those coordinates carry a causal interpretation:
+        the treatment effect conditional on them equals the effect of directly intervening on the underlying modifiers
         (<em>causal identification</em>), licensing counterfactual comparisons and prescriptive policy design.
       </div>
     </div>
