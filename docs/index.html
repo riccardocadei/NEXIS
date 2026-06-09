@@ -507,13 +507,17 @@ footer{padding:1.8rem 2rem;text-align:center;
       <button class="abl-tab" data-abl="rho">Spectral gap &rho;</button>
       <button class="abl-tab" data-abl="backward">Backward elimination</button>
     </div>
-    <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;">
-      <span class="mc-label">Sparsity:</span>
-      <label><input type="radio" name="repr-k" value="k20" checked> k=20</label>
-      <label><input type="radio" name="repr-k" value="k5"> k=5</label>
-      <span style="margin-left:1.1rem;font-family:'Helvetica Neue',sans-serif;font-size:0.74rem;color:var(--muted);">Features:</span>
-      <label><input type="radio" name="repr-view" value="sae" checked> Z (post-TopK)</label>
-      <label><input type="radio" name="repr-view" value="precode"> Z<sub>pre</sub> (pre-TopK)</label>
+    <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.6rem;">
+      <span class="mc-label">TopK:</span>
+      <select id="repr-k" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="k20">k = 20</option>
+        <option value="k5">k = 5</option>
+      </select>
+      <span class="mc-label" style="margin-left:0.6rem;">Activation:</span>
+      <select id="repr-view" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="sae">post-TopK (Z)</option>
+        <option value="precode">pre-TopK (Z<sub>pre</sub>)</option>
+      </select>
     </div>
     <div id="abl-desc" style="font-size:0.87rem;color:var(--muted);margin-bottom:0.8rem;font-family:'Helvetica Neue',sans-serif;"></div>
     <div class="two-charts-shared">
@@ -1571,8 +1575,8 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   }
 
   function reprVariant(){
-    const k=document.querySelector('input[name=repr-k]:checked').value;
-    const view=document.querySelector('input[name=repr-view]:checked').value;
+    const k=document.getElementById('repr-k').value;
+    const view=document.getElementById('repr-view').value;
     return k+'_'+view;
   }
 
@@ -1603,8 +1607,8 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   });
   document.querySelectorAll('input[name=am],input[name=a-feta],input[name=a-fn]')
     .forEach(i=>i.addEventListener('change',updAbl));
-  document.querySelectorAll('input[name=repr-k],input[name=repr-view]')
-    .forEach(i=>i.addEventListener('change',updAbl));
+  document.getElementById('repr-k').addEventListener('change',updAbl);
+  document.getElementById('repr-view').addEventListener('change',updAbl);
   updAbl();
 
   /* Init Uganda charts (needs Chart.js + error bar plugin already registered) */
