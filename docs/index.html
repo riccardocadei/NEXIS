@@ -653,6 +653,12 @@ footer{padding:1.8rem 2rem;text-align:center;
         <option value="lang">Language</option>
         <option value="district">District</option>
         <option value="population">Population</option>
+        <option value="ndvi">Vegetation (NDVI)</option>
+        <option value="ndwi">Water content (NDWI)</option>
+        <option value="mndwi">Water bodies (MNDWI)</option>
+        <option value="ndbi">Built-up (NDBI)</option>
+        <option value="evi">Vegetation enhanced (EVI)</option>
+        <option value="bsi">Bare soil (BSI)</option>
       </select>
       <select id="ug-out-sub" class="map-sel" style="display:none">
         <option value="skilled">Skilled employment</option>
@@ -795,8 +801,29 @@ footer{padding:1.8rem 2rem;text-align:center;
         <option value="community">Community</option>
       </select>
       <select id="gh-ind-var" class="map-sel" style="display:none">
-        <option value="age">Age</option>
-        <option value="hhsize">Household size</option>
+        <optgroup label="Continuous">
+          <option value="age">Age (head)</option>
+          <option value="hhsize">Household size</option>
+          <option value="chn05">Children ≤5</option>
+          <option value="chn617">Children 6–17</option>
+          <option value="adult">Adults</option>
+          <option value="elderly">Elderly 65+</option>
+        </optgroup>
+        <optgroup label="Binary (% households)">
+          <option value="headfemale">Female head</option>
+          <option value="headmarried">Head married</option>
+          <option value="headschool">Head schooled</option>
+          <option value="headformal">Head formal sector</option>
+          <option value="noelec">No electricity</option>
+          <option value="mudwall">Mud walls</option>
+          <option value="thatchroof">Thatch roof</option>
+          <option value="mudfloor">Mud floor</option>
+          <option value="water">Improved water</option>
+          <option value="anypoultry">Has poultry</option>
+          <option value="anylivestock">Has livestock</option>
+          <option value="anybusiness">Has business</option>
+          <option value="anyfarming">Farming household</option>
+        </optgroup>
       </select>
       <select id="gh-ind-agg" class="map-sel" style="display:none">
         <option value="mean">Mean</option>
@@ -806,6 +833,12 @@ footer{padding:1.8rem 2rem;text-align:center;
       <select id="gh-com-var" class="map-sel" style="display:none">
         <option value="region">Region</option>
         <option value="population">Population</option>
+        <option value="ndvi">Vegetation (NDVI)</option>
+        <option value="ndwi">Water content (NDWI)</option>
+        <option value="mndwi">Water bodies (MNDWI)</option>
+        <option value="ndbi">Built-up (NDBI)</option>
+        <option value="evi">Vegetation enhanced (EVI)</option>
+        <option value="bsi">Bare soil (BSI)</option>
       </select>
     </div>
     <div class="canvas-map-wrap" id="ghana-map-wrap">
@@ -1312,7 +1345,7 @@ function drawUganda(){
         ugData.communities.forEach(c=>{dot(c.lat,c.lon,3.2,UG_DIST_COL[c.district]||'#aaa',0.9);});
         const shown=new Set(ugData.communities.map(c=>c.district));
         drawLegendCat(ctx,Object.entries(UG_DIST_COL).filter(([d])=>shown.has(d)).map(([d,c])=>[d[0]+d.slice(1).toLowerCase(),c]));
-      } else {
+      } else if(ugComVar==='population'){
         const LO=[255,245,220],HI=[180,50,20];
         const sorted=[...ugData.communities].sort((a,b)=>(a.n_indiv??0)-(b.n_indiv??0));
         sorted.forEach(c=>{
@@ -1320,6 +1353,24 @@ function drawUganda(){
           dot(c.lat,c.lon,3.2,gradColor(clamp01(c.n_indiv,5,85),LO,HI),0.95);
         });
         drawLegendGrad(ctx,'Population (n)',gradColor(0,LO,HI),gradColor(1,LO,HI),'5','85');
+      } else {
+        const SPEC_CFG={
+          ndvi:{lo:-0.24,hi:0.64,label:'Vegetation (NDVI)',LO:[210,230,170],HI:[0,100,0]},
+          ndwi:{lo:-0.62,hi:0.35,label:'Water content (NDWI)',LO:[250,230,180],HI:[0,80,200]},
+          mndwi:{lo:-0.54,hi:0.61,label:'Water bodies (MNDWI)',LO:[250,230,180],HI:[0,80,200]},
+          ndbi:{lo:-0.37,hi:0.12,label:'Built-up (NDBI)',LO:[240,240,220],HI:[120,60,20]},
+          evi:{lo:-0.04,hi:0.42,label:'Vegetation enhanced (EVI)',LO:[210,230,170],HI:[0,100,0]},
+          bsi:{lo:-0.21,hi:0.20,label:'Bare soil (BSI)',LO:[240,240,220],HI:[160,100,40]}
+        };
+        const cfg=SPEC_CFG[ugComVar]||SPEC_CFG.ndvi;
+        const sorted=[...ugData.communities].sort((a,b)=>(a[ugComVar]??cfg.lo)-(b[ugComVar]??cfg.lo));
+        sorted.forEach(c=>{
+          const v=c[ugComVar];
+          if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
+          dot(c.lat,c.lon,3.2,gradColor(clamp01(v,cfg.lo,cfg.hi),cfg.LO,cfg.HI),0.95);
+        });
+        drawLegendGrad(ctx,cfg.label,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),
+          cfg.lo.toFixed(2),cfg.hi.toFixed(2));
       }
     }
   } else if(ugView==='treatment'){
@@ -1408,6 +1459,24 @@ function communityRegion(lat,lon,regions){
 
 let ghData={country:null,regions:null,communities:null};
 let ghView='treatment',ghCovLevel='individual',ghIndVar='age',ghIndAgg='mean',ghComVar='region';
+const GH_BINARY_VARS=new Set(['headfemale','headmarried','headschool','headformal',
+  'noelec','mudwall','thatchroof','mudfloor','water',
+  'anypoultry','anylivestock','anybusiness','anyfarming']);
+const GH_VAR_RANGES={
+  age:[20,65],hhsize:[1,15],chn05:[0,4],chn617:[0,5],adult:[1,4],elderly:[0,2],
+  headfemale:[0,1],headmarried:[0,1],headschool:[0,1],headformal:[0,1],
+  noelec:[0,1],mudwall:[0,1],thatchroof:[0,1],mudfloor:[0,1],water:[0,1],
+  anypoultry:[0,1],anylivestock:[0,1],anybusiness:[0,1],anyfarming:[0,1]
+};
+const GH_VAR_LABELS={
+  age:'Age (yr)',hhsize:'Household size',chn05:'Children ≤5',chn617:'Children 6–17',
+  adult:'Adults',elderly:'Elderly 65+',headfemale:'Female head (%)',
+  headmarried:'Head married (%)',headschool:'Head schooled (%)',
+  headformal:'Formal sector (%)',noelec:'No electricity (%)',mudwall:'Mud walls (%)',
+  thatchroof:'Thatch roof (%)',mudfloor:'Mud floor (%)',water:'Improved water (%)',
+  anypoultry:'Has poultry (%)',anylivestock:'Has livestock (%)',
+  anybusiness:'Has business (%)',anyfarming:'Farming hh (%)'
+};
 
 function drawGhana(){
   if(!ghData.country||!ghData.communities)return;
@@ -1436,13 +1505,24 @@ function drawGhana(){
   const comms=ghData.communities;
   if(ghView==='covariates'){
     if(ghCovLevel==='individual'){
-      const isAge=ghIndVar==='age';
-      const field=(isAge?{mean:'mean_age',min:'min_age',max:'max_age'}:{mean:'mean_hhsize',min:'min_hhsize',max:'max_hhsize'})[ghIndAgg];
-      const[lo,hi,loLbl,hiLbl]=isAge?[20,65,'20','65']:[1,15,'1','15'];
-      const label=isAge?`Age (yr) — ${ghIndAgg}`:`Household size — ${ghIndAgg}`;
+      const isBin=GH_BINARY_VARS.has(ghIndVar);
+      let field, lo, hi;
+      if(isBin){
+        field=ghIndVar; lo=0; hi=1;
+      } else {
+        const agg=ghIndAgg;
+        const pfx={mean:'mean_',min:'min_',max:'max_'};
+        const fmap={age:'age',hhsize:'hhsize',chn05:'chn05',chn617:'chn617',adult:'adult',elderly:'elderly'};
+        if(ghIndVar==='age') field={mean:'mean_age',min:'min_age',max:'max_age'}[agg];
+        else if(ghIndVar==='hhsize') field={mean:'mean_hhsize',min:'min_hhsize',max:'max_hhsize'}[agg];
+        else field=(agg==='mean'?'':agg==='min'?'min_':'max_')+ghIndVar;
+        [lo,hi]=GH_VAR_RANGES[ghIndVar]||[0,1];
+      }
+      const label=(GH_VAR_LABELS[ghIndVar]||ghIndVar)+(isBin?'':` — ${ghIndAgg}`);
+      const[loLbl,hiLbl]=isBin?['0%','100%']:[String(GH_VAR_RANGES[ghIndVar]?.[0]??0),String(GH_VAR_RANGES[ghIndVar]?.[1]??1)];
       const LO=[220,230,255],HI=[30,80,200];
       comms.forEach(c=>{
-        const v=c[field];
+        const v=isBin?c[field]:c[field];
         if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
         dot(c.lat,c.lon,2.8,gradColor(clamp01(v,lo,hi),LO,HI),0.9);
       });
@@ -1454,7 +1534,7 @@ function drawGhana(){
       });
       const shownRegions=new Set(comms.map(c=>c.region_idx).filter(r=>r>=0));
       drawLegendCat(ctx,GH_REGION_NAMES.map((n,i)=>[n,GH_REGION_PALETTE.dot[i]]).filter((_,i)=>shownRegions.has(i)));
-    } else {
+    } else if(ghComVar==='population'){
       const LO=[255,245,220],HI=[180,50,20];
       const sorted=[...comms].sort((a,b)=>(a.n_indiv??0)-(b.n_indiv??0));
       sorted.forEach(c=>{
@@ -1462,6 +1542,24 @@ function drawGhana(){
         dot(c.lat,c.lon,2.8,gradColor(clamp01(c.n_indiv,2,92),LO,HI),0.95);
       });
       drawLegendGrad(ctx,'Population (n)',gradColor(0,LO,HI),gradColor(1,LO,HI),'2','92');
+    } else {
+      const SPEC_CFG={
+        ndvi:{lo:0.21,hi:0.41,label:'Vegetation (NDVI)',LO:[210,230,170],HI:[0,100,0]},
+        ndwi:{lo:-0.47,hi:-0.35,label:'Water content (NDWI)',LO:[250,230,180],HI:[0,80,200]},
+        mndwi:{lo:-0.52,hi:-0.41,label:'Water bodies (MNDWI)',LO:[250,230,180],HI:[0,80,200]},
+        ndbi:{lo:-0.05,hi:0.15,label:'Built-up (NDBI)',LO:[240,240,220],HI:[120,60,20]},
+        evi:{lo:0.15,hi:0.27,label:'Vegetation enhanced (EVI)',LO:[210,230,170],HI:[0,100,0]},
+        bsi:{lo:0.05,hi:0.21,label:'Bare soil (BSI)',LO:[240,240,220],HI:[160,100,40]}
+      };
+      const cfg=SPEC_CFG[ghComVar]||SPEC_CFG.ndvi;
+      const sorted=[...comms].sort((a,b)=>(a[ghComVar]??cfg.lo)-(b[ghComVar]??cfg.lo));
+      sorted.forEach(c=>{
+        const v=c[ghComVar];
+        if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
+        dot(c.lat,c.lon,2.8,gradColor(clamp01(v,cfg.lo,cfg.hi),cfg.LO,cfg.HI),0.95);
+      });
+      drawLegendGrad(ctx,cfg.label,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),
+        cfg.lo.toFixed(2),cfg.hi.toFixed(2));
     }
   } else if(ghView==='treatment'){
     const LO=[44,123,182],HI=[215,48,39];
@@ -1500,16 +1598,17 @@ Promise.all([
 function ghSyncSelectors(){
   const cov=ghView==='covariates';
   const ind=cov&&ghCovLevel==='individual',com=cov&&ghCovLevel==='community';
+  const showAgg=ind&&!GH_BINARY_VARS.has(ghIndVar);
   document.getElementById('gh-cov-level').style.display=cov?'':'none';
   document.getElementById('gh-ind-var').style.display=ind?'':'none';
-  document.getElementById('gh-ind-agg').style.display=ind?'':'none';
+  document.getElementById('gh-ind-agg').style.display=showAgg?'':'none';
   document.getElementById('gh-com-var').style.display=com?'':'none';
 }
 document.addEventListener('DOMContentLoaded',function(){
   ghSyncSelectors();
   document.getElementById('gh-view').addEventListener('change',function(){ghView=this.value;ghSyncSelectors();drawGhana();});
   document.getElementById('gh-cov-level').addEventListener('change',function(){ghCovLevel=this.value;ghSyncSelectors();drawGhana();});
-  document.getElementById('gh-ind-var').addEventListener('change',function(){ghIndVar=this.value;drawGhana();});
+  document.getElementById('gh-ind-var').addEventListener('change',function(){ghIndVar=this.value;ghSyncSelectors();drawGhana();});
   document.getElementById('gh-ind-agg').addEventListener('change',function(){ghIndAgg=this.value;drawGhana();});
   document.getElementById('gh-com-var').addEventListener('change',function(){ghComVar=this.value;drawGhana();});
 });
