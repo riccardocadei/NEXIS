@@ -1594,16 +1594,23 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const pNC=mkChart('paradox-n-chart','Sample size n','logarithmic');
   const pEC=mkChart('paradox-e-chart','Effect size η','linear');
 
-  function updParadox(){
+  function updParadoxN(){
     const m=document.querySelector('input[name=pm]:checked').value;
     const fe=parseFloat(document.querySelector('input[name=p-feta]:checked').value);
-    const fn=parseFloat(document.querySelector('input[name=p-fn]:checked').value);
     updChart(pNC,getDS('k20_sae','n_sweep',m,PM,fe),m,'Sample size n');
+  }
+  function updParadoxE(){
+    const m=document.querySelector('input[name=pm]:checked').value;
+    const fn=parseFloat(document.querySelector('input[name=p-fn]:checked').value);
     updChart(pEC,getDS('k20_sae','effect_sweep',m,PM,fn),m,'Effect size η');
   }
-  document.querySelectorAll('input[name=pm],input[name=p-feta],input[name=p-fn]')
-    .forEach(i=>i.addEventListener('change',updParadox));
-  updParadox();
+  document.querySelectorAll('input[name=pm]')
+    .forEach(i=>i.addEventListener('change',()=>{updParadoxN();updParadoxE();}));
+  document.querySelectorAll('input[name=p-feta]')
+    .forEach(i=>i.addEventListener('change',updParadoxN));
+  document.querySelectorAll('input[name=p-fn]')
+    .forEach(i=>i.addEventListener('change',updParadoxE));
+  updParadoxN();updParadoxE();
 
   const ABL={
     test:{desc:'Linear and GCM tests all converge to the same target; GCM variants need roughly twice the sample size to reach the same precision as the correctly-specified linear test.',
@@ -1652,27 +1659,36 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     return k+'_'+view;
   }
 
-  function updAbl(){
+  const reprDesc={
+    'k20_sae':    'Default configuration — NEXIS isolates the two direct modifiers as power grows; marginal screening steadily accumulates proxies.',
+    'k5_sae':     'Sparser codes reduce entanglement; NEXIS performance is nearly identical to k=20, confirming robustness to sparsity level.',
+    'k20_precode':'Continuous pre-TopK activations are richer but noisier; NEXIS still converges cleanly while marginal screening worsens faster.',
+    'k5_precode': 'Sparsest pre-TopK setting; NEXIS remains robust throughout, while marginal screening accumulates false positives earlier.',
+  };
+
+  function updAblDesc(){
+    if(ablView==='representation')
+      document.getElementById('abl-desc').textContent=reprDesc[reprVariant()]||'';
+    else
+      document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
+  }
+  function updAblN(){
     const m=document.querySelector('input[name=am]:checked').value;
     const fe=parseFloat(document.querySelector('input[name=a-feta]:checked').value);
-    const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
-    if(ablView==='representation'){
-      const variant=reprVariant();
-      const reprDesc={
-        'k20_sae':    'Default configuration — NEXIS isolates the two direct modifiers as power grows; marginal screening steadily accumulates proxies.',
-        'k5_sae':     'Sparser codes reduce entanglement; NEXIS performance is nearly identical to k=20, confirming robustness to sparsity level.',
-        'k20_precode':'Continuous pre-TopK activations are richer but noisier; NEXIS still converges cleanly while marginal screening worsens faster.',
-        'k5_precode': 'Sparsest pre-TopK setting; NEXIS remains robust throughout, while marginal screening accumulates false positives earlier.',
-      };
-      document.getElementById('abl-desc').textContent=reprDesc[variant]||'';
-      updChart(aNC,getDS(variant,'n_sweep',m,PM,fe),m,'Sample size n');
-      updChart(aEC,getDS(variant,'effect_sweep',m,PM,fn),m,'Effect size η');
-    } else {
-      document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
+    if(ablView==='representation')
+      updChart(aNC,getDS(reprVariant(),'n_sweep',m,PM,fe),m,'Sample size n');
+    else
       updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
-      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
-    }
   }
+  function updAblE(){
+    const m=document.querySelector('input[name=am]:checked').value;
+    const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
+    if(ablView==='representation')
+      updChart(aEC,getDS(reprVariant(),'effect_sweep',m,PM,fn),m,'Effect size η');
+    else
+      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+  }
+  function updAbl(){updAblDesc();updAblN();updAblE();}
 
   document.getElementById('abl-view-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.outcome-tab');if(!btn)return;
@@ -1688,8 +1704,12 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     btn.classList.add('active');curAbl=btn.dataset.abl;
     updAbl();
   });
-  document.querySelectorAll('input[name=am],input[name=a-feta],input[name=a-fn]')
+  document.querySelectorAll('input[name=am]')
     .forEach(i=>i.addEventListener('change',updAbl));
+  document.querySelectorAll('input[name=a-feta]')
+    .forEach(i=>i.addEventListener('change',updAblN));
+  document.querySelectorAll('input[name=a-fn]')
+    .forEach(i=>i.addEventListener('change',updAblE));
   document.getElementById('repr-k').addEventListener('change',updAbl);
   document.getElementById('repr-view').addEventListener('change',updAbl);
   updAbl();
