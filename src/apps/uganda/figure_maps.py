@@ -34,8 +34,8 @@ plt.rcParams.update({
 # map extents: xlim (29.1, 35.4), ylim (-1.65, 4.45)
 
 # ── Language anchors — placed so no lines cross ───────────────────────────────
-# Centroids: Acholi(31.15,2.46) Karamojong(34.39,2.69) Lango(31.07,3.20)
-#            Lugbara(32.74,2.09) Madi(33.66,1.57) Other(33.75,1.19) Teso(31.70,3.37)
+# Centroids (lon,lat): Alur(31.20,2.47) Lugbara(31.11,3.12) Madi(31.73,3.48)
+#            Karamojong(34.35,2.72) Teso(33.74,1.56) Langi(32.74,2.10) Other(33.73,1.19)
 LANG_ANCHOR = {
     "Lango":      (29.7, 3.6),    # left-up   from (31.07, 3.20)
     "Teso":       (32.4, 4.2),    # up-right  from (31.70, 3.37)

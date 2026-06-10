@@ -17,15 +17,19 @@ FILL_THRESHOLD = 5000
 PCT_LO, PCT_HI = 2, 98
 PAPER_BG = '#FFF5EB'  # orange!8!white: 8%*(1,0.5,0) + 92%*(1,1,1)
 
-# Language group codes → names (Blattman et al. 2014 — northern Uganda YOP)
-# Verify against the original codebook if in doubt.
+# Language group codes → names derived from the language dummy columns in the CSV
+# (acholi_dum, alur_dum, iteso_dum, karamojong_dum, langi_dum, lugbara_dum, madi_dum).
+# Groups 1–6 each have a clear dominant language; group 7 (PALLISA) is Iteso-majority
+# but geographically isolated from the main Teso block (groups 5).
+# Note: the Jerzak et al. satellite dataset excluded GULU/KITGUM/PADER (Acholi heartland),
+# so no Acholi communities appear despite the original YOP having them.
 LANG_NAMES = {
-    1: 'Acholi',
-    2: 'Lango',
-    3: 'Teso',
+    1: 'Alur',
+    2: 'Lugbara',
+    3: 'Madi',
     4: 'Karamojong',
-    5: 'Madi',
-    6: 'Lugbara',
+    5: 'Teso',
+    6: 'Langi',
     7: 'Other',
 }
 
