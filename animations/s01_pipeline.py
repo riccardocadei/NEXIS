@@ -224,18 +224,6 @@ class Pipeline(Scene):
             for yy, lbl in zip(X_ys, X_lbls)
         ]
 
-        # Persistent source-mapping arrows (satellite → Z col, survey → X col)
-        map_sat = make_arrow(
-            border.get_right(),
-            np.array([X2 - Z_R - 0.04, Z_y_c, 0.0]),
-            color=GRAY_TEXT,
-        )
-        map_srv = make_arrow(
-            card.get_right(),
-            np.array([X2 - X_R - 0.04, X_y_c, 0.0]),
-            color=GRAY_TEXT,
-        )
-
         # Faint candidate arrows: every node → Y (shown in ACT 3)
         all_nodes = Z_nodes + X_nodes
         all_ZtoY  = [
@@ -257,18 +245,8 @@ class Pipeline(Scene):
         self.wait(0.30)
 
         # ══════════════════════════════════════════════════════════════════
-        # ACT 3 — Collapse pipeline to source arrows; T, Y, candidate arrows
+        # ACT 3 — T, Y, candidate arrows appear; source pipeline stays visible
         # ══════════════════════════════════════════════════════════════════
-        self.play(
-            FadeOut(a1), FadeOut(lbl1), FadeOut(dense),
-            FadeOut(a2), FadeOut(lbl2),
-            FadeOut(a3),
-            GrowArrow(map_sat),
-            GrowArrow(map_srv),
-            run_time=0.80,
-        )
-        self.wait(0.20)
-
         T_node = outline_node(T_pos, "T")
         Y_node = outline_node(Y_pos, "Y")
         TY_arr = Arrow(T_pos, Y_pos, buff=TY_R + 0.05,
