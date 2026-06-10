@@ -1297,9 +1297,11 @@ function applyVP(baseProj,vp){
   return(lat,lon)=>{const[x,y]=baseProj(lat,lon);return[x*vp.z+vp.px,y*vp.z+vp.py];};
 }
 function zoomVP(vp,factor,mx,my){
-  vp.px=mx+(vp.px-mx)*factor;
-  vp.py=my+(vp.py-my)*factor;
-  vp.z*=factor;
+  const newZ=Math.max(1,vp.z*factor);
+  const f=newZ/vp.z;
+  vp.px=mx+(vp.px-mx)*f;
+  vp.py=my+(vp.py-my)*f;
+  vp.z=newZ;
 }
 function addMapInteraction(canvasId,vpObj,redrawFn){
   const el=document.getElementById(canvasId);
