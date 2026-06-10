@@ -358,10 +358,13 @@ class Pipeline(Scene):
         lbl_river.next_to(sel_nodes[0], RIGHT, buff=0.20)
         lbl_veg.next_to(sel_nodes[1],   RIGHT, buff=0.20)
         lbl_lang.next_to(sel_nodes[2],  RIGHT, buff=0.20)
+        # center "language" under the two longer labels
+        col_x = VGroup(lbl_river, lbl_veg).get_center()[0]
+        lbl_lang.set_x(col_x)
 
         col_title = Text("Interpretations", color=GRAY_TEXT, weight=BOLD).scale(0.26)
         col_title.next_to(lbl_river, UP, buff=0.18)
-        col_title.set_x(VGroup(lbl_river, lbl_veg, lbl_lang).get_center()[0])
+        col_title.set_x(col_x)
 
         self.play(LaggedStart(
             FadeIn(col_title,  shift=RIGHT * 0.08),
@@ -370,17 +373,5 @@ class Pipeline(Scene):
             FadeIn(lbl_lang,   shift=RIGHT * 0.08),
             lag_ratio=0.25, run_time=1.80,
         ))
-        self.wait(1.0)
-
-        tagline = VGroup(
-            Text("interpretable", color=TEAL_LIGHT  ).scale(0.40),
-            Text("·",             color=GRAY_TEXT   ).scale(0.40),
-            Text("causal",        color=YELLOW_LIGHT).scale(0.40),
-            Text("·",             color=GRAY_TEXT   ).scale(0.40),
-            Text("sparse",        color=BLUE_LIGHT  ).scale(0.40),
-        ).arrange(RIGHT, buff=0.20)
-        tagline.to_edge(DOWN, buff=0.42)
-
-        self.play(FadeIn(tagline, shift=UP * 0.10), run_time=0.90)
         self.wait(4.0)
         self.play(FadeOut(Group(*self.mobjects)), run_time=1.5)
