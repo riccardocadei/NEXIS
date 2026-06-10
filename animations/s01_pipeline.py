@@ -230,7 +230,7 @@ class Pipeline(Scene):
             Arrow(
                 n.get_center() + _unit(n.get_center(), Y_pos) * (Z_R + 0.05),
                 Y_pos           - _unit(n.get_center(), Y_pos) * (TY_R + 0.05),
-                buff=0, color=DIM_GRAY, stroke_width=1.0,
+                buff=0, color=GRAY_TEXT, stroke_width=1.0,
                 tip_length=0.18, max_tip_length_to_length_ratio=0.25,
             ).set_opacity(0.25)
             for n in all_nodes
@@ -351,19 +351,24 @@ class Pipeline(Scene):
         # ══════════════════════════════════════════════════════════════════
         # ACT 6 — VLM interpretation pills + tagline
         # ══════════════════════════════════════════════════════════════════
-        lbl_river = Text("perennial river presence", color=GRAY_TEXT).scale(0.24)
-        lbl_veg   = Text("vegetation heterogeneity", color=GRAY_TEXT).scale(0.24)
-        lbl_lang  = Text("language",                 color=GRAY_TEXT).scale(0.24)
+        lbl_river = Text("perennial river presence", color=GRAY_TEXT).scale(0.28)
+        lbl_veg   = Text("vegetation heterogeneity", color=GRAY_TEXT).scale(0.28)
+        lbl_lang  = Text("language",                 color=GRAY_TEXT).scale(0.28)
 
         lbl_river.next_to(sel_nodes[0], RIGHT, buff=0.20)
         lbl_veg.next_to(sel_nodes[1],   RIGHT, buff=0.20)
         lbl_lang.next_to(sel_nodes[2],  RIGHT, buff=0.20)
 
+        col_title = (Text("Interpretations", color=GRAY_TEXT).scale(0.26)
+                     .next_to(lbl_river, UP, buff=0.18)
+                     .align_to(lbl_river, LEFT))
+
         self.play(LaggedStart(
-            FadeIn(lbl_river, shift=RIGHT * 0.08),
-            FadeIn(lbl_veg,   shift=RIGHT * 0.08),
-            FadeIn(lbl_lang,  shift=RIGHT * 0.08),
-            lag_ratio=0.32, run_time=1.70,
+            FadeIn(col_title,  shift=RIGHT * 0.08),
+            FadeIn(lbl_river,  shift=RIGHT * 0.08),
+            FadeIn(lbl_veg,    shift=RIGHT * 0.08),
+            FadeIn(lbl_lang,   shift=RIGHT * 0.08),
+            lag_ratio=0.25, run_time=1.80,
         ))
         self.wait(1.0)
 
