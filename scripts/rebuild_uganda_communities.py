@@ -25,18 +25,23 @@ LANG_LABELS = {
     7: 'Other',
 }
 
-# Keep only geocoded sites
-geo_df = df[df['geolocated_failed'] == False].copy()
+# Use ALL Prithvi sites (all 331 RCT keys), not just geolocated_failed=FALSE.
+# geolocated_failed=TRUE sites still have approximate coordinates (geo_long/geo_lat)
+# which are accurate enough for a map dot. Filtering to 182 would leave SAE top/bottom
+# activation sites off the map because they often fall in the 149 non-geocoded sites.
+npz = np.load(ROOT / "results/uganda/prithvi_l5_1024/site_features.npz")
+prithvi_keys = set(npz['site_keys'].astype(int))
 
-# One row per site: aggregate lat/lon (should be identical within a site)
 sites = (
-    geo_df.groupby('geo_long_lat_key')
+    df.groupby('geo_long_lat_key')
     .agg(lat=('geo_lat', 'first'), lon=('geo_long', 'first'), lang_group=('lang_group', 'first'))
     .reset_index()
     .rename(columns={'geo_long_lat_key': 'geokey'})
 )
+# Keep only sites that have Prithvi features, drop the 1 site with NaN coords
+sites = sites[sites['geokey'].isin(prithvi_keys)].dropna(subset=['lat', 'lon'])
 
-print(f"Total geocoded sites: {len(sites)}")
+print(f"Total sites with Prithvi features: {len(sites)}")
 print(f"Geokey range: {sites['geokey'].min()} – {sites['geokey'].max()}")
 print("\nSites per lang_group:")
 for lg, cnt in sites.groupby('lang_group').size().items():
