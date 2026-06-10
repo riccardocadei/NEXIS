@@ -699,6 +699,8 @@ footer{padding:1.8rem 2rem;text-align:center;
       </select>
       <select id="ug-ind-var" class="map-sel" style="display:none">
         <option value="age">Age</option>
+        <option value="father_educ">Father's education</option>
+        <option value="mother_educ">Mother's education</option>
       </select>
       <select id="ug-ind-agg" class="map-sel" style="display:none">
         <option value="mean">Mean</option>
@@ -706,7 +708,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <option value="max">Max</option>
       </select>
       <select id="ug-grp-var" class="map-sel" style="display:none">
-        <option value="pct_female">% female</option>
+        <option value="pct_female">% female (individual)</option>
+        <option value="group_female">% female (group)</option>
       </select>
       <select id="ug-com-var" class="map-sel" style="display:none">
         <option value="lang">Language</option>
@@ -720,8 +723,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <option value="bsi">Bare soil (BSI)</option>
       </select>
       <select id="ug-out-sub" class="map-sel" style="display:none">
-        <option value="skilled">Skilled employment (hrs)</option>
-        <option value="biz">Log business assets (ln UGX)</option>
+        <option value="skilled">Skilled employment</option>
+        <option value="biz">Business assets</option>
       </select>
     </div>
     <div class="canvas-map-wrap" id="uganda-map-wrap">
@@ -1526,22 +1529,31 @@ function drawUganda(){
   }
   if(ugView==='covariates'){
     if(ugCovLevel==='individual'){
-      const field={mean:'mean_age',min:'min_age',max:'max_age'}[ugIndAgg];
-      const LO=[220,230,255],HI=[30,80,200];
+      const UG_IND_CFG={
+        age:{fields:{mean:'mean_age',min:'min_age',max:'max_age'},label:'Age (yr)',lo:15,hi:55,loLbl:'15',hiLbl:'55',LO:[220,230,255],HI:[30,80,200]},
+        father_educ:{fields:{mean:'mean_father_educ',min:'mean_father_educ',max:'mean_father_educ'},label:"Father's educ. (1–8)",lo:1,hi:8,loLbl:'1',hiLbl:'8',LO:[255,235,210],HI:[160,60,10]},
+        mother_educ:{fields:{mean:'mean_mother_educ',min:'mean_mother_educ',max:'mean_mother_educ'},label:"Mother's educ. (1–8)",lo:1,hi:8,loLbl:'1',hiLbl:'8',LO:[255,235,210],HI:[160,60,10]},
+      };
+      const cfg=UG_IND_CFG[ugIndVar]||UG_IND_CFG.age;
+      const field=cfg.fields[ugIndAgg]||cfg.fields.mean;
+      const showAgg=ugIndVar==='age';
+      const legendLabel=showAgg?`${cfg.label} — ${ugIndAgg}`:cfg.label;
       ugData.communities.forEach(c=>{
         const v=c[field];
         if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
-        dot(c.lat,c.lon,3.2,gradColor(clamp01(v,15,55),LO,HI),0.95);
+        dot(c.lat,c.lon,3.2,gradColor(clamp01(v,cfg.lo,cfg.hi),cfg.LO,cfg.HI),0.95);
       });
-      drawLegendGrad(ctx,`Age (yr) — ${ugIndAgg}`,gradColor(0,LO,HI),gradColor(1,LO,HI),'15','55');
+      drawLegendGrad(ctx,legendLabel,gradColor(0,cfg.LO,cfg.HI),gradColor(1,cfg.LO,cfg.HI),cfg.loLbl,cfg.hiLbl);
     } else if(ugCovLevel==='group'){
       const LO=[220,230,255],HI=[30,80,200];
+      const field=ugGrpVar==='group_female'?'mean_group_female':'pct_female';
+      const label=ugGrpVar==='group_female'?'Group % female':'Individual % female';
       ugData.communities.forEach(c=>{
-        const v=c.pct_female;
+        const v=c[field];
         if(v==null){dot(c.lat,c.lon,2,'#ccc',0.35);return;}
         dot(c.lat,c.lon,3.2,gradColor(clamp01(v,0,1),LO,HI),0.95);
       });
-      drawLegendGrad(ctx,'Female (%)',gradColor(0,LO,HI),gradColor(1,LO,HI),'0%','100%');
+      drawLegendGrad(ctx,label,gradColor(0,LO,HI),gradColor(1,LO,HI),'0%','100%');
     } else {
       if(ugComVar==='lang'){
         ugData.communities.forEach(c=>{dot(c.lat,c.lon,3.2,UG_COL[c.lang]||'#bbb',1);});
@@ -1587,7 +1599,7 @@ function drawUganda(){
     drawLegendGrad(ctx,'Treatment (%)',gradColor(0,LO,HI),gradColor(1,LO,HI),'0%','100%');
   } else if(ugView==='outcome'){
     const field=ugOutSub==='biz'?'mean_biz':'mean_skilled';
-    const label=ugOutSub==='biz'?'Log business assets (ln UGX)':'Skilled employment (hrs)';
+    const label=ugOutSub==='biz'?'Business assets (log UGX)':'Skilled employment (hrs)';
     const[lo,hi]=ugOutSub==='biz'?[4,10]:[0,90];
     const[loLbl,hiLbl]=ugOutSub==='biz'?['4','10']:['0','90'];
     const LO=[237,248,251],HI=[110,1,107];
@@ -1622,7 +1634,7 @@ function ugSyncSelectors(){
   const ind=cov&&ugCovLevel==='individual',grp=cov&&ugCovLevel==='group',com=cov&&ugCovLevel==='community';
   document.getElementById('ug-cov-level').style.display=cov?'':'none';
   document.getElementById('ug-ind-var').style.display=ind?'':'none';
-  document.getElementById('ug-ind-agg').style.display=ind?'':'none';
+  document.getElementById('ug-ind-agg').style.display=(ind&&ugIndVar==='age')?'':'none';
   document.getElementById('ug-grp-var').style.display=grp?'':'none';
   document.getElementById('ug-com-var').style.display=com?'':'none';
   document.getElementById('ug-out-sub').style.display=out?'':'none';
@@ -1631,6 +1643,7 @@ document.addEventListener('DOMContentLoaded',function(){
   ugSyncSelectors();
   document.getElementById('ug-view').addEventListener('change',function(){ugView=this.value;ugSyncSelectors();drawUganda();});
   document.getElementById('ug-cov-level').addEventListener('change',function(){ugCovLevel=this.value;ugSyncSelectors();drawUganda();});
+  document.getElementById('ug-ind-var').addEventListener('change',function(){ugIndVar=this.value;ugSyncSelectors();drawUganda();});
   document.getElementById('ug-ind-agg').addEventListener('change',function(){ugIndAgg=this.value;drawUganda();});
   document.getElementById('ug-grp-var').addEventListener('change',function(){ugGrpVar=this.value;drawUganda();});
   document.getElementById('ug-com-var').addEventListener('change',function(){ugComVar=this.value;drawUganda();});
