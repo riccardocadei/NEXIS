@@ -1873,14 +1873,17 @@ function updateUgInterp(outcome){
   };
   if(!mod){errMsg('Modifier not found in data.');return;}
   const N=parseInt(nEl.value)||4;
-  // derive top/bot dynamically from actDict so any k works
   const actDict=mod.act; // geokey->value (string keys)
   if(!actDict||Object.keys(actDict).length===0){errMsg('No activation data available.');return;}
+  // map: always derive from actDict so zoom reflects full N
   const sorted=Object.entries(actDict).sort((a,b)=>b[1]-a[1]);
-  const top=sorted.slice(0,N).map(([k])=>parseInt(k));
-  const bot=sorted.slice(-N).map(([k])=>parseInt(k));
-  const topGeokeys=new Set(top);
-  const botGeokeys=new Set(bot);
+  const topGeokeys=new Set(sorted.slice(0,N).map(([k])=>parseInt(k)));
+  const botGeokeys=new Set(sorted.slice(-N).map(([k])=>parseInt(k)));
+  // tiles: use pre-curated lists (real images); fall back to actDict only when empty (e.g. binary modifiers)
+  const curatedTop=mod.top8_sk&&mod.top8_sk.length>0?mod.top8_sk.slice(0,N):null;
+  const curatedBot=mod.bot8_sk&&mod.bot8_sk.length>0?mod.bot8_sk.slice(0,N):null;
+  const top=curatedTop||sorted.slice(0,N).map(([k])=>parseInt(k));
+  const bot=curatedBot||sorted.slice(-N).map(([k])=>parseInt(k));
   drawNiMap('ug-act-canvas-'+suffix,ugData.communities,'geokey',ugData.bounds,ugData.country,ugData.regions,UG_WATER,topGeokeys,botGeokeys);
   const tileAct=mod.tile_act||{};
   const tileActInt={};
@@ -1911,11 +1914,15 @@ function updateGhInterp(){
   if(Object.keys(actDict).length===0){ghErrMsg('No activation data available.');return;}
   const gb=boundsFromGeoJSON(ghData.country);
   const bounds={minLat:gb.minLat-0.1,maxLat:gb.maxLat+0.1,minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1};
-  // derive top/bot dynamically so any k works
+  // map: always from actDict
   const sortedGh=Object.entries(actDict).sort((a,b)=>b[1]-a[1]);
-  const top=sortedGh.slice(0,N).map(([k])=>parseInt(k));
-  const bot=sortedGh.slice(-N).map(([k])=>parseInt(k));
-  const topIds=new Set(top);const botIds=new Set(bot);
+  const topIds=new Set(sortedGh.slice(0,N).map(([k])=>parseInt(k)));
+  const botIds=new Set(sortedGh.slice(-N).map(([k])=>parseInt(k)));
+  // tiles: use pre-curated lists; fall back to actDict only when empty
+  const ghCuratedTop=mod.top8&&mod.top8.length>0?mod.top8.slice(0,N):null;
+  const ghCuratedBot=mod.bot8&&mod.bot8.length>0?mod.bot8.slice(0,N):null;
+  const top=ghCuratedTop||sortedGh.slice(0,N).map(([k])=>parseInt(k));
+  const bot=ghCuratedBot||sortedGh.slice(-N).map(([k])=>parseInt(k));
   drawNiMap('gh-act-canvas',ghData.communities,'comm',bounds,ghData.country,ghData.regions,GH_WATER,topIds,botIds);
   document.getElementById('gh-top-label').textContent=`Most active (${top.length})`;
   document.getElementById('gh-bot-label').textContent=`Least active (${bot.length})`;
