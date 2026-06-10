@@ -58,9 +58,10 @@ def make_box(lines, width, height, box_col, txt_scale=None, corner=0.10):
     return VGroup(rect, texts)
 
 
-def make_arrow(start, end, color=GRAY_TEXT, stroke=2.0):
+def make_arrow(start, end, color=GRAY_TEXT, stroke=2.0, tip_length=0.18):
     return Arrow(
         start, end, buff=0.12, color=color,
         stroke_width=stroke,
-        max_tip_length_to_length_ratio=0.15,
+        tip_length=tip_length,
+        max_tip_length_to_length_ratio=0.25,
     )
