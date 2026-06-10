@@ -203,6 +203,36 @@ section p:last-child{margin-bottom:0;}
 .map-zoom-hint{position:absolute;bottom:6px;right:8px;font-size:0.65rem;
   color:rgba(0,0,0,0.35);pointer-events:none;font-family:'Helvetica Neue',Arial,sans-serif;}
 
+/* ── NEXIS Interpretation Panel ── */
+.nexis-interp{border:1px solid var(--border);border-radius:3px;margin:1.2rem 0;
+  background:var(--bg);overflow:hidden;}
+.nexis-interp-head{padding:0.6rem 1rem;border-bottom:1px solid var(--border);
+  display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem 1rem;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;}
+.nexis-interp-head .ni-label{font-weight:700;font-size:0.66rem;letter-spacing:0.12em;
+  text-transform:uppercase;color:var(--muted);}
+.nexis-interp-head select{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;
+  border:1px solid var(--border);border-radius:3px;padding:0.18em 0.45em;background:#fff;cursor:pointer;}
+.nexis-interp-body{display:grid;grid-template-columns:260px 1fr;min-height:220px;}
+.ni-map-wrap{border-right:1px solid var(--border);background:#eaf0f4;
+  position:relative;height:220px;}
+.ni-map-wrap canvas{display:block;width:100%;height:100%;}
+.ni-tiles{padding:0.5rem 0.75rem;display:flex;flex-direction:column;gap:0.45rem;}
+.ni-tile-group{display:flex;flex-direction:column;gap:0.22rem;}
+.ni-tile-group-label{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;
+  font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);}
+.ni-tile-row{display:flex;flex-wrap:wrap;gap:4px;}
+.ni-tile{position:relative;flex:0 0 auto;}
+.ni-tile img{display:block;width:72px;height:72px;object-fit:cover;border-radius:2px;
+  border:1px solid rgba(0,0,0,0.12);}
+.ni-tile-act{position:absolute;bottom:2px;left:0;right:0;text-align:center;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.58rem;
+  color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.7);pointer-events:none;}
+.ni-no-img{width:72px;height:72px;border-radius:2px;border:1px dashed #ccc;
+  background:#f5f5f5;display:flex;align-items:center;justify-content:center;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.6rem;color:#aaa;}
+@media(max-width:600px){.nexis-interp-body{grid-template-columns:1fr;}}
+
 /* ── GATE chart ── */
 .gate-chart-wrap{background:var(--bg);border:1px solid var(--border);
   border-radius:3px;padding:0.9rem;margin:1rem 0;}
@@ -759,6 +789,64 @@ footer{padding:1.8rem 2rem;text-align:center;
         </div>
       </div>
     </div>
+
+    <!-- NEXIS Interpretation — Skilled Employment -->
+    <div id="ug-interp-skilled" class="nexis-interp">
+      <div class="nexis-interp-head">
+        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <select id="ug-mod-skilled" aria-label="Select modifier"></select>
+        <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
+          <span>Top/bottom</span>
+          <select id="ug-n-skilled" style="width:3.5em;">
+            <option>2</option><option selected>4</option>
+            <option>6</option><option>8</option>
+          </select>
+          <span>communities</span>
+        </label>
+      </div>
+      <div class="nexis-interp-body">
+        <div class="ni-map-wrap"><canvas id="ug-act-canvas-skilled"></canvas></div>
+        <div class="ni-tiles">
+          <div class="ni-tile-group">
+            <div class="ni-tile-group-label" id="ug-top-label-skilled">Most active</div>
+            <div class="ni-tile-row" id="ug-top-tiles-skilled"></div>
+          </div>
+          <div class="ni-tile-group">
+            <div class="ni-tile-group-label" id="ug-bot-label-skilled">Least active</div>
+            <div class="ni-tile-row" id="ug-bot-tiles-skilled"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEXIS Interpretation — Log Business Assets -->
+    <div id="ug-interp-biz" class="nexis-interp" style="display:none">
+      <div class="nexis-interp-head">
+        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <select id="ug-mod-biz" aria-label="Select modifier"></select>
+        <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
+          <span>Top/bottom</span>
+          <select id="ug-n-biz" style="width:3.5em;">
+            <option>2</option><option selected>4</option>
+            <option>6</option><option>8</option>
+          </select>
+          <span>communities</span>
+        </label>
+      </div>
+      <div class="nexis-interp-body">
+        <div class="ni-map-wrap"><canvas id="ug-act-canvas-biz"></canvas></div>
+        <div class="ni-tiles">
+          <div class="ni-tile-group">
+            <div class="ni-tile-group-label" id="ug-top-label-biz">Most active</div>
+            <div class="ni-tile-row" id="ug-top-tiles-biz"></div>
+          </div>
+          <div class="ni-tile-group">
+            <div class="ni-tile-group-label" id="ug-bot-label-biz">Least active</div>
+            <div class="ni-tile-row" id="ug-bot-tiles-biz"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -888,6 +976,35 @@ footer{padding:1.8rem 2rem;text-align:center;
       <em>Right:</em> 2015&#8594;2017 temporal evolution &#8212; cropland expansion and
       denser riparian vegetation in waterway-active communities.
     </p>
+
+    <!-- NEXIS Interpretation — LEAP Ghana -->
+    <div id="gh-interp" class="nexis-interp">
+      <div class="nexis-interp-head">
+        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <select id="gh-mod" aria-label="Select modifier"></select>
+        <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
+          <span>Top/bottom</span>
+          <select id="gh-n" style="width:3.5em;">
+            <option>2</option><option selected>4</option>
+            <option>6</option><option>8</option>
+          </select>
+          <span>communities</span>
+        </label>
+      </div>
+      <div class="nexis-interp-body">
+        <div class="ni-map-wrap"><canvas id="gh-act-canvas"></canvas></div>
+        <div class="ni-tiles">
+          <div class="ni-tile-group">
+            <div class="ni-tile-group-label" id="gh-top-label">Most active</div>
+            <div class="ni-tile-row" id="gh-top-tiles"></div>
+          </div>
+          <div class="ni-tile-group">
+            <div class="ni-tile-group-label" id="gh-bot-label">Least active</div>
+            <div class="ni-tile-row" id="gh-bot-tiles"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </div>
 </section>
@@ -1472,6 +1589,7 @@ Promise.all([
   }};
   drawUganda();
   new ResizeObserver(()=>{ugVP.z=1;ugVP.px=0;ugVP.py=0;drawUganda();}).observe(document.getElementById('uganda-map-wrap'));
+  if(nexisData)initUgInterp();
 });
 
 function ugSyncSelectors(){
@@ -1656,6 +1774,7 @@ Promise.all([
   ghData={country,regions,communities};
   drawGhana();
   new ResizeObserver(()=>{ghVP.z=1;ghVP.px=0;ghVP.py=0;drawGhana();}).observe(document.getElementById('ghana-map-wrap'));
+  if(nexisData)initGhInterp();
 });
 
 function ghSyncSelectors(){
@@ -1675,6 +1794,168 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('gh-ind-agg').addEventListener('change',function(){ghIndAgg=this.value;drawGhana();});
   document.getElementById('gh-com-var').addEventListener('change',function(){ghComVar=this.value;drawGhana();});
   addMapInteraction('ghana-canvas',ghVP,drawGhana);
+});
+
+/* ══════════════════════════════════════════════
+   NEXIS INTERPRETATION PANELS
+   ══════════════════════════════════════════════ */
+let nexisData=null;
+let ugInterpReady=false,ghInterpReady=false;
+
+function niActColor(t,isBinary){
+  // white (inactive) → orange/red (active)
+  const LO=[240,240,240],HI=[200,50,10];
+  return gradColor(t,LO,HI);
+}
+
+function drawNiMap(canvasId, communities, keyField, actDict, maxAct, isBinary, mapBounds, country, regions, waterPolys){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas||!communities)return;
+  const W=canvas.offsetWidth||260,H=canvas.offsetHeight||220;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  const proj=makeProjector(mapBounds,W,H,14);
+  ctx.fillStyle='#eaf0f4';ctx.fillRect(0,0,W,H);
+  if(country)drawRegions(ctx,country,proj,'#e8ede4','#b0bba8');
+  if(regions)drawRegions(ctx,regions,proj,'#e8f4e2','#b8d9b0');
+  if(waterPolys)drawWaterPolys(ctx,waterPolys,proj);
+  // draw inactive first, then active on top
+  const sorted=[...communities].sort((a,b)=>{
+    const va=actDict[a[keyField]]??0,vb=actDict[b[keyField]]??0;return va-vb;
+  });
+  sorted.forEach(c=>{
+    const v=actDict[c[keyField]]??0;
+    const t=maxAct>0?Math.min(1,v/maxAct):0;
+    const fill=t<0.01?'#d0d0d0':niActColor(t,isBinary);
+    const r=t<0.01?2:2.5+2.5*t;
+    const[x,y]=proj(c.lat,c.lon);
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.globalAlpha=t<0.01?0.35:0.9;
+    ctx.fillStyle=fill;ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.4;ctx.stroke();
+  });
+  // mini legend
+  ctx.fillStyle='rgba(255,255,255,0.82)';ctx.fillRect(6,6,80,26);
+  ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.5;ctx.strokeRect(6,6,80,26);
+  const grad=ctx.createLinearGradient(10,0,82,0);
+  grad.addColorStop(0,'#d0d0d0');grad.addColorStop(1,niActColor(1,isBinary));
+  ctx.fillStyle=grad;ctx.fillRect(10,14,72,8);
+  ctx.fillStyle='#444';ctx.font='7.5px Helvetica Neue,Arial,sans-serif';
+  ctx.textAlign='left';ctx.fillText('inactive',10,28);
+  ctx.textAlign='right';ctx.fillText('active',82,28);
+  ctx.textAlign='left';
+}
+
+function renderTiles(rowId, ids, prefix, actDict, maxAct){
+  const row=document.getElementById(rowId);if(!row)return;
+  row.innerHTML='';
+  ids.forEach(id=>{
+    const v=actDict[id]??0;
+    const t=maxAct>0?Math.min(1,v/maxAct):0;
+    const div=document.createElement('div');div.className='ni-tile';
+    const img=document.createElement('img');
+    img.src=`assets/tiles/${prefix}_${id}.png`;
+    img.alt=`Community ${id}`;
+    img.loading='lazy';
+    img.onerror=function(){this.style.display='none';const ph=document.createElement('div');ph.className='ni-no-img';ph.textContent='N/A';div.appendChild(ph);};
+    div.appendChild(img);
+    if(maxAct>0&&v>0){
+      const span=document.createElement('span');span.className='ni-tile-act';
+      span.textContent=v.toFixed(2);div.appendChild(span);
+    }
+    row.appendChild(div);
+  });
+}
+
+function updateUgInterp(outcome){
+  const suffix=outcome;
+  const selEl=document.getElementById('ug-mod-'+suffix);
+  const nEl=document.getElementById('ug-n-'+suffix);
+  if(!selEl||!nEl||!nexisData||!ugData.communities)return;
+  const key=selEl.value;
+  const sectionKey=outcome==='skilled'?'uganda_skilled':'uganda_biz';
+  const mod=nexisData[sectionKey][key];
+  if(!mod)return;
+  const N=parseInt(nEl.value)||4;
+  // Activation map
+  const actDict=mod.act; // geokey->value
+  const vals=Object.values(actDict);
+  const maxAct=vals.reduce((a,b)=>Math.max(a,b),0);
+  drawNiMap('ug-act-canvas-'+suffix,ugData.communities,'geokey',actDict,maxAct,mod.type==='survey',ugData.bounds,ugData.country,ugData.regions,UG_WATER);
+  // Tiles — keyed by site_key; tile_act maps site_key->activation
+  const top=mod.top8_sk.slice(0,N);
+  const bot=mod.bot8_sk.slice(0,N);
+  const tileAct=mod.tile_act||{};
+  const tileActInt={};
+  Object.entries(tileAct).forEach(([k,v])=>tileActInt[parseInt(k)]=v);
+  const tileMax=Object.values(tileActInt).reduce((a,b)=>Math.max(a,b),0);
+  document.getElementById('ug-top-label-'+suffix).textContent=mod.type==='survey'?`In group (${top.length})`:`Most active (${top.length})`;
+  document.getElementById('ug-bot-label-'+suffix).textContent=mod.type==='survey'?`Not in group (${bot.length})`:`Least active (${bot.length})`;
+  renderTiles('ug-top-tiles-'+suffix,top,'ug',tileActInt,tileMax);
+  renderTiles('ug-bot-tiles-'+suffix,bot,'ug',tileActInt,tileMax);
+}
+
+function updateGhInterp(){
+  const selEl=document.getElementById('gh-mod');
+  const nEl=document.getElementById('gh-n');
+  if(!selEl||!nEl||!nexisData||!ghData.communities)return;
+  const key=selEl.value;
+  const mod=nexisData.ghana[key];
+  if(!mod)return;
+  const N=parseInt(nEl.value)||4;
+  const actDict={};
+  Object.entries(mod.act).forEach(([k,v])=>actDict[parseInt(k)]=v);
+  const vals=Object.values(actDict);
+  const maxAct=vals.reduce((a,b)=>Math.max(a,b),0);
+  const gb=boundsFromGeoJSON(ghData.country);
+  const bounds={minLat:gb.minLat-0.1,maxLat:gb.maxLat+0.1,minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1};
+  drawNiMap('gh-act-canvas',ghData.communities,'comm',actDict,maxAct,false,bounds,ghData.country,ghData.regions,GH_WATER);
+  const top=mod.top8.slice(0,N);
+  const bot=mod.bot8.slice(0,N);
+  document.getElementById('gh-top-label').textContent=`Most active (${top.length})`;
+  document.getElementById('gh-bot-label').textContent=`Least active (${bot.length})`;
+  renderTiles('gh-top-tiles',top,'gh',actDict,maxAct);
+  renderTiles('gh-bot-tiles',bot,'gh',actDict,maxAct);
+}
+
+function populateModifierDropdown(selectId, mods){
+  const sel=document.getElementById(selectId);if(!sel)return;
+  sel.innerHTML='';
+  Object.entries(mods).forEach(([key,mod])=>{
+    const opt=document.createElement('option');
+    opt.value=key;
+    opt.textContent=`${mod.label} (p=${mod.pvalue.toExponential(1)})`;
+    sel.appendChild(opt);
+  });
+}
+
+function initUgInterp(){
+  if(!nexisData||!ugData.communities)return;
+  populateModifierDropdown('ug-mod-skilled',nexisData.uganda_skilled);
+  populateModifierDropdown('ug-mod-biz',nexisData.uganda_biz);
+  document.getElementById('ug-mod-skilled').addEventListener('change',()=>updateUgInterp('skilled'));
+  document.getElementById('ug-n-skilled').addEventListener('change',()=>updateUgInterp('skilled'));
+  document.getElementById('ug-mod-biz').addEventListener('change',()=>updateUgInterp('biz'));
+  document.getElementById('ug-n-biz').addEventListener('change',()=>updateUgInterp('biz'));
+  updateUgInterp('skilled');
+  updateUgInterp('biz');
+}
+
+function initGhInterp(){
+  if(!nexisData||!ghData.communities)return;
+  populateModifierDropdown('gh-mod',nexisData.ghana);
+  document.getElementById('gh-mod').addEventListener('change',updateGhInterp);
+  document.getElementById('gh-n').addEventListener('change',updateGhInterp);
+  updateGhInterp();
+}
+
+fetch('assets/nexis_activations.json').then(r=>r.json()).then(data=>{
+  nexisData=data;
+  if(ugData.communities)initUgInterp();
+  if(ghData.communities)initGhInterp();
 });
 
 /* ══════════════════════════════════════════════
@@ -1711,7 +1992,7 @@ function switchUgandaOutcome(oc){
   ugOutcome=oc;
   document.querySelectorAll('#ug-outcome-tabs .outcome-tab')
     .forEach(b=>b.classList.toggle('active',b.dataset.oc===oc));
-  ['ctx','table','figs'].forEach(part=>{
+  ['ctx','table','figs','interp'].forEach(part=>{
     document.getElementById('ug-'+part+'-skilled').style.display=oc==='skilled'?'':'none';
     document.getElementById('ug-'+part+'-biz').style.display=oc==='biz'?'':'none';
   });
