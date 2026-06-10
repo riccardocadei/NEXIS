@@ -391,11 +391,8 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h2>Introduction</h2>
     <div class="tldr-box">
       <span class="tldr-label">TL;DR</span>
-      We introduce <strong>NEXIS</strong>, a principled iterative procedure over sufficient
-      and interpretable pre-treatment representations to identify the
-      <strong>causal</strong> characterization of treatment effect heterogeneity &#8212;
-      directly answering
-      &#8220;<em>what if, or how, should we modify our treatment assignment policy?</em>&#8221;
+      <e>How to</e> target a Causal and Interpretable Heterogeneous Treatment Effect (HTE) characterization, 
+      transforming row measurements into actionable policy insights.
     </div>
 
     <h3 style="margin-top:0">Contributions</h3>
@@ -406,7 +403,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="contrib-body">
             More data doesn't help if we ask the wrong question.
             We distinguish variables <em>correlated</em> with treatment-effect heterogeneity
-            from those that <em>causally drive</em> it, and show that finding the latter
+            from those that <em>causally drive</em> it, and show <e>when</e> and <e>how</e> finding the latter
             is achievable end-to-end — from raw multi-modal measurements to interpretable,
             actionable policy guidelines.
           </div>
@@ -417,10 +414,8 @@ footer{padding:1.8rem 2rem;text-align:center;
           <summary>New method (NEXIS)</summary>
           <div class="contrib-body">
             An iterative forward-backward selection algorithm that conditions on competing
-            candidates to isolate the <em>minimal</em> set of true causal drivers — with
-            provable selection consistency (Theorem 1). Semi-synthetic ablations deliver
-            practical guidance on test choice, multiple-testing correction, and
-            threshold tuning across data regimes.
+            candidates to isolate the true heterogeneity drivers (causal) — with
+            provable selection consistency.  Extensively tested and ablated on semi-synthetic experiments, providing practical guidelines for different data regimes.
           </div>
         </details>
       </li>
@@ -429,7 +424,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <summary>New discoveries in development economics (2 applications)</summary>
           <div class="contrib-body">
             NEXIS applied to two anti-poverty RCTs in Sub-Saharan Africa — Youth
-            Opportunities Program (Uganda) and LEAP 1000 (Ghana) — augmented with
+            Opportunities Program (Uganda) and Livelihood Empowerment Against Poverty  1000 (Ghana) — augmented with
             satellite imagery. In both programs, environmental features <em>invisible
             to standard survey analyses</em> emerge as the dominant effect drivers,
             with concrete prescriptions for program redesign.
@@ -521,7 +516,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <ol class="pipeline-steps">
       <li><div class="step-body">
         <strong>Experiment.</strong>
-        Design a controlled experiment, execute and measure any candidate treatment interactors.
+        Design a controlled experiment, run and measure any candidate treatment interactors.
       </div></li>
       <li><div class="step-body">
         <strong>Represent.</strong>
