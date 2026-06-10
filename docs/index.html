@@ -404,12 +404,11 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details>
           <summary>Causal and interpretable HTE framework</summary>
           <div class="contrib-body">
-            Targeting causal and human-interpretable HTE identification, formulated as a
-            Markov-blanket discovery problem over a sufficient and aligned pre-treatment
-            representation. This is the first procedure to identify a <em>causal</em> and
-            <em>interpretable</em> HTE characterization from complex observations,
-            translating raw measurements end-to-end into practical guidelines for policy
-            adaptation.
+            More data doesn't help if we ask the wrong question.
+            We distinguish variables <em>correlated</em> with treatment-effect heterogeneity
+            from those that <em>causally drive</em> it, and show that finding the latter
+            is achievable end-to-end — from raw multi-modal measurements to interpretable,
+            actionable policy guidelines.
           </div>
         </details>
       </li>
@@ -417,11 +416,11 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details>
           <summary>New method (NEXIS)</summary>
           <div class="contrib-body">
-            A novel forward-backward procedure based on conditional effect-equivalence
-            testing, with high-probability recovery guarantees (Theorem 1). Extensive
-            empirical validation and ablations on semi-synthetic experiments provide
-            practical guidelines for different data regimes, covering test choice,
-            multiple-testing correction, spectral-gap threshold, and backward elimination.
+            An iterative forward-backward selection algorithm that conditions on competing
+            candidates to isolate the <em>minimal</em> set of true causal drivers — with
+            provable selection consistency (Theorem 1). Semi-synthetic ablations deliver
+            practical guidance on test choice, multiple-testing correction, and
+            threshold tuning across data regimes.
           </div>
         </details>
       </li>
@@ -429,10 +428,11 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details>
           <summary>New discoveries in development economics (2 applications)</summary>
           <div class="contrib-body">
-            Deploying NEXIS on the Youth Opportunities Program (Uganda) and LEAP 1000
-            (Ghana), augmenting each with novel satellite imagery and capturing previously
-            ignored environmental factors. The results provide concrete, prescriptive
-            guidelines for the next iterations of these programs.
+            NEXIS applied to two anti-poverty RCTs in Sub-Saharan Africa — Youth
+            Opportunities Program (Uganda) and LEAP 1000 (Ghana) — augmented with
+            satellite imagery. In both programs, environmental features <em>invisible
+            to standard survey analyses</em> emerge as the dominant effect drivers,
+            with concrete prescriptions for program redesign.
           </div>
         </details>
       </li>
