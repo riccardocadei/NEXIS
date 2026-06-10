@@ -84,9 +84,9 @@ def cand_node(pos, color, lbl_text, r=0.27, sc=0.38):
 
 def outline_node(pos, lbl_text, r=0.28, sc=0.48):
     """Black-border / white-fill node, for T and Y."""
-    circ = Circle(radius=r, color=WHITE_TEXT, fill_color=WHITE,
-                  fill_opacity=1.0, stroke_width=2.5).move_to(pos)
-    lbl  = Text(lbl_text, color=WHITE_TEXT).scale(sc).move_to(circ)
+    circ = Circle(radius=r, color=GRAY_TEXT, fill_color=WHITE,
+                  fill_opacity=1.0, stroke_width=2.0).move_to(pos)
+    lbl  = Text(lbl_text, color=GRAY_TEXT).scale(sc).move_to(circ)
     return VGroup(circ, lbl)
 
 
@@ -230,7 +230,7 @@ class Pipeline(Scene):
             Arrow(
                 n.get_center() + _unit(n.get_center(), Y_pos) * (Z_R + 0.05),
                 Y_pos           - _unit(n.get_center(), Y_pos) * (TY_R + 0.05),
-                buff=0, color=GRAY_TEXT, stroke_width=1.0,
+                buff=0, color=GRAY_TEXT, stroke_width=2.0,
                 tip_length=0.18, max_tip_length_to_length_ratio=0.25,
             ).set_opacity(0.25)
             for n in all_nodes
@@ -250,7 +250,7 @@ class Pipeline(Scene):
         T_node = outline_node(T_pos, "T")
         Y_node = outline_node(Y_pos, "Y")
         TY_arr = Arrow(T_pos, Y_pos, buff=TY_R + 0.05,
-                       color=WHITE_TEXT, stroke_width=3.0,
+                       color=GRAY_TEXT, stroke_width=2.0,
                        tip_length=0.18, max_tip_length_to_length_ratio=0.25)
 
         self.play(
@@ -303,7 +303,7 @@ class Pipeline(Scene):
             if src == "z":
                 self.play(
                     Z_nodes[target_idx].animate.set_opacity(1.0),
-                    all_ZtoY[target_idx].animate.set_opacity(1.0).set_color(WHITE_TEXT),
+                    all_ZtoY[target_idx].animate.set_opacity(1.0),
                     run_time=0.38,
                 )
                 sel_z_idxs.append(target_idx)
@@ -311,7 +311,7 @@ class Pipeline(Scene):
                 x_ai = N_Z + target_idx
                 self.play(
                     X_nodes[target_idx].animate.set_opacity(1.0),
-                    all_ZtoY[x_ai].animate.set_opacity(1.0).set_color(WHITE_TEXT),
+                    all_ZtoY[x_ai].animate.set_opacity(1.0),
                     run_time=0.38,
                 )
                 sel_x_idxs.append(target_idx)
