@@ -512,7 +512,9 @@ footer{padding:1.8rem 2rem;text-align:center;
   <div class="wrap">
     <h2>Method</h2>
     <h3>From Tokens to Policy explaining the effect heterogeneity</h3>
-    <div class="anim-placeholder">[ Pipeline animation &#8212; coming soon ]</div>
+    <video src="assets/s01_pipeline.mp4" autoplay loop muted playsinline controls
+           style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
+    </video>
     <ol class="pipeline-steps">
       <li><div class="step-body">
         <strong>Experiment.</strong>
@@ -777,7 +779,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <span>top-k</span>
           <select id="ug-n-skilled" style="width:3.5em;">
             <option>2</option><option selected>4</option>
-            <option>6</option><option>12</option>
+            <option>6</option>
           </select>
         </label>
       </div>
@@ -805,7 +807,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <span>top-k</span>
           <select id="ug-n-biz" style="width:3.5em;">
             <option>2</option><option selected>4</option>
-            <option>6</option><option>12</option>
+            <option>6</option>
           </select>
         </label>
       </div>
@@ -955,7 +957,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <span>top-k</span>
           <select id="gh-n" style="width:3.5em;">
             <option>2</option><option selected>4</option>
-            <option>6</option><option>12</option>
+            <option>6</option>
           </select>
         </label>
       </div>
@@ -1879,20 +1881,24 @@ function updateUgInterp(outcome){
   const sorted=Object.entries(actDict).sort((a,b)=>b[1]-a[1]);
   const topGeokeys=new Set(sorted.slice(0,N).map(([k])=>parseInt(k)));
   const botGeokeys=new Set(sorted.slice(-N).map(([k])=>parseInt(k)));
-  // tiles: use pre-curated lists (real images); fall back to actDict only when empty (e.g. binary modifiers)
+  // tiles: use pre-curated lists (real images); fall back to actDict only when values differ
+  const allSameVal=sorted.every(([,v])=>v===sorted[0][1]);
   const curatedTop=mod.top8_sk&&mod.top8_sk.length>0?mod.top8_sk.slice(0,N):null;
   const curatedBot=mod.bot8_sk&&mod.bot8_sk.length>0?mod.bot8_sk.slice(0,N):null;
-  const top=curatedTop||sorted.slice(0,N).map(([k])=>parseInt(k));
-  const bot=curatedBot||sorted.slice(-N).map(([k])=>parseInt(k));
+  const top=curatedTop||(allSameVal?[]:sorted.slice(0,N).map(([k])=>parseInt(k)));
+  const bot=curatedBot||(allSameVal?[]:sorted.slice(-N).map(([k])=>parseInt(k)));
   drawNiMap('ug-act-canvas-'+suffix,ugData.communities,'geokey',ugData.bounds,ugData.country,ugData.regions,UG_WATER,topGeokeys,botGeokeys);
   const tileAct=mod.tile_act||{};
   const tileActInt={};
   Object.entries(tileAct).forEach(([k,v])=>tileActInt[parseInt(k)]=v);
   const tileMax=Object.values(tileActInt).reduce((a,b)=>Math.max(a,b),0);
+  const noDataMsg='<span style="font-size:0.8rem;color:var(--muted);font-family:sans-serif;font-style:italic">Tile data not available</span>';
   document.getElementById('ug-top-label-'+suffix).textContent=`Most active (${top.length})`;
   document.getElementById('ug-bot-label-'+suffix).textContent=`Least active (${bot.length})`;
-  renderTiles('ug-top-tiles-'+suffix,top,'ug',tileActInt,tileMax);
-  renderTiles('ug-bot-tiles-'+suffix,bot,'ug',tileActInt,tileMax);
+  if(top.length===0&&topRowEl)topRowEl.innerHTML=noDataMsg;
+  else renderTiles('ug-top-tiles-'+suffix,top,'ug',tileActInt,tileMax);
+  if(bot.length===0&&botRowEl)botRowEl.innerHTML=noDataMsg;
+  else renderTiles('ug-bot-tiles-'+suffix,bot,'ug',tileActInt,tileMax);
 }
 
 function updateGhInterp(){
@@ -1930,21 +1936,40 @@ function updateGhInterp(){
   renderTiles('gh-bot-tiles',bot,'gh',actDict,Object.values(actDict).reduce((a,b)=>Math.max(a,b),0));
 }
 
-function populateModifierDropdown(selectId, mods){
+// Discovered modifiers only — keys and display names must match the results tables exactly
+const DISC={
+  ghana:{
+    '3821':'Ephemeral waterways',
+    '2095':'Closed-canopy forest',
+  },
+  uganda_skilled:{
+    'lang_4':'Teso',
+    'lang_2':'Acholi',
+    'lang_7':'Karamojong',
+    '339':  'Perennial river presence',
+    '533':  'Vegetation spatial heterogeneity',
+  },
+  uganda_biz:{
+    'ndvi':'NDVI (vegetation greenness)',
+    '820': 'Structured agricultural landscape',
+  },
+};
+
+function populateModifierDropdown(selectId, mods, labels){
   const sel=document.getElementById(selectId);if(!sel)return;
   sel.innerHTML='';
-  Object.entries(mods).forEach(([key,mod])=>{
+  Object.entries(labels).forEach(([key,name])=>{
+    if(!mods[key])return;
     const opt=document.createElement('option');
-    opt.value=key;
-    opt.textContent=mod.label.replace(/\s*\([WZ]_[^)]+\)/g,'').replace(/\s*\(p=.*?\)/g,'').trim();
+    opt.value=key;opt.textContent=name;
     sel.appendChild(opt);
   });
 }
 
 function initUgInterp(){
   if(!nexisData||!ugData.communities)return;
-  populateModifierDropdown('ug-mod-skilled',nexisData.uganda_skilled);
-  populateModifierDropdown('ug-mod-biz',nexisData.uganda_biz);
+  populateModifierDropdown('ug-mod-skilled',nexisData.uganda_skilled,DISC.uganda_skilled);
+  populateModifierDropdown('ug-mod-biz',nexisData.uganda_biz,DISC.uganda_biz);
   document.getElementById('ug-mod-skilled').addEventListener('change',()=>updateUgInterp('skilled'));
   document.getElementById('ug-n-skilled').addEventListener('change',()=>updateUgInterp('skilled'));
   document.getElementById('ug-mod-biz').addEventListener('change',()=>updateUgInterp('biz'));
@@ -1955,7 +1980,7 @@ function initUgInterp(){
 
 function initGhInterp(){
   if(!nexisData||!ghData.communities)return;
-  populateModifierDropdown('gh-mod',nexisData.ghana);
+  populateModifierDropdown('gh-mod',nexisData.ghana,DISC.ghana);
   document.getElementById('gh-mod').addEventListener('change',updateGhInterp);
   document.getElementById('gh-n').addEventListener('change',updateGhInterp);
   updateGhInterp();
