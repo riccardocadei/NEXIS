@@ -57,7 +57,7 @@ def dot_col(n, color, h=1.55, r=0.060, opacity=0.65):
 
 
 def survey_card(rows=4, w=1.38, rh=0.25, seed=7):
-    fields = ["treatment", "outcome", "age", "assets"]
+    fields = ["sex", "language", "age", "assets"]
     rng    = np.random.default_rng(seed)
     card   = VGroup()
     for i, f in enumerate(fields[:rows]):
@@ -351,18 +351,18 @@ class Pipeline(Scene):
         # ══════════════════════════════════════════════════════════════════
         # ACT 6 — VLM interpretation pills + tagline
         # ══════════════════════════════════════════════════════════════════
-        p_tree   = pill("tree cover",   TEAL_LIGHT)
-        p_road   = pill("road access",  TEAL_LIGHT)
-        p_assets = pill("asset wealth", TEAL_LIGHT)
+        lbl_river = Text("perennial river presence", color=GRAY_TEXT).scale(0.24)
+        lbl_veg   = Text("vegetation heterogeneity", color=GRAY_TEXT).scale(0.24)
+        lbl_lang  = Text("language",                 color=GRAY_TEXT).scale(0.24)
 
-        p_tree.next_to(sel_nodes[0],  LEFT, buff=0.18)
-        p_road.next_to(sel_nodes[1],  LEFT, buff=0.18)
-        p_assets.next_to(sel_nodes[2], LEFT, buff=0.18)
+        lbl_river.next_to(sel_nodes[0], RIGHT, buff=0.20)
+        lbl_veg.next_to(sel_nodes[1],   RIGHT, buff=0.20)
+        lbl_lang.next_to(sel_nodes[2],  RIGHT, buff=0.20)
 
         self.play(LaggedStart(
-            FadeIn(p_tree,   shift=LEFT * 0.08),
-            FadeIn(p_road,   shift=LEFT * 0.08),
-            FadeIn(p_assets, shift=LEFT * 0.08),
+            FadeIn(lbl_river, shift=RIGHT * 0.08),
+            FadeIn(lbl_veg,   shift=RIGHT * 0.08),
+            FadeIn(lbl_lang,  shift=RIGHT * 0.08),
             lag_ratio=0.32, run_time=1.70,
         ))
         self.wait(1.0)
