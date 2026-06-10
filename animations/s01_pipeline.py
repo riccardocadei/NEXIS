@@ -9,7 +9,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from config import (
-    BG, WHITE_TEXT, GRAY_TEXT, DIM_GRAY,
+    BG, WHITE, WHITE_TEXT, GRAY_TEXT, DIM_GRAY,
     BLUE_LIGHT, GREEN_LIGHT, YELLOW_LIGHT, PURPLE_LIGHT, TEAL_LIGHT,
     LABEL_SCALE,
     make_arrow,
@@ -82,6 +82,14 @@ def cand_node(pos, color, lbl_text, r=0.27, sc=0.38):
     return VGroup(circ, lbl)
 
 
+def outline_node(pos, lbl_text, r=0.28, sc=0.48):
+    """Black-border / white-fill node, for T and Y."""
+    circ = Circle(radius=r, color=WHITE_TEXT, fill_color=WHITE,
+                  fill_opacity=1.0, stroke_width=2.5).move_to(pos)
+    lbl  = Text(lbl_text, color=WHITE_TEXT).scale(sc).move_to(circ)
+    return VGroup(circ, lbl)
+
+
 def pill(txt, col, sc=0.30):
     t  = Text(txt, color=col).scale(sc)
     bg = RoundedRectangle(
@@ -105,7 +113,7 @@ class Pipeline(Scene):
         X0, X1, X2 = -5.80, -3.65, -2.10   # tile | dense | Z column
         Y_S, Y_V   =  1.30, -1.45           # satellite arm y | survey arm y
 
-        # Z nodes (SAE): vertical column at X2, evenly spaced
+        # Z nodes (SAE): vertical column at X2
         N_Z   = 8
         Z_R   = 0.22
         Z_y_c = 1.70
@@ -148,11 +156,11 @@ class Pipeline(Scene):
         self.play(FadeIn(tile), Create(border), FadeIn(sat_lbl), run_time=0.9)
         self.wait(0.4)
 
-        # tile → Prithvi-EO (label overlaid on tile) → dense (10 dots)
+        # tile → Prithvi-EO → dense (10 dots)
         dense = dot_col(10, BLUE_LIGHT, h=1.55).move_to([X1, Y_S, 0])
         a1    = make_arrow(border.get_right(), dense.get_left() + LEFT * 0.04,
-                           color=BLUE_LIGHT)
-        lbl1  = Text("Prithvi-EO  ❄", color=BLUE_LIGHT).scale(0.30)
+                           color=GRAY_TEXT)
+        lbl1  = Text("Prithvi-EO  ❄", color=GRAY_TEXT).scale(0.30)
         lbl1.move_to(border.get_center())
 
         self.play(GrowArrow(a1), FadeIn(lbl1), run_time=0.55)
@@ -160,13 +168,14 @@ class Pipeline(Scene):
                                lag_ratio=0.06, run_time=1.10))
         self.wait(0.30)
 
-        # dense → SAE (14 nodes) — same blue stream
+        # dense → SAE (14 nodes)
         N_SAE    = 14
         N_ACTIVE = 8
-        sparse = dot_col(N_SAE, BLUE_LIGHT, h=2.80).move_to([X2, Y_S, 0])
-        a2     = make_arrow(dense.get_right(), sparse.get_left() + LEFT * 0.04,
-                            color=BLUE_LIGHT)
-        lbl2   = Text("SAE", color=BLUE_LIGHT).scale(0.30)
+        sparse_h = 2.80
+        sparse   = dot_col(N_SAE, BLUE_LIGHT, h=sparse_h).move_to([X2, Y_S, 0])
+        a2       = make_arrow(dense.get_right(), sparse.get_left() + LEFT * 0.04,
+                              color=GRAY_TEXT)
+        lbl2     = Text("SAE", color=GRAY_TEXT).scale(0.30)
         lbl2.next_to(a2, UP, buff=0.09)
 
         self.play(GrowArrow(a2), FadeIn(lbl2), run_time=0.50)
@@ -185,7 +194,7 @@ class Pipeline(Scene):
         )
         self.wait(0.40)
 
-        # survey card → N_X feature dots (gold)
+        # survey card → N_X feature dots (gold, same step density as SAE)
         card    = survey_card().move_to([X0, Y_V, 0])
         srv_lbl = Text("survey", color=YELLOW_LIGHT).scale(LABEL_SCALE)
         srv_lbl.next_to(card, DOWN, buff=0.12)
@@ -193,9 +202,10 @@ class Pipeline(Scene):
         self.play(FadeIn(card), FadeIn(srv_lbl), run_time=0.70)
         self.wait(0.25)
 
-        sfeat = dot_col(N_X, YELLOW_LIGHT, h=(N_X - 1) * X_stp).move_to([X2, Y_V, 0])
-        a3    = make_arrow(card.get_right(), sfeat.get_left() + LEFT * 0.04,
-                           color=YELLOW_LIGHT)
+        sfeat_h = (N_X - 1) * (sparse_h / (N_SAE - 1))   # same dot step as SAE
+        sfeat   = dot_col(N_X, YELLOW_LIGHT, h=sfeat_h).move_to([X2, Y_V, 0])
+        a3      = make_arrow(card.get_right(), sfeat.get_left() + LEFT * 0.04,
+                             color=GRAY_TEXT)
 
         self.play(GrowArrow(a3), run_time=0.45)
         self.play(LaggedStart(*[GrowFromCenter(d) for d in sfeat],
@@ -214,14 +224,26 @@ class Pipeline(Scene):
             for yy, lbl in zip(X_ys, X_lbls)
         ]
 
-        # Pre-build faint arrows from every node to Y (revealed in ACT 3)
+        # Persistent source-mapping arrows (satellite → Z col, survey → X col)
+        map_sat = make_arrow(
+            border.get_right(),
+            np.array([X2 - Z_R - 0.04, Z_y_c, 0.0]),
+            color=GRAY_TEXT,
+        )
+        map_srv = make_arrow(
+            card.get_right(),
+            np.array([X2 - X_R - 0.04, X_y_c, 0.0]),
+            color=GRAY_TEXT,
+        )
+
+        # Faint candidate arrows: every node → Y (shown in ACT 3)
         all_nodes = Z_nodes + X_nodes
-        all_ZtoY = [
+        all_ZtoY  = [
             Arrow(
                 n.get_center() + _unit(n.get_center(), Y_pos) * (Z_R + 0.05),
                 Y_pos           - _unit(n.get_center(), Y_pos) * (TY_R + 0.05),
                 buff=0, color=DIM_GRAY, stroke_width=1.0,
-                max_tip_length_to_length_ratio=0.08,
+                tip_length=0.18, max_tip_length_to_length_ratio=0.25,
             ).set_opacity(0.25)
             for n in all_nodes
         ]
@@ -235,22 +257,23 @@ class Pipeline(Scene):
         self.wait(0.30)
 
         # ══════════════════════════════════════════════════════════════════
-        # ACT 3 — Fade pipeline arrows (keep satellite & survey);
-        #         T, Y (black), and light Z→Y arrows appear together
+        # ACT 3 — Collapse pipeline to source arrows; T, Y, candidate arrows
         # ══════════════════════════════════════════════════════════════════
         self.play(
             FadeOut(a1), FadeOut(lbl1), FadeOut(dense),
             FadeOut(a2), FadeOut(lbl2),
             FadeOut(a3),
+            GrowArrow(map_sat),
+            GrowArrow(map_srv),
             run_time=0.80,
         )
         self.wait(0.20)
 
-        T_node = cand_node(T_pos, WHITE_TEXT, "T", r=TY_R, sc=0.48)
-        Y_node = cand_node(Y_pos, WHITE_TEXT, "Y", r=TY_R, sc=0.48)
+        T_node = outline_node(T_pos, "T")
+        Y_node = outline_node(Y_pos, "Y")
         TY_arr = Arrow(T_pos, Y_pos, buff=TY_R + 0.05,
                        color=WHITE_TEXT, stroke_width=3.0,
-                       max_tip_length_to_length_ratio=0.055)
+                       tip_length=0.18, max_tip_length_to_length_ratio=0.25)
 
         self.play(
             GrowFromCenter(T_node),
@@ -267,7 +290,7 @@ class Pipeline(Scene):
         self.wait(0.35)
 
         # ══════════════════════════════════════════════════════════════════
-        # ACT 4 — NEXIS: scan nodes, saturate to select (2 SAE + 1 survey)
+        # ACT 4 — NEXIS: scan arrows, saturate to select (2 SAE + 1 survey)
         # ══════════════════════════════════════════════════════════════════
         self.play(
             *[n.animate.set_opacity(0.28) for n in Z_nodes + X_nodes],
@@ -302,7 +325,7 @@ class Pipeline(Scene):
             if src == "z":
                 self.play(
                     Z_nodes[target_idx].animate.set_opacity(1.0),
-                    all_ZtoY[target_idx].animate.set_opacity(1.0).set_color(BLUE_LIGHT),
+                    all_ZtoY[target_idx].animate.set_opacity(1.0).set_color(WHITE_TEXT),
                     run_time=0.38,
                 )
                 sel_z_idxs.append(target_idx)
@@ -310,7 +333,7 @@ class Pipeline(Scene):
                 x_ai = N_Z + target_idx
                 self.play(
                     X_nodes[target_idx].animate.set_opacity(1.0),
-                    all_ZtoY[x_ai].animate.set_opacity(1.0).set_color(YELLOW_LIGHT),
+                    all_ZtoY[x_ai].animate.set_opacity(1.0).set_color(WHITE_TEXT),
                     run_time=0.38,
                 )
                 sel_x_idxs.append(target_idx)
