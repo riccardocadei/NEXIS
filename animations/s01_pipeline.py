@@ -359,9 +359,9 @@ class Pipeline(Scene):
         lbl_veg.next_to(sel_nodes[1],   RIGHT, buff=0.20)
         lbl_lang.next_to(sel_nodes[2],  RIGHT, buff=0.20)
 
-        col_title = (Text("Interpretations", color=GRAY_TEXT).scale(0.26)
-                     .next_to(lbl_river, UP, buff=0.18)
-                     .align_to(lbl_river, LEFT))
+        col_title = Text("Interpretations", color=GRAY_TEXT, weight=BOLD).scale(0.26)
+        col_title.next_to(lbl_river, UP, buff=0.18)
+        col_title.set_x(VGroup(lbl_river, lbl_veg, lbl_lang).get_center()[0])
 
         self.play(LaggedStart(
             FadeIn(col_title,  shift=RIGHT * 0.08),
