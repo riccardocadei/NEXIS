@@ -730,10 +730,9 @@ footer{padding:1.8rem 2rem;text-align:center;
 
     <div id="ug-table-skilled">
       <table class="results-table">
-        <caption>Discovered modifiers for Skilled Employment (NEXIS FWER). GATE = conditional average treatment effect (s.e.); &#916; = active &#8722; inactive.</caption>
         <thead><tr>
           <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-          <th>&#916;</th><th><em>p</em> (NEXIS)</th>
+          <th>&#916;</th><th><em>p</em>-value</th>
         </tr></thead>
         <tbody>
           <tr class="sub-panel"><td colspan="5">Linguistic group</td></tr>
@@ -753,10 +752,9 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <div id="ug-table-biz" style="display:none">
       <table class="results-table">
-        <caption>Discovered modifiers for Log Business Assets (NEXIS FWER). GATE = conditional average treatment effect (s.e.).</caption>
         <thead><tr>
           <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-          <th>&#916;</th><th><em>p</em> (NEXIS)</th>
+          <th>&#916;</th><th><em>p</em>-value</th>
         </tr></thead>
         <tbody>
           <tr><td>NDVI (vegetation greenness)</td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
@@ -927,10 +925,9 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
 
     <table class="results-table">
-      <caption>NEXIS FWER discoveries for LEAP 1000. GATEs in GH&#8353;/month. NEXIS <em>p</em> = FWER-corrected; marginal in parentheses.</caption>
       <thead><tr>
         <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-        <th>&#916;</th><th>NEXIS <em>p</em></th>
+        <th>&#916;</th><th><em>p</em>-value</th>
       </tr></thead>
       <tbody>
         <tr>
@@ -1827,6 +1824,16 @@ function drawNiMap(canvasId, communities, keyField, mapBounds, country, regions,
     ctx.globalAlpha=0.9;ctx.fillStyle='#FFD166';ctx.fill();
     ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=0.5;ctx.stroke();
   });
+  // legend top-left, no background
+  const legendItems=[['Most active','#FFD166'],['Least active','#74B3CE']];
+  ctx.font='9px Helvetica Neue,Arial,sans-serif';
+  legendItems.forEach(([label,col],i)=>{
+    const lx=8,ly=10+i*16;
+    ctx.beginPath();ctx.arc(lx,ly,4,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=0.5;ctx.stroke();
+    ctx.fillStyle='#222';ctx.fillText(label,lx+9,ly+3);
+  });
 }
 
 function renderTiles(rowId, ids, prefix, actDict, maxAct){
@@ -1858,16 +1865,22 @@ function updateUgInterp(outcome){
   const key=selEl.value;
   const sectionKey=outcome==='skilled'?'uganda_skilled':'uganda_biz';
   const mod=nexisData[sectionKey][key];
-  if(!mod)return;
+  const topRowEl=document.getElementById('ug-top-tiles-'+suffix);
+  const botRowEl=document.getElementById('ug-bot-tiles-'+suffix);
+  const errMsg=(msg)=>{
+    if(topRowEl)topRowEl.innerHTML='<span style="font-size:0.8rem;color:#c0392b;font-family:sans-serif">'+msg+'</span>';
+    if(botRowEl)botRowEl.innerHTML='';
+  };
+  if(!mod){errMsg('Modifier not found in data.');return;}
   const N=parseInt(nEl.value)||4;
-  // Activation map
+  // derive top/bot dynamically from actDict so any k works
   const actDict=mod.act; // geokey->value (string keys)
-  const top=mod.top8_sk.slice(0,N);
-  const bot=mod.bot8_sk.slice(0,N);
-  // derive geokeys for map from act sorted by activation
+  if(!actDict||Object.keys(actDict).length===0){errMsg('No activation data available.');return;}
   const sorted=Object.entries(actDict).sort((a,b)=>b[1]-a[1]);
-  const topGeokeys=new Set(sorted.slice(0,N).map(([k])=>parseInt(k)));
-  const botGeokeys=new Set(sorted.slice(-N).map(([k])=>parseInt(k)));
+  const top=sorted.slice(0,N).map(([k])=>parseInt(k));
+  const bot=sorted.slice(-N).map(([k])=>parseInt(k));
+  const topGeokeys=new Set(top);
+  const botGeokeys=new Set(bot);
   drawNiMap('ug-act-canvas-'+suffix,ugData.communities,'geokey',ugData.bounds,ugData.country,ugData.regions,UG_WATER,topGeokeys,botGeokeys);
   const tileAct=mod.tile_act||{};
   const tileActInt={};
@@ -1889,10 +1902,19 @@ function updateGhInterp(){
   const N=parseInt(nEl.value)||4;
   const actDict={};
   Object.entries(mod.act).forEach(([k,v])=>actDict[parseInt(k)]=v);
+  const ghTopRowEl=document.getElementById('gh-top-tiles');
+  const ghBotRowEl=document.getElementById('gh-bot-tiles');
+  const ghErrMsg=(msg)=>{
+    if(ghTopRowEl)ghTopRowEl.innerHTML='<span style="font-size:0.8rem;color:#c0392b;font-family:sans-serif">'+msg+'</span>';
+    if(ghBotRowEl)ghBotRowEl.innerHTML='';
+  };
+  if(Object.keys(actDict).length===0){ghErrMsg('No activation data available.');return;}
   const gb=boundsFromGeoJSON(ghData.country);
   const bounds={minLat:gb.minLat-0.1,maxLat:gb.maxLat+0.1,minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1};
-  const top=mod.top8.slice(0,N);
-  const bot=mod.bot8.slice(0,N);
+  // derive top/bot dynamically so any k works
+  const sortedGh=Object.entries(actDict).sort((a,b)=>b[1]-a[1]);
+  const top=sortedGh.slice(0,N).map(([k])=>parseInt(k));
+  const bot=sortedGh.slice(-N).map(([k])=>parseInt(k));
   const topIds=new Set(top);const botIds=new Set(bot);
   drawNiMap('gh-act-canvas',ghData.communities,'comm',bounds,ghData.country,ghData.regions,GH_WATER,topIds,botIds);
   document.getElementById('gh-top-label').textContent=`Most active (${top.length})`;
