@@ -801,22 +801,8 @@ footer{padding:1.8rem 2rem;text-align:center;
       </table>
     </div>
 
-    <div id="ug-figs-skilled">
-      <div class="fig-row">
-        <div class="fig-col">
-          <img src="assets/uganda_skilled_employed.png" alt="Skilled employment modifiers" class="zoomable">
-          <p class="fig-caption">Direct modifiers of <em>skilled employment</em>.</p>
-        </div>
-      </div>
-    </div>
-    <div id="ug-figs-biz" style="display:none">
-      <div class="fig-row">
-        <div class="fig-col">
-          <img src="assets/uganda_biz_assets.png" alt="Business assets modifiers" class="zoomable">
-          <p class="fig-caption">Direct modifiers of <em>log business assets</em>.</p>
-        </div>
-      </div>
-    </div>
+    <div id="ug-figs-skilled" style="display:none"></div>
+    <div id="ug-figs-biz" style="display:none"></div>
 
     <!-- NEXIS Interpretation — Skilled Employment -->
     <div id="ug-interp-skilled" class="nexis-interp">
@@ -824,12 +810,11 @@ footer{padding:1.8rem 2rem;text-align:center;
         <span class="ni-label">Direct Effect Modifier Explorer</span>
         <select id="ug-mod-skilled" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
-          <span>Top/bottom</span>
+          <span>top-k</span>
           <select id="ug-n-skilled" style="width:3.5em;">
             <option>2</option><option selected>4</option>
-            <option>6</option><option>8</option>
+            <option>6</option><option>12</option>
           </select>
-          <span>communities</span>
         </label>
       </div>
       <div class="nexis-interp-body">
@@ -853,12 +838,11 @@ footer{padding:1.8rem 2rem;text-align:center;
         <span class="ni-label">Direct Effect Modifier Explorer</span>
         <select id="ug-mod-biz" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
-          <span>Top/bottom</span>
+          <span>top-k</span>
           <select id="ug-n-biz" style="width:3.5em;">
             <option>2</option><option selected>4</option>
-            <option>6</option><option>8</option>
+            <option>6</option><option>12</option>
           </select>
-          <span>communities</span>
         </label>
       </div>
       <div class="nexis-interp-body">
@@ -998,12 +982,6 @@ footer{padding:1.8rem 2rem;text-align:center;
       </tbody>
     </table>
 
-    <img src="assets/ghana_combined.png" alt="LEAP 1000 Ghana modifiers" class="fig-full zoomable">
-    <p class="fig-caption">
-      <em>Left:</em> VLM-labelled direct modifiers with top/bottom Landsat tiles.
-      <em>Right:</em> 2015&#8594;2017 temporal evolution &#8212; cropland expansion and
-      denser riparian vegetation in waterway-active communities.
-    </p>
 
     <!-- NEXIS Interpretation — LEAP Ghana -->
     <div id="gh-interp" class="nexis-interp">
@@ -1011,12 +989,11 @@ footer{padding:1.8rem 2rem;text-align:center;
         <span class="ni-label">Direct Effect Modifier Explorer</span>
         <select id="gh-mod" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
-          <span>Top/bottom</span>
+          <span>top-k</span>
           <select id="gh-n" style="width:3.5em;">
             <option>2</option><option selected>4</option>
-            <option>6</option><option>8</option>
+            <option>6</option><option>12</option>
           </select>
-          <span>communities</span>
         </label>
       </div>
       <div class="nexis-interp-body">
@@ -1846,7 +1823,7 @@ function niActColor(t,isBinary){
   return gradColor(t,LO,HI);
 }
 
-function drawNiMap(canvasId, communities, keyField, actDict, maxAct, isBinary, mapBounds, country, regions, waterPolys){
+function drawNiMap(canvasId, communities, keyField, mapBounds, country, regions, waterPolys, topIds, botIds){
   const canvas=document.getElementById(canvasId);
   if(!canvas||!communities)return;
   const W=canvas.offsetWidth||260,H=canvas.offsetHeight||220;
@@ -1859,32 +1836,31 @@ function drawNiMap(canvasId, communities, keyField, actDict, maxAct, isBinary, m
   if(country)drawRegions(ctx,country,proj,'#e8ede4','#b0bba8');
   if(regions)drawRegions(ctx,regions,proj,'#e8f4e2','#b8d9b0');
   if(waterPolys)drawWaterPolys(ctx,waterPolys,proj);
-  // draw inactive first, then active on top
-  const sorted=[...communities].sort((a,b)=>{
-    const va=actDict[a[keyField]]??0,vb=actDict[b[keyField]]??0;return va-vb;
-  });
-  sorted.forEach(c=>{
-    const v=actDict[c[keyField]]??0;
-    const t=maxAct>0?Math.min(1,v/maxAct):0;
-    const fill=t<0.01?'#d0d0d0':niActColor(t,isBinary);
-    const r=t<0.01?2:2.5+2.5*t;
+  // background: all communities as tiny grey dots
+  communities.forEach(c=>{
+    const key=c[keyField];
+    if(topIds.has(key)||botIds.has(key))return;
     const[x,y]=proj(c.lat,c.lon);
-    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
-    ctx.globalAlpha=t<0.01?0.35:0.9;
-    ctx.fillStyle=fill;ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);
+    ctx.globalAlpha=0.3;ctx.fillStyle='#999';ctx.fill();
     ctx.globalAlpha=1;
-    ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.4;ctx.stroke();
   });
-  // mini legend
-  ctx.fillStyle='rgba(255,255,255,0.82)';ctx.fillRect(6,6,80,26);
-  ctx.strokeStyle='rgba(0,0,0,0.1)';ctx.lineWidth=0.5;ctx.strokeRect(6,6,80,26);
-  const grad=ctx.createLinearGradient(10,0,82,0);
-  grad.addColorStop(0,'#d0d0d0');grad.addColorStop(1,niActColor(1,isBinary));
-  ctx.fillStyle=grad;ctx.fillRect(10,14,72,8);
-  ctx.fillStyle='#444';ctx.font='7.5px Helvetica Neue,Arial,sans-serif';
-  ctx.textAlign='left';ctx.fillText('inactive',10,28);
-  ctx.textAlign='right';ctx.fillText('active',82,28);
-  ctx.textAlign='left';
+  // bot-k: pastel blue
+  communities.forEach(c=>{
+    if(!botIds.has(c[keyField]))return;
+    const[x,y]=proj(c.lat,c.lon);
+    ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.globalAlpha=0.85;ctx.fillStyle='#74B3CE';ctx.fill();
+    ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=0.5;ctx.stroke();
+  });
+  // top-k: pastel yellow
+  communities.forEach(c=>{
+    if(!topIds.has(c[keyField]))return;
+    const[x,y]=proj(c.lat,c.lon);
+    ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.globalAlpha=0.9;ctx.fillStyle='#FFD166';ctx.fill();
+    ctx.globalAlpha=1;ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=0.5;ctx.stroke();
+  });
 }
 
 function renderTiles(rowId, ids, prefix, actDict, maxAct){
@@ -1919,19 +1895,20 @@ function updateUgInterp(outcome){
   if(!mod)return;
   const N=parseInt(nEl.value)||4;
   // Activation map
-  const actDict=mod.act; // geokey->value
-  const vals=Object.values(actDict);
-  const maxAct=vals.reduce((a,b)=>Math.max(a,b),0);
-  drawNiMap('ug-act-canvas-'+suffix,ugData.communities,'geokey',actDict,maxAct,mod.type==='survey',ugData.bounds,ugData.country,ugData.regions,UG_WATER);
-  // Tiles — keyed by site_key; tile_act maps site_key->activation
+  const actDict=mod.act; // geokey->value (string keys)
   const top=mod.top8_sk.slice(0,N);
   const bot=mod.bot8_sk.slice(0,N);
+  // derive geokeys for map from act sorted by activation
+  const sorted=Object.entries(actDict).sort((a,b)=>b[1]-a[1]);
+  const topGeokeys=new Set(sorted.slice(0,N).map(([k])=>parseInt(k)));
+  const botGeokeys=new Set(sorted.slice(-N).map(([k])=>parseInt(k)));
+  drawNiMap('ug-act-canvas-'+suffix,ugData.communities,'geokey',ugData.bounds,ugData.country,ugData.regions,UG_WATER,topGeokeys,botGeokeys);
   const tileAct=mod.tile_act||{};
   const tileActInt={};
   Object.entries(tileAct).forEach(([k,v])=>tileActInt[parseInt(k)]=v);
   const tileMax=Object.values(tileActInt).reduce((a,b)=>Math.max(a,b),0);
-  document.getElementById('ug-top-label-'+suffix).textContent=mod.type==='survey'?`In group (${top.length})`:`Most active (${top.length})`;
-  document.getElementById('ug-bot-label-'+suffix).textContent=mod.type==='survey'?`Not in group (${bot.length})`:`Least active (${bot.length})`;
+  document.getElementById('ug-top-label-'+suffix).textContent=`Most active (${top.length})`;
+  document.getElementById('ug-bot-label-'+suffix).textContent=`Least active (${bot.length})`;
   renderTiles('ug-top-tiles-'+suffix,top,'ug',tileActInt,tileMax);
   renderTiles('ug-bot-tiles-'+suffix,bot,'ug',tileActInt,tileMax);
 }
@@ -1946,17 +1923,16 @@ function updateGhInterp(){
   const N=parseInt(nEl.value)||4;
   const actDict={};
   Object.entries(mod.act).forEach(([k,v])=>actDict[parseInt(k)]=v);
-  const vals=Object.values(actDict);
-  const maxAct=vals.reduce((a,b)=>Math.max(a,b),0);
   const gb=boundsFromGeoJSON(ghData.country);
   const bounds={minLat:gb.minLat-0.1,maxLat:gb.maxLat+0.1,minLon:gb.minLon-0.1,maxLon:gb.maxLon+0.1};
-  drawNiMap('gh-act-canvas',ghData.communities,'comm',actDict,maxAct,false,bounds,ghData.country,ghData.regions,GH_WATER);
   const top=mod.top8.slice(0,N);
   const bot=mod.bot8.slice(0,N);
+  const topIds=new Set(top);const botIds=new Set(bot);
+  drawNiMap('gh-act-canvas',ghData.communities,'comm',bounds,ghData.country,ghData.regions,GH_WATER,topIds,botIds);
   document.getElementById('gh-top-label').textContent=`Most active (${top.length})`;
   document.getElementById('gh-bot-label').textContent=`Least active (${bot.length})`;
-  renderTiles('gh-top-tiles',top,'gh',actDict,maxAct);
-  renderTiles('gh-bot-tiles',bot,'gh',actDict,maxAct);
+  renderTiles('gh-top-tiles',top,'gh',actDict,Object.values(actDict).reduce((a,b)=>Math.max(a,b),0));
+  renderTiles('gh-bot-tiles',bot,'gh',actDict,Object.values(actDict).reduce((a,b)=>Math.max(a,b),0));
 }
 
 function populateModifierDropdown(selectId, mods){
@@ -1965,7 +1941,7 @@ function populateModifierDropdown(selectId, mods){
   Object.entries(mods).forEach(([key,mod])=>{
     const opt=document.createElement('option');
     opt.value=key;
-    opt.textContent=`${mod.label} (p=${mod.pvalue.toExponential(1)})`;
+    opt.textContent=mod.label.replace(/\s*\([WZ]_[^)]+\)/g,'').replace(/\s*\(p=.*?\)/g,'').trim();
     sel.appendChild(opt);
   });
 }
