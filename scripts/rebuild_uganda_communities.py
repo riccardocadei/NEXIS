@@ -41,20 +41,66 @@ sites = (
 # Keep only sites that have Prithvi features, drop the 1 site with NaN coords
 sites = sites[sites['geokey'].isin(prithvi_keys)].dropna(subset=['lat', 'lon'])
 
+# Aggregate per-site fields from individual-level CSV
+agg = df.groupby('geo_long_lat_key').agg(
+    n_indiv=('Wobs', 'count'),
+    pct_treated=('Wobs', 'mean'),
+    mean_skilled=('skilled_dummy_e', 'mean'),
+    mean_biz=('bizasset_val_real_ln_e', 'mean'),
+    mean_age=('age', 'mean'),
+    mean_father_educ=('father_educ', 'mean'),
+    mean_mother_educ=('mother_educ', 'mean'),
+    mean_group_female=('group_female', 'mean'),
+    pct_female=('female', 'mean'),
+    district=('district', lambda x: x.mode().iloc[0] if x.notna().any() else None),
+).reset_index().rename(columns={'geo_long_lat_key': 'geokey'})
+sites = sites.merge(agg, on='geokey', how='left')
+
+# Merge spectral indices
+sp = pd.read_csv(ROOT / "data/uganda/satellite/rct/spectral_indices.csv")
+sp = sp.rename(columns={'site_key': 'geokey',
+    'ndvi_mean':'ndvi','ndwi_mean':'ndwi','mndwi_mean':'mndwi',
+    'ndbi_mean':'ndbi','evi_mean':'evi','bsi_mean':'bsi'})
+sites = sites.merge(sp[['geokey','ndvi','ndwi','mndwi','ndbi','evi','bsi']], on='geokey', how='left')
+
 print(f"Total sites with Prithvi features: {len(sites)}")
 print(f"Geokey range: {sites['geokey'].min()} – {sites['geokey'].max()}")
 print("\nSites per lang_group:")
 for lg, cnt in sites.groupby('lang_group').size().items():
     print(f"  lang_group={lg} ({LANG_LABELS.get(lg,'?')}): {cnt} sites")
 
+def _f(v):
+    """Round float or return None for NaN."""
+    if v is None: return None
+    try:
+        import math
+        return None if math.isnan(float(v)) else round(float(v), 4)
+    except: return None
+
 # Build communities list
 communities = []
 for _, row in sites.iterrows():
     communities.append({
-        "geokey": int(row['geokey']),
-        "lat": round(float(row['lat']), 6),
-        "lon": round(float(row['lon']), 6),
-        "lang": LANG_LABELS.get(int(row['lang_group']), 'Other'),
+        "geokey":   int(row['geokey']),
+        "lat":      round(float(row['lat']), 6),
+        "lon":      round(float(row['lon']), 6),
+        "lang":     LANG_LABELS.get(int(row['lang_group']), 'Other'),
+        "district": str(row['district']) if pd.notna(row.get('district')) else None,
+        "n_indiv":  int(row['n_indiv']) if pd.notna(row.get('n_indiv')) else None,
+        "pct_treated":     _f(row.get('pct_treated')),
+        "mean_skilled":    _f(row.get('mean_skilled')),
+        "mean_biz":        _f(row.get('mean_biz')),
+        "mean_age":        _f(row.get('mean_age')),
+        "mean_father_educ":_f(row.get('mean_father_educ')),
+        "mean_mother_educ":_f(row.get('mean_mother_educ')),
+        "mean_group_female":_f(row.get('mean_group_female')),
+        "pct_female":      _f(row.get('pct_female')),
+        "ndvi":  _f(row.get('ndvi')),
+        "ndwi":  _f(row.get('ndwi')),
+        "mndwi": _f(row.get('mndwi')),
+        "ndbi":  _f(row.get('ndbi')),
+        "evi":   _f(row.get('evi')),
+        "bsi":   _f(row.get('bsi')),
     })
 
 out_path = ROOT / "docs/assets/uganda_communities.json"
