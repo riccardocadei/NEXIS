@@ -439,13 +439,13 @@ class Selection(Scene):
             Z1.get_right(), Y.get_left(),
             dash_length=0.14, color=WHITE_TEXT, stroke_width=2.0,
         )
-        proxy1.add_tip(tip_length=0.18)
+        proxy1.add_tip(tip_length=0.12)
 
         proxy3 = DashedLine(
             Z3.get_right(), Y.get_left(),
             dash_length=0.14, color=WHITE_TEXT, stroke_width=2.0,
         )
-        proxy3.add_tip(tip_length=0.18)
+        proxy3.add_tip(tip_length=0.12)
 
         keep = {title, Z1, Z3, T, Y, a_T_Y}
         fade_group = Group(*[m for m in self.mobjects if m not in keep])
