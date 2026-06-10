@@ -1,18 +1,18 @@
-# ── Palette (matches manim-eci) ───────────────────────────────────────────────
-from manim import BLACK
+# ── Palette (white-background version) ────────────────────────────────────────
+from manim import WHITE
 
-BG            = BLACK
-WHITE_TEXT    = "#F2F2F2"
-GRAY_TEXT     = "#AAAAAA"
-DIM_GRAY      = "#3A3A3A"
+BG            = WHITE
+WHITE_TEXT    = "#111111"   # near-black text on white background
+GRAY_TEXT     = "#666666"
+DIM_GRAY      = "#CCCCCC"
 
-BLUE_LIGHT    = "#5BC4F5"   # satellite / foundation-model stream
-GREEN_LIGHT   = "#6FD18A"   # survey data
-YELLOW_LIGHT  = "#F5C842"   # concat emphasis / titles
-PURPLE_LIGHT  = "#C39BD3"   # SAE sparse neurons
-TEAL_LIGHT    = "#5BCFB5"   # output labels / interpretation
-RED_LIGHT     = "#F47C7C"   # rejection / error
-ORANGE_LIGHT  = "#F5A050"   # model box accent
+BLUE_LIGHT    = "#1A8EC9"   # satellite / foundation-model stream
+GREEN_LIGHT   = "#2E9A4A"   # survey data
+YELLOW_LIGHT  = "#A07800"   # titles (darkened so amber is readable on white)
+PURPLE_LIGHT  = "#8B50B8"   # SAE sparse neurons
+TEAL_LIGHT    = "#1A9E8A"   # output labels / interpretation
+RED_LIGHT     = "#CC3333"   # rejection / error
+ORANGE_LIGHT  = "#C06010"   # model box accent
 
 # ── Typography ────────────────────────────────────────────────────────────────
 TITLE_SCALE  = 0.72
