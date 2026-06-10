@@ -151,6 +151,16 @@ section p:last-child{margin-bottom:0;}
 .thm-arrow .arr{color:#3a4aaa;font-size:1.05rem;flex-shrink:0;}
 .thm-conclusion{font-style:italic;}
 .thm-divider{border:none;border-top:1px solid #c0caf0;margin:0.7rem 0;}
+/* ── Collapsible theorem ── */
+.thm-details>summary{list-style:none;display:block;text-align:center;cursor:pointer;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.64rem;font-weight:700;
+  letter-spacing:0.16em;text-transform:uppercase;color:#3a4aaa;padding:0.55rem 1rem;
+  background:#f5f7ff;border:1px solid #c0caf0;border-radius:3px;user-select:none;
+  transition:background 0.15s;}
+.thm-details>summary::-webkit-details-marker{display:none;}
+.thm-details[open]>summary{border-radius:3px 3px 0 0;border-bottom:none;}
+.thm-details>summary:hover{background:#eaedfa;}
+.thm-details>.thm-box{margin-top:0;border-top:none;border-radius:0 0 3px 3px;}
 
 /* ── Two-chart layout ── */
 .two-charts-wrap{margin:1rem 0;}
@@ -515,6 +525,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <video src="assets/s01_pipeline.mp4" autoplay loop muted playsinline controls
            style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
     </video>
+    <p style="margin:1.2rem 0 0.4rem;"><strong>Procedure:</strong></p>
     <ol class="pipeline-steps">
       <li><div class="step-body">
         <strong>Experiment.</strong>
@@ -533,31 +544,33 @@ footer{padding:1.8rem 2rem;text-align:center;
         <video src="assets/nexis_method.mp4" autoplay loop muted playsinline controls
                style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
         </video>
+        <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border);">
+        <details class="thm-details">
+          <summary>Theoretical Guarantee</summary>
+          <div class="thm-box">
+            <p class="thm-context">Given a controlled experiment, faithfulness, and a valid conditional independence test. Assuming:</p>
+            <div class="thm-block">
+              <ul class="thm-ass">
+                <li><em>Principal Alignment</em> in the representation</li>
+              </ul>
+              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS asymptotically retrieves a <strong>minimal and sufficient HTE characterization</strong> with high probability &nbsp;(<em class="thm-conclusion">selection consistency</em>)</span></div>
+            </div>
+            <hr class="thm-divider">
+            <div class="thm-block">
+              <p style="margin:0 0 0.15rem 0;color:#555;">If we further assume:</p>
+              <ul class="thm-ass">
+                <li><em>Measurement</em> and <em>Representation Sufficiency</em></li>
+              </ul>
+              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS characterization is <strong>causal and interpretable by construction</strong> &nbsp;(<em class="thm-conclusion">causal identification</em>)</span></div>
+            </div>
+          </div>
+        </details>
       </div></li>
       <li><div class="step-body">
         <strong>Policy.</strong>
         Optimize the treatment assignment accordingly.
       </div></li>
     </ol>
-
-    <div class="thm-box">
-      <span class="thm-label">Theoretical guarantee</span>
-      <p class="thm-context">Given a controlled experiment, faithfulness, and a valid conditional independence test. Assuming:</p>
-      <div class="thm-block">
-        <ul class="thm-ass">
-          <li><em>Principal Alignment</em> in the representation</li>
-        </ul>
-        <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS asymptotically retrieves a <strong>minimal and sufficient HTE characterization</strong> with high probability &nbsp;(<em class="thm-conclusion">selection consistency</em>)</span></div>
-      </div>
-      <hr class="thm-divider">
-      <div class="thm-block">
-        <p style="margin:0 0 0.15rem 0;color:#555;">If we further assume:</p>
-        <ul class="thm-ass">
-          <li><em>Measurement</em> and <em>Representation Sufficiency</em></li>
-        </ul>
-        <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS characterization is <strong>causal and interpretable by construction</strong> &nbsp;(<em class="thm-conclusion">causal identification</em>)</span></div>
-      </div>
-    </div>
 
   </div>
 </section>
