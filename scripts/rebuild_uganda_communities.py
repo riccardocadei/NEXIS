@@ -45,7 +45,7 @@ sites = sites[sites['geokey'].isin(prithvi_keys)].dropna(subset=['lat', 'lon'])
 agg = df.groupby('geo_long_lat_key').agg(
     n_indiv=('Wobs', 'count'),
     pct_treated=('Wobs', 'mean'),
-    mean_skilled=('skilled_dummy_e', 'mean'),
+    mean_skilled=('skilledtrade7da_zero', 'mean'),
     mean_biz=('bizasset_val_real_ln_e', 'mean'),
     mean_age=('age', 'mean'),
     mean_father_educ=('father_educ', 'mean'),
