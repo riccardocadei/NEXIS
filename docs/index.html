@@ -513,39 +513,30 @@ footer{padding:1.8rem 2rem;text-align:center;
 <section id="method">
   <div class="wrap">
     <h2>Method</h2>
-    <h3>From Tokens to Policy &#8212; a four-step cycle</h3>
+    <h3>From Tokens to Policy explaining the effect heterogeneity</h3>
     <div class="anim-placeholder">[ Pipeline animation &#8212; coming soon ]</div>
     <ol class="pipeline-steps">
       <li><div class="step-body">
-        <strong>Run a controlled experiment.</strong>
-        Observe that the treatment effect varies across units. The key question: which
-        pre-treatment features actually <em>cause</em> that variation &#8212; the
-        <em>direct effect modifiers</em> W<sup>dir</sup>?
+        <strong>Experiment.</strong>
+        Design a controlled experiment, execute and measure any candidate treatment interactors.
       </div></li>
       <li><div class="step-body">
-        <strong>Represent complex measurements via Foundation Model + SAE.</strong>
-        Pre-treatment observations (satellite imagery, medical imaging, &#8230;) are encoded
-        by a frozen foundation model, then decomposed by a learned Sparse Autoencoder into a
-        dictionary of <em>interpretable</em> atoms. Representation Sufficiency (SAE
-        reconstruction) and Principal Alignment (one neuron per latent modifier) are the
-        two key desiderata.
+        <strong>Represent.</strong>
+        Represent such pre-treatment measurements in an interpretable dictionary with minimal or none 
+        human supervision, e.g., training a Sparse Autoencoder (SAE) on  a frozen domain-specific foundation model.
       </div></li>
       <li><div class="step-body">
-        <strong>Identify the direct effect modifiers with NEXIS.</strong>
-        NEXIS runs a forward&#8211;backward Markov-blanket search over all candidate neurons,
-        testing conditional CATE-equivalence at each step with Bonferroni-gated
-        <em>p</em>-values. It returns the minimal and sufficient set S* with FWER &#8804; &alpha;.
-        Each selected neuron is automatically labelled by a VLM
-        (<a href="https://arxiv.org/abs/2502.13923" class="ref" target="_blank">Qwen2.5-VL-72B</a>)
-        contrasting top- vs.&#160;bottom-activating tiles.
+        <strong>Identify.</strong>
+        Neural EXposure Interactors Search (NEXIS): retrieve the minimal and sufficient heterogenous effect characterization, by iterative CATE-equivalence 
+        testing on the representation coordinates. Interpret the selected coordinates <em>a-posteriori</em>, e.g., 
+        querying a VLM on the most and activating observations.
         <video src="assets/nexis_method.mp4" autoplay loop muted playsinline controls
                style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
         </video>
       </div></li>
       <li><div class="step-body">
-        <strong>Update policy accordingly.</strong>
-        The output is a causal and interpretable characterisation of who benefits most,
-        directly actionable for program adaptation.
+        <strong>Policy.</strong>
+        Optimize the treatment assignment accordingly.
       </div></li>
     </ol>
 
