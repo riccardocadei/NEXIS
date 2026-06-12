@@ -513,17 +513,13 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h2>Experimental Power Paradox</h2>
     <div class="def-box">
       <div class="def-label">Effect Modifier</div>
-      <p style="margin:0">A variable is an <strong>effect modifier</strong> if its value
-      is associated with how much a unit benefits from the treatment. This is a purely
-      statistical notion: it can be detected by testing whether the variable predicts
-      treatment-effect heterogeneity, independently of all other covariates.</p>
+      <p style="margin:0">It is a variable for which the treatment effect varies among its strata. 
+        associated with how much a unit benefits from the treatment. </p>
     </div>
     <div class="def-box">
       <div class="def-label">Direct Effect Modifier <em>(Interactor)</em></div>
-      <p style="margin:0">A variable is a <strong>direct effect modifier</strong> if it
-      <em>causally</em> drives the heterogeneity &#8212; its effect on the treatment response
-      remains after conditioning on every other candidate. Every interactor is an effect
-      modifier, but not vice versa.</p>
+      <p style="margin:0">It is an effect modifier that causally drives the heterogeneity by directly 
+        interacting with the treatment. Crucial for policy optimization, as intervening on it or targeting it amplifies the policy impact.</p>
     </div>
     <p>
       <strong>Example:</strong> <em>Consider a cash transfer program (LEAP 1000) targeting
