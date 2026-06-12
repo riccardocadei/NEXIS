@@ -317,6 +317,23 @@ footer{padding:1.8rem 2rem;text-align:center;
   #main{margin-left:0;}
   .two-charts-grid,.fig-row{grid-template-columns:1fr;}
 }
+
+/* ── Satellite tile strip ── */
+.sat-strip{display:flex;gap:6px;margin:0 0 1.4rem;width:100%;}
+.sat-tile{flex:1 1 0;min-width:0;position:relative;overflow:hidden;
+  border-radius:2px;cursor:default;aspect-ratio:1/1;}
+.sat-tile img{display:block;width:100%;height:100%;object-fit:cover;
+  transition:filter 0.25s;}
+.sat-overlay{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:0.3em;
+  background:rgba(0,0,0,0.62);opacity:0;
+  transition:opacity 0.25s;padding:0.5em;}
+.sat-tile:hover .sat-overlay{opacity:1;}
+.sat-tile:hover img{filter:brightness(0.55);}
+.sat-feature{font-family:"Georgia",serif;font-size:0.82rem;font-style:italic;
+  color:#fff;text-align:center;line-height:1.35;}
+.sat-country{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.63rem;
+  letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);}
 </style>
 </head>
 <body>
@@ -354,8 +371,43 @@ footer{padding:1.8rem 2rem;text-align:center;
     Causal and Interpretable Heterogeneous<br>
     Treatment Effects Identification</h1>
 
-  <img src="assets/teaser.png" alt="NEXIS pipeline overview"
-       class="teaser-inline zoomable">
+  <div class="sat-strip">
+    <div class="sat-tile">
+      <img src="assets/tiles/tile_uganda_river.png" alt="Apac, Uganda (2007)">
+      <div class="sat-overlay">
+        <span class="sat-feature">Perennial river presence</span>
+        <span class="sat-country">Uganda · YOP</span>
+      </div>
+    </div>
+    <div class="sat-tile">
+      <img src="assets/tiles/tile_uganda_veg_heterogeneity.png" alt="Apac, Uganda (2007)">
+      <div class="sat-overlay">
+        <span class="sat-feature">Vegetation spatial heterogeneity</span>
+        <span class="sat-country">Uganda · YOP</span>
+      </div>
+    </div>
+    <div class="sat-tile">
+      <img src="assets/tiles/tile_uganda_structured_ag.png" alt="Apac, Uganda (2007)">
+      <div class="sat-overlay">
+        <span class="sat-feature">Structured agricultural landscape</span>
+        <span class="sat-country">Uganda · YOP</span>
+      </div>
+    </div>
+    <div class="sat-tile">
+      <img src="assets/tiles/tile_ghana_waterways.png" alt="Bongo, Ghana (2015)">
+      <div class="sat-overlay">
+        <span class="sat-feature">Ephemeral waterways</span>
+        <span class="sat-country">Ghana · LEAP 1000</span>
+      </div>
+    </div>
+    <div class="sat-tile">
+      <img src="assets/tiles/tile_ghana_forest.png" alt="Karaga, Ghana (2015)">
+      <div class="sat-overlay">
+        <span class="sat-feature">Closed-canopy forest</span>
+        <span class="sat-country">Ghana · LEAP 1000</span>
+      </div>
+    </div>
+  </div>
 
   <div class="authors">
     <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
