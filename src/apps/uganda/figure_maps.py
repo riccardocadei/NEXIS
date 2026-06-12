@@ -39,7 +39,7 @@ plt.rcParams.update({
 LANG_ANCHOR = {
     "Lango":      (29.7, 3.6),    # left-up   from (31.07, 3.20)
     "Teso":       (32.4, 4.2),    # up-right  from (31.70, 3.37)
-    "Acholi":     (29.7, 2.3),    # left      from (31.15, 2.46)
+    "Alur":       (29.7, 2.3),    # left      from (31.15, 2.46)
     "Lugbara":    (31.3, 1.1),    # left-down from (32.74, 2.09)
     "Madi":       (34.8, 2.1),    # right-up  from (33.66, 1.57)
     "Other":      (34.8, 0.4),    # right-down from (33.75, 1.19)
