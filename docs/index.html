@@ -321,7 +321,9 @@ footer{padding:1.8rem 2rem;text-align:center;
 /* ── Satellite tile strip ── */
 .sat-strip{display:flex;gap:6px;margin:0 0 0;width:100%;}
 .sat-tile{flex:1 1 0;min-width:0;position:relative;overflow:hidden;
-  border-radius:2px;cursor:default;aspect-ratio:1/1;}
+  border-radius:2px;cursor:pointer;aspect-ratio:1/1;}
+.sat-tile.pinned img{filter:brightness(0.55);}
+.sat-tile.pinned .sat-overlay{opacity:1;}
 .sat-tile img{display:block;width:100%;height:100%;object-fit:cover;
   transition:filter 0.25s;}
 .sat-overlay{position:absolute;inset:0;display:flex;flex-direction:column;
@@ -1110,13 +1112,29 @@ footer{padding:1.8rem 2rem;text-align:center;
     'Forest-edge households layer the transfer onto existing non-timber livelihoods unavailable elsewhere, driving spending gains of ~8× the program average — <strong>complementarity effect</strong> ('+DEMEL+').',
   ];
   const desc=document.getElementById('sat-desc');
-  document.querySelectorAll('#sat-strip .sat-tile').forEach((tile,i)=>{
-    tile.addEventListener('mouseenter',()=>{
-      desc.innerHTML=DESCS[i]||'';
-      desc.classList.add('visible');
-    });
+  const tiles=[...document.querySelectorAll('#sat-strip .sat-tile')];
+  let pinned=null;
+
+  function show(i){desc.innerHTML=DESCS[i]||'';desc.classList.add('visible');}
+  function hide(){desc.classList.remove('visible');}
+
+  tiles.forEach((tile,i)=>{
+    tile.addEventListener('mouseenter',()=>show(i));
     tile.addEventListener('mouseleave',()=>{
-      desc.classList.remove('visible');
+      if(pinned===null) hide();
+      else show(pinned);
+    });
+    tile.addEventListener('click',()=>{
+      if(pinned===i){
+        tiles[pinned].classList.remove('pinned');
+        pinned=null;
+        /* mouse is still over tile — description stays until mouseleave */
+      } else {
+        if(pinned!==null) tiles[pinned].classList.remove('pinned');
+        pinned=i;
+        tile.classList.add('pinned');
+        show(i);
+      }
     });
   });
 })();
