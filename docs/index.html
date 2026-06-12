@@ -334,6 +334,10 @@ footer{padding:1.8rem 2rem;text-align:center;
   color:#fff;text-align:center;line-height:1.35;}
 .sat-country{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.63rem;
   letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);}
+.sat-desc{min-height:2.6em;margin:-0.8rem 0 1.4rem;font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:0.78rem;color:var(--muted);line-height:1.5;transition:opacity 0.2s;
+  opacity:0;pointer-events:none;}
+.sat-desc.visible{opacity:1;}
 </style>
 </head>
 <body>
@@ -371,43 +375,49 @@ footer{padding:1.8rem 2rem;text-align:center;
     Causal and Interpretable Heterogeneous<br>
     Treatment Effects Identification</h1>
 
-  <div class="sat-strip">
-    <div class="sat-tile">
+  <div class="sat-strip" id="sat-strip">
+    <div class="sat-tile"
+         data-desc="River corridors sustain subsistence fishing and bush-crop farming. Where these livelihood alternatives exist, the grant&#8217;s pull into skilled trade is weakest — an outside-option effect (Roy, 1951).">
       <img src="assets/tiles/tile_uganda_river.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Perennial river presence</span>
-        <span class="sat-country">Uganda · YOP</span>
+        <span class="sat-country">Uganda · YOP &mdash; skilled employment</span>
       </div>
     </div>
-    <div class="sat-tile">
+    <div class="sat-tile"
+         data-desc="Heterogeneous vegetation patches signal diverse subsistence options. Communities with varied land cover can sustain bush and crop livelihoods, dampening the incentive to enter skilled trade.">
       <img src="assets/tiles/tile_uganda_veg_heterogeneity.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Vegetation spatial heterogeneity</span>
-        <span class="sat-country">Uganda · YOP</span>
+        <span class="sat-country">Uganda · YOP &mdash; skilled employment</span>
       </div>
     </div>
-    <div class="sat-tile">
+    <div class="sat-tile"
+         data-desc="Incumbent commercial-scale agriculture crowds out the grant&#8217;s marginal effect on business asset accumulation, leaving less room for new entrants to grow.">
       <img src="assets/tiles/tile_uganda_structured_ag.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Structured agricultural landscape</span>
-        <span class="sat-country">Uganda · YOP</span>
+        <span class="sat-country">Uganda · YOP &mdash; business assets</span>
       </div>
     </div>
-    <div class="sat-tile">
+    <div class="sat-tile"
+         data-desc="Seasonal water corridors enable smallholders to direct the cash transfer into irrigation-season agriculture — a complementarity effect that amplifies household spending to ~7&#215; the program average.">
       <img src="assets/tiles/tile_ghana_waterways.png" alt="Bongo, Ghana (2015)">
       <div class="sat-overlay">
         <span class="sat-feature">Ephemeral waterways</span>
-        <span class="sat-country">Ghana · LEAP 1000</span>
+        <span class="sat-country">Ghana · LEAP 1000 &mdash; expenditure</span>
       </div>
     </div>
-    <div class="sat-tile">
+    <div class="sat-tile"
+         data-desc="Forest-edge households can layer the transfer onto existing non-timber livelihood strategies unavailable elsewhere — a complementarity that drives spending gains of ~8&#215; the program average.">
       <img src="assets/tiles/tile_ghana_forest.png" alt="Karaga, Ghana (2015)">
       <div class="sat-overlay">
         <span class="sat-feature">Closed-canopy forest</span>
-        <span class="sat-country">Ghana · LEAP 1000</span>
+        <span class="sat-country">Ghana · LEAP 1000 &mdash; expenditure</span>
       </div>
     </div>
   </div>
+  <p class="sat-desc" id="sat-desc"></p>
 
   <div class="authors">
     <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
@@ -1091,6 +1101,20 @@ footer{padding:1.8rem 2rem;text-align:center;
 <div id="lb" onclick="closeLB()"><img id="lb-img" src="" alt=""></div>
 
 <script>
+/* ── Satellite tile descriptions ── */
+(function(){
+  const desc=document.getElementById('sat-desc');
+  document.querySelectorAll('#sat-strip .sat-tile').forEach(tile=>{
+    tile.addEventListener('mouseenter',()=>{
+      desc.textContent=tile.dataset.desc||'';
+      desc.classList.add('visible');
+    });
+    tile.addEventListener('mouseleave',()=>{
+      desc.classList.remove('visible');
+    });
+  });
+})();
+
 /* ── Lightbox ── */
 document.querySelectorAll('.zoomable').forEach(i=>i.addEventListener('click',()=>{
   document.getElementById('lb-img').src=i.src;
