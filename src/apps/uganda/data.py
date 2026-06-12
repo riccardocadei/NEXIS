@@ -30,7 +30,7 @@ LANG_NAMES = {
     4: 'Karamojong',
     5: 'Teso',
     6: 'Langi',
-    7: 'Other',
+    7: 'Pallisa',
 }
 
 # Outcome aliases: clean name → CSV column in UgandaDataProcessed.csv

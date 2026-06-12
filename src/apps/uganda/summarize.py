@@ -103,7 +103,9 @@ def main():
     meta         = nexis_out["feature_meta"]
     n_sae        = meta["n_sae_features"]
     w_names      = meta["w_names"]
-    selected     = nexis_out["nexis"]["selected"]
+    # support both old key "nexis" and new split keys; default to FWER for paper
+    nexis_key = "nexis" if "nexis" in nexis_out else "nexis_fwer"
+    selected     = nexis_out[nexis_key]["selected"]
 
     # ── Load data ─────────────────────────────────────────────────────────────
     df = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
@@ -140,7 +142,8 @@ def main():
         group = entry.get("group", "")
 
         if group == "W" or idx >= n_sae:
-            col_name = label
+            # label is "W_lang_4"; W_df columns are "lang_4" (no "W_" prefix)
+            col_name = label[2:] if label.startswith("W_") and label[2:] in W_df.columns else label
             if col_name in W_df.columns:
                 z_raw = W_df[col_name].values.astype(float)
             else:
@@ -152,7 +155,9 @@ def main():
         interp      = interp_map.get(idx)      # full description sentence
         vlm_label   = vlm_label_map.get(idx)   # short label for feature name
         vlm_conf    = confidence_map.get(idx)  # low | medium | high
-        results.append(feature_gate(Y, T, W_raw, z_raw, label, pval, interp, vlm_label, vlm_conf))
+        r = feature_gate(Y, T, W_raw, z_raw, label, pval, interp, vlm_label, vlm_conf)
+        if r is not None:
+            results.append(r)
 
     # ── Print summary ─────────────────────────────────────────────────────────
     sep  = "═" * 65

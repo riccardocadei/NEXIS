@@ -37,13 +37,13 @@ plt.rcParams.update({
 # Centroids (lon,lat): Alur(31.20,2.47) Lugbara(31.11,3.12) Madi(31.73,3.48)
 #            Karamojong(34.35,2.72) Teso(33.74,1.56) Langi(32.74,2.10) Other(33.73,1.19)
 LANG_ANCHOR = {
-    "Lango":      (29.7, 3.6),    # left-up   from (31.07, 3.20)
-    "Teso":       (32.4, 4.2),    # up-right  from (31.70, 3.37)
-    "Alur":       (29.7, 2.3),    # left      from (31.15, 2.46)
-    "Lugbara":    (31.3, 1.1),    # left-down from (32.74, 2.09)
-    "Madi":       (34.8, 2.1),    # right-up  from (33.66, 1.57)
-    "Other":      (34.8, 0.4),    # right-down from (33.75, 1.19)
-    "Karamojong": (33.8, 4.0),    # up-left   from (34.39, 2.69) — stays inside
+    "Alur":       (29.7, 2.3),    # left      from (31.12, 2.45)
+    "Lugbara":    (29.7, 3.6),    # left-up   from (31.07, 3.17)
+    "Madi":       (32.5, 4.2),    # up-right  from (31.68, 3.40)
+    "Karamojong": (33.8, 4.0),    # up-left   from (34.44, 2.60)
+    "Teso":       (34.8, 2.1),    # right     from (33.66, 1.58)
+    "Langi":      (31.3, 1.1),    # left-down from (32.74, 2.13)
+    "Pallisa":    (34.8, 0.4),    # right-down from (33.79, 1.18)
 }
 
 # ── District anchors — title-cased, short lines, no crossings ─────────────────

@@ -16,7 +16,7 @@
 - ~331 distinct geographic communities (RCT sites, each with a unique satellite footprint)
 - Treatment rate: 39.6% (825 treated individuals)
 
-**Geography.** Northern Uganda; sites span multiple districts including Karamoja, Acholi, Teso, Lango, and West Nile sub-regions.
+**Geography.** Northern Uganda; sites span multiple districts including Karamoja, Teso, Lango, and West Nile sub-regions.
 
 ---
 
@@ -54,7 +54,7 @@ Variables operate at three distinct levels of the data hierarchy:
 ### Group level
 - Treatment indicator (T): binary, constant within group
 - Group composition: share female members (`group_female`)
-- Language/ethnicity group (`lang_group`, 7 categories): Acholi, Langi, Lugbara, Madi, Teso, Karamojong, other — constant within group, district-level stratification variable
+- Language/ethnicity group (`lang_group`, 7 categories): Alur, Langi, Lugbara, Madi, Teso, Karamojong, Pallisa — constant within group, district-level stratification variable. Note: group 7 (Pallisa) is a geographic rather than ethnolinguistic category; it covers all communities in Pallisa district, which contains a roughly equal mix of Iteso (Ateso) and Bagwere/Banyole (Lugwere/Lunyole) speakers.
 
 ### Community / site level
 - Satellite imagery features (Z): one 112×112 pixel Landsat 7 tile per site, centred on the community's geographic centroid
@@ -130,9 +130,9 @@ using a **continuous linear** interaction t-test (not binarised), conditioning o
 ### Panel A: Skilled Employment
 | Modifier | Type | GATE (active) | GATE (inactive) | Δ | Marginal p |
 |---|---|---|---|---|---|
-| Teso (lang. 4) | W | −0.030 (0.060) | +0.372 (0.022) | −0.403 (0.063) | 7.7×10⁻¹⁰ |
-| Acholi (lang. 2) | W | +0.092 (0.061) | +0.347 (0.023) | −0.255 (0.065) | 1.6×10⁻⁵ |
-| Karamojong (lang. 7) | W | +0.674 (0.058) | +0.288 (0.022) | +0.386 (0.062) | 6.3×10⁻⁸ |
+| Karamojong (lang. 4) | W | −0.030 (0.060) | +0.372 (0.022) | −0.403 (0.063) | 7.7×10⁻¹⁰ |
+| Lugbara (lang. 2) | W | +0.092 (0.061) | +0.347 (0.023) | −0.255 (0.065) | 1.6×10⁻⁵ |
+| Pallisa (lang. 7) | W | +0.674 (0.058) | +0.288 (0.022) | +0.386 (0.062) | 6.3×10⁻⁸ |
 | Neuron 339 | Z | +0.089 (0.098) | +0.330 (0.021) | −0.242 (0.100) | 2.1×10⁻⁴ |
 | Neuron 533 | Z | +0.214 (0.038) | +0.373 (0.025) | −0.159 (0.045) | 6.7×10⁻⁵ |
 
@@ -197,9 +197,9 @@ For comparison, the Ghana SAE (4,096 hidden dimensions, 2,000 epochs) was traine
 ### Skilled Employment
 
 **Language group heterogeneity (W).**
-- *Karamojong communities* show the largest positive treatment effect (GATE = +0.674 vs sample mean ≈ +0.31). Karamoja is among Uganda's most economically marginalised regions; the programme may have filled a near-complete gap in vocational opportunity.
-- *Teso communities* show no positive effect (GATE = −0.030), possibly because Teso has a more developed local labour market where cash grants alone do not shift skilled employment trajectories.
-- *Acholi communities* show intermediate effects, consistent with partial recovery from conflict-related displacement.
+- *Karamojong communities* show the most strongly dampened treatment effect (GATE = −0.030, Δ = −0.403). Karamoja is a semi-arid pastoralist region with a distinct livelihood system centred on cattle; vocational trade grants may translate poorly into this context.
+- *Lugbara communities* (Arua/Yumbe, West Nile) also show dampened effects (GATE = +0.092, Δ = −0.255), possibly reflecting better pre-existing market access through the Arua commercial hub.
+- *Pallisa communities* show the largest positive treatment effect (GATE = +0.674, Δ = +0.386). This is a geographic rather than ethnolinguistic finding: Pallisa district (eastern Uganda, mixed Iteso/Bagwere) may have fewer pre-existing skilled-trade pathways, making the vocational grant particularly impactful. Confirmed as a district-level effect by the district-dummy sensitivity run.
 
 **Neural modifiers (Z).**
 - *Neuron 339 (river presence)*: negative modifier. Hypothesis: proximity to permanent water supports subsistence agriculture and fishing as alternatives to skilled trade, reducing uptake of programme-supported vocational paths.

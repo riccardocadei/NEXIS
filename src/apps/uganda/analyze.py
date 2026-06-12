@@ -66,7 +66,11 @@ def parse_args():
                    help="Give W covariates priority: if any W candidate clears its "
                         "gate, select from W first regardless of SAE p-values.")
     p.add_argument("--district-dummies", action="store_true",
-                   help="One-hot encode district and include all dummies as W candidates.")
+                   help="One-hot encode district and include all dummies as W candidates "
+                        "(replaces lang_group dummies to avoid collinearity).")
+    p.add_argument("--out-suffix", default="",
+                   help="Append a suffix to the model results directory "
+                        "(e.g. '_districts') to avoid overwriting the base results.")
     p.add_argument("--group-level", action="store_true",
                    help="Aggregate observations to group level before analysis.")
     p.add_argument("--outcome", default="log_skilled_hours",
@@ -101,10 +105,12 @@ def build_covariates(df: pd.DataFrame, district_dummies: bool = False) -> pd.Dat
     for col in ["age", "female", "father_educ", "mother_educ", "group_female"]:
         if col in df.columns:
             parts.append(df[[col]])
-    if "lang_group" in df.columns:
-        parts.append(make_lang_dummies(df["lang_group"]))
     if district_dummies and "district" in df.columns:
+        # District dummies replace lang_group dummies (collinear — each lang_group
+        # maps to a fixed set of districts, so including both causes rank deficiency)
         parts.append(pd.get_dummies(df["district"], prefix="district", dtype=float))
+    elif "lang_group" in df.columns:
+        parts.append(make_lang_dummies(df["lang_group"]))
     if not parts:
         return pd.DataFrame(index=df.index)
     return pd.concat(parts, axis=1)
@@ -176,7 +182,8 @@ def main():
         print(f"ERROR: results directory not found: {MODEL_DIR}")
         print("Run train.py first, or check --embed-model / --sae-dim.")
         sys.exit(1)
-    OUT_DIR = MODEL_DIR / args.outcome
+    suffix = args.out_suffix if args.out_suffix else ""
+    OUT_DIR = MODEL_DIR / (args.outcome + suffix)
     OUT_DIR.mkdir(exist_ok=True)
 
     # ── Load RCT data ─────────────────────────────────────────────────────────

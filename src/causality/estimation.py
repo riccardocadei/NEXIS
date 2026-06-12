@@ -61,7 +61,9 @@ def classify_feature(z: np.ndarray):
       ('continuous', median,    label_lo, label_hi)
     """
     unique_vals = np.unique(z[np.isfinite(z)])
-    if len(unique_vals) <= 2:
+    if len(unique_vals) == 1:
+        return "constant", float(unique_vals[0]), "—", "—"
+    if len(unique_vals) == 2:
         v0, v1 = unique_vals[0], unique_vals[1]
         return "binary", float(v0), \
                str(int(v0)) if v0 == int(v0) else f"{v0:.3f}", \
@@ -99,6 +101,8 @@ def feature_gate(
     estimates ATE within each group via HC1-robust OLS.
     """
     ftype, threshold, lbl_lo, lbl_hi = classify_feature(z)
+    if ftype == "constant":
+        return None  # skip constant features
 
     mask_lo = (z == threshold) if ftype == "binary" else (z <= threshold)
     mask_hi = ~mask_lo
