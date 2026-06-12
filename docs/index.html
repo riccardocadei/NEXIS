@@ -318,6 +318,46 @@ footer{padding:1.8rem 2rem;text-align:center;
   .two-charts-grid,.fig-row{grid-template-columns:1fr;}
 }
 
+@media(max-width:520px){
+  /* Tighter horizontal padding throughout */
+  header{padding:1.5rem 1rem 1.3rem;}
+  .wrap{padding:0 1rem;}
+  footer{padding:1.2rem 1rem;}
+
+  /* Smaller title — three explicit <br> lines stack tightly at 1.82rem */
+  header h1{font-size:1.32rem;line-height:1.25;}
+
+  /* Authors/affiliations spacing */
+  .authors{font-size:0.81rem;line-height:1.65;}
+  .affiliations{font-size:0.69rem;}
+
+  /* Sections */
+  section{padding:1.8rem 0;}
+
+  /* Canvas maps — 480px is too tall on iPhone */
+  .canvas-map-wrap{height:300px;}
+
+  /* Interpretation panel mini-map */
+  .ni-map-wrap{height:160px;}
+
+  /* Outcome toggle tabs — prevent overflow */
+  .outcome-tabs{width:100%;display:flex;}
+  .outcome-tab{flex:1;padding:0.38em 0.6em;font-size:0.73rem;}
+
+  /* Satellite tile strip — show 3 per row instead of 5 */
+  .sat-strip{flex-wrap:wrap;}
+  .sat-tile{flex:0 0 calc(33.33% - 4px);}
+
+  /* Ablation tabs — smaller pill text */
+  .abl-tab{font-size:0.71rem;padding:0.26em 0.65em;}
+
+  /* TL;DR box */
+  .tldr-box{padding:0.85rem 1rem;font-size:0.91rem;}
+
+  /* Contribution list items */
+  .contributions summary{font-size:0.85rem;}
+}
+
 /* ── Satellite tile strip ── */
 .sat-intro{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.82rem;
   color:var(--muted);margin:0 0 0.45rem;line-height:1.5;}
