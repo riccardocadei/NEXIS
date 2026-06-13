@@ -290,9 +290,9 @@ section p:last-child{margin-bottom:0;}
 .mod-detail>summary{list-style:none;cursor:pointer;display:inline-flex;
   align-items:baseline;gap:0.3em;color:inherit;}
 .mod-detail>summary::-webkit-details-marker{display:none;}
-.mod-detail>summary::after{content:"\25B6";font-size:0.58em;color:var(--accent);
+.mod-detail>summary::before{content:"\25B6";font-size:0.58em;color:var(--accent);
   transition:transform 0.18s;flex-shrink:0;vertical-align:0.05em;}
-.mod-detail[open]>summary::after{transform:rotate(90deg);}
+.mod-detail[open]>summary::before{transform:rotate(90deg);}
 .mod-desc{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.80rem;
   color:#555;line-height:1.55;padding:0.42em 0 0.15em;font-style:normal;
   max-width:320px;}
@@ -866,14 +866,14 @@ footer{padding:1.8rem 2rem;text-align:center;
         </tr></thead>
         <tbody>
           <tr class="sub-panel"><td colspan="5">Linguistic group</td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Karamojong</summary><p class="mod-desc">Under an active government disarmament campaign through 2011 and isolated from post-LRA reconstruction flows, Karamoja had weak market recovery. Persistent subsistence alternatives (the strongest outside option among all groups) nearly eliminated the grant's pull into skilled trade — GATE ≈ 0.</p></details></td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Karamojong</summary><p class="mod-desc">Under an active government disarmament campaign through 2011 and isolated from post-LRA reconstruction flows, Karamoja had the weakest market recovery of all subgroups. Without functioning markets to channel the grant into skilled trade, the program had no positive effect on skilled employment in these communities — the sharpest dampening across all discovered modifiers.</p></details></td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
             <td class="lo">&#8722;0.403 (0.063)</td><td>7.7&#215;10<sup>&#8722;10</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Lugbara</summary><p class="mod-desc">West Nile's geographic isolation at the DRC–South Sudan border, limited national infrastructure, and constrained cross-border trade reduced how much of the grant translated into skilled employment — dampened effect relative to the overall average.</p></details></td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Lugbara</summary><p class="mod-desc">West Nile's geographic isolation at the DRC–South Sudan border, historical underservice by national infrastructure, and constrained cross-border trade reduced how much of the grant translated into skilled employment. The program remained positive but well below the baseline rate, reflecting barriers to market participation that skill grants alone cannot overcome.</p></details></td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
             <td class="lo">&#8722;0.255 (0.065)</td><td>1.6&#215;10<sup>&#8722;5</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Pallisa</summary><p class="mod-desc">Located outside the northern conflict core in eastern Uganda, Pallisa's mixed Iteso–Bagwere farming economy and shorter supply chains to central markets supported stronger market recovery. These conditions amplified skilled-employment take-up most strongly among all subgroups.</p></details></td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Pallisa</summary><p class="mod-desc">Located outside the northern conflict core in eastern Uganda, Pallisa's mixed Iteso–Bagwere farming economy and shorter supply chains to central markets provided conditions for skill-grant success. Where markets had recovered, the grant compounded into durable employment gains — the strongest amplifying effect among all discovered modifiers.</p></details></td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
             <td class="hi">+0.386 (0.062)</td><td>6.3&#215;10<sup>&#8722;8</sup></td></tr>
           <tr class="sub-panel"><td colspan="5">Satellite atoms</td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Perennial river presence</summary><p class="mod-desc">River corridors sustain subsistence fishing and bush-crop farming — persistent outside options that reduce the marginal utility of entering skilled trade. Communities along permanent watercourses show the grant's employment effect nearly halved (outside-option mechanism).</p></details></td><td>+0.089 (0.098)</td><td>+0.330 (0.021)</td>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Perennial river presence</summary><p class="mod-desc">River corridors sustain subsistence fishing and bush-crop farming — persistent outside options that reduce the marginal utility of entering skilled trade. In communities along permanent watercourses the program effect on skilled employment is markedly dampened (outside-option mechanism).</p></details></td><td>+0.089 (0.098)</td><td>+0.330 (0.021)</td>
             <td class="lo">&#8722;0.242 (0.100)</td><td>2.1&#215;10<sup>&#8722;4</sup></td></tr>
           <tr class="sub-indent"><td><details class="mod-detail"><summary>Vegetation spatial heterogeneity</summary><p class="mod-desc">A mosaic of agricultural patches and bush signals diverse subsistence livelihoods. Where land cover is varied, households can sustain mixed farming strategies without the grant, dampening its incentive to enter skilled trade (outside-option mechanism).</p></details></td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td>
             <td class="lo">&#8722;0.159 (0.045)</td><td>6.7&#215;10<sup>&#8722;5</sup></td></tr>
@@ -887,7 +887,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <th>&#916;</th><th><em>p</em>-value</th>
         </tr></thead>
         <tbody>
-          <tr><td><details class="mod-detail"><summary>NDVI (vegetation greenness)</summary><p class="mod-desc">Higher greenness indexes more productive agricultural land and stronger pre-program economic activity. The grant amplifies business-asset accumulation more where baseline agricultural productivity is already higher — complementarity between land endowment and the cash transfer.</p></details></td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
+          <tr><td><details class="mod-detail"><summary>NDVI (vegetation greenness)</summary><p class="mod-desc">Higher greenness indexes more productive agricultural land and stronger pre-program economic activity. The grant amplifies business-asset accumulation where baseline agricultural productivity is already higher — a complementarity between land endowment and the cash transfer.</p></details></td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
             <td class="hi">+0.115 (0.092)</td><td>5.6&#215;10<sup>&#8722;5</sup></td></tr>
           <tr><td><details class="mod-detail"><summary>Structured agricultural landscape</summary><p class="mod-desc">Regular field grids and mechanised-scale agriculture signal incumbent commercial farming. Pre-existing large-scale agriculture reduces marginal returns on new business formation from the grant — a crowding-out effect on asset accumulation.</p></details></td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td>
             <td class="lo">&#8722;0.282 (0.107)</td><td>1.7&#215;10<sup>&#8722;2</sup></td></tr>
@@ -1061,13 +1061,13 @@ footer{padding:1.8rem 2rem;text-align:center;
       </tr></thead>
       <tbody>
         <tr>
-          <td><details class="mod-detail"><summary>Ephemeral waterways</summary><p class="mod-desc">Narrow seasonal streams and wetland corridors enable micro-irrigation of adjacent plots during the agricultural season. In Northern Ghana's rainfed smallholder system, the transfer can be invested in seeds, fertiliser, or tools that water-adjacent households productively deploy — generating ~6× the average program effect across the 6 active communities (83 households). Temporal satellite analysis confirms cropland expansion and denser riparian vegetation by 2017 in three of these communities.</p></details></td>
+          <td><details class="mod-detail"><summary>Ephemeral waterways</summary><p class="mod-desc">Narrow seasonal streams and wetland corridors enable micro-irrigation of adjacent plots during the agricultural season. In Northern Ghana's rainfed smallholder system, the transfer can be invested in seeds, fertiliser, or tools that water-adjacent households productively deploy — driving far larger consumption gains than in waterless communities. Active in 6 communities (83 households); temporal satellite analysis confirms cropland expansion and denser riparian vegetation by 2017 in three of them.</p></details></td>
           <td class="hi">+42.9 (14.9)</td><td>+6.0 (1.0)</td>
           <td class="hi">+36.9</td>
           <td>2.1&#215;10<sup>&#8722;8</sup> (0.013)</td>
         </tr>
         <tr>
-          <td><details class="mod-detail"><summary>Closed-canopy forest</summary><p class="mod-desc">Dense, continuous forest canopy is a rare endowment in this predominantly savannah landscape. Forest-adjacent households access non-timber forest products, fuelwood, and forest-edge cultivation. Because these resources buffer basic consumption needs, the transfer can be redirected from emergency food purchases toward productive assets or dietary diversity — generating ~8× the average program effect across the 5 active communities (42 households).</p></details></td>
+          <td><details class="mod-detail"><summary>Closed-canopy forest</summary><p class="mod-desc">Dense, continuous forest canopy is a rare endowment in this predominantly savannah landscape. Forest-adjacent households access non-timber forest products, fuelwood, and forest-edge cultivation. Because these resources buffer basic consumption needs, the transfer can be redirected from emergency food purchases toward productive assets or dietary diversity — driving substantially larger welfare gains than in open-savannah communities. Active in 5 communities (42 households).</p></details></td>
           <td class="hi">+56.2 (20.8)</td><td>+6.4 (1.0)</td>
           <td class="hi">+49.8</td>
           <td>3.7&#215;10<sup>&#8722;7</sup> (0.005)</td>
