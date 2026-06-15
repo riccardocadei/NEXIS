@@ -2,29 +2,29 @@
 
 **From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification**
 
-*Riccardo Cadei*, Frank Otchere, Nyasha Tirivayi, Gustavo Angeles Tagliaferro, Falco J. Bargagli-Stoffi, Francesco Locatello · *Under review, 2026* · [Website](https://riccardocadei.github.io/NEXIS/) · [Workshop paper](assets/aistats26-workshop.pdf)
+*Riccardo Cadei*, Frank Otchere, Nyasha Tirivayi, Gustavo Angeles Tagliaferro, Falco J. Bargagli-Stoffi, Francesco Locatello · *Under review, 2026* · [Website](https://riccardocadei.github.io/NEXIS/)
 
 **TL;DR:** We introduce NEXIS, an iterative procedure over sufficient and principally aligned representations for effect heterogeneity, to identify its causal characterization, i.e., answering questions as "*what if* or *how* should I modify my treatment assignement policy?".
 
 ## Causal and Interpretable Heterogeneous Treatment Effects Identification
 
-![NEXIS pipeline](assets/pipeline.png)
+<video src="docs/assets/s01_pipeline.mp4" autoplay loop muted playsinline controls style="width:100%;border-radius:4px;"></video>
 
 <ol type="i">
   <li>
-    <strong>Run a controlled experiment</strong> and observe that the treatment effect varies across units — but which pre-treatment features actually <em>cause</em> that variation?
+    <strong>Experiment.</strong> Design a controlled experiment, run and measure any candidate treatment interactors.
   </li>
 
   <li>
-    <strong>Represent complex measurements</strong> (satellite imagery, medical imaging, …) via a foundation model + Sparse Autoencoder, producing thousands of sparse, interpretable candidate neurons alongside any structured covariates.
+    <strong>Represent.</strong> Represent such pre-treatment measurements in an interpretable dictionary with minimal or no human supervision, e.g., training a Sparse Autoencoder (SAE) on a frozen domain-specific foundation model.
   </li>
 
   <li>
-    <strong>Identify the direct effect modifiers</strong> — NEXIS runs a forward-backward Markov-blanket search over the candidate neurons, testing conditional CATE-equivalence at each step with Bonferroni-gated p-values, and returns a small set S* with FWER ≤ α. Each selected neuron is automatically labelled by a VLM (Qwen-VL, GeoChat) using top/bottom activating patches.
+    <strong>Identify.</strong> Neural EXposure Interactors Search (NEXIS): retrieve the minimal and sufficient heterogeneous effect characterization, by iterative CATE-equivalence testing on the representation coordinates. Interpret the selected coordinates <em>a-posteriori</em>, e.g., querying a VLM on the most activating observations.
   </li>
 
   <li>
-    <strong>Update policy accordingly</strong> — the output is a causal and interpretable characterisation of who benefits most, directly actionable for program adaptation.
+    <strong>Policy.</strong> Optimize the treatment assignment accordingly.
   </li>
 </ol>
 
