@@ -2,7 +2,7 @@
 
 **From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification**
 
-*Riccardo Cadei*, Frank Otchere, Nyasha Tirivayi, Gustavo Angeles Tagliaferro, Falco J. Bargagli-Stoffi, Francesco Locatello · *Under review, 2026* · [Website](https://riccardocadei.github.io/NEIS/) · [Workshop paper](assets/aistats26-workshop.pdf)
+*Riccardo Cadei*, Frank Otchere, Nyasha Tirivayi, Gustavo Angeles Tagliaferro, Falco J. Bargagli-Stoffi, Francesco Locatello · *Under review, 2026* · [Website](https://riccardocadei.github.io/NEXIS/) · [Workshop paper](assets/aistats26-workshop.pdf)
 
 **TL;DR:** We introduce NEXIS, an iterative procedure over sufficient and principally aligned representations for effect heterogeneity, to identify its causal characterization, i.e., answering questions as "*what if* or *how* should I modify my treatment assignement policy?".
 
