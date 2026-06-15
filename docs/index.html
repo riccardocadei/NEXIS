@@ -521,7 +521,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h2>Introduction</h2>
     <div class="tldr-box">
       <span class="tldr-label">TL;DR</span>
-      How to identify direct drivers of treatment-effect heterogeneity from sufficient multi-modal pre-treatment data &#8212; controlling false discoveries and guiding policy adaptation.
+      Identifying the causal drivers of treatment-effect heterogeneity from multi-modal pre-treatment data, with provable false-discovery control and prescriptive guidelines for policy adaptation.
     </div>
 
     <h3 style="margin-top:0">Contributions</h3>
@@ -532,7 +532,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="contrib-body">
             More data doesn't help if we ask the wrong question.
             We distinguish variables <em>correlated</em> with treatment-effect heterogeneity
-            from those that <em>causally drive</em> it, and show <e>when</e> and <e>how</e> finding the latter
+            from those that <em>causally drive</em> it, and show <em>when</em> and <em>how</em> finding the latter
             is achievable end-to-end — from raw multi-modal measurements to interpretable,
             actionable policy guidelines.
           </div>
@@ -544,7 +544,7 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="contrib-body">
             An iterative forward-backward selection algorithm that conditions on competing
             candidates to isolate the true heterogeneity drivers (causal) — with
-            provable selection consistency.  Extensively tested and ablated on semi-synthetic experiments, providing practical guidelines for different data regimes.
+            provable selection consistency. Extensively tested and ablated on semi-synthetic experiments, providing practical guidelines for different data regimes.
           </div>
         </details>
       </li>
@@ -552,8 +552,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details>
           <summary>New discoveries in development economics (2 applications)</summary>
           <div class="contrib-body">
-            NEXIS applied to two anti-poverty RCTs in Sub-Saharan Africa — Youth
-            Opportunities Program (Uganda) and Livelihood Empowerment Against Poverty  1000 (Ghana) — augmented with
+            NEXIS applied to two anti-poverty program evaluations in Sub-Saharan Africa: the Youth
+            Opportunities Program (Uganda) and the Livelihood Empowerment Against Poverty 1000 (Ghana), both augmented with
             satellite imagery. In both programs, environmental features <em>invisible
             to standard survey analyses</em> emerge as the dominant effect drivers,
             with concrete prescriptions for program redesign.
@@ -571,7 +571,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="def-box">
       <div class="def-label">Effect Modifier</div>
       <p style="margin:0">It is a variable for which the treatment effect varies among its strata. 
-        associated with how much a unit benefits from the treatment. </p>
+        Associated with how much a unit benefits from the treatment. </p>
     </div>
     <div class="def-box">
       <div class="def-label">Direct Effect Modifier <em>(Interactor)</em></div>
@@ -841,20 +841,20 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div id="ug-ctx-skilled">
       <div class="finding">
         <strong>Skilled Employment &#8212; Key finding</strong>
-        NEXIS returns 5 direct modifiers: 3 community-group interactions (Karamojong, Lugbara,
-        Pallisa) and 2 satellite-derived environmental features. All follow an
-        <em>outside-option logic</em>: the grant's pull into skilled trade is strongest
-        where alternative livelihoods are weakest. Marginal screening returns 71 features
+        NEXIS selects 5 direct modifiers: 3 ethnolinguistic-group interactions (Karamojong, Lugbara,
+        Pallisa) pointing to post-conflict market connectivity, and 2 satellite-derived environmental
+        features following an <em>outside-option logic</em>: program impact on skilled employment is
+        strongest where subsistence alternatives are scarcest. Marginal screening returns 71 features
         from the same 170 candidates.
       </div>
     </div>
     <div id="ug-ctx-biz" style="display:none">
       <div class="finding">
         <strong>Log Business Assets &#8212; Key finding</strong>
-        NEXIS returns 2 satellite-derived direct modifiers: NDVI (vegetation greenness)
-        and structured agricultural landscape. No linguistic group survives. These
-        environmental features capture the intensity of pre-program economic activity,
-        moderating asset accumulation from the grant. Marginal screening returns 45 features.
+        NEXIS selects 2 satellite-derived direct modifiers. Vegetation greenness (NDVI) amplifies
+        asset accumulation where baseline agricultural productivity is higher; structured agricultural
+        landscapes dampen it through crowding-out by incumbent commercial farming. No demographic or
+        linguistic modifier survives. Marginal screening returns 45 features from the same 170 candidates.
       </div>
     </div>
 
@@ -968,8 +968,9 @@ footer{padding:1.8rem 2rem;text-align:center;
       The <a href="https://www.unicef.org/innocenti/reports/ghana-leap-1000-programme" class="ref" target="_blank">Livelihood Empowerment Against Poverty 1000 (LEAP 1000)</a>
       is Ghana's national unconditional cash transfer program, targeting pregnant women and
       mothers of children under one year of age in the country's poorest districts.
-      A randomised evaluation was conducted in Northern Ghana between 2015 and 2017,
-      measuring the program's impact on household consumption and welfare.
+      A quasi-experimental evaluation using a regression discontinuity design was conducted
+      in Northern Ghana between 2015 and 2017, measuring the program's impact on household
+      consumption and welfare.
     </p>
 
     <p>
@@ -1048,10 +1049,11 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h3 id="ghana-results">Results</h3>
     <div class="finding">
       <strong>Key finding</strong>
-      Two satellite-derived direct modifiers: <em>ephemeral waterways</em> and
-      <em>closed-canopy forest</em>. No demographic modifier survives FWER. Active
-      communities (6 and 5 respectively) show 6&#8211;8&#215; the average program effect.
-      Marginal screening returns 50+ features on the same 155 candidates.
+      NEXIS selects 2 satellite-derived direct modifiers: <em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em>, rare endowments in this predominantly arid savannah landscape
+      that let households direct the transfer into productive investment. No survey covariate
+      survives. Active communities show 6&#8211;8&#215; the average program effect.
+      Marginal screening returns 50+ features from the same 155 candidates.
     </div>
 
     <table class="results-table">
@@ -1120,8 +1122,8 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="finding" style="border-left-color:#4caf7d;background:#f0faf4;">
       <strong>Applied.</strong>
       Across two anti-poverty programs, satellite-derived <b>environmental
-      features are the dominant direct effect modifiers</b> — explaining treatment heterogeneity
-      that not captured by survey covariates. 
+      features are the dominant direct effect modifiers</b>, explaining treatment heterogeneity
+      not captured by survey covariates.
     </div>
   </div>
 </section>
@@ -1133,11 +1135,8 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="bibtex-wrap">
       <button class="copy-btn" id="copy-btn" onclick="copyBibtex()">Copy</button>
       <pre id="bibtex-text">@article{cadei2026nexis,
-  title   = {From Tokens to Policy: Causal and Interpretable
-             Heterogeneous Treatment Effects Identification},
-  author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and
-             Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J.
-             and Locatello, Francesco},
+  title   = {From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification},
+  author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J. and Locatello, Francesco},
   year    = {2026},
   note    = {Under review. Preprint coming soon.}
 }</pre>
