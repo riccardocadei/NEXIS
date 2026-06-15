@@ -8,7 +8,7 @@
 
 ## Causal and Interpretable Heterogeneous Treatment Effects Identification
 
-<video src="docs/assets/s01_pipeline.mp4" autoplay loop muted playsinline controls style="width:100%;border-radius:4px;"></video>
+![NEXIS pipeline](docs/assets/pipeline.gif)
 
 <ol type="i">
   <li>
