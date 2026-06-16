@@ -1200,16 +1200,37 @@ footer{padding:1.8rem 2rem;text-align:center;
   function hide(){desc.classList.remove('visible');}
 
   tiles.forEach((tile,i)=>{
+    /* desktop hover */
     tile.addEventListener('mouseenter',()=>show(i));
     tile.addEventListener('mouseleave',()=>{
       if(pinned===null) hide();
       else show(pinned);
     });
+
+    /* touch: fire on first tap, guard against scroll swipes */
+    let touchMoved=false;
+    tile.addEventListener('touchstart',()=>{touchMoved=false;},{passive:true});
+    tile.addEventListener('touchmove',()=>{touchMoved=true;},{passive:true});
+    tile.addEventListener('touchend',(e)=>{
+      if(touchMoved) return;
+      e.preventDefault(); /* stops iOS synthesising mouseenter + delayed click */
+      if(pinned===i){
+        tiles[pinned].classList.remove('pinned');
+        pinned=null;
+        hide();
+      } else {
+        if(pinned!==null) tiles[pinned].classList.remove('pinned');
+        pinned=i;
+        tile.classList.add('pinned');
+        show(i);
+      }
+    });
+
+    /* desktop click (touchend+preventDefault already handles touch) */
     tile.addEventListener('click',()=>{
       if(pinned===i){
         tiles[pinned].classList.remove('pinned');
         pinned=null;
-        /* mouse is still over tile — description stays until mouseleave */
       } else {
         if(pinned!==null) tiles[pinned].classList.remove('pinned');
         pinned=i;
