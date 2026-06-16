@@ -324,6 +324,37 @@ a.ref:hover{border-bottom-style:solid;}
 footer{padding:1.8rem 2rem;text-align:center;
   font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;color:var(--muted);}
 
+/* ── Satellite tile strip ── */
+.sat-intro{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.82rem;
+  color:var(--muted);margin:0 0 0.45rem;line-height:1.5;}
+.sat-strip{display:flex;gap:6px;margin:0 0 0;width:100%;}
+.sat-tile{flex:1 1 0;min-width:0;position:relative;overflow:hidden;
+  border-radius:2px;cursor:pointer;aspect-ratio:1/1;}
+.sat-tile.pinned img{filter:brightness(0.55);}
+.sat-tile.pinned .sat-overlay{opacity:1;}
+.sat-tile img{display:block;width:100%;height:100%;object-fit:cover;
+  transition:filter 0.25s;}
+.sat-overlay{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:0.3em;
+  background:rgba(0,0,0,0.62);opacity:0;
+  transition:opacity 0.25s;padding:0.5em;}
+.sat-tile:hover .sat-overlay{opacity:1;}
+.sat-tile:hover img{filter:brightness(0.55);}
+.sat-feature{font-family:"Georgia",serif;font-size:0.82rem;font-style:italic;
+  color:#fff;text-align:center;line-height:1.35;}
+.sat-country{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.63rem;
+  letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);
+  text-align:center;line-height:1.6;}
+.sat-desc{max-height:0;overflow:hidden;margin:0;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;
+  color:var(--muted);line-height:1.5;opacity:0;pointer-events:none;
+  transition:max-height 0.28s ease,opacity 0.22s ease,margin 0.28s ease;}
+.sat-desc.visible{max-height:4em;opacity:1;margin:2px 0 1rem;pointer-events:auto;}
+.sat-desc::before{content:"\25B6\FE0E";font-size:0.55em;color:var(--accent);
+  margin-right:0.45em;vertical-align:0.1em;font-family:"Helvetica Neue",Arial,sans-serif;}
+.sat-desc a{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);}
+.sat-desc a:hover{border-bottom-style:solid;}
+
 /* mobile-only title line break */
 .mbr{display:none;}
 
@@ -389,36 +420,6 @@ footer{padding:1.8rem 2rem;text-align:center;
   .contributions summary{font-size:0.85rem;}
 }
 
-/* ── Satellite tile strip ── */
-.sat-intro{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.82rem;
-  color:var(--muted);margin:0 0 0.45rem;line-height:1.5;}
-.sat-strip{display:flex;gap:6px;margin:0 0 0;width:100%;}
-.sat-tile{flex:1 1 0;min-width:0;position:relative;overflow:hidden;
-  border-radius:2px;cursor:pointer;aspect-ratio:1/1;}
-.sat-tile.pinned img{filter:brightness(0.55);}
-.sat-tile.pinned .sat-overlay{opacity:1;}
-.sat-tile img{display:block;width:100%;height:100%;object-fit:cover;
-  transition:filter 0.25s;}
-.sat-overlay{position:absolute;inset:0;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:0.3em;
-  background:rgba(0,0,0,0.62);opacity:0;
-  transition:opacity 0.25s;padding:0.5em;}
-.sat-tile:hover .sat-overlay{opacity:1;}
-.sat-tile:hover img{filter:brightness(0.55);}
-.sat-feature{font-family:"Georgia",serif;font-size:0.82rem;font-style:italic;
-  color:#fff;text-align:center;line-height:1.35;}
-.sat-country{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.63rem;
-  letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);
-  text-align:center;line-height:1.6;}
-.sat-desc{max-height:0;overflow:hidden;margin:0;
-  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;
-  color:var(--muted);line-height:1.5;opacity:0;pointer-events:none;
-  transition:max-height 0.28s ease,opacity 0.22s ease,margin 0.28s ease;}
-.sat-desc.visible{max-height:4em;opacity:1;margin:2px 0 1rem;pointer-events:auto;}
-.sat-desc::before{content:"\25B6\FE0E";font-size:0.55em;color:var(--accent);
-  margin-right:0.45em;vertical-align:0.1em;font-family:"Helvetica Neue",Arial,sans-serif;}
-.sat-desc a{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);}
-.sat-desc a:hover{border-bottom-style:solid;}
 </style>
 </head>
 <body>
