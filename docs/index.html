@@ -361,9 +361,10 @@ footer{padding:1.8rem 2rem;text-align:center;
   .outcome-tab{flex:1;padding:0.38em 0.6em;font-size:0.73rem;}
 
   /* Satellite tile strip — single scrollable row */
-  .sat-strip{flex-wrap:nowrap;overflow-x:scroll;-webkit-overflow-scrolling:touch;
-    scroll-snap-type:x mandatory;padding-bottom:4px;}
-  .sat-tile{flex:0 0 44vw;min-width:44vw;scroll-snap-align:start;}
+  .sat-strip{display:flex;flex-wrap:nowrap;width:100%;overflow-x:scroll;
+    -webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;padding-bottom:4px;}
+  .sat-tile{flex-shrink:0;flex-grow:0;flex-basis:44vw;width:44vw;min-width:44vw;
+    scroll-snap-align:start;}
   /* Overlay text */
   .sat-overlay{padding:0.35em;gap:0.2em;}
   .sat-feature{font-size:0.78rem;}
