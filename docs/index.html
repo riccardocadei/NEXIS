@@ -290,8 +290,8 @@ section p:last-child{margin-bottom:0;}
 .mod-detail>summary{list-style:none;cursor:pointer;display:inline-flex;
   align-items:baseline;gap:0.3em;color:inherit;}
 .mod-detail>summary::-webkit-details-marker{display:none;}
-.mod-detail>summary::before{content:"\25B6";font-size:0.58em;color:var(--accent);
-  transition:transform 0.18s;flex-shrink:0;vertical-align:0.05em;}
+.mod-detail>summary::before{content:"\25B6\FE0E";font-size:0.58em;color:var(--accent);
+  transition:transform 0.18s;flex-shrink:0;vertical-align:0.05em;font-family:"Helvetica Neue",Arial,sans-serif;}
 .mod-detail[open]>summary::before{transform:rotate(90deg);}
 .mod-desc{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.80rem;
   color:#555;line-height:1.55;padding:0.42em 0 0.15em;font-style:normal;
@@ -373,6 +373,9 @@ footer{padding:1.8rem 2rem;text-align:center;
   /* Theorem box — reduce side padding so assumption lines stay on one line */
   .thm-box{padding:0.8rem 0.75rem;}
   .thm-ass{margin-left:0.4rem;}
+
+  /* Table caption */
+  .results-table caption{font-size:0.62rem;}
 
   /* Ablation tabs — smaller pill text */
   .abl-tab{font-size:0.71rem;padding:0.26em 0.65em;}
