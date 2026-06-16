@@ -99,8 +99,8 @@ section p:last-child{margin-bottom:0;}
   display:flex;align-items:center;justify-content:space-between;
   list-style:none;user-select:none;}
 .contributions summary::-webkit-details-marker{display:none;}
-.contributions summary::after{content:"\25B6";font-size:0.62em;color:var(--muted);
-  transition:transform 0.2s;flex-shrink:0;margin-left:0.6em;}
+.contributions summary::after{content:"\25B6\FE0E";font-size:0.62em;color:var(--muted);
+  transition:transform 0.2s;flex-shrink:0;margin-left:0.6em;font-family:"Helvetica Neue",Arial,sans-serif;}
 .contributions details[open] summary::after{transform:rotate(90deg);}
 .contrib-body{padding:0.5em 0.85em 0.75em;font-size:0.88rem;line-height:1.66;
   border-top:1px solid var(--border);color:var(--text);}
@@ -324,6 +324,9 @@ a.ref:hover{border-bottom-style:solid;}
 footer{padding:1.8rem 2rem;text-align:center;
   font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;color:var(--muted);}
 
+/* mobile-only title line break */
+.mbr{display:none;}
+
 @media(max-width:860px){
   #sidebar{display:none;}
   #main{margin-left:0;}
@@ -336,8 +339,9 @@ footer{padding:1.8rem 2rem;text-align:center;
   .wrap{padding:0 1rem;}
   footer{padding:1.2rem 1rem;}
 
-  /* Smaller title — three explicit <br> lines stack tightly at 1.82rem */
+  /* Smaller title — four lines on mobile */
   header h1{font-size:1.32rem;line-height:1.25;}
+  .mbr{display:inline;}
 
   /* Authors/affiliations spacing */
   .authors{font-size:0.81rem;line-height:1.65;}
@@ -359,6 +363,16 @@ footer{padding:1.8rem 2rem;text-align:center;
   /* Satellite tile strip — show 3 per row instead of 5 */
   .sat-strip{flex-wrap:wrap;}
   .sat-tile{flex:0 0 calc(33.33% - 4px);}
+  /* Overlay text — smaller to fit ~115px tiles */
+  .sat-overlay{padding:0.3em;gap:0.15em;}
+  .sat-feature{font-size:0.67rem;}
+  .sat-country{font-size:0.54rem;letter-spacing:0.06em;}
+  /* Description below teaser — enough room for 5-6 wrapped lines */
+  .sat-desc.visible{max-height:14em;}
+
+  /* Theorem box — reduce side padding so assumption lines stay on one line */
+  .thm-box{padding:0.8rem 0.75rem;}
+  .thm-ass{margin-left:0.4rem;}
 
   /* Ablation tabs — smaller pill text */
   .abl-tab{font-size:0.71rem;padding:0.26em 0.65em;}
@@ -396,8 +410,8 @@ footer{padding:1.8rem 2rem;text-align:center;
   color:var(--muted);line-height:1.5;opacity:0;pointer-events:none;
   transition:max-height 0.28s ease,opacity 0.22s ease,margin 0.28s ease;}
 .sat-desc.visible{max-height:4em;opacity:1;margin:2px 0 1rem;pointer-events:auto;}
-.sat-desc::before{content:"▶";font-size:0.55em;color:var(--accent);
-  margin-right:0.45em;vertical-align:0.1em;}
+.sat-desc::before{content:"\25B6\FE0E";font-size:0.55em;color:var(--accent);
+  margin-right:0.45em;vertical-align:0.1em;font-family:"Helvetica Neue",Arial,sans-serif;}
 .sat-desc a{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);}
 .sat-desc a:hover{border-bottom-style:solid;}
 </style>
@@ -434,8 +448,8 @@ footer{padding:1.8rem 2rem;text-align:center;
 <div id="main">
 <header id="top">
   <h1><em>From Tokens to Policy:</em><br>
-    Causal and Interpretable Heterogeneous<br>
-    Treatment Effects Identification</h1>
+    Causal and Interpretable<br>
+    Heterogeneous Treatment Effects <br class="mbr">Identification</h1>
 
   <div class="authors">
     <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
