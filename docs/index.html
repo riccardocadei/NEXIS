@@ -2357,21 +2357,21 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
       ]},
     correction:{desc:'FWER and FDR are indistinguishable at |S*|=2. Omitting correction is harmless at low power but false positives accumulate steadily once n or η grows.',
       v:'k20_sae',methods:[
-        {key:'NEXIS',               label:'FWER (default)', c:'#1a56a0'},
-        {key:'NEXIS (adjust=FDR)', label:'FDR',             c:'#42a5f5'},
         {key:'NEXIS (adjust=None)',label:'none',             c:'#26a69a'},
+        {key:'NEXIS (adjust=FDR)', label:'FDR',             c:'#42a5f5'},
+        {key:'NEXIS',               label:'FWER (default)', c:'#1a56a0'},
       ]},
     rho:{desc:'ρ=0 admits correlated proxies and precision collapses; ρ=0.8 can drop a weaker principal at low power. The default ρ=0.5 keeps both dimensions stable across the power range.',
       v:'k20_sae',methods:[
-        {key:'NEXIS',            label:'ρ = 0.5 (default)', c:'#1a56a0'},
         {key:'NEXIS (rho=0)',   label:'ρ = 0',              c:'#8b5cf6'},
         {key:'NEXIS (rho=0.2)',label:'ρ = 0.2',             c:'#f97316'},
+        {key:'NEXIS',            label:'ρ = 0.5 (default)', c:'#1a56a0'},
         {key:'NEXIS (rho=0.8)',label:'ρ = 0.8',             c:'#4caf50'},
       ]},
     backward:{desc:'Forward-only and full backward are empirically indistinguishable here. Backward elimination is a theoretical safety net that matters for larger or more entangled truth sets.',
       v:'k20_sae',methods:[
-        {key:'NEXIS',                   label:'with backward (default)', c:'#1a56a0'},
         {key:'NEXIS (backward=False)', label:'forward-only',             c:'#e91e63'},
+        {key:'NEXIS',                   label:'with backward (default)', c:'#1a56a0'},
       ]},
   };
 
