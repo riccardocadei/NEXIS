@@ -359,6 +359,8 @@ footer{padding:1.8rem 2rem;text-align:center;
 
 /* mobile-only title line break */
 .mbr{display:none;}
+/* author name abbreviation spans */
+.an-short{display:none;}
 
 @media(max-width:860px){
   #sidebar{display:none;}
@@ -376,7 +378,9 @@ footer{padding:1.8rem 2rem;text-align:center;
   header h1{font-size:1.32rem;line-height:1.25;}
   .mbr{display:inline;}
 
-  /* Authors/affiliations spacing */
+  /* Authors — abbreviated first names to fit ~2 lines */
+  .an-full{display:none;}
+  .an-short{display:inline;}
   .authors{font-size:0.81rem;line-height:1.65;}
   .affiliations{font-size:0.69rem;}
 
@@ -460,12 +464,12 @@ footer{padding:1.8rem 2rem;text-align:center;
     Heterogeneous Treatment Effects <br class="mbr">Identification</h1>
 
   <div class="authors">
-    <a href="mailto:riccardo.cadei@ist.ac.at">Riccardo Cadei</a><sup>1</sup>,&ensp;
-    Frank Otchere<sup>2</sup>,&ensp;
-    Nyasha Tirivayi<sup>2</sup>,&ensp;
-    Gustavo A. Tagliaferro<sup>2</sup>,&ensp;
-    Falco J. Bargagli-Stoffi<sup>3</sup>,&ensp;
-    Francesco Locatello<sup>1</sup>
+    <a href="mailto:riccardo.cadei@ist.ac.at"><span class="an-full">Riccardo </span><span class="an-short">R. </span>Cadei</a><sup>1</sup>,&ensp;
+    <span class="an-full">Frank </span><span class="an-short">F. </span>Otchere<sup>2</sup>,&ensp;
+    <span class="an-full">Nyasha </span><span class="an-short">N. </span>Tirivayi<sup>2</sup>,&ensp;
+    <span class="an-full">Gustavo A. </span><span class="an-short">G.A. </span>Tagliaferro<sup>2</sup>,&ensp;
+    <span class="an-full">Falco J. </span><span class="an-short">F.J. </span>Bargagli-Stoffi<sup>3</sup>,&ensp;
+    <span class="an-full">Francesco </span><span class="an-short">F. </span>Locatello<sup>1</sup>
   </div>
   <div class="affiliations">
     <sup>1</sup>ISTA &emsp; <sup>2</sup>UNICEF &emsp; <sup>3</sup>UCLA
