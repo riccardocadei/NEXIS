@@ -133,6 +133,7 @@ See [`notebooks/ghana.ipynb`](notebooks/ghana.ipynb).
   title   = {From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification},
   author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J. and Locatello, Francesco},
   year    = {2026},
-  note    = {Under review. Preprint coming soon.}
+  url     = {https://arxiv.org/abs/2606.17010},
+  note    = {Under review}
 }
 ```
