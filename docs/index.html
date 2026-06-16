@@ -360,13 +360,14 @@ footer{padding:1.8rem 2rem;text-align:center;
   .outcome-tabs{width:100%;display:flex;}
   .outcome-tab{flex:1;padding:0.38em 0.6em;font-size:0.73rem;}
 
-  /* Satellite tile strip — show 3 per row instead of 5 */
-  .sat-strip{flex-wrap:wrap;}
-  .sat-tile{flex:0 0 calc(33.33% - 4px);}
-  /* Overlay text — smaller to fit ~115px tiles */
-  .sat-overlay{padding:0.3em;gap:0.15em;}
-  .sat-feature{font-size:0.67rem;}
-  .sat-country{font-size:0.54rem;letter-spacing:0.06em;}
+  /* Satellite tile strip — single scrollable row */
+  .sat-strip{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scroll-snap-type:x mandatory;padding-bottom:4px;}
+  .sat-tile{flex:0 0 44vw;scroll-snap-align:start;}
+  /* Overlay text */
+  .sat-overlay{padding:0.35em;gap:0.2em;}
+  .sat-feature{font-size:0.78rem;}
+  .sat-country{font-size:0.62rem;letter-spacing:0.06em;}
   /* Description below teaser — enough room for 5-6 wrapped lines */
   .sat-desc.visible{max-height:14em;}
 
