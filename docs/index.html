@@ -338,8 +338,10 @@ footer{padding:1.8rem 2rem;text-align:center;
   align-items:center;justify-content:center;gap:0.3em;
   background:rgba(0,0,0,0.62);opacity:0;
   transition:opacity 0.25s;padding:0.5em;}
-.sat-tile:hover .sat-overlay{opacity:1;}
-.sat-tile:hover img{filter:brightness(0.55);}
+@media(hover:hover){
+  .sat-tile:hover .sat-overlay{opacity:1;}
+  .sat-tile:hover img{filter:brightness(0.55);}
+}
 .sat-feature{font-family:"Georgia",serif;font-size:0.82rem;font-style:italic;
   color:#fff;text-align:center;line-height:1.35;}
 .sat-country{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.63rem;
@@ -394,7 +396,7 @@ footer{padding:1.8rem 2rem;text-align:center;
   /* Satellite tile strip — single scrollable row */
   .sat-strip{display:flex;flex-wrap:nowrap;width:100%;overflow-x:scroll;
     -webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;padding-bottom:4px;}
-  .sat-tile{flex-shrink:0;flex-grow:0;flex-basis:40vw;width:40vw;min-width:40vw;
+  .sat-tile{flex-shrink:0;flex-grow:0;flex-basis:36vw;width:36vw;min-width:36vw;
     scroll-snap-align:start;}
   /* Overlay text */
   .sat-overlay{padding:0.35em;gap:0.2em;}
