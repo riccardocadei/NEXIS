@@ -2329,6 +2329,7 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     return new Chart(document.getElementById(id),{
       type:'line',data:{datasets:[]},
       options:{responsive:true,parsing:false,
+        layout:{padding:{top:8}},
         plugins:{
           legend:{display:true,position:'bottom',
             labels:{filter:i=>i.text!=='',boxWidth:14,font:{size:10}}},
