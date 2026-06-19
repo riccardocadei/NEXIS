@@ -2329,7 +2329,6 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     return new Chart(document.getElementById(id),{
       type:'line',data:{datasets:[]},
       options:{responsive:true,parsing:false,
-        layout:{padding:{top:8}},
         plugins:{
           legend:{display:true,position:'bottom',
             labels:{filter:i=>i.text!=='',boxWidth:14,font:{size:10}}},
@@ -2340,7 +2339,7 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
         },
         scales:{
           x:xAxis,
-          y:{min:0,max:1,ticks:{stepSize:0.2},title:{display:true,text:'',font:{size:11}},grid:{color:'#eee'}}
+          y:{min:0,max:1,ticks:{stepSize:0.2},title:{display:true,text:'',font:{size:11}},grid:{color:'#eee'},afterFit:s=>{s.paddingTop=12;}}
         }
       }
     });
