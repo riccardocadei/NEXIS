@@ -53,8 +53,11 @@ header h1 em{font-style:italic;color:var(--accent);}
 .authors sup{font-size:0.63em;color:var(--accent);}
 .affiliations{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.73rem;
   color:var(--muted);margin-bottom:0.9rem;display:flex;align-items:center;
-  justify-content:center;gap:1.4rem;}
+  justify-content:flex-start;gap:1.4rem;}
+.affiliations .aff-item{display:inline-flex;align-items:center;gap:0.25rem;}
+.affiliations .aff-item sup{font-size:0.75em;color:var(--accent);}
 .affiliations .aff-logo{height:1.1rem;width:auto;max-width:4.2rem;object-fit:contain;}
+.affiliations .aff-logo-ista{height:1.35rem;}
 .links{display:flex;flex-wrap:wrap;gap:0.45rem;margin-top:1.4rem;margin-bottom:1rem;}
 .links a{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.75rem;
   letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;
@@ -384,8 +387,7 @@ footer{padding:1.8rem 2rem;text-align:center;
   .an-full{display:none;}
   .an-short{display:inline;}
   .authors{font-size:0.81rem;line-height:1.65;}
-  .affiliations{font-size:0.69rem;display:flex;align-items:center;justify-content:center;gap:1.4rem;}
-.affiliations .aff-logo{height:1.1rem;width:auto;max-width:4.2rem;object-fit:contain;}
+  .affiliations{font-size:0.69rem;display:flex;align-items:center;justify-content:flex-start;gap:1.4rem;}
 
   /* Sections */
   section{padding:1.8rem 0;}
@@ -475,9 +477,9 @@ footer{padding:1.8rem 2rem;text-align:center;
     <span class="an-full">Francesco </span><span class="an-short">F. </span>Locatello<sup>1</sup>
   </div>
   <div class="affiliations">
-    <img src="assets/affiliations/ista.svg" alt="ISTA" class="aff-logo">
-    <img src="assets/affiliations/unicef.png" alt="UNICEF" class="aff-logo">
-    <img src="assets/affiliations/ucla.png" alt="UCLA" class="aff-logo">
+    <span class="aff-item"><sup>1</sup><img src="assets/affiliations/ista.svg" alt="ISTA" class="aff-logo aff-logo-ista"></span>
+    <span class="aff-item"><sup>2</sup><img src="assets/affiliations/unicef.png" alt="UNICEF" class="aff-logo"></span>
+    <span class="aff-item"><sup>3</sup><img src="assets/affiliations/ucla.png" alt="UCLA" class="aff-logo"></span>
   </div>
 
   <p class="sat-intro">Satellite imagery reveals environmental drivers of anti-poverty program impact invisible to surveys. <em>Click to explore.</em></p>
