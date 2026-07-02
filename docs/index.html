@@ -354,11 +354,11 @@ footer{padding:1.8rem 2rem;text-align:center;
 .sat-country{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.63rem;
   letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.7);
   text-align:center;line-height:1.6;}
-.sat-desc{max-height:0;overflow:hidden;margin:0;
+.sat-desc{min-height:4em;overflow:hidden;margin:2px 0 1rem;
   font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;
   color:var(--muted);line-height:1.5;opacity:0;pointer-events:none;
-  transition:max-height 0.28s ease,opacity 0.22s ease,margin 0.28s ease;}
-.sat-desc.visible{max-height:4em;opacity:1;margin:2px 0 1rem;pointer-events:auto;}
+  transition:opacity 0.22s ease;}
+.sat-desc.visible{opacity:1;pointer-events:auto;}
 .sat-desc::before{content:"\25B6\FE0E";font-size:0.55em;color:var(--accent);
   margin-right:0.45em;vertical-align:0.1em;font-family:"Helvetica Neue",Arial,sans-serif;}
 .sat-desc a{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent);}
