@@ -289,8 +289,12 @@ class Selection(Scene):
         s_lbl_1 = _s_label(["1"])
         ghost1 = Z1[1].copy()
         self.add(ghost1)
-        self.play(ghost1.animate.move_to(s_lbl_1.get_center()), run_time=0.42)
-        self.play(FadeOut(VGroup(ghost1, s_lbl)), FadeIn(s_lbl_1), run_time=0.35)
+        self.play(
+            ghost1.animate.move_to(s_lbl_1.get_center()),
+            FadeOut(s_lbl),
+            run_time=0.5,
+        )
+        self.play(ReplacementTransform(ghost1, s_lbl_1), run_time=0.35)
         s_lbl = s_lbl_1
         self.wait(0.3)
 
@@ -362,8 +366,12 @@ class Selection(Scene):
         s_lbl_2 = _s_label(["1", "3"])
         ghost2 = Z3[1].copy()
         self.add(ghost2)
-        self.play(ghost2.animate.move_to(s_lbl_2.get_center()), run_time=0.42)
-        self.play(FadeOut(VGroup(ghost2, s_lbl)), FadeIn(s_lbl_2), run_time=0.35)
+        self.play(
+            ghost2.animate.move_to(s_lbl_2.get_center()),
+            FadeOut(s_lbl),
+            run_time=0.5,
+        )
+        self.play(ReplacementTransform(ghost2, s_lbl_2), run_time=0.35)
         s_lbl = s_lbl_2
         self.wait(0.3)
 
@@ -434,18 +442,9 @@ class Selection(Scene):
         self.wait(0.5)
 
         # ─── FINALE ─────────────────────────────────────────────────────────────
-        # Proxy subgraph — Z₁, Z₃ replace W₁, W₂; dashed arrows to Y
-        proxy1 = DashedLine(
-            Z1.get_right(), Y.get_left(),
-            dash_length=0.14, color=WHITE_TEXT, stroke_width=2.0,
-        )
-        proxy1.add_tip(tip_shape=ArrowTriangleTip, tip_length=0.18, tip_width=0.18)
-
-        proxy3 = DashedLine(
-            Z3.get_right(), Y.get_left(),
-            dash_length=0.14, color=WHITE_TEXT, stroke_width=2.0,
-        )
-        proxy3.add_tip(tip_shape=ArrowTriangleTip, tip_length=0.18, tip_width=0.18)
+        # Proxy subgraph — Z₁, Z₃ replace W₁, W₂; arrows to Y
+        proxy1 = _causal_arrow(Z1, Y)
+        proxy3 = _causal_arrow(Z3, Y)
 
         keep = {title, Z1, Z3, T, Y, a_T_Y}
         fade_group = Group(*[m for m in self.mobjects if m not in keep])
