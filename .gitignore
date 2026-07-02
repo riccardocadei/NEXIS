@@ -33,3 +33,6 @@ results/
 # Manim build artefacts
 animations/media/
 animations/__pycache__/
+
+# Social media drafts (images/clips staged for tweets, not repo content)
+tweet/

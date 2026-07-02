@@ -170,12 +170,12 @@ class Selection(Scene):
 
         lbl_Z = VGroup(
             Text("candidate neurons",       color=GRAY_TEXT).scale(lbl_sc),
-            Text("(sparse representation)", color=GRAY_TEXT).scale(lbl_sc * 0.9),
+            Text("(learned representation)", color=GRAY_TEXT).scale(lbl_sc * 0.9),
         ).arrange(DOWN, buff=0.04).move_to([col_Z, top_y, 0])
 
         lbl_W = VGroup(
-            Text("direct effect modifiers", color=GRAY_TEXT).scale(lbl_sc),
-            Text("(ground truth)",          color=GRAY_TEXT).scale(lbl_sc * 0.9),
+            Text("exposure interactions", color=GRAY_TEXT).scale(lbl_sc),
+            Text("(unobserved)",          color=GRAY_TEXT).scale(lbl_sc * 0.9),
         ).arrange(DOWN, buff=0.04).move_to([col_W, top_y, 0])
 
         lbl_Y = Text("outcome",   color=GRAY_TEXT).scale(lbl_sc).move_to([col_Y, top_y, 0])
@@ -286,7 +286,7 @@ class Selection(Scene):
         self.wait(0.20)
 
         # append Z₁ to S
-        s_lbl_1 = _s_label(["Z₁"])
+        s_lbl_1 = _s_label(["1"])
         ghost1 = Z1[1].copy()
         self.add(ghost1)
         self.play(ghost1.animate.move_to(s_lbl_1.get_center()), run_time=0.42)
@@ -359,7 +359,7 @@ class Selection(Scene):
         self.wait(0.20)
 
         # append Z₃ to S
-        s_lbl_2 = _s_label(["Z₁", "Z₃"])
+        s_lbl_2 = _s_label(["1", "3"])
         ghost2 = Z3[1].copy()
         self.add(ghost2)
         self.play(ghost2.animate.move_to(s_lbl_2.get_center()), run_time=0.42)
