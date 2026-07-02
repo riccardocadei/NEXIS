@@ -139,13 +139,13 @@ def _build_base(scene):
     top_y  = LABEL_Y
 
     lbl_Z = VGroup(
-        Text("candidate neurons",       color=GRAY_TEXT).scale(lbl_sc),
-        Text("(sparse representation)", color=GRAY_TEXT).scale(lbl_sc * 0.9),
+        Text("candidate neurons",        color=GRAY_TEXT).scale(lbl_sc),
+        Text("(learned representation)", color=GRAY_TEXT).scale(lbl_sc * 0.9),
     ).arrange(DOWN, buff=0.04).move_to([col_Z, top_y, 0])
 
     lbl_W = VGroup(
-        Text("direct effect modifiers", color=GRAY_TEXT).scale(lbl_sc),
-        Text("(ground truth)",          color=GRAY_TEXT).scale(lbl_sc * 0.9),
+        Text("exposure interactions", color=GRAY_TEXT).scale(lbl_sc),
+        Text("(unobserved)",          color=GRAY_TEXT).scale(lbl_sc * 0.9),
     ).arrange(DOWN, buff=0.04).move_to([col_W, top_y, 0])
 
     lbl_Y = Text("outcome",   color=GRAY_TEXT).scale(lbl_sc).move_to([col_Y, top_y, 0])
@@ -226,7 +226,7 @@ class Snapshot1(Scene):
         Z1[1].set_color(GREEN_LIGHT)
 
         # S label
-        self.add(_s_label(["Z₁"]))
+        self.add(_s_label(["1"]))
         self.add(_step_num(1))
 
         # Forward test content
@@ -268,7 +268,7 @@ class Snapshot2(Scene):
         Z3[1].set_color(GREEN_LIGHT)
 
         # S label
-        self.add(_s_label(["Z₁", "Z₃"]))
+        self.add(_s_label(["1", "3"]))
         self.add(_step_num(2))
 
         # Forward test content
@@ -322,7 +322,7 @@ class Snapshot3(Scene):
         Z2[1].set_color(DIM_GRAY)
 
         # S label (unchanged from step 2)
-        self.add(_s_label(["Z₁", "Z₃"]))
+        self.add(_s_label(["1", "3"]))
         self.add(_step_num(3))
 
         # Forward test content
