@@ -4,18 +4,18 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 
 ## Summary
 
-| Source | Needs representation learning? | Years | Size | Status |
-|---|---|---|---|---|
-| [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | No — structured survey data | 2015, 2017 | 83 KB | ✅ |
-| [Satellite imagery (Landsat 8)](#satellite-imagery-landsat-8-via-google-earth-engine) | **Yes** — foundation-model embedding + SAE | 2015 | ~7 GB | ✅ |
-| [Rainfall / drought exposure (CHIRPS)](#rainfall--drought-exposure-chirps-via-google-earth-engine) | No — scalar covariate per community | 2000–2017 | <1 MB | ✅ |
-| [Admin boundaries & basemaps](#administrative-boundaries--basemaps-plotting-only) | No — vector/cartographic, plotting only | static | ~7 MB | ✅ |
-| Market access (planned) | No, expected — a value per point/community, no imagery | — | — | ⏳ |
-| EM-DAT / ACLED events (planned) | No — tabular event records | — | — | ⏳ |
-| OpenCellID mobile coverage (planned) | No, expected — aggregated to a density/coverage value, not raw imagery | — | — | ⏳ |
-| Community questionnaire microdata (requested) | No — structured survey data | — | — | ⏳ |
+| Source | Modality | Raw columns | Covariates extracted | Years | Size | Status |
+|---|---|---|---|---|---|---|
+| [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | Tabular survey | 30 | 26 (24 household `W` + 2 community `Z`) | 2015, 2017 | 83 KB | ✅ |
+| [Satellite imagery (Landsat 8)](#satellite-imagery-landsat-8-via-google-earth-engine) | Imagery (6-band) | 6 bands/tile | 143 (131 SAE neurons + 12 spectral indices) | 2015 | ~7 GB | ✅ |
+| [Rainfall / drought exposure (CHIRPS)](#rainfall--drought-exposure-chirps-via-google-earth-engine) | Tabular climate | 1 (daily precip.) | 5 (3 `Z` + 2 DiD control) | 2000–2017 | <1 MB | ✅ |
+| Market access (planned) | Tabular / raster point value | — | — | — | ⏳ |
+| EM-DAT / ACLED events (planned) | Tabular event records | — | — | — | ⏳ |
+| OpenCellID mobile coverage (planned) | Tabular / raster point value | — | — | — | ⏳ |
+| Community questionnaire microdata (requested) | Tabular survey | — | — | — | ⏳ |
+| **Total (downloaded sources)** | | | **174** | | **~7 GB** | |
 
-Representation learning (a foundation model + a sparse autoencoder) is only needed for **unstructured inputs** — here, satellite imagery — where the raw data has no ready-made per-community numeric summary. Every other source here is already a number (or small set of numbers) per community, so it plugs into `W`/`Z` directly, no embedding step required.
+"Raw columns" is the source's native dimensionality (survey columns, imagery bands, the one CHIRPS variable); "Covariates extracted" is how many end up in the analysis (`W` and/or `Z`, or a DiD control) after processing. Only satellite imagery needs a representation-learning step (foundation-model embedding + SAE) to go from raw to extracted — every other source is already numeric per community and plugs in directly. See per-source sections below for the breakdown, and [Extra](#extra-administrative-boundaries--basemaps-plotting-only) for the non-analytical cartographic files.
 
 ## LEAP-1000 household survey (core, restricted)
 
@@ -27,6 +27,7 @@ Representation learning (a foundation model + a sparse autoencoder) is only need
 | **Years** | 2 waves — Baseline 2015 (n=2,497), Endline 2017 (n=2,331). |
 | **Size** | 4,828 rows × 30 columns, 83 KB. 162 communities. |
 | **Description** | Household panel: PMT eligibility score, treatment status, adult-equivalent expenditure, demographics, housing, livelihoods. See `variable_description.csv` for the full column dictionary. |
+| **Covariates extracted** | 26 total: 24 household-level `W` (20 raw survey + 4 engineered — `livelihood_diversity`, `dependency_ratio`, `rooms_per_person`, `housing_depriv`) + 2 community-level `Z` (`dist_to_capital_km`, `comm_size`, both derived from GPS/`hhid`). |
 | **Known caveat** | `pmtscore` is the eligibility/targeting score (RDD running variable) — do not use as an outcome or NEXIS effect modifier (near-perfect separation between arms by construction). |
 | **Reference reports** | `LEAP-1000_Baseline-Survey_2015.pdf`, `Ghana-LEAP-1000-Endline-Household-Survey-v8.pdf` — full UNICEF/ISSER/UNC endline evaluation report (June 2018), used for context (e.g. Table 4.2.7 "Shocks in the community" motivated the rainfall covariate below). |
 
@@ -38,6 +39,7 @@ Representation learning (a foundation model + a sparse autoencoder) is only need
 | **Produced by** | `src/apps/ghana/download_satellite_images.py` (162 LEAP community tiles, 2015) and `download_national_grid.py` (9,592-tile national grid, used as the SAE training corpus). |
 | **Coverage** | 5×5 km, 30 m/px, 6 bands (blue/green/red/NIR/SWIR-1/SWIR-2), cloud-filtered annual median composite, per community centroid. |
 | **Size** | ~7 GB total across both tile sets. |
+| **Covariates extracted** | 143: 131 SAE neuron activations + 12 spectral indices, all community-level `Z`. |
 | **Status** | ✅ complete for 2015. |
 
 **Why this one needs representation learning**: unlike every other source here, a raw GeoTIFF has no natural per-community number — it has to be turned into one. The pipeline: (1) each tile is embedded with **Prithvi-EO-1.0-100M** (a HLS-pretrained ViT-MAE foundation model) into a 768-d vector; (2) a **TopK Sparse Autoencoder** (Gao et al. 2024) is trained on the 9,592-tile national grid and evaluated on the 162 LEAP tiles, turning each 768-d embedding into a small set of interpretable, mostly-zero neuron activations. Those neuron activations are the actual `Z` block NEXIS searches over — the embeddings and SAE weights themselves are derived artifacts (`extract_satellite_features.py`, `train_sae.py`), not tracked in this file.
@@ -49,6 +51,7 @@ Representation learning (a foundation model + a sparse autoencoder) is only need
 | **Origin** | `UCSB-CHG/CHIRPS/DAILY` (Climate Hazards Center InfraRed Precipitation with Station data), via `earthengine-api`. |
 | **Produced by** | `src/apps/ghana/download_rainfall.py` |
 | **Motivation** | LEAP 1000 endline evaluation report, Table 4.2.7: drought (74% of communities, 2015–2017) and floods (57%) are the dominant self-reported community shocks in this exact sample. |
+| **Covariates extracted** | 5: 3 community-level `Z` (`rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015`) + 2 DiD control (`rainfall_mm`, `rainfall_anomaly`, per study year). |
 | **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017). |
 
 No representation learning needed — CHIRPS is already a per-pixel numeric rainfall value, sampled directly at each community centroid (`reduceRegions`, no FM/SAE step). Split into two files, deliberately kept in separate roles (see `notebooks/ghana.ipynb`, "Effect modifiers vs. DiD controls", and `external_data.py`):
@@ -60,16 +63,6 @@ No representation learning needed — CHIRPS is already a per-pixel numeric rain
 
 Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%); realized 2015/2016/2017 anomalies of +0.62σ / −0.52σ / −0.77σ against that same baseline.
 
-## Administrative boundaries & basemaps (plotting only)
-
-| File | Origin | Description |
-|---|---|---|
-| `gadm41_GHA_1.json`, `gadm41_GHA_2.json` | [GADM](https://gadm.org) v4.1 | Ghana region (level 1) / district (level 2) boundaries — used for map figures. |
-| `ne_10m_admin_0_countries.*` | [Natural Earth](https://www.naturalearthdata.com), 1:10m cultural | Country boundaries — basemap context. |
-| `ne_10m_lakes.*` | Natural Earth, 1:10m physical | Lakes (e.g. Lake Volta) — basemap context. |
-
-No representation learning needed — vector geometry, used only for cartographic context, not versioned/updated independently.
-
 ## Planned / candidate future sources
 
 Not yet started — tracked here so scope stays visible. Add one at a time; classify each as an effect-modifier (`external_data.py::load_effect_modifiers`, time-invariant trait) or a DiD control (`load_did_controls`, time-varying study-window event) before wiring in, same as rainfall above.
@@ -79,3 +72,13 @@ Not yet started — tracked here so scope stays visible. Add one at a time; clas
 - **OpenCellID** mobile network coverage/density (suggested by UNICEF colleagues) — likely time-invariant infrastructure trait → effect-modifier lane. No RL expected, but needs scoping (density within what radius of each community?).
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks proxy above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. No RL: structured survey data, same as the household survey.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
+
+## Extra: Administrative boundaries & basemaps (plotting only)
+
+| File | Origin | Description |
+|---|---|---|
+| `gadm41_GHA_1.json`, `gadm41_GHA_2.json` | [GADM](https://gadm.org) v4.1 | Ghana region (level 1) / district (level 2) boundaries — used for map figures. |
+| `ne_10m_admin_0_countries.*` | [Natural Earth](https://www.naturalearthdata.com), 1:10m cultural | Country boundaries — basemap context. |
+| `ne_10m_lakes.*` | Natural Earth, 1:10m physical | Lakes (e.g. Lake Volta) — basemap context. |
+
+Not an analytical source — no covariates, no representation learning, vector geometry used only for cartographic context in figures. Not versioned/updated independently, and excluded from the summary table above.
