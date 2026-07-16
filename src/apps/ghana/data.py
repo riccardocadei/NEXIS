@@ -77,7 +77,7 @@ W_LABELS: dict[str, str] = {
     'rainfall_mean_pre2015': 'Mean annual rainfall, 2000–2014 (mm)',
     'rainfall_std_pre2015': 'Std. annual rainfall, 2000–2014 (mm)',
     'rainfall_anomaly':     'Rainfall anomaly, study year (z-score vs. 2000–2014)',
-    'rainfall_anomaly_1517_mean': 'Mean rainfall anomaly, 2015–2017 (z-score vs. 2000–2014)',
+    'rainfall_anomaly_2016':      'Rainfall anomaly, 2016 (z-score vs. 2000–2014)',
 }
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────

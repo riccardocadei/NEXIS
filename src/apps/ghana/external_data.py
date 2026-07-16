@@ -45,22 +45,29 @@ def load_did_controls(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     moderators — pass column names to analysis.py::regression_did(controls=...)
     after merging on comm + year->wave.
 
-    `rainfall_anomaly_1517_mean` is constant across all 3 rows for a given
-    `comm` (mean over 2015/2016/2017) — the household panel has no 2016 wave
-    to attach a per-year 2016 value to, so this is how 2016's realized
-    rainfall still gets used rather than sitting unused in the CSV.
+    `rainfall_anomaly_2016` is constant across all 3 rows for a given `comm`
+    (the household panel has no 2016 wave to attach a per-year value to).
+    Deliberately the 2016 value alone, not a 2015-2016-2017 mean: the 3
+    realized years are anti-correlated with each other (2016 correlates
+    -0.66 with 2015 and -0.52 with 2017), so a mean would mostly re-encode
+    signal already contributed by the per-wave `rainfall_anomaly` column
+    rather than adding new information. 2016 alone is also substantively
+    motivated on its own: it's the growing season immediately before the
+    2017 endline, so a bad 2016 rainy season can plausibly depress 2017
+    harvests/consumption directly (a lagged agricultural effect), giving it
+    a reason to matter independent of the 2015/2017 values.
     """
     data_dir = Path(data_dir)
-    columns = ['rainfall_mm', 'rainfall_anomaly', 'rainfall_anomaly_1517_mean']
+    columns = ['rainfall_mm', 'rainfall_anomaly', 'rainfall_anomaly_2016']
 
     rainfall_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
     if rainfall_path.exists():
         rainfall = pd.read_csv(rainfall_path)[['comm', 'year', 'rainfall_mm', 'rainfall_anomaly']]
-        study_mean = (
-            rainfall.groupby('comm')['rainfall_anomaly'].mean()
-            .rename('rainfall_anomaly_1517_mean').reset_index()
+        y2016 = (
+            rainfall.loc[rainfall['year'] == 2016, ['comm', 'rainfall_anomaly']]
+            .rename(columns={'rainfall_anomaly': 'rainfall_anomaly_2016'})
         )
-        return rainfall.merge(study_mean, on='comm')[['comm', 'year', *columns]]
+        return rainfall.merge(y2016, on='comm')[['comm', 'year', *columns]]
     # rainfall not yet downloaded (run download_rainfall.py) — callers still
     # see the expected columns, filled with NaN, rather than a KeyError.
     return pd.DataFrame(columns=['comm', 'year', *columns]).astype(
