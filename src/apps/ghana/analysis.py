@@ -41,13 +41,12 @@ def regression_did(df: pd.DataFrame, outcome: str = 'Y',
                districts.  Note: comm mixes T and C households so it is not the
                exact randomisation unit, but geographic clustering is still the
                right correction for spatial correlation in residuals.
-    controls : optional extra regressor column names (e.g. ['rainfall_anomaly'])
-               added alongside T, wave, T×wave, as a DiD robustness check —
-               use this to test whether δ is stable once a time-varying,
-               study-window shock is netted out. This is NOT how effect
-               modifiers are searched (that's NEXIS over COMMUNITY_Z); a
+    controls : optional extra regressor column names added alongside T, wave,
+               T×wave — e.g. to check whether δ is stable once some other
+               covariate is netted out. This is NOT how effect modifiers are
+               searched (that's NEXIS over COMMUNITY_Z, see data.py); a
                robustness control here answers a different question than a Z
-               moderator. See external_data.py / notebooks/ghana.ipynb.
+               moderator.
     """
     controls = controls or []
     cols = ['T', 'wave', outcome] + controls + ([cluster] if cluster else [])

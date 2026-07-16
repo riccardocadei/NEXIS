@@ -1,20 +1,21 @@
 """Download CHIRPS rainfall exposure for Ghana LEAP 1000 community centroids.
 
-Produces two clearly separate outputs, matching two distinct scientific
-questions (see notebooks/ghana.ipynb "Effect modifiers vs. DiD controls"):
+Produces two files, both feeding NEXIS Z effect-modifier candidates (see
+external_data.py::load_effect_modifiers):
 
-  1. rainfall_climatology.csv — a STABLE, pre-treatment trait of each
-     community (mean/std annual rainfall and drought frequency over
-     `--climatology-start`..`--climatology-end`, both strictly before the
-     2015 baseline). This is the only rainfall file that should ever be
-     added to COMMUNITY_Z / searched by NEXIS as an effect modifier.
+  1. rainfall_climatology.csv — mean/std annual rainfall and drought
+     frequency over `--climatology-start`..`--climatology-end` (strictly
+     before the 2015 baseline). Internally z-scores each climatology year
+     against the community's own mean/std purely to define "drought year"
+     (below `--drought-z-threshold`); that z-score itself isn't exposed
+     downstream, only the resulting frequency.
 
-  2. rainfall_annual.csv — the REALIZED annual rainfall and anomaly for the
-     study years (2015-2017), computed against the *same* pre-2015
-     climatology (so the anomaly is an honest out-of-sample z-score, not
-     circular). This is a DiD robustness control, not a moderator: it
-     answers "was the ITT confounded by an uneven weather shock during the
-     study", not "who benefits more".
+  2. rainfall_annual.csv — realized annual rainfall (raw mm, no z-scoring)
+     for the study years (2015-2017). Averaged into rainfall_mean_1517
+     downstream. Legitimate as an effect modifier despite overlapping the
+     treatment period: a cash transfer cannot cause rainfall, so there's no
+     post-treatment-bias risk here, unlike a household covariate the
+     transfer could itself change.
 
 Setup (one-time, same as download_satellite_images.py):
     pip install earthengine-api
@@ -69,7 +70,7 @@ def parse_args():
     p.add_argument('--dry-run', action='store_true',
                    help='Print plan without querying Earth Engine')
     p.add_argument('--data-path',
-                   default='../../../data/ghana/LEAP1000 2015-2017 household data++.dta',
+                   default='../../../data/ghana/survey/LEAP1000 2015-2017 household data++.dta',
                    help='Path to household .dta file')
     return p.parse_args()
 
@@ -142,9 +143,9 @@ def main():
         log(f"  Scale: {args.scale} m  |  Drought z-threshold: {args.drought_z_threshold}")
         log(f"  Output: {out_dir}")
         log(f"    - rainfall_climatology.csv  (comm, rainfall_mean_pre2015, "
-            f"rainfall_std_pre2015, drought_freq_pre2015)  → NEXIS Z effect-modifier candidate")
-        log(f"    - rainfall_annual.csv       (comm, year, rainfall_mm, rainfall_anomaly)  "
-            f"→ DiD robustness control, NOT a Z candidate")
+            f"rainfall_std_pre2015, drought_freq_pre2015)  → NEXIS Z effect-modifier candidates")
+        log(f"    - rainfall_annual.csv       (comm, year, rainfall_mm)  "
+            f"→ averaged into rainfall_mean_1517, also a Z effect-modifier candidate")
         for _, row in centroids.iterrows():
             log(f"  comm{int(row.comm_id):04d}  lat={row.lat:.4f}  lon={row.lon:.4f}")
         return
@@ -193,14 +194,7 @@ def main():
         study_frames.append(frame)
         log(f"  [{i}/{len(args.study_years)}]  {year}  "
             f"{frame['rainfall_mm'].notna().sum()}/{len(frame)} communities OK")
-    annual = pd.concat(study_frames, ignore_index=True)
-    annual = annual.merge(climatology[['comm', 'rainfall_mean_pre2015', 'rainfall_std_pre2015']],
-                          on='comm')
-    annual['rainfall_anomaly'] = (
-        (annual['rainfall_mm'] - annual['rainfall_mean_pre2015'])
-        / annual['rainfall_std_pre2015']
-    )
-    annual = annual[['comm', 'year', 'rainfall_mm', 'rainfall_anomaly']]
+    annual = pd.concat(study_frames, ignore_index=True)[['comm', 'year', 'rainfall_mm']]
     annual_path = out_dir / 'rainfall_annual.csv'
     annual.to_csv(annual_path, index=False)
     log(f"Wrote {annual_path}  ({len(annual)} rows)")

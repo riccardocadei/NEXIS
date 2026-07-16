@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from external_data import load_did_controls, load_effect_modifiers
+from external_data import load_effect_modifiers
 
 DATA_DIR = Path('../data/ghana')
 
@@ -31,16 +31,19 @@ ENGINEERED_W = [
 
 # Community-level features — go into Z alongside SAE neurons and spectral indices
 #
-# Only stable, pre-treatment community traits belong here (see
-# external_data.py::load_effect_modifiers) — a covariate realized *during* the
-# study window (e.g. a specific year's rainfall shock) is a DiD robustness
-# control, not an effect-modifier candidate. See notebooks/ghana.ipynb.
+# A covariate is excluded from here only if treatment could plausibly have
+# caused it (post-treatment bias/collider risk — e.g. a household covariate
+# a cash transfer could itself change). Exogenous sources like weather don't
+# carry that risk regardless of whether they're measured before or during
+# the study window, since treatment cannot cause rainfall — see
+# external_data.py::load_effect_modifiers.
 COMMUNITY_Z = [
     'dist_to_capital_km',
     'comm_size',
     'rainfall_mean_pre2015',
     'rainfall_std_pre2015',
     'drought_freq_pre2015',
+    'rainfall_mean_1517',
 ]
 
 W_ALL = NUMERIC_W + BINARY_W + ENGINEERED_W
@@ -76,8 +79,7 @@ W_LABELS: dict[str, str] = {
     'drought_freq_pre2015': 'Drought frequency, 2000–2014 (share of years)',
     'rainfall_mean_pre2015': 'Mean annual rainfall, 2000–2014 (mm)',
     'rainfall_std_pre2015': 'Std. annual rainfall, 2000–2014 (mm)',
-    'rainfall_anomaly':     'Rainfall anomaly, study year (z-score vs. 2000–2014)',
-    'rainfall_anomaly_2016':      'Rainfall anomaly, 2016 (z-score vs. 2000–2014)',
+    'rainfall_mean_1517':   'Mean annual rainfall, 2015–2017 (mm)',
 }
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────
@@ -117,7 +119,7 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     All Yes/No covariates are binarised (1/0) and given readable names.
     Continuous covariates are renamed for clarity.
     """
-    df = pd.read_stata(Path(data_dir) / 'LEAP1000 2015-2017 household data++.dta')
+    df = pd.read_stata(Path(data_dir) / 'survey' / 'LEAP1000 2015-2017 household data++.dta')
 
     # Core identifiers
     df['T']    = (df['tac'] == 'Treatment').astype(int)
@@ -192,18 +194,8 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     # Number of unique sampled households per community (proxy for community size)
     df['comm_size'] = df.groupby('comm')['hhid'].transform('nunique')
 
-    # ── External effect modifiers (stable, pre-treatment traits) ─────────────
+    # ── External effect modifiers ─────────────────────────────────────────────
     # See external_data.py — merged on comm only, one row per community.
     df = df.merge(load_effect_modifiers(Path(data_dir)), on='comm', how='left')
-
-    # ── External DiD controls (time-varying, study-window 2015-2017 shocks) ──
-    # NOT effect modifiers — see COMMUNITY_Z docstring above. Merged on
-    # comm + the survey year implied by wave (0 -> 2015, 1 -> 2017).
-    df['_survey_year'] = df['wave'].map({0: 2015, 1: 2017})
-    df = df.merge(
-        load_did_controls(Path(data_dir)),
-        left_on=['comm', '_survey_year'], right_on=['comm', 'year'], how='left',
-    )
-    df = df.drop(columns=['_survey_year', 'year'], errors='ignore')
 
     return df
