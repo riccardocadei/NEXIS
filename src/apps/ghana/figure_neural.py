@@ -81,8 +81,8 @@ def load_leap_tile(comm_id: int, size: int = 112) -> np.ndarray | None:
 # ── basemap ────────────────────────────────────────────────────────────────────
 
 def load_basemap():
-    ghana = gpd.read_file(DATA_DIR / "gadm41_GHA_1.json").to_crs("EPSG:4326")
-    lakes = gpd.read_file(DATA_DIR / "ne_10m_lakes.shp").to_crs("EPSG:4326")
+    ghana = gpd.read_file(DATA_DIR / "geo" / "gadm41_GHA_1.json").to_crs("EPSG:4326")
+    lakes = gpd.read_file(DATA_DIR / "geo" / "ne_10m_lakes.shp").to_crs("EPSG:4326")
     lakes = lakes.clip(ghana.total_bounds)
     return ghana, lakes
 
@@ -214,7 +214,7 @@ def main():
     import json
 
     # Community coordinates (GPS centroid per community)
-    df = pd.read_stata(DATA_DIR / "LEAP1000 2015-2017 household data++.dta")
+    df = pd.read_stata(DATA_DIR / "survey" / "LEAP1000 2015-2017 household data++.dta")
     comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
                  .mean()
                  .reset_index()

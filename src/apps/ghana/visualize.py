@@ -38,18 +38,19 @@ def plot_ghana_map(data_dir: Path | str, ax=None, paper: bool = False,
         (wave == 0) is used to avoid double-counting panel households.
     """
     data_dir = Path(data_dir)
-    gdf1 = gpd.read_file(data_dir / 'gadm41_GHA_1.json')
-    gdf2 = gpd.read_file(data_dir / 'gadm41_GHA_2.json')
+    geo_dir = data_dir / 'geo'
+    gdf1 = gpd.read_file(geo_dir / 'gadm41_GHA_1.json')
+    gdf2 = gpd.read_file(geo_dir / 'gadm41_GHA_2.json')
 
     # 10m lakes clipped to Ghana
-    lakes_shp = data_dir / 'ne_10m_lakes.shp'
+    lakes_shp = geo_dir / 'ne_10m_lakes.shp'
     if not lakes_shp.exists():
         url = 'https://naciscdn.org/naturalearth/10m/physical/ne_10m_lakes.zip'
         data = urllib.request.urlopen(url, timeout=60).read()
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             for name in z.namelist():
                 if Path(name).suffix in ('.shp', '.shx', '.dbf', '.prj', '.cpg'):
-                    (data_dir / Path(name).name).write_bytes(z.read(name))
+                    (geo_dir / Path(name).name).write_bytes(z.read(name))
     ghana_box = gpd.GeoDataFrame({'geometry': [box(*gdf1.total_bounds)]}, crs=gdf1.crs)
     lakes_gh  = gpd.read_file(lakes_shp).to_crs(gdf1.crs).clip(ghana_box)
 
@@ -165,10 +166,11 @@ def plot_neuron_activation_map(
     from matplotlib.cm import ScalarMappable
 
     data_dir = Path(data_dir)
-    gdf1 = gpd.read_file(data_dir / 'gadm41_GHA_1.json')
-    gdf2 = gpd.read_file(data_dir / 'gadm41_GHA_2.json')
+    geo_dir = data_dir / 'geo'
+    gdf1 = gpd.read_file(geo_dir / 'gadm41_GHA_1.json')
+    gdf2 = gpd.read_file(geo_dir / 'gadm41_GHA_2.json')
 
-    lakes_shp = data_dir / 'ne_10m_lakes.shp'
+    lakes_shp = geo_dir / 'ne_10m_lakes.shp'
     if lakes_shp.exists():
         ghana_box = gpd.GeoDataFrame({'geometry': [box(*gdf1.total_bounds)]}, crs=gdf1.crs)
         lakes_gh  = gpd.read_file(lakes_shp).to_crs(gdf1.crs).clip(ghana_box)

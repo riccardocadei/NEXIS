@@ -69,7 +69,7 @@ def log(msg: str):
 # ── Grid ──────────────────────────────────────────────────────────────────────
 
 def build_grid(data_dir: Path) -> list[tuple[float, float, int]]:
-    gadm       = gpd.read_file(data_dir / 'gadm41_GHA_1.json')
+    gadm       = gpd.read_file(data_dir / 'geo' / 'gadm41_GHA_1.json')
     ghana_poly = gadm.union_all()
 
     lons   = np.arange(LON_MIN + STEP_LON / 2, LON_MAX, STEP_LON)

@@ -62,7 +62,7 @@ def parse_args():
     p.add_argument('--dry-run', action='store_true',
                    help='Print plan without downloading anything')
     p.add_argument('--data-path',
-                   default='../../data/ghana/LEAP1000 2015-2017 household data++.dta',
+                   default='../../data/ghana/survey/LEAP1000 2015-2017 household data++.dta',
                    help='Path to household .dta file')
     return p.parse_args()
 

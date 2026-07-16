@@ -54,14 +54,15 @@ DIST_ANCHOR = {
 def _load_basemap(bbox=(-3.5, 4.3, 1.5, 11.5)):
     """Return (ghana_gdf, neighbors, lakes_c, gdf1) for draw_base."""
     # Natural Earth admin-0 (Ghana outline + neighbours)
-    ne_shp = DATA_DIR / 'ne_10m_admin_0_countries.shp'
+    geo_dir = DATA_DIR / 'geo'
+    ne_shp = geo_dir / 'ne_10m_admin_0_countries.shp'
     if not ne_shp.exists():
         url  = 'https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip'
         data = urllib.request.urlopen(url, timeout=60).read()
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             for name in z.namelist():
                 if Path(name).suffix in ('.shp', '.shx', '.dbf', '.prj', '.cpg'):
-                    (DATA_DIR / Path(name).name).write_bytes(z.read(name))
+                    (geo_dir / Path(name).name).write_bytes(z.read(name))
 
     world     = gpd.read_file(ne_shp).to_crs('EPSG:4326')
     ghana_gdf = world[world['NAME'] == 'Ghana']
@@ -70,10 +71,10 @@ def _load_basemap(bbox=(-3.5, 4.3, 1.5, 11.5)):
 
     # Lakes clipped to full Ghana bbox
     bbox_gdf = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs='EPSG:4326')
-    lakes_c  = gpd.read_file(DATA_DIR / 'ne_10m_lakes.shp').to_crs('EPSG:4326').clip(bbox_gdf)
+    lakes_c  = gpd.read_file(geo_dir / 'ne_10m_lakes.shp').to_crs('EPSG:4326').clip(bbox_gdf)
 
     # GADM level-1 regions (sub-national, same role as Uganda's regions_gdf)
-    gdf1 = gpd.read_file(DATA_DIR / 'gadm41_GHA_1.json').to_crs('EPSG:4326')
+    gdf1 = gpd.read_file(geo_dir / 'gadm41_GHA_1.json').to_crs('EPSG:4326')
 
     return ghana_gdf, neighbors, lakes_c, gdf1
 
