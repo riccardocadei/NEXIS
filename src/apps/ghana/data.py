@@ -38,6 +38,8 @@ ENGINEERED_W = [
 COMMUNITY_Z = [
     'dist_to_capital_km',
     'comm_size',
+    'rainfall_mean_pre2015',
+    'rainfall_std_pre2015',
     'drought_freq_pre2015',
 ]
 

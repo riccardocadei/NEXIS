@@ -65,14 +65,16 @@ No survey or outcome data — purely cartographic, not versioned/updated indepen
 | **Origin** | `UCSB-CHG/CHIRPS/DAILY` (Climate Hazards Center InfraRed Precipitation with Station data), via `earthengine-api`. |
 | **Produced by** | `src/apps/ghana/download_rainfall.py` |
 | **Motivation** | LEAP 1000 endline evaluation report, Table 4.2.7: drought (74% of communities, 2015–2017) and floods (57%) are the dominant self-reported community shocks in this exact sample. |
-| **Status** | ⏳ **Not yet downloaded** — requires Earth Engine auth, run locally (see script docstring / repo README). |
+| **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017). |
 
 Split into two files, deliberately kept in separate roles (see `notebooks/ghana.ipynb`, "Effect modifiers vs. DiD controls", and `external_data.py`):
 
-| File | Years | Role |
-|---|---|---|
-| `rainfall/rainfall_climatology.csv` | 2000–2014 (pre-baseline only) | Stable community trait (mean/std annual rainfall, drought frequency) → NEXIS `Z` effect-modifier candidate (`COMMUNITY_Z` in `data.py`) |
-| `rainfall/rainfall_annual.csv` | 2015–2017 (study window) | Realized annual rainfall + anomaly vs. the same climatology → `analysis.py::regression_did(controls=[...])` robustness check, **not** a NEXIS moderator |
+| File | Years | Columns (per community) | Role |
+|---|---|---|---|
+| `rainfall/rainfall_climatology.csv` | 2000–2014 (pre-baseline only) | 1 row × 3 cols: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` | Stable community traits → all 3 are NEXIS `Z` effect-modifier candidates (`COMMUNITY_Z` in `data.py`) |
+| `rainfall/rainfall_annual.csv` | 2015–2017 (study window) | 3 rows × 2 cols: `rainfall_mm`, `rainfall_anomaly` | Realized annual rainfall + anomaly vs. the same climatology → `analysis.py::regression_did(controls=[...])` robustness check, **not** a NEXIS moderator |
+
+Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%); realized 2015/2016/2017 anomalies of +0.62σ / −0.52σ / −0.77σ against that same baseline.
 
 ## Planned / candidate future sources
 
