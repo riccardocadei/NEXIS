@@ -46,6 +46,7 @@ COMMUNITY_Z = [
     'rainfall_2015',
     'rainfall_2016',
     'rainfall_2017',
+    'cdd_1517',
 ]
 
 W_ALL = NUMERIC_W + BINARY_W + ENGINEERED_W
@@ -84,6 +85,7 @@ W_LABELS: dict[str, str] = {
     'rainfall_2015':        'Annual rainfall, 2015 (mm)',
     'rainfall_2016':        'Annual rainfall, 2016 (mm)',
     'rainfall_2017':        'Annual rainfall, 2017 (mm)',
+    'cdd_1517':             'Max consecutive dry days, 2015–2017',
 }
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────

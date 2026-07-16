@@ -10,12 +10,12 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | ↳ | | | | Community | | 2 derived | 2015 | ✅ |
 | [Satellite imagery](#satellite-imagery-landsat-8-via-google-earth-engine) | [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2) (USGS/NASA), via Google Earth Engine | ~7 GB | Imagery (6-band) | Community | 6 bands/tile (166×166 px) | 143 (131 neurons representation + 12 spectral indices) | 2015 | ✅ |
 | [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Tabular climate | Community | 5,479 daily precipitation values | 3 (average rainfall, rainfall volatility, drought frequency) | 2000–2014 | ✅ |
-| ↳ | | | | Community | 1,096 daily precipitation values | 3 (annual rainfall, one per study year) | 2015–2017 | ✅ |
+| ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
 | Market access (planned) | e.g. [Malaria Atlas Project](https://malariaatlas.org/) accessibility layers (TBD) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
 | EM-DAT / ACLED events (planned) | [EM-DAT](https://www.emdat.be/) / [ACLED](https://acleddata.com/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
 | OpenCellID mobile coverage (planned) | [OpenCellID](https://www.opencellid.org/) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **175** | | |
+| **Total** | | **~7 GB** | | | | **176** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -55,21 +55,24 @@ Rows marked "↳" share Data/Source/Size/Modality with the row directly above (l
 | **Origin** | `UCSB-CHG/CHIRPS/DAILY` (Climate Hazards Center InfraRed Precipitation with Station data), via `earthengine-api`. |
 | **Produced by** | `src/apps/ghana/download_rainfall.py` |
 | **Motivation** | LEAP 1000 endline evaluation report, Table 4.2.7: drought (74% of communities, 2015–2017) and floods (57%) are the dominant self-reported community shocks in this exact sample. |
-| **Covariates extracted** | 6, all community-level `Z`: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` (2000–2014 climatology) + `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (realized annual rainfall, one column per study year, raw mm). |
-| **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017). |
+| **Covariates extracted** | 7, all community-level `Z`: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` (2000–2014 climatology) + `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (realized annual rainfall, one column per study year, raw mm) + `cdd_1517` (max consecutive dry days, whole study window). |
+| **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017) + full 2015–2017 daily series for `cdd_1517`. |
 
-No representation learning needed — CHIRPS is already a per-pixel numeric rainfall value, sampled directly at each community centroid (`reduceRegions`, no FM/SAE step). Two files, both feeding `Z` (see `external_data.py::load_effect_modifiers`):
+No representation learning needed — CHIRPS is already a per-pixel numeric rainfall value, sampled directly at each community centroid (`reduceRegions`, no FM/SAE step). Three files, all feeding `Z` (see `external_data.py::load_effect_modifiers`):
 
 | File | Years | Columns (per community) | Role |
 |---|---|---|---|
 | `rainfall/rainfall_climatology.csv` | 2000–2014 (pre-baseline) | 1 row × 3 cols: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` | Stable community traits → NEXIS `Z` effect-modifier candidates (`COMMUNITY_Z` in `data.py`) |
 | `rainfall/rainfall_annual.csv` | 2015–2017 (study window) | 3 rows × 1 col: `rainfall_mm` | Pivoted into `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (one column per year, raw mm, no z-scoring, no averaging) → also `Z` candidates |
+| `rainfall/rainfall_cdd.csv` | 2015–2017 (study window, daily) | 1 row × 1 col: `cdd_1517` | Max consecutive dry days over the whole window (a day counts as dry below `--dry-day-mm`, default 1.0mm) → also a `Z` candidate |
 
-Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%) over 2000–2014, vs. 1,014mm (2015) / 888mm (2016) / 860mm (2017) realized during the study window — i.e. this community's study period ran progressively drier than its historical norm.
+Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%) over 2000–2014, vs. 1,014mm (2015) / 888mm (2016) / 860mm (2017) realized during the study window — i.e. this community's study period ran progressively drier than its historical norm. `cdd_1517` = 134 days — a long but unsurprising dry stretch for a Northern Ghana community, whose Nov–Apr dry season alone typically spans 4-6 months.
 
-**Why the 3 annual columns are `Z` candidates despite overlapping the treatment period**: the test for whether a covariate can be a valid effect modifier is whether *treatment could have caused it*, not whether it was measured before treatment started (see the note above the summary table). A cash transfer cannot cause rainfall, so unlike a household covariate that receiving cash could genuinely change (e.g. business ownership), there's no post-treatment-bias risk in asking "did treatment help more in communities that got worse rainfall during the study" — that's exactly the sort of heterogeneity question NEXIS is built to test.
+**Why the annual and CDD columns are `Z` candidates despite overlapping the treatment period**: the test for whether a covariate can be a valid effect modifier is whether *treatment could have caused it*, not whether it was measured before treatment started (see the note above the summary table). A cash transfer cannot cause rainfall, so unlike a household covariate that receiving cash could genuinely change (e.g. business ownership), there's no post-treatment-bias risk in asking "did treatment help more in communities that got worse rainfall during the study" — that's exactly the sort of heterogeneity question NEXIS is built to test.
 
-**Why 3 separate columns rather than one averaged scalar**: the 3 realized years are anti-correlated with each other (2016 correlates −0.66 with 2015 and −0.52 with 2017), so averaging them would mostly cancel out real year-to-year signal rather than summarize it. Keeping them separate also means each behaves like every other `Z` feature — one number per community, no per-wave attachment needed — while still letting NEXIS's own selection decide which year(s), if any, matter.
+**Why 3 separate annual columns rather than one averaged scalar**: the 3 realized years are anti-correlated with each other (2016 correlates −0.66 with 2015 and −0.52 with 2017), so averaging them would mostly cancel out real year-to-year signal rather than summarize it. Keeping them separate also means each behaves like every other `Z` feature — one number per community, no per-wave attachment needed — while still letting NEXIS's own selection decide which year(s), if any, matter.
+
+**Why CDD in addition to the annual totals**: two communities can have identical yearly rainfall totals with very different agricultural outcomes if one had a damaging mid-season dry spell and the other's rain was evenly distributed — the total alone can't distinguish them, but the longest dry spell can. **Why one whole-window value (`cdd_1517`) rather than per calendar year**: a calendar-year split is agronomically arbitrary — growing seasons don't align with Jan 1 — and would understate a real drought straddling a year boundary (e.g. Nov 2016–Jan 2017) by resetting the streak at Dec 31. One whole-window value also keeps the covariate count down rather than adding 3 more correlated columns for NEXIS to search over.
 
 ## Planned / candidate future sources
 

@@ -1,6 +1,6 @@
 """Download CHIRPS rainfall exposure for Ghana LEAP 1000 community centroids.
 
-Produces two files, both feeding NEXIS Z effect-modifier candidates (see
+Produces three files, all feeding NEXIS Z effect-modifier candidates (see
 external_data.py::load_effect_modifiers):
 
   1. rainfall_climatology.csv — mean/std annual rainfall and drought
@@ -17,6 +17,16 @@ external_data.py::load_effect_modifiers):
      transfer cannot cause rainfall, so there's no post-treatment-bias risk
      here, unlike a household covariate the transfer could itself change.
 
+  3. rainfall_cdd.csv — cdd_1517, max consecutive dry days (CDD, a day
+     counts as dry below `--dry-day-mm`) over the whole 2015-2017 window.
+     A standard drought-severity index that a raw annual total can mask
+     (two communities can have identical yearly rainfall with very
+     different mid-season dry-spell exposure). Computed once over the full
+     window rather than per calendar year: a calendar-year split is
+     agronomically arbitrary (growing seasons don't align with Jan 1
+     anyway) and would understate a drought straddling a year boundary
+     (e.g. Nov 2016-Jan 2017) by resetting the streak at Dec 31.
+
 Setup (one-time, same as download_satellite_images.py):
     pip install earthengine-api
     earthengine authenticate --auth_mode notebook
@@ -27,6 +37,7 @@ Usage:
                                 [--climatology-start 2000]
                                 [--climatology-end 2014]
                                 [--study-years 2015 2016 2017]
+                                [--dry-day-mm 1.0]
                                 [--scale 5566]
                                 [--dry-run]
 """
@@ -65,6 +76,10 @@ def parse_args():
     p.add_argument('--drought-z-threshold', type=float, default=-1.0,
                    help='Z-score below which a climatology year counts as a drought year '
                         '(default: -1.0, i.e. 1 std below the community mean)')
+    p.add_argument('--dry-day-mm', type=float, default=1.0,
+                   help='Daily rainfall (mm) below which a day counts as dry, for the '
+                        'consecutive-dry-day (CDD) columns (default: 1.0, the standard '
+                        'WMO dry-day threshold)')
     p.add_argument('--scale', type=int, default=CHIRPS_NATIVE_SCALE_M,
                    help=f'Sampling resolution in metres (default: {CHIRPS_NATIVE_SCALE_M} = CHIRPS native)')
     p.add_argument('--dry-run', action='store_true',
@@ -123,6 +138,50 @@ def annual_rainfall_by_community(fc, year: int, scale: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def daily_precip_by_community(fc, start_date: str, end_date: str, scale: int) -> pd.DataFrame:
+    """Per-day CHIRPS rainfall (mm) for each community, long format (comm, date, rainfall_mm).
+
+    Stacks the whole date range into one multi-band image (one band per day)
+    so a single reduceRegions call returns the full daily series per
+    community, rather than one Earth Engine call per day.
+    """
+    import ee
+    coll = (
+        ee.ImageCollection(CHIRPS_COLLECTION)
+          .filterDate(start_date, end_date)
+          .select('precipitation')
+    )
+    stacked    = coll.toBands()
+    band_names = stacked.bandNames().getInfo()
+    reduced = stacked.reduceRegions(
+        collection=fc, reducer=ee.Reducer.mean(), scale=scale,
+    ).getInfo()
+    rows = []
+    for f in reduced['features']:
+        comm = f['properties']['comm_id']
+        for band in band_names:
+            date = band.split('_')[0]  # CHIRPS daily band ids are 'YYYYMMDD_precipitation'
+            rows.append({
+                'comm': comm,
+                'date': pd.to_datetime(date, format='%Y%m%d'),
+                'rainfall_mm': f['properties'].get(band),
+            })
+    return pd.DataFrame(rows)
+
+
+def max_consecutive_dry_days(daily: pd.DataFrame, dry_day_mm: float) -> pd.DataFrame:
+    """Longest run of consecutive dry days (rainfall_mm < dry_day_mm) per community.
+
+    Spans the whole date range in `daily` with no reset at year boundaries,
+    so a drought straddling Dec 31 counts as one continuous streak.
+    """
+    daily = daily.sort_values(['comm', 'date']).reset_index(drop=True)
+    is_dry  = daily['rainfall_mm'] < dry_day_mm
+    wet_run  = (~is_dry).groupby(daily['comm']).cumsum()
+    run_len  = is_dry.groupby([daily['comm'], wet_run]).cumsum()
+    return run_len.groupby(daily['comm']).max().rename('cdd').reset_index()
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -140,12 +199,15 @@ def main():
         log(f"  Climatology years: {climatology_years[0]}-{climatology_years[-1]} "
             f"({len(climatology_years)} years, pre-2015 baseline)")
         log(f"  Study years:       {args.study_years}")
-        log(f"  Scale: {args.scale} m  |  Drought z-threshold: {args.drought_z_threshold}")
+        log(f"  Scale: {args.scale} m  |  Drought z-threshold: {args.drought_z_threshold}  "
+            f"|  Dry-day threshold: {args.dry_day_mm} mm")
         log(f"  Output: {out_dir}")
         log(f"    - rainfall_climatology.csv  (comm, rainfall_mean_pre2015, "
             f"rainfall_std_pre2015, drought_freq_pre2015)  → NEXIS Z effect-modifier candidates")
         log(f"    - rainfall_annual.csv       (comm, year, rainfall_mm)  "
             f"→ pivoted into rainfall_2015/2016/2017, also Z effect-modifier candidates")
+        log(f"    - rainfall_cdd.csv          (comm, cdd_1517)  "
+            f"→ max consecutive dry days over the whole study window, also a Z candidate")
         for _, row in centroids.iterrows():
             log(f"  comm{int(row.comm_id):04d}  lat={row.lat:.4f}  lon={row.lon:.4f}")
         return
@@ -198,6 +260,18 @@ def main():
     annual_path = out_dir / 'rainfall_annual.csv'
     annual.to_csv(annual_path, index=False)
     log(f"Wrote {annual_path}  ({len(annual)} rows)")
+
+    study_start = f'{args.study_years[0]}-01-01'
+    study_end   = f'{args.study_years[-1] + 1}-01-01'  # filterDate end is exclusive
+    log(f"\nFetching daily CHIRPS series {study_start} to {study_end} "
+        f"for consecutive-dry-day (CDD, <{args.dry_day_mm}mm) counts …")
+    daily = daily_precip_by_community(fc, study_start, study_end, args.scale)
+    log(f"  {daily['rainfall_mm'].notna().sum()}/{len(daily)} community-days OK")
+
+    cdd = max_consecutive_dry_days(daily, args.dry_day_mm).rename(columns={'cdd': 'cdd_1517'})
+    cdd_path = out_dir / 'rainfall_cdd.csv'
+    cdd.to_csv(cdd_path, index=False)
+    log(f"Wrote {cdd_path}  ({len(cdd)} communities)")
 
 
 if __name__ == '__main__':
