@@ -44,13 +44,23 @@ def load_did_controls(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     Returns a DataFrame indexed by (`comm`, `year`). NOT a source of NEXIS Z
     moderators — pass column names to analysis.py::regression_did(controls=...)
     after merging on comm + year->wave.
+
+    `rainfall_anomaly_1517_mean` is constant across all 3 rows for a given
+    `comm` (mean over 2015/2016/2017) — the household panel has no 2016 wave
+    to attach a per-year 2016 value to, so this is how 2016's realized
+    rainfall still gets used rather than sitting unused in the CSV.
     """
     data_dir = Path(data_dir)
-    columns = ['rainfall_mm', 'rainfall_anomaly']
+    columns = ['rainfall_mm', 'rainfall_anomaly', 'rainfall_anomaly_1517_mean']
 
     rainfall_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
     if rainfall_path.exists():
-        return pd.read_csv(rainfall_path)[['comm', 'year', *columns]]
+        rainfall = pd.read_csv(rainfall_path)[['comm', 'year', 'rainfall_mm', 'rainfall_anomaly']]
+        study_mean = (
+            rainfall.groupby('comm')['rainfall_anomaly'].mean()
+            .rename('rainfall_anomaly_1517_mean').reset_index()
+        )
+        return rainfall.merge(study_mean, on='comm')[['comm', 'year', *columns]]
     # rainfall not yet downloaded (run download_rainfall.py) — callers still
     # see the expected columns, filled with NaN, rather than a KeyError.
     return pd.DataFrame(columns=['comm', 'year', *columns]).astype(
