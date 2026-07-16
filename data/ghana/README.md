@@ -7,7 +7,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | Data | Source | Size | Modality | Level | Raw columns | Covariates extracted | Years | Status |
 |---|---|---|---|---|---|---|---|---|
 | [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | UNICEF Ghana (proprietary, not public) | 83 KB | Tabular survey | Household | 30 | 24 = 20 raw + 4 derived | 2015 | ✅ |
-| ↳ | | | | Community | | 2 derived | Static | ✅ |
+| ↳ | | | | Community | | 2 derived | 2015 | ✅ |
 | [Satellite imagery](#satellite-imagery-landsat-8-via-google-earth-engine) | [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2) (USGS/NASA), via Google Earth Engine | ~7 GB | Imagery (6-band) | Community | 6 bands/tile (166×166 px) | 143 (131 neurons representation + 12 spectral indices) | 2015 | ✅ |
 | [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Tabular climate | Community | 1 (daily precip., aggregated to annual) | 3 (average, volatility rainfall, drought frequency) | 2000–2014 | ✅ |
 | ↳ | | | | Community | | 3 (annual rainfall) | 2015–2017 | ✅ |
