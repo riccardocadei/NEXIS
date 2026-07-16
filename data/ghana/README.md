@@ -6,16 +6,16 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 
 | Source | Modality | Level | Raw columns | Covariates extracted | Years | Size | Status |
 |---|---|---|---|---|---|---|---|
-| [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | Tabular survey | Household (+ 2 engineered at community level) | 30 | 26 (24 household `W` + 2 community `Z`) | 2015, 2017 | 83 KB | ✅ |
-| [Satellite imagery (Landsat 8)](#satellite-imagery-landsat-8-via-google-earth-engine) | Imagery (6-band) | Community | 6 bands/tile | 143 (131 SAE neurons + 12 spectral indices) | 2015 | ~7 GB | ✅ |
-| [Rainfall / drought exposure (CHIRPS)](#rainfall--drought-exposure-chirps-via-google-earth-engine) | Tabular climate | Community | 1 (daily precip.) | 5 (3 `Z` + 2 DiD control) | 2000–2017 | <1 MB | ✅ |
-| Market access (planned) | Tabular / raster point value | Community | — | — | — | ⏳ |
-| EM-DAT / ACLED events (planned) | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
-| OpenCellID mobile coverage (planned) | Tabular / raster point value | Community | — | — | — | ⏳ |
-| Community questionnaire microdata (requested) | Tabular survey | Community | — | — | — | ⏳ |
-| **Total (downloaded sources)** | | | | **174** | | **~7 GB** | |
+| [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | Tabular survey | Household and community | 30 | 26 = 24H + 2C = 20 raw + 6 derived | 2015, 2017 | 83 KB | ✅ |
+| [Satellite imagery (Landsat 8)](#satellite-imagery-landsat-8-via-google-earth-engine) | Imagery (6-band) | Community | 6 bands/tile (166×166 px) | 143 (131 SAE neurons + 12 spectral indices) | 2015 | ~7 GB | ✅ |
+| [Rainfall / drought exposure (CHIRPS)](#rainfall--drought-exposure-chirps-via-google-earth-engine) | Tabular climate | Community | 1 (daily precip.) | 5 = 3 Z + 2 DiD control (`rainfall_mm`, `rainfall_anomaly`) | 2000–2017 | <1 MB | ✅ |
+| Market access (planned) | Tabular / raster point value | Community | — | — | — | — | ⏳ |
+| EM-DAT / ACLED events (planned) | Tabular event records | Community or district (TBD) | — | — | — | — | ⏳ |
+| OpenCellID mobile coverage (planned) | Tabular / raster point value | Community | — | — | — | — | ⏳ |
+| Community questionnaire microdata (requested) | Tabular survey | Community | — | — | — | — | ⏳ |
+| **Total** | | | | **174** | | **~7 GB** | |
 
-"Level" is the unit each source's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level source; no source here operates at an individual-within-household or region level today). "Raw columns" is the source's native dimensionality (survey columns, imagery bands, the one CHIRPS variable); "Covariates extracted" is how many end up in the analysis (`W` and/or `Z`, or a DiD control) after processing. Only satellite imagery needs a representation-learning step (foundation-model embedding + SAE) to go from raw to extracted — every other source is already numeric per community and plugs in directly. See per-source sections below for the breakdown, and [Extra](#extra-administrative-boundaries--basemaps-plotting-only) for the non-analytical cartographic files (region/district-level boundaries, used only for map plotting).
+"Level" is the unit each source's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level source; no source here operates at an individual-within-household or region level today). "Raw columns" is the source's native dimensionality (survey columns, imagery bands, the one CHIRPS variable); "Covariates extracted" is how many end up in the analysis (`W` and/or `Z`, or a DiD control) after processing, broken down as raw-carried-through vs. derived/engineered where that distinction is meaningful. Only satellite imagery needs a representation-learning step (foundation-model embedding + SAE) to go from raw to extracted — every other source is already numeric per community and plugs in directly. See per-source sections below for the full breakdown, and [Extra](#extra-administrative-boundaries--basemaps-plotting-only) for the non-analytical cartographic files (region/district-level boundaries, used only for map plotting).
 
 ## LEAP-1000 household survey (core, restricted)
 
@@ -27,7 +27,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | **Years** | 2 waves — Baseline 2015 (n=2,497), Endline 2017 (n=2,331). |
 | **Size** | 4,828 rows × 30 columns, 83 KB. 162 communities. |
 | **Description** | Household panel: PMT eligibility score, treatment status, adult-equivalent expenditure, demographics, housing, livelihoods. See `variable_description.csv` for the full column dictionary. |
-| **Covariates extracted** | 26 total: 24 household-level `W` (20 raw survey + 4 engineered — `livelihood_diversity`, `dependency_ratio`, `rooms_per_person`, `housing_depriv`) + 2 community-level `Z` (`dist_to_capital_km`, `comm_size`, both derived from GPS/`hhid`). |
+| **Covariates extracted** | 26 = 24H + 2C = 20 raw + 6 derived. 24 household-level `W`: 20 raw survey columns + 4 engineered (`livelihood_diversity`, `dependency_ratio`, `rooms_per_person`, `housing_depriv`). 2 community-level `Z`: `dist_to_capital_km`, `comm_size` — both engineered, from GPS/`hhid`, not raw survey columns. |
 | **Known caveat** | `pmtscore` is the eligibility/targeting score (RDD running variable) — do not use as an outcome or NEXIS effect modifier (near-perfect separation between arms by construction). |
 | **Reference reports** | `LEAP-1000_Baseline-Survey_2015.pdf`, `Ghana-LEAP-1000-Endline-Household-Survey-v8.pdf` — full UNICEF/ISSER/UNC endline evaluation report (June 2018), used for context (e.g. Table 4.2.7 "Shocks in the community" motivated the rainfall covariate below). |
 
@@ -37,7 +37,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 |---|---|
 | **Origin** | `LANDSAT/LC08/C02/T1_L2` (USGS Collection 2, Surface Reflectance), pulled via `earthengine-api`. |
 | **Produced by** | `src/apps/ghana/download_satellite_images.py` (162 LEAP community tiles, 2015) and `download_national_grid.py` (9,592-tile national grid, used as the SAE training corpus). |
-| **Coverage** | 5×5 km, 30 m/px, 6 bands (blue/green/red/NIR/SWIR-1/SWIR-2), cloud-filtered annual median composite, per community centroid. |
+| **Coverage** | 5×5 km tile (166×166 px at 30 m/px), 6 bands (blue/green/red/NIR/SWIR-1/SWIR-2), cloud-filtered annual median composite, per community centroid. |
 | **Size** | ~7 GB total across both tile sets. |
 | **Covariates extracted** | 143: 131 SAE neuron activations + 12 spectral indices, all community-level `Z`. |
 | **Status** | ✅ complete for 2015. |
