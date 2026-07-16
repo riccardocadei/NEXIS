@@ -767,7 +767,7 @@ def _load_nexis_inputs(min_activations: int = 10):
     W_NAMES = [W_LABELS.get(c, c) for c in W_ALL]
     cluster      = merged["comm"].values                             # community IDs for CRVE
     spectral_hh  = merged[SPECTRAL_COLS].values.astype(float)       # (n_hh, n_spectral)
-    community_hh = merged[COMMUNITY_Z].values.astype(float)         # (n_hh, 2) community-level
+    community_hh = merged[COMMUNITY_Z].values.astype(float)         # (n_hh, len(COMMUNITY_Z)) community-level
 
     # Load SAE checkpoint + whitening
     ckpt    = torch.load(SAT_DIR / "sae_model.pt", map_location="cpu", weights_only=False)

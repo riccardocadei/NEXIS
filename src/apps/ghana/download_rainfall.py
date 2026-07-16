@@ -11,11 +11,11 @@ external_data.py::load_effect_modifiers):
      downstream, only the resulting frequency.
 
   2. rainfall_annual.csv — realized annual rainfall (raw mm, no z-scoring)
-     for the study years (2015-2017). Averaged into rainfall_mean_1517
-     downstream. Legitimate as an effect modifier despite overlapping the
-     treatment period: a cash transfer cannot cause rainfall, so there's no
-     post-treatment-bias risk here, unlike a household covariate the
-     transfer could itself change.
+     for the study years (2015-2017). Kept as 3 separate downstream columns
+     (rainfall_2015/2016/2017), not averaged into one scalar. Legitimate as
+     an effect modifier despite overlapping the treatment period: a cash
+     transfer cannot cause rainfall, so there's no post-treatment-bias risk
+     here, unlike a household covariate the transfer could itself change.
 
 Setup (one-time, same as download_satellite_images.py):
     pip install earthengine-api
@@ -145,7 +145,7 @@ def main():
         log(f"    - rainfall_climatology.csv  (comm, rainfall_mean_pre2015, "
             f"rainfall_std_pre2015, drought_freq_pre2015)  → NEXIS Z effect-modifier candidates")
         log(f"    - rainfall_annual.csv       (comm, year, rainfall_mm)  "
-            f"→ averaged into rainfall_mean_1517, also a Z effect-modifier candidate")
+            f"→ pivoted into rainfall_2015/2016/2017, also Z effect-modifier candidates")
         for _, row in centroids.iterrows():
             log(f"  comm{int(row.comm_id):04d}  lat={row.lat:.4f}  lon={row.lon:.4f}")
         return

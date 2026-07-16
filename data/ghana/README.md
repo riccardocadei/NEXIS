@@ -9,13 +9,13 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | UNICEF Ghana (proprietary, not public) | 83 KB | Tabular survey | Household | 30 | 24 = 20 raw + 4 derived | 2015 | ✅ |
 | ↳ | | | | Community | | 2 derived | 2015 | ✅ |
 | [Satellite imagery](#satellite-imagery-landsat-8-via-google-earth-engine) | [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2) (USGS/NASA), via Google Earth Engine | ~7 GB | Imagery (6-band) | Community | 6 bands/tile (166×166 px) | 143 (131 neurons representation + 12 spectral indices) | 2015 | ✅ |
-| [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Tabular climate | Community | 5,479 daily precipitation values | 3 (average, volatility rainfall, drought frequency) | 2000–2014 | ✅ |
-| ↳ | | | | Community | 1,096 daily precipitation values | 1 (average rainfall) | 2015–2017 | ✅ |
+| [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Tabular climate | Community | 5,479 daily precipitation values | 3 (average rainfall, rainfall volatility, drought frequency) | 2000–2014 | ✅ |
+| ↳ | | | | Community | 1,096 daily precipitation values | 3 (annual rainfall, one per study year) | 2015–2017 | ✅ |
 | Market access (planned) | e.g. [Malaria Atlas Project](https://malariaatlas.org/) accessibility layers (TBD) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
 | EM-DAT / ACLED events (planned) | [EM-DAT](https://www.emdat.be/) / [ACLED](https://acleddata.com/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
 | OpenCellID mobile coverage (planned) | [OpenCellID](https://www.opencellid.org/) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **173** | | |
+| **Total** | | **~7 GB** | | | | **175** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -55,7 +55,7 @@ Rows marked "↳" share Data/Source/Size/Modality with the row directly above (l
 | **Origin** | `UCSB-CHG/CHIRPS/DAILY` (Climate Hazards Center InfraRed Precipitation with Station data), via `earthengine-api`. |
 | **Produced by** | `src/apps/ghana/download_rainfall.py` |
 | **Motivation** | LEAP 1000 endline evaluation report, Table 4.2.7: drought (74% of communities, 2015–2017) and floods (57%) are the dominant self-reported community shocks in this exact sample. |
-| **Covariates extracted** | 4, all community-level `Z`: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` (2000–2014 climatology) + `rainfall_mean_1517` (2015–2017 study-window average, raw mm). |
+| **Covariates extracted** | 6, all community-level `Z`: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` (2000–2014 climatology) + `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (realized annual rainfall, one column per study year, raw mm). |
 | **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017). |
 
 No representation learning needed — CHIRPS is already a per-pixel numeric rainfall value, sampled directly at each community centroid (`reduceRegions`, no FM/SAE step). Two files, both feeding `Z` (see `external_data.py::load_effect_modifiers`):
@@ -63,11 +63,13 @@ No representation learning needed — CHIRPS is already a per-pixel numeric rain
 | File | Years | Columns (per community) | Role |
 |---|---|---|---|
 | `rainfall/rainfall_climatology.csv` | 2000–2014 (pre-baseline) | 1 row × 3 cols: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` | Stable community traits → NEXIS `Z` effect-modifier candidates (`COMMUNITY_Z` in `data.py`) |
-| `rainfall/rainfall_annual.csv` | 2015–2017 (study window) | 3 rows × 1 col: `rainfall_mm` | Averaged across all 3 realized years into `rainfall_mean_1517` (one scalar per community, raw mm, no z-scoring) → also a `Z` candidate |
+| `rainfall/rainfall_annual.csv` | 2015–2017 (study window) | 3 rows × 1 col: `rainfall_mm` | Pivoted into `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (one column per year, raw mm, no z-scoring, no averaging) → also `Z` candidates |
 
-Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%) over 2000–2014, vs. `rainfall_mean_1517` = 921mm/yr over 2015–2017 — i.e. this community's study period ran somewhat drier than its historical norm.
+Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%) over 2000–2014, vs. 1,014mm (2015) / 888mm (2016) / 860mm (2017) realized during the study window — i.e. this community's study period ran progressively drier than its historical norm.
 
-**Why `rainfall_mean_1517` is a `Z` candidate despite overlapping the treatment period**: the test for whether a covariate can be a valid effect modifier is whether *treatment could have caused it*, not whether it was measured before treatment started (see the note above the summary table). A cash transfer cannot cause rainfall, so unlike a household covariate that receiving cash could genuinely change (e.g. business ownership), there's no post-treatment-bias risk in asking "did treatment help more in communities that got worse rainfall during the study" — that's exactly the sort of heterogeneity question NEXIS is built to test. This also means there's no need for `rainfall_mean_1517` to attach per-wave (a different value for a household's baseline vs. endline row) — like every other `Z` feature, it's one number per community.
+**Why the 3 annual columns are `Z` candidates despite overlapping the treatment period**: the test for whether a covariate can be a valid effect modifier is whether *treatment could have caused it*, not whether it was measured before treatment started (see the note above the summary table). A cash transfer cannot cause rainfall, so unlike a household covariate that receiving cash could genuinely change (e.g. business ownership), there's no post-treatment-bias risk in asking "did treatment help more in communities that got worse rainfall during the study" — that's exactly the sort of heterogeneity question NEXIS is built to test.
+
+**Why 3 separate columns rather than one averaged scalar**: the 3 realized years are anti-correlated with each other (2016 correlates −0.66 with 2015 and −0.52 with 2017), so averaging them would mostly cancel out real year-to-year signal rather than summarize it. Keeping them separate also means each behaves like every other `Z` feature — one number per community, no per-wave attachment needed — while still letting NEXIS's own selection decide which year(s), if any, matter.
 
 ## Planned / candidate future sources
 

@@ -29,19 +29,23 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     sources with `.merge(other_df, on='comm', how='outer')` and append their
     column name(s) to COMMUNITY_Z in data.py.
 
-    Rainfall contributes 4 columns, all raw mm (no z-scoring):
+    Rainfall contributes 6 columns, all raw mm (no z-scoring):
       - rainfall_mean_pre2015, rainfall_std_pre2015, drought_freq_pre2015:
         climatology (2000-2014, strictly pre-baseline).
-      - rainfall_mean_1517: average annual rainfall during the study window
-        itself (2015-2017). Legitimate as an effect modifier despite
-        overlapping the treatment period — the cash transfer cannot cause
-        rainfall, so there's no post-treatment-bias risk, unlike a household
-        covariate that could genuinely be changed by receiving the transfer.
+      - rainfall_2015, rainfall_2016, rainfall_2017: the 3 realized annual
+        totals during the study window itself, kept separate rather than
+        averaged into one scalar (2016 correlates -0.66 with 2015 and -0.52
+        with 2017, so a mean would mostly cancel out real year-to-year
+        signal). Legitimate as effect modifiers despite overlapping the
+        treatment period — the cash transfer cannot cause rainfall, so
+        there's no post-treatment-bias risk, unlike a household covariate
+        that could genuinely be changed by receiving the transfer.
     """
     data_dir = Path(data_dir)
+    annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
     out_columns = [
         'rainfall_mean_pre2015', 'rainfall_std_pre2015', 'drought_freq_pre2015',
-        'rainfall_mean_1517',
+        *annual_columns,
     ]
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
@@ -50,11 +54,12 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         climatology = pd.read_csv(climatology_path)[
             ['comm', 'rainfall_mean_pre2015', 'rainfall_std_pre2015', 'drought_freq_pre2015']
         ]
-        study_mean = (
-            pd.read_csv(annual_path).groupby('comm')['rainfall_mm'].mean()
-            .rename('rainfall_mean_1517').reset_index()
+        annual_wide = (
+            pd.read_csv(annual_path).pivot(index='comm', columns='year', values='rainfall_mm')
+            .rename(columns={2015: 'rainfall_2015', 2016: 'rainfall_2016', 2017: 'rainfall_2017'})
+            .reset_index()
         )
-        return climatology.merge(study_mean, on='comm')[['comm', *out_columns]]
+        return climatology.merge(annual_wide, on='comm')[['comm', *out_columns]]
     # rainfall not yet downloaded (run download_rainfall.py) — callers still
     # see the expected columns, filled with NaN, rather than a KeyError.
     return pd.DataFrame(columns=['comm', *out_columns]).astype({'comm': 'int64'})

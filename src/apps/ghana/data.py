@@ -43,7 +43,9 @@ COMMUNITY_Z = [
     'rainfall_mean_pre2015',
     'rainfall_std_pre2015',
     'drought_freq_pre2015',
-    'rainfall_mean_1517',
+    'rainfall_2015',
+    'rainfall_2016',
+    'rainfall_2017',
 ]
 
 W_ALL = NUMERIC_W + BINARY_W + ENGINEERED_W
@@ -79,7 +81,9 @@ W_LABELS: dict[str, str] = {
     'drought_freq_pre2015': 'Drought frequency, 2000–2014 (share of years)',
     'rainfall_mean_pre2015': 'Mean annual rainfall, 2000–2014 (mm)',
     'rainfall_std_pre2015': 'Std. annual rainfall, 2000–2014 (mm)',
-    'rainfall_mean_1517':   'Mean annual rainfall, 2015–2017 (mm)',
+    'rainfall_2015':        'Annual rainfall, 2015 (mm)',
+    'rainfall_2016':        'Annual rainfall, 2016 (mm)',
+    'rainfall_2017':        'Annual rainfall, 2017 (mm)',
 }
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────
