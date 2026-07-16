@@ -26,29 +26,39 @@ def naive_did(df: pd.DataFrame, outcome: str = 'Y') -> pd.DataFrame:
 # ── Regression DiD (OLS with HC1 SEs) ────────────────────────────────────────
 
 def regression_did(df: pd.DataFrame, outcome: str = 'Y',
-                   cluster: str | None = 'comm') -> pd.DataFrame:
-    """OLS DiD: Y = α + β₁·T + β₂·wave + δ·(T×wave) + ε.
+                   cluster: str | None = 'comm',
+                   controls: list[str] | None = None) -> pd.DataFrame:
+    """OLS DiD: Y = α + β₁·T + β₂·wave + δ·(T×wave) + Σγⱼ·controlⱼ + ε.
 
     Returns a DataFrame with Coef, SE, t-stat, and 95% CI.
     Under the parallel trends assumption, δ = DiD = ITT.
 
     Parameters
     ----------
-    cluster : column name to use for cluster-robust variance estimation, or
-              None to fall back to HC1.  Defaults to 'comm' (162 communities),
-              which gives far more reliable cluster SEs than the 5 available
-              districts.  Note: comm mixes T and C households so it is not the
-              exact randomisation unit, but geographic clustering is still the
-              right correction for spatial correlation in residuals.
+    cluster  : column name to use for cluster-robust variance estimation, or
+               None to fall back to HC1.  Defaults to 'comm' (162 communities),
+               which gives far more reliable cluster SEs than the 5 available
+               districts.  Note: comm mixes T and C households so it is not the
+               exact randomisation unit, but geographic clustering is still the
+               right correction for spatial correlation in residuals.
+    controls : optional extra regressor column names (e.g. ['rainfall_anomaly'])
+               added alongside T, wave, T×wave, as a DiD robustness check —
+               use this to test whether δ is stable once a time-varying,
+               study-window shock is netted out. This is NOT how effect
+               modifiers are searched (that's NEXIS over COMMUNITY_Z); a
+               robustness control here answers a different question than a Z
+               moderator. See external_data.py / notebooks/ghana.ipynb.
     """
-    cols = ['T', 'wave', outcome] + ([cluster] if cluster else [])
+    controls = controls or []
+    cols = ['T', 'wave', outcome] + controls + ([cluster] if cluster else [])
     sub  = df.dropna(subset=cols).copy()
     y    = sub[outcome].values
     T    = sub['T'].values
     w    = sub['wave'].values
     D    = T * w  # DiD indicator
 
-    X = np.column_stack([np.ones(len(y)), T, w, D])
+    control_cols = [sub[c].values for c in controls]
+    X = np.column_stack([np.ones(len(y)), T, w, D, *control_cols])
     n, k = X.shape
 
     XtXi = np.linalg.inv(X.T @ X)
@@ -85,7 +95,7 @@ def regression_did(df: pd.DataFrame, outcome: str = 'Y',
         'T          (arm difference at baseline)',
         'wave       (common time trend)',
         'T × wave   (DiD = ITT estimate)',
-    ]
+    ] + controls
     return pd.DataFrame({
         'Coef':      beta,
         se_label:    se,

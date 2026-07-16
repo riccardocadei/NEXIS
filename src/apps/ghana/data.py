@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from external_data import load_did_controls, load_effect_modifiers
+
 DATA_DIR = Path('../data/ghana')
 
 # ── Covariate groups ──────────────────────────────────────────────────────────
@@ -28,9 +30,15 @@ ENGINEERED_W = [
 ]
 
 # Community-level features — go into Z alongside SAE neurons and spectral indices
+#
+# Only stable, pre-treatment community traits belong here (see
+# external_data.py::load_effect_modifiers) — a covariate realized *during* the
+# study window (e.g. a specific year's rainfall shock) is a DiD robustness
+# control, not an effect-modifier candidate. See notebooks/ghana.ipynb.
 COMMUNITY_Z = [
     'dist_to_capital_km',
     'comm_size',
+    'drought_freq_pre2015',
 ]
 
 W_ALL = NUMERIC_W + BINARY_W + ENGINEERED_W
@@ -63,6 +71,10 @@ W_LABELS: dict[str, str] = {
     'housing_depriv':       'Housing deprivation index',
     'dist_to_capital_km':   'Distance to district capital (km)',
     'comm_size':            'Community size',
+    'drought_freq_pre2015': 'Drought frequency, 2000–2014 (share of years)',
+    'rainfall_mean_pre2015': 'Mean annual rainfall, 2000–2014 (mm)',
+    'rainfall_std_pre2015': 'Std. annual rainfall, 2000–2014 (mm)',
+    'rainfall_anomaly':     'Rainfall anomaly, study year (z-score vs. 2000–2014)',
 }
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────
@@ -176,5 +188,19 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
 
     # Number of unique sampled households per community (proxy for community size)
     df['comm_size'] = df.groupby('comm')['hhid'].transform('nunique')
+
+    # ── External effect modifiers (stable, pre-treatment traits) ─────────────
+    # See external_data.py — merged on comm only, one row per community.
+    df = df.merge(load_effect_modifiers(Path(data_dir)), on='comm', how='left')
+
+    # ── External DiD controls (time-varying, study-window 2015-2017 shocks) ──
+    # NOT effect modifiers — see COMMUNITY_Z docstring above. Merged on
+    # comm + the survey year implied by wave (0 -> 2015, 1 -> 2017).
+    df['_survey_year'] = df['wave'].map({0: 2015, 1: 2017})
+    df = df.merge(
+        load_did_controls(Path(data_dir)),
+        left_on=['comm', '_survey_year'], right_on=['comm', 'year'], how='left',
+    )
+    df = df.drop(columns=['_survey_year', 'year'], errors='ignore')
 
     return df
