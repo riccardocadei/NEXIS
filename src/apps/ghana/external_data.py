@@ -13,7 +13,8 @@ cannot cause rainfall — so there's no separate "control-only" lane here.
 Add one column-producing block per source to this function rather than
 inventing new merge logic per source. Rainfall (CHIRPS, via
 download_rainfall.py) is the first source; market access (travel time to
-cities, via download_market_access.py) is the second.
+cities, via download_market_access.py) is the second; conflict/protest
+events (ACLED, via download_acled.py) are the third.
 
 Mobile-network coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
 both explored and rejected — see data/ghana/README.md's "Explored and
@@ -68,6 +69,21 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         snapshots (see the "Explored and rejected" note below). A cash
         transfer cannot build roads or move cities, so this is exogenous
         regardless of timing, same test as rainfall.
+
+    ACLED contributes 3 columns (see download_acled.py), from the full
+    Ghana event-level export for 2015-2017 (the study window itself —
+    genuinely dated historical events, not a present-day snapshot, so no
+    temporal-mismatch risk the way OpenCellID/Ookla had):
+      - dist_nearest_conflict_km: distance to the nearest event of any
+        type, always defined (uncapped by radius).
+      - political_violence_25km: count of Battles/Violence-against-
+        civilians within 25km — exposure most directly relevant to
+        household welfare/safety.
+      - demonstrations_25km: count of Riots/Protests within 25km — civil
+        unrest, a qualitatively different exposure than political violence.
+      A household-level cash transfer cannot cause a riot or a battle, so
+      this is a valid community-level covariate despite overlapping the
+      treatment period, same test as rainfall's study-window columns.
     """
     data_dir = Path(data_dir)
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
@@ -76,6 +92,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         *annual_columns, 'cdd_1517',
     ]
     market_access_columns = ['travel_time_to_city_min']
+    acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -104,5 +121,17 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         # convention as rainfall above.
         market_access = pd.DataFrame(columns=['comm', *market_access_columns])
 
-    merged = rainfall.merge(market_access, on='comm', how='outer').astype({'comm': 'int64'})
-    return merged[['comm', *rainfall_columns, *market_access_columns]]
+    acled_path = data_dir / 'conflicts' / 'acled_community.csv'
+    if acled_path.exists():
+        acled = pd.read_csv(acled_path)[['comm', *acled_columns]]
+    else:
+        # not yet processed (run download_acled.py) — same NaN-fill
+        # convention as rainfall/market access above.
+        acled = pd.DataFrame(columns=['comm', *acled_columns])
+
+    merged = (
+        rainfall.merge(market_access, on='comm', how='outer')
+                .merge(acled, on='comm', how='outer')
+                .astype({'comm': 'int64'})
+    )
+    return merged[['comm', *rainfall_columns, *market_access_columns, *acled_columns]]

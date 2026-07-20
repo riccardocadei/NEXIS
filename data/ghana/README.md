@@ -12,10 +12,11 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Tabular climate | Community | 5,479 daily precipitation values | 3 (average rainfall, rainfall volatility, drought frequency) | 2000–2014 | ✅ |
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
 | [Market access](#market-access-travel-time-to-cities-2015-malaria-atlas-project) | [Malaria Atlas Project](https://malariaatlas.org/) — Weiss et al. 2018 (Nature) | 662 KB (Ghana-clipped raster) | Raster point value | Community | 1 (travel time, minutes) | 1 | 2015 | ✅ |
-| EM-DAT / ACLED events (planned) | [EM-DAT](https://www.emdat.be/) / [ACLED](https://acleddata.com/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
+| [Conflict/protest events](#conflictprotest-events-acled-2015-2017) | [ACLED](https://acleddata.com/) | 500 events, Ghana 2015–2017 | Tabular event records | Community | 29 (per event) | 3 (distance + 2 type-split counts) | 2015–2017 | ✅ |
+| EM-DAT events (planned) | [EM-DAT](https://www.emdat.be/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
 | [Mobile coverage/usage](#explored-and-rejected-mobile-coverage--usage) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **178** | | |
+| **Total** | | **~7 GB** | | | | **181** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -91,6 +92,27 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Not redundant with existing covariates**: weakly correlated with `dist_to_capital_km` (r=0.24) and `comm_size` (r=0.07) — travel time to the nearest large city captures road/terrain access, which doesn't reduce to straight-line distance to the district capital or a community's own population.
 
+## Conflict/protest events (ACLED, 2015-2017)
+
+| | |
+|---|---|
+| **Origin** | [ACLED](https://acleddata.com/) (Armed Conflict Location & Event Data) — event-level export, Ghana, 2015-2017 (full year-by-year coverage, 500 events, ending cleanly at Dec 2017 rather than an arbitrary export cutoff). Account-gated (free for academic/non-profit use via their Data Export Tool), downloaded manually — not scriptable, same as OpenCellID. |
+| **Produced by** | `src/apps/ghana/download_acled.py`, from the manually-downloaded `data/ghana/conflicts/ACLED Data_2026-07-20.csv`. |
+| **Motivation** | Community-level conflict/instability exposure — genuinely dated historical event records, unlike OpenCellID/Ookla's present-day snapshots. |
+| **Raw columns** | 29 per event: event date/type/sub-type, actors, admin1/2/3, location, latitude, longitude, geo_precision, fatalities, source, notes, etc. Only `event_type`, `latitude`, `longitude`, `fatalities` are used. |
+| **Covariates extracted** | 3, community-level `W`: `dist_nearest_conflict_km` (distance to nearest event of any type, always defined, range 0.3-46km), `political_violence_25km` (count of Battles/Violence-against-civilians within 25km — 65/162 communities nonzero), `demonstrations_25km` (count of Riots/Protests within 25km — 90/162 communities nonzero). |
+| **Status** | ✅ complete. |
+
+**A wrong turn on the way here, worth recording**: the first ACLED export pulled was their **region-level weekly aggregate** product (filename `Africa_aggregated_data_...xlsx`) rather than event-level data — every row keyed to one of Ghana's 16 admin1 regions with a single fixed centroid, not per-event coordinates. Since the 162 LEAP communities sit within just 2 regions (Northern, Upper East), this would have given at most 2 distinct values across all communities — the same "not enough spatial resolution" failure anticipated for EM-DAT. Re-exported as event-level (dyadic, one row per event, text interaction values) instead, which has genuine per-event lat/lon and resolves this.
+
+**Why event types are split rather than one combined count**: ACLED's Ghana 2015-2017 events split roughly into **political violence** (Battles + Violence against civilians, 140 events nationally) and **demonstrations** (Riots + Protests, 348 events, mostly non-violent civil unrest) — qualitatively different kinds of exposure, and splitting them still leaves reasonable community-level coverage in both.
+
+**Why fatality-weighted sums were dropped**: tried alongside the counts above, but fatalities are heavily zero-inflated on top of already-sparse events (75th percentile is 0 nationally; only 61-72/162 communities have any nonzero fatality sum within 25km) — a sum would mostly reflect a handful of outlier high-fatality events rather than a stable community trait, the same failure mode that sank Ookla's usage-magnitude columns.
+
+**Why 2015-2017 (the study window itself) rather than a longer or shifted history**: unlike OpenCellID/Ookla, ACLED events are genuinely dated historical records, not a present-day snapshot standing in for the past — so the same test as rainfall's study-window columns applies directly: a household-level cash transfer cannot cause a riot or a battle, so measuring during the treatment period itself carries no post-treatment-bias risk. The 2015-2017 export already gives non-degenerate coverage (120/162 communities have some event within 25km), so there was no need to pull additional pre-2015 history to fix a sparsity problem the way a longer window might otherwise have been used for.
+
+**Not redundant with existing covariates**: `dist_nearest_conflict_km` correlates 0.44 with `dist_to_capital_km` (moderate — conflict events cluster near populated areas, as expected) and 0.24 with `comm_size`; not so high as to be a re-derivation.
+
 ## Explored and rejected: mobile coverage / usage
 
 Two sources were fully implemented, then removed after closer scrutiny — kept here (rather than silently deleted) so the reasoning doesn't get rediscovered from scratch later.
@@ -111,7 +133,7 @@ An empirical check (correlating each community's LEAP treatment share against ev
 
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `Z` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey `W`/`Z` covariates.
 
-- **EM-DAT / ACLED** disaster & conflict event records — exogenous to a household-level program → `Z` candidate, same reasoning as rainfall's study-window row. No RL: tabular event counts/dates.
+- **EM-DAT** disaster event records — exogenous to a household-level program → `Z` candidate, same reasoning as rainfall's study-window row. No RL: tabular event counts/dates. Likely only national/regional geocoding for Ghana (unconfirmed) — check spatial resolution before investing effort, same risk that turned out to sink the first ACLED export attempt above.
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `Z` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
 

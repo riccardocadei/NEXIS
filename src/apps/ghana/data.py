@@ -101,6 +101,14 @@ COVARIATES: list[Covariate] = [
     Covariate('travel_time_to_city_min', 'Travel time to nearest city, 2015 (min)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='market_access'),
 
+    # ── Community-level (conflict/protest events, ACLED, see external_data.py) ─
+    Covariate('dist_nearest_conflict_km', 'Distance to nearest conflict event, 2015–2017 (km)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='acled'),
+    Covariate('political_violence_25km', 'Political violence events within 25km, 2015–2017', Level.COMMUNITY,
+              support=Support.SPARSE_NONNEG, source='acled'),
+    Covariate('demonstrations_25km', 'Demonstrations within 25km, 2015–2017', Level.COMMUNITY,
+              support=Support.SPARSE_NONNEG, source='acled'),
+
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
     # data/ghana/README.md's "Explored and rejected" section. Both are
