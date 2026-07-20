@@ -8,10 +8,14 @@ Fits a first-differences OLS model with heterogeneous treatment effects:
            + β₂·T_i·z122_c + γ₂·z122_c     (neuron 3821)
            + β₃·T_i·farms_c + γ₃·farms_c   (Farming household)
            + β₄·T_i·formal_c + γ₄·formal_c (Head in formal sector)
-           + W_i'δ + ε_i
+           + W_i'δ + Z_c'θ + ε_i
 
 Modifiers are centred (mean zero) so τ = ATE at the mean of all modifiers.
-Cluster-robust SEs clustered at community level (G=162).
+Cluster-robust SEs clustered at community level (G=162). Controls are every
+other pretreatment covariate NEXIS itself searches over: W (household-level,
+`W_ALL`) *and* Z (community-level — rainfall, market access, ACLED, distance
+to capital, community size; `COMMUNITY_Z`), so this regression's control set
+matches NEXIS's full pretreatment pool, not just the household-level subset.
 
 Outputs
 -------
@@ -35,7 +39,7 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from src.apps.ghana.data import load_data, W_ALL, W_LABELS
+from src.apps.ghana.data import load_data, W_ALL, W_LABELS, COMMUNITY_Z
 
 DATA_DIR = ROOT / "data" / "ghana"
 SAT_DIR  = DATA_DIR / "satellite"
@@ -74,8 +78,9 @@ def _compute_sae_activations(embeddings: np.ndarray, ckpt: dict,
 
 def load_regression_data() -> pd.DataFrame:
     """
-    Returns a household-level DataFrame with dY, T, W covariates,
-    and the two SAE neuron activations (community-level, mapped to households).
+    Returns a household-level DataFrame with dY, T, W (household) and Z
+    (community) covariates, and the two SAE neuron activations (community-
+    level, mapped to households).
     """
     df_full = load_data(DATA_DIR)
     hh_both = df_full.groupby("hhid")["wave"].nunique()
@@ -84,7 +89,7 @@ def load_regression_data() -> pd.DataFrame:
     df1 = df[df["wave"] == 1]
 
     merged = (
-        df0.set_index("hhid")[["T", "comm"] + W_ALL + ["Y"]]
+        df0.set_index("hhid")[["T", "comm"] + W_ALL + COMMUNITY_Z + ["Y"]]
            .join(df1.set_index("hhid")[["Y"]].rename(columns={"Y": "Y1"}))
     )
     merged["dY"] = merged["Y1"] - merged["Y"]
@@ -138,6 +143,60 @@ def load_regression_data() -> pd.DataFrame:
     return merged, spectral_cols
 
 
+# ── Collinearity guard ────────────────────────────────────────────────────────
+
+def _prune_redundant_controls(core: np.ndarray, df_c: pd.DataFrame, ctrl_cols: list[str],
+                              tol: float = 1e-8) -> tuple[list[str], list[str]]:
+    """Drop the minimum set of control columns needed to make [core | controls]
+    full column rank, via QR with column pivoting -- checked against the
+    *full* design matrix (intercept, T, modifiers, interactions), not the
+    control block in isolation, since a dependency can involve both sides
+    (e.g. livelihood_diversity = farms + has_livestock + has_poultry +
+    has_business + head_formal is only an exact identity among controls
+    alone if farms/head_formal are also controls; here they're modifiers
+    instead, so the same identity resurfaces as
+    livelihood_diversity - has_livestock - has_poultry - has_business
+    - farms_c - head_formal_c - const = 0 across the combined matrix).
+
+    Guards against *exact* linear dependencies hiding in the covariate
+    registry -- e.g. engineered aggregates and their raw components both
+    being present as separate controls (hhsize = children_u5 + children_6_17
+    + adults + elderly; housing_depriv = mud_walls + thatch_roof + mud_floor
+    + no_electricity -- both confirmed exact, not just correlated). A rank-
+    deficient design matrix doesn't raise -- floating point makes it merely
+    near-singular, so np.linalg.inv silently returns numerically unstable
+    coefficients instead of erroring. Detecting and dropping the redundant
+    columns up front is safer than trusting the solver to cope.
+
+    `core` columns (intercept/T/modifiers/interactions) are always kept in
+    full, never candidates for dropping: controls are first projected onto
+    the subspace orthogonal to core (so any control that's an exact
+    combination of core columns alone becomes the zero vector), *then*
+    rank-revealing QR runs only on those residuals to find which controls
+    are redundant given core plus each other. This is different from (and
+    more correct than) pivoting the combined [core | controls] matrix
+    directly, which can't guarantee core columns survive the pivot. QR
+    pivoting keeps earlier-listed residual columns over later ones when a
+    dependency is found, so which side of a dependent control pair survives
+    depends on ctrl_cols' order, not the columns' names -- callers should
+    treat the returned `dropped` list as the source of truth, not assume any
+    semantics from the pivoting.
+    """
+    from scipy.linalg import qr
+    ctrl = df_c[ctrl_cols].values.astype(float)
+    q_core, _ = np.linalg.qr(core)                      # core assumed full column rank
+    ctrl_resid = ctrl - q_core @ (q_core.T @ ctrl)       # project out core's contribution
+
+    _, r, piv = qr(ctrl_resid, mode='economic', pivoting=True)
+    diag = np.abs(np.diag(r))
+    rank = int((diag > tol * diag[0]).sum()) if diag[0] > 0 else 0
+    keep_idx = sorted(piv[:rank])
+    drop_idx = sorted(piv[rank:])
+    kept    = [ctrl_cols[i] for i in keep_idx]
+    dropped = [ctrl_cols[i] for i in drop_idx]
+    return kept, dropped
+
+
 # ── Cluster-robust OLS ────────────────────────────────────────────────────────
 
 def cluster_ols(y: np.ndarray, X: np.ndarray,
@@ -183,27 +242,33 @@ def cluster_ols(y: np.ndarray, X: np.ndarray,
 # ── Fit one specification ─────────────────────────────────────────────────────
 
 def fit_spec(df_c: pd.DataFrame, mod_keys: list[str],
-             ctrl_cols: list[str], label: str) -> tuple[pd.DataFrame, np.ndarray, int]:
-    """Build design matrix, run cluster OLS, return (results_df, groups, n_valid)."""
+             ctrl_cols: list[str], label: str) -> tuple[pd.DataFrame, np.ndarray, int, list[str]]:
+    """Build design matrix, run cluster OLS, return (results_df, groups, n_valid, dropped_controls)."""
     n = len(df_c)
-    cols = (["intercept", "T"]
-            + [f"{k}_c" for k in mod_keys]
-            + [f"T_x_{k}" for k in mod_keys]
-            + ctrl_cols)
-    X = np.column_stack([
+    core = np.column_stack([
         np.ones((n, 1)),
         df_c["T"].values[:, None],
         np.column_stack([df_c[f"{k}_c"] for k in mod_keys]),
         np.column_stack([df_c["T"] * df_c[f"{k}_c"] for k in mod_keys]),
-        df_c[ctrl_cols].values,
     ]).astype(float)
+
+    ctrl_cols, dropped = _prune_redundant_controls(core, df_c, ctrl_cols)
+    if dropped:
+        print(f"  [{label}] dropped {len(dropped)} redundant control(s) (exact linear "
+              f"dependency on core terms and/or other controls): {dropped}")
+
+    cols = (["intercept", "T"]
+            + [f"{k}_c" for k in mod_keys]
+            + [f"T_x_{k}" for k in mod_keys]
+            + ctrl_cols)
+    X = np.column_stack([core, df_c[ctrl_cols].values.astype(float)])
     y = df_c["dY"].values.astype(float)
 
     valid  = np.isfinite(X).all(axis=1) & np.isfinite(y)
     X, y   = X[valid], y[valid]
     groups = df_c.loc[valid, "comm"].values
     print(f"  [{label}] valid observations: {valid.sum()}")
-    return cluster_ols(y, X, groups, cols), groups, int(valid.sum())
+    return cluster_ols(y, X, groups, cols), groups, int(valid.sum()), dropped
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -222,25 +287,27 @@ def main():
     for k in mod_keys:
         df_c[f"{k}_c"] = df_c[k] - df_c[k].mean()
 
-    # Survey modifiers already in model as centred main effects — exclude from W_ctrl
+    # Survey modifiers already in model as centred main effects — exclude from ctrl
     _mod_survey = {"farms", "head_formal"}
-    W_ctrl = [c for c in W_ALL if c not in _mod_survey]
+    ALL_ctrl = [c for c in W_ALL + COMMUNITY_Z if c not in _mod_survey]
 
-    # ── Specification 1: W_ALL controls only (matches NEXIS design) ───────────
+    # ── Specification 1: every pretreatment covariate NEXIS itself searches
+    #    over (household W + community Z — rainfall, market access, ACLED,
+    #    dist_to_capital_km, comm_size) as controls ─────────────────────────
     # ── Specification 2: + Y₀ (ANCOVA — absorbs baseline wealth level) ────────
     # NOTE: spectral indices are derived from the same imagery as the SAE neurons
     # and would create near-perfect multicollinearity with T×neuron terms.
     specs = [
-        ("W_ALL",       W_ctrl,           "baseline (NEXIS controls)"),
-        ("W_ALL + Y₀",  W_ctrl + ["Y"],   "ANCOVA: adds Y₀ (baseline consumption)"),
+        ("W+Z",       ALL_ctrl,           "baseline (full NEXIS pretreatment pool as controls)"),
+        ("W+Z + Y₀",  ALL_ctrl + ["Y"],   "ANCOVA: adds Y₀ (baseline consumption)"),
     ]
 
     print("\nFitting both specifications ...")
     results = {}
     for spec_name, ctrl_cols, desc in specs:
-        res, groups, n_valid = fit_spec(df_c, mod_keys, ctrl_cols, spec_name)
-        results[spec_name] = {"res": res, "groups": groups,
-                              "n": n_valid, "desc": desc, "ctrl": ctrl_cols}
+        res, groups, n_valid, dropped = fit_spec(df_c, mod_keys, ctrl_cols, spec_name)
+        results[spec_name] = {"res": res, "groups": groups, "n": n_valid,
+                              "desc": desc, "ctrl": ctrl_cols, "dropped_ctrl": dropped}
 
     # ── Print side-by-side comparison ─────────────────────────────────────────
 
@@ -266,8 +333,8 @@ def main():
             print(f"  {lbl:<45} {row['coef']:>8.3f}  {row['se']:>7.3f}"
                   f"  {row['p_value']:>7.4f}  {row['coef']*sd:>8.3f}  {sig}")
 
-    # ── Primary result: W_ALL spec; secondary: ANCOVA ─────────────────────────
-    primary = results["W_ALL"]
+    # ── Primary result: W+Z spec; secondary: ANCOVA ───────────────────────────
+    primary = results["W+Z"]
     primary_res = primary["res"]
     ate_row = primary_res.loc["T"]
 
@@ -283,6 +350,7 @@ def main():
             "desc":    d["desc"],
             "n":       d["n"],
             "G":       int(np.unique(d["groups"]).size),
+            "dropped_controls": d["dropped_ctrl"],
             "se_type": "cluster-robust (CRVE), df=G-1=161",
             "ate": {k: float(v) for k, v in ate.items()},
             "interactions": [
@@ -301,9 +369,10 @@ def main():
 
     payload = {
         "model": "OLS first-differences with interaction terms",
-        "note":  ("Spec W_ALL matches NEXIS design and is the primary result. "
-                  "Spec W_ALL+Y0 is ANCOVA — valid for SAE neurons but binary modifier "
-                  "estimates are unstable due to near-constant support (farms=96%)."),
+        "note":  ("Spec W+Z controls for every pretreatment covariate NEXIS itself "
+                  "searches over (household W and community Z) and is the primary "
+                  "result. Spec W+Z+Y0 is ANCOVA — valid for SAE neurons but binary "
+                  "modifier estimates are unstable due to near-constant support (farms=96%)."),
         "specs": [_spec_payload(sn, d) for sn, d in results.items()],
     }
 
@@ -360,7 +429,7 @@ def main():
 
     fig.suptitle(
         "Ghana LEAP 1000 — NEXIS-selected effect modifiers (nexis_no_adj, SAE codes)\n"
-        f"n={primary['n']} hh, G=162 clusters, W_ALL controls,  * p<0.05  ** p<0.01",
+        f"n={primary['n']} hh, G=162 clusters, W+Z controls,  * p<0.05  ** p<0.01",
         fontsize=10, y=1.02,
     )
     plt.tight_layout()
@@ -373,7 +442,7 @@ def main():
     # ── Interpretation summary ────────────────────────────────────────────────
 
     print("\n" + "=" * 80)
-    print("INTERPRETATION (primary spec: W_ALL)")
+    print("INTERPRETATION (primary spec: W+Z)")
     print("=" * 80)
     print(f"\nATE at mean of all modifiers: {ate_row['coef']:.2f} GH₵/month"
           f"  [{ate_row['ci_lo']:.2f}, {ate_row['ci_hi']:.2f}]  p={ate_row['p_value']:.4f}\n")
@@ -402,7 +471,7 @@ def main():
             "Head in formal sector (9% of sample). The negative β (not significant) "
             "is consistent with diminishing marginal returns to income: wage-employed "
             "heads already have more stable income, so the transfer's marginal "
-            "consumption impact is smaller. Evidence is weak (p=0.26)."
+            "consumption impact is smaller."
         ),
     }
     for k, lbl in zip(mod_keys, mod_labels):
