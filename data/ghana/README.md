@@ -17,10 +17,11 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Nighttime lights](#nighttime-lights-viirs-2015) | [NOAA VIIRS DNB](https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21), via Google Earth Engine | 46 KB (Ghana-clipped raster) | Raster point value | Community | 1 (radiance) | 2 (own-community radiance + distance) | 2015 | ✅ |
 | [Population density](#population-density-worldpop-2015) | [WorldPop](https://developers.google.com/earth-engine/datasets/catalog/WorldPop_GP_100m_pop), via Google Earth Engine | ~100m gridded, Ghana | Raster point value | Community | 1 (population) | 1 | 2015 | ✅ |
 | [Urbanization degree](#urbanization-degree-ghsl-settlement-model-2015) | [GHSL Settlement Model](https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2023A_GHS_SMOD_V2-0), via Google Earth Engine | 1km gridded, Ghana | Raster point value | Community | 1 (settlement code) | 1 | 2015 | ✅ |
+| [Malaria mortality/incidence](#malaria-mortality--incidence-malaria-atlas-project-2015) | [Malaria Atlas Project](https://malariaatlas.org/) | 2× 99 KB (Ghana-clipped rasters) | Raster point value | Community | 1 each (rate) | 2 | 2015 | ✅ |
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **187** | | |
+| **Total** | | **~7 GB** | | | | **189** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -181,6 +182,23 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot reclassify a settlement's urbanization degree, so this is exogenous regardless of timing.
 
+## Malaria mortality / incidence (Malaria Atlas Project, 2015)
+
+| | |
+|---|---|
+| **Origin** | Malaria Atlas Project — `Malaria__202406_Global_Pf_Mortality_Rate` and `..._Pf_Incidence_Rate`, via the same public WCS endpoint as market access, no account needed. Unlike the city-accessibility layer (a single 2015 snapshot), this is a genuine annual time series (2000-2022, 5km resolution), so 2015 is selected via a WCS time subset. |
+| **Produced by** | `src/apps/ghana/download_malaria.py` — two WCS `GetCoverage` requests clipped to Ghana's bbox (~99KB each), not a global download. |
+| **Motivation** | Malaria is a leading cause of under-5 mortality in Ghana, and LEAP-1000 specifically targets pregnant women and children under 1 — a directly relevant children's-care exposure proxy (raised when scoping what else could complement the market/urbanization covariates). |
+| **Raw columns** | 1 each (the raster's pixel value: deaths per capita for mortality, case rate for incidence). |
+| **Covariates extracted** | 2, community-level `W`: `pf_mortality_rate_2015` (range 0.00038–0.00286) and `pf_incidence_rate_2015` (range 0.130–0.492), both raster values sampled at each community centroid. |
+| **Status** | ✅ complete. |
+
+**Why both, not just one**: mortality and incidence are *negatively* correlated with each other (r=-0.62) — plausibly because higher-incidence areas sometimes have better malaria program targeting/case management, lowering mortality despite more cases. That makes them genuinely different aspects of the local disease environment, not one redundant with the other, the same reasoning that kept both nighttime-lights covariates.
+
+**Why 2015, not the most recent malaria estimates**: unlike the travel-time-to-healthcare layer in the same MAP family (only available for 2020, a 5-year gap from baseline), the Pf mortality/incidence collection is a genuine annual series covering 2000-2022, so the exact LEAP baseline year is directly selectable via a WCS time subset — no temporal-mismatch trade-off needed here at all, same as market access.
+
+**Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot move a district's malaria burden, so this is exogenous regardless of timing.
+
 ## Explored and rejected
 
 Sources that were investigated — some fully implemented then removed, some rejected before extraction based on documented limitations — kept here (rather than silently dropped) so the reasoning doesn't get rediscovered from scratch later.
@@ -216,6 +234,7 @@ Rejected before extraction, based on EM-DAT's own documentation ([doc.emdat.be/d
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `W` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window, or what level it's measured at. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey's other `W` covariates.
 
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `W` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
+- **Travel time to healthcare facilities** (Weiss et al. 2020, same Malaria Atlas Project family as market access) — considered alongside malaria mortality/incidence as a children's-care candidate, not pursued: only available for 2020 (a 5-year gap from baseline), the same kind of temporal-mismatch trade-off that sank OpenCellID/Ookla, just less severe since healthcare infrastructure placement changes slower than usage. Revisit if a source with 2015 (or closer) coverage appears.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
 
 ## Extra: Administrative boundaries & basemaps (plotting only)

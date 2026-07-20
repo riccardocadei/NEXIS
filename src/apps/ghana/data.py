@@ -129,6 +129,12 @@ COVARIATES: list[Covariate] = [
     Covariate('urbanization_degree', 'Settlement urbanization degree, 2015', Level.COMMUNITY,
               support=Support.COUNT, source='ghsl'),
 
+    # ── Community-level (malaria, Malaria Atlas Project, see external_data.py) ─
+    Covariate('pf_mortality_rate_2015', 'Malaria mortality rate, 2015', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='malaria'),
+    Covariate('pf_incidence_rate_2015', 'Malaria incidence rate, 2015', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='malaria'),
+
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
     # data/ghana/README.md's "Explored and rejected" section. Both are
