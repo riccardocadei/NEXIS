@@ -89,8 +89,8 @@ from src.apps.covariates import Covariate, Level, Origin, Support, Dataset
 from src.method.nexis    import nexis, marginal_select, SelectionResult
 
 # Filter the registry directly by level -- no need for data.py's legacy
-# W_ALL/COMMUNITY_Z/W_LABELS lists here, since this file already has the full
-# Covariate objects (name AND label together) in hand.
+# HOUSEHOLD_W/COMMUNITY_W/W_LABELS lists here, since this file already has
+# the full Covariate objects (name AND label together) in hand.
 _HOUSEHOLD_COVARIATES = [c for c in COVARIATES if c.level is Level.HOUSEHOLD]
 _COMMUNITY_COVARIATES = [c for c in COVARIATES if c.level is Level.COMMUNITY]
 

@@ -29,7 +29,7 @@ DATA_DIR = Path('../data/ghana')
 # The single source of truth for every covariate known upfront (i.e.
 # everything except SAE neurons/spectral indices, which don't exist until a
 # model is trained/run — those are registered dynamically in interpret.py).
-# NUMERIC_W/BINARY_W/ENGINEERED_W/W_ALL/COMMUNITY_Z/W_LABELS below are all
+# NUMERIC_W/BINARY_W/ENGINEERED_W/HOUSEHOLD_W/COMMUNITY_W/W_LABELS below are all
 # DERIVED views over this list, kept only because every existing consumer
 # (analysis.py, visualize.py, interpret.py, interaction_regression.py, the
 # notebook) already imports them — they can't drift out of sync anymore
@@ -118,6 +118,12 @@ COVARIATES: list[Covariate] = [
 
 # ── Derived views (kept for every existing consumer — do not hand-edit these;
 #    edit COVARIATES above instead) ────────────────────────────────────────────
+# All of these are W: every pre-treatment covariate NEXIS can search over,
+# whatever level it's measured at. HOUSEHOLD_W/COMMUNITY_W split by level
+# purely because that's a useful grouping for some consumers (e.g. picking
+# controls, or matching NEXIS's hand_crafted-first screening order) -- it is
+# NOT a w-vs-z pool distinction; there is no such distinction in this
+# codebase (see covariates.py's module docstring).
 NUMERIC_W = [c.name for c in COVARIATES
              if c.level is Level.HOUSEHOLD and c.source == 'survey'
              and c.support in (Support.COUNT, Support.POSITIVE_CONTINUOUS, Support.CONTINUOUS)]
@@ -125,8 +131,8 @@ BINARY_W = [c.name for c in COVARIATES
             if c.level is Level.HOUSEHOLD and c.source == 'survey' and c.support is Support.BINARY]
 ENGINEERED_W = [c.name for c in COVARIATES
                 if c.level is Level.HOUSEHOLD and c.source == 'survey_engineered']
-W_ALL = [c.name for c in COVARIATES if c.nexis_arg == 'w']
-COMMUNITY_Z = [c.name for c in COVARIATES if c.nexis_arg == 'z']
+HOUSEHOLD_W = [c.name for c in COVARIATES if c.level is Level.HOUSEHOLD]
+COMMUNITY_W = [c.name for c in COVARIATES if c.level is Level.COMMUNITY]
 W_LABELS: dict[str, str] = {c.name: c.label for c in COVARIATES}
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────

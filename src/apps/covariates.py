@@ -2,24 +2,33 @@
 differently-shaped data.py and haven't been migrated yet) — the Covariate
 registry: one object describing every input NEXIS can see, replacing the old
 per-app parallel/hand-synced lists (e.g. Ghana's NUMERIC_W, BINARY_W,
-ENGINEERED_W, W_ALL, COMMUNITY_Z, W_LABELS).
+ENGINEERED_W, HOUSEHOLD_W, COMMUNITY_W, W_LABELS).
 
 Every covariate is tagged along three independent axes:
 
-    level    — household / community / district: where it's measured.
+    level    — household / community / district: where it's measured. Pure
+               metadata, not a routing decision -- every covariate, at any
+               level, feeds the SAME single `w` matrix nexis() takes (see
+               src/method/nexis.py). There is no household-vs-community
+               split at the API level: "W" means every pre-treatment
+               candidate NEXIS can search over, full stop. "Z" is not a
+               covariate pool at all here -- if you see it used elsewhere in
+               this codebase, it either means a raw neural/learned
+               representation (e.g. an SAE activation) before it's been
+               registered as a Covariate and merged into W, or it's the
+               unrelated, standard statistical notation for a conditioning
+               set inside nexis.py's own GCM/interaction-test math -- neither
+               usage denotes a distinct covariate pool the way the old
+               two-argument `nexis(y, t, w, z)` API's w/z split once did.
     origin   — hand_crafted (name explains it) / learned (an SAE neuron —
-               meaningless until a VLM interprets it a posteriori).
+               meaningless until a VLM interprets it a posteriori). This is
+               what actually drives staging: nexis() screens hand_crafted
+               columns in a cheaper preliminary phase first (regardless of
+               level), then lets everything compete symmetrically in the
+               main round (see nexis()'s own docstring for the mechanics).
     support  — binary / count / continuous / positive_continuous /
                sparse_nonneg: determines the binarization rule used for
                NEXIS's GATE-style split test (zero-threshold vs. median-split).
-
-`nexis_arg` ('w' or 'z') is DERIVED from level, not a fourth independent
-fact. Do not read it as "control vs. effect-modifier": nexis()'s own
-docstring (src/method/nexis.py) and its call site (interpret.py) confirm W
-and Z are both genuine effect-modifier candidate pools — W just gets a
-cheaper preliminary screening phase first, and both compete symmetrically
-in the main round. Household-level covariates CAN end up in the final
-selected set; the split is only about which phase screens them first.
 """
 
 from dataclasses import dataclass, field
@@ -59,16 +68,6 @@ class Covariate:
     origin: Origin = Origin.HAND_CRAFTED
     support: Support = Support.CONTINUOUS
     source: str = 'survey'   # matches the source names in data/ghana/README.md
-
-    @property
-    def nexis_arg(self) -> str:
-        """'w' or 'z' — which nexis() argument this feeds, derived from level.
-
-        NOT control-vs-candidate: both w and z are searched for effect
-        modification: w just seeds the joint search via a cheaper preliminary
-        phase (see module docstring).
-        """
-        return 'w' if self.level is Level.HOUSEHOLD else 'z'
 
     @property
     def needs_interpretation(self) -> bool:

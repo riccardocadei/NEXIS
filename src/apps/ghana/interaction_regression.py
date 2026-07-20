@@ -8,14 +8,16 @@ Fits a first-differences OLS model with heterogeneous treatment effects:
            + β₂·T_i·z122_c + γ₂·z122_c     (neuron 3821)
            + β₃·T_i·farms_c + γ₃·farms_c   (Farming household)
            + β₄·T_i·formal_c + γ₄·formal_c (Head in formal sector)
-           + W_i'δ + Z_c'θ + ε_i
+           + W_i'δ + ε_i
 
 Modifiers are centred (mean zero) so τ = ATE at the mean of all modifiers.
 Cluster-robust SEs clustered at community level (G=162). Controls are every
-other pretreatment covariate NEXIS itself searches over: W (household-level,
-`W_ALL`) *and* Z (community-level — rainfall, market access, ACLED, distance
-to capital, community size; `COMMUNITY_Z`), so this regression's control set
-matches NEXIS's full pretreatment pool, not just the household-level subset.
+other pretreatment covariate NEXIS itself searches over -- `W` in full,
+household-level (`HOUSEHOLD_W`) and community-level (`COMMUNITY_W`: rainfall,
+market access, ACLED, distance to capital, community size) alike, since
+there is no separate household-vs-community pool in this codebase (see
+src/apps/covariates.py) -- so this regression's control set matches NEXIS's
+full pretreatment pool, not just the household-level subset.
 
 Outputs
 -------
@@ -39,7 +41,7 @@ import torch.nn.functional as F
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from src.apps.ghana.data import load_data, W_ALL, W_LABELS, COMMUNITY_Z
+from src.apps.ghana.data import load_data, HOUSEHOLD_W, COMMUNITY_W, W_LABELS
 
 DATA_DIR = ROOT / "data" / "ghana"
 SAT_DIR  = DATA_DIR / "satellite"
@@ -89,7 +91,7 @@ def load_regression_data() -> pd.DataFrame:
     df1 = df[df["wave"] == 1]
 
     merged = (
-        df0.set_index("hhid")[["T", "comm"] + W_ALL + COMMUNITY_Z + ["Y"]]
+        df0.set_index("hhid")[["T", "comm"] + HOUSEHOLD_W + COMMUNITY_W + ["Y"]]
            .join(df1.set_index("hhid")[["Y"]].rename(columns={"Y": "Y1"}))
     )
     merged["dY"] = merged["Y1"] - merged["Y"]
@@ -289,17 +291,17 @@ def main():
 
     # Survey modifiers already in model as centred main effects — exclude from ctrl
     _mod_survey = {"farms", "head_formal"}
-    ALL_ctrl = [c for c in W_ALL + COMMUNITY_Z if c not in _mod_survey]
+    W_ctrl = [c for c in HOUSEHOLD_W + COMMUNITY_W if c not in _mod_survey]
 
     # ── Specification 1: every pretreatment covariate NEXIS itself searches
-    #    over (household W + community Z — rainfall, market access, ACLED,
-    #    dist_to_capital_km, comm_size) as controls ─────────────────────────
+    #    over (household-level + community-level W — rainfall, market access,
+    #    ACLED, dist_to_capital_km, comm_size) as controls ───────────────────
     # ── Specification 2: + Y₀ (ANCOVA — absorbs baseline wealth level) ────────
     # NOTE: spectral indices are derived from the same imagery as the SAE neurons
     # and would create near-perfect multicollinearity with T×neuron terms.
     specs = [
-        ("W+Z",       ALL_ctrl,           "baseline (full NEXIS pretreatment pool as controls)"),
-        ("W+Z + Y₀",  ALL_ctrl + ["Y"],   "ANCOVA: adds Y₀ (baseline consumption)"),
+        ("W",       W_ctrl,           "baseline (full NEXIS pretreatment pool as controls)"),
+        ("W + Y₀",  W_ctrl + ["Y"],   "ANCOVA: adds Y₀ (baseline consumption)"),
     ]
 
     print("\nFitting both specifications ...")
@@ -333,8 +335,8 @@ def main():
             print(f"  {lbl:<45} {row['coef']:>8.3f}  {row['se']:>7.3f}"
                   f"  {row['p_value']:>7.4f}  {row['coef']*sd:>8.3f}  {sig}")
 
-    # ── Primary result: W+Z spec; secondary: ANCOVA ───────────────────────────
-    primary = results["W+Z"]
+    # ── Primary result: W spec; secondary: ANCOVA ─────────────────────────────
+    primary = results["W"]
     primary_res = primary["res"]
     ate_row = primary_res.loc["T"]
 
@@ -369,9 +371,9 @@ def main():
 
     payload = {
         "model": "OLS first-differences with interaction terms",
-        "note":  ("Spec W+Z controls for every pretreatment covariate NEXIS itself "
-                  "searches over (household W and community Z) and is the primary "
-                  "result. Spec W+Z+Y0 is ANCOVA — valid for SAE neurons but binary "
+        "note":  ("Spec W controls for every pretreatment covariate NEXIS itself "
+                  "searches over (household-level and community-level alike) and is "
+                  "the primary result. Spec W+Y0 is ANCOVA — valid for SAE neurons but binary "
                   "modifier estimates are unstable due to near-constant support (farms=96%)."),
         "specs": [_spec_payload(sn, d) for sn, d in results.items()],
     }
@@ -429,7 +431,7 @@ def main():
 
     fig.suptitle(
         "Ghana LEAP 1000 — NEXIS-selected effect modifiers (nexis_no_adj, SAE codes)\n"
-        f"n={primary['n']} hh, G=162 clusters, W+Z controls,  * p<0.05  ** p<0.01",
+        f"n={primary['n']} hh, G=162 clusters, W controls,  * p<0.05  ** p<0.01",
         fontsize=10, y=1.02,
     )
     plt.tight_layout()
@@ -442,7 +444,7 @@ def main():
     # ── Interpretation summary ────────────────────────────────────────────────
 
     print("\n" + "=" * 80)
-    print("INTERPRETATION (primary spec: W+Z)")
+    print("INTERPRETATION (primary spec: W)")
     print("=" * 80)
     print(f"\nATE at mean of all modifiers: {ate_row['coef']:.2f} GH₵/month"
           f"  [{ate_row['ci_lo']:.2f}, {ate_row['ci_hi']:.2f}]  p={ate_row['p_value']:.4f}\n")

@@ -8,7 +8,7 @@ change). Exogenous sources like weather aren't at risk of this regardless of
 whether they're measured before or during the study window, since treatment
 cannot cause rainfall — so there's no separate "control-only" lane here.
 
-    load_effect_modifiers(comm) -> community-level covariates (data.py::COMMUNITY_Z)
+    load_effect_modifiers(comm) -> community-level covariates (data.py::COMMUNITY_W)
 
 Add one column-producing block per source to this function rather than
 inventing new merge logic per source. Rainfall (CHIRPS, via
@@ -39,7 +39,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
 
     Returns a DataFrame indexed by `comm` (one row per community). Merge new
     sources with `.merge(other_df, on='comm', how='outer')` and append their
-    column name(s) to COMMUNITY_Z in data.py.
+    column name(s) to COMMUNITY_W in data.py.
 
     Rainfall contributes 7 columns, all raw mm/days (no z-scoring):
       - rainfall_mean_pre2015, rainfall_std_pre2015, drought_freq_pre2015:

@@ -44,9 +44,9 @@ def regression_did(df: pd.DataFrame, outcome: str = 'Y',
     controls : optional extra regressor column names added alongside T, wave,
                T×wave — e.g. to check whether δ is stable once some other
                covariate is netted out. This is NOT how effect modifiers are
-               searched (that's NEXIS over COMMUNITY_Z, see data.py); a
-               robustness control here answers a different question than a Z
-               moderator.
+               searched (that's NEXIS over W, see data.py); a robustness
+               control here answers a different question than a candidate
+               effect modifier.
     """
     controls = controls or []
     cols = ['T', 'wave', outcome] + controls + ([cluster] if cluster else [])
