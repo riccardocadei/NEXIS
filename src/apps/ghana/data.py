@@ -121,6 +121,14 @@ COVARIATES: list[Covariate] = [
     Covariate('dist_nearest_light_km', 'Distance to nearest detectable light, 2015 (km)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='nightlights'),
 
+    # ── Community-level (population density, WorldPop, see external_data.py) ───
+    Covariate('pop_density_2km', 'Population within 2km, 2015', Level.COMMUNITY,
+              support=Support.COUNT, source='worldpop'),
+
+    # ── Community-level (urbanization degree, GHSL, see external_data.py) ──────
+    Covariate('urbanization_degree', 'Settlement urbanization degree, 2015', Level.COMMUNITY,
+              support=Support.COUNT, source='ghsl'),
+
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
     # data/ghana/README.md's "Explored and rejected" section. Both are

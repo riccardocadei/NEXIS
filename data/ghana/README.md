@@ -15,10 +15,12 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Conflict/protest events](#conflictprotest-events-acled-2015-2017) | [ACLED](https://acleddata.com/) | 500 events, Ghana 2015–2017 | Tabular event records | Community | 29 (per event) | 3 (distance + 2 type-split counts) | 2015–2017 | ✅ |
 | [Market prices](#market-prices-wfp-food-prices-2014-2015) | [WFP Food Prices](https://data.humdata.org/dataset/wfp-food-prices-for-ghana) (via HDX) | 91 markets, 32k+ price obs. | Tabular point value | Community | 16 (per price record) | 2 (distance + maize price) | 2014–2015 | ✅ |
 | [Nighttime lights](#nighttime-lights-viirs-2015) | [NOAA VIIRS DNB](https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21), via Google Earth Engine | 46 KB (Ghana-clipped raster) | Raster point value | Community | 1 (radiance) | 2 (own-community radiance + distance) | 2015 | ✅ |
+| [Population density](#population-density-worldpop-2015) | [WorldPop](https://developers.google.com/earth-engine/datasets/catalog/WorldPop_GP_100m_pop), via Google Earth Engine | ~100m gridded, Ghana | Raster point value | Community | 1 (population) | 1 | 2015 | ✅ |
+| [Urbanization degree](#urbanization-degree-ghsl-settlement-model-2015) | [GHSL Settlement Model](https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2023A_GHS_SMOD_V2-0), via Google Earth Engine | 1km gridded, Ghana | Raster point value | Community | 1 (settlement code) | 1 | 2015 | ✅ |
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **185** | | |
+| **Total** | | **~7 GB** | | | | **187** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -147,6 +149,38 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why 2015, not the most recent VIIRS composite**: VIIRS's archive starts April 2012, so (unlike Ookla, whose archive only reaches back to 2019) the exact LEAP baseline year is directly available — no temporal-mismatch trade-off needed here at all.
 
+## Population density (WorldPop, 2015)
+
+| | |
+|---|---|
+| **Origin** | `WorldPop/GP/100m/pop`, 2015, via Google Earth Engine — same authentication as the sources above, no new account needed. ~100m resolution gridded population estimate. |
+| **Produced by** | `src/apps/ghana/download_worldpop.py`. |
+| **Motivation** | A genuine local-population-density proxy, distinct from `comm_size` (which is just LEAP's own sample count per community, not true local population). |
+| **Raw columns** | 1 (population, per 100m pixel). |
+| **Covariates extracted** | 1, community-level `W`: `pop_density_2km` — summed estimated population within 2km of the community centroid (not a raster point-value; a single 100m pixel is too granular/noisy, so a small-neighbourhood sum gives a locally-smoothed density). Range 209–9271, 0/162 communities at zero. |
+| **Status** | ✅ complete. |
+
+**Why 2km, not a point sample or a smaller/larger buffer**: checked at 500m/1km/2km before choosing — 500m already has 3/162 communities at zero, 1km and 2km both give 0/162 zero, so 2km was chosen as the more smoothed (less single-pixel-noise-sensitive) of the two non-degenerate options.
+
+**Not redundant with existing covariates**: correlates 0.04 with `comm_size` — essentially uncorrelated, confirming it captures true local population density rather than duplicating the LEAP sample count. Correlates -0.48 with `dist_to_capital_km`/`travel_time_to_city_min` (expected — denser areas tend to be closer to cities), not high enough to be a re-derivation.
+
+**Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot move the local population, so this is exogenous regardless of timing.
+
+## Urbanization degree (GHSL Settlement Model, 2015)
+
+| | |
+|---|---|
+| **Origin** | `JRC/GHSL/P2023A/GHS_SMOD_V2-0/2015`, via Google Earth Engine — same authentication as the sources above, no new account needed. 1km resolution categorical settlement classification. |
+| **Produced by** | `src/apps/ghana/download_ghsl.py`. |
+| **Motivation** | A physical-settlement-morphology proxy, complementary to nighttime lights (built-up ≠ lit) and population density (classification, not raw count). |
+| **Raw columns** | 1 (`smod_code`, per 1km pixel). |
+| **Covariates extracted** | 1, community-level `W`: `urbanization_degree` — the settlement code at the community centroid, monotonically ordered by urbanization: 11 (very-low-density rural) < 12 (low-density rural) < 13 (rural cluster) < 21 (suburban/peri-urban) < 22 (semi-dense urban cluster) < 23 (dense urban cluster) < 30 (urban centre). Distribution across the 162 communities: 92 at 12, 35 at 11, 24 at 13, 4 at 21, 3 at 22/23 combined, 3 at 30 — a genuine spread, not one dominant category. |
+| **Status** | ✅ complete. |
+
+**Not redundant with existing covariates**: correlates 0.68 with `pop_density_2km` (expected — GHSL's own classification methodology is partly built from population density grids) but not so high as to be a pure duplicate; weakly correlated with `dist_to_capital_km`/`travel_time_to_city_min` (r=-0.17).
+
+**Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot reclassify a settlement's urbanization degree, so this is exogenous regardless of timing.
+
 ## Explored and rejected
 
 Sources that were investigated — some fully implemented then removed, some rejected before extraction based on documented limitations — kept here (rather than silently dropped) so the reasoning doesn't get rediscovered from scratch later.
@@ -182,8 +216,6 @@ Rejected before extraction, based on EM-DAT's own documentation ([doc.emdat.be/d
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `W` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window, or what level it's measured at. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey's other `W` covariates.
 
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `W` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
-- **WorldPop population density** (fine-resolution, ~100m gridded population estimates) — a genuine local-population-density proxy, distinct from `comm_size` (which is just LEAP's own sample count per community, not true local population). GEE-accessible, no new account needed. Not yet checked for degeneracy the way nighttime lights/market prices were — do that before extracting.
-- **GHSL built-up/urbanization degree** — physical built-up area, complementary to nighttime lights (built-up ≠ lit). Also GEE-accessible. Same due-diligence needed before extracting.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
 
 ## Extra: Administrative boundaries & basemaps (plotting only)

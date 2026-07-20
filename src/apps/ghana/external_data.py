@@ -16,7 +16,9 @@ download_rainfall.py) is the first source; market access (travel time to
 cities, via download_market_access.py) is the second; conflict/protest
 events (ACLED, via download_acled.py) are the third; market prices (WFP,
 via download_market_prices.py) are the fourth; nighttime lights (VIIRS, via
-download_nightlights.py) are the fifth.
+download_nightlights.py) are the fifth; population density (WorldPop, via
+download_worldpop.py) is the sixth; settlement/urbanization degree (GHSL,
+via download_ghsl.py) is the seventh.
 
 Mobile-network coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
 both explored and rejected — see data/ghana/README.md's "Explored and
@@ -117,6 +119,29 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         night_light_radiance itself (r=-0.25, answers a different question).
       A cash transfer cannot build a power grid or move a town, so both are
       exogenous regardless of timing.
+
+    Population density contributes 1 column (see download_worldpop.py),
+    from WorldPop's 2015 100m gridded population estimate (Google Earth
+    Engine, same authentication as the sources above):
+      - pop_density_2km: summed estimated population within 2km of the
+        community centroid. Weakly correlated with comm_size (r=0.04,
+        confirming it captures true local population density rather than
+        duplicating LEAP's own household sample count) and moderately with
+        dist_to_capital_km/travel_time_to_city_min (r=-0.48, expected).
+      A household-level cash transfer cannot move the local population, so
+      this is exogenous regardless of timing.
+
+    Settlement/urbanization degree contributes 1 column (see
+    download_ghsl.py), from the GHSL Settlement Model's 2015 classification
+    (Google Earth Engine, same authentication as the sources above):
+      - urbanization_degree: categorical code (11-30), monotonically
+        ordered by urbanization (very-low-density rural through urban
+        centre). Moderately correlated with pop_density_2km (r=0.68,
+        expected -- GHSL's own classification is partly built from
+        population density) but not a pure duplicate, and weakly correlated
+        with dist_to_capital_km/travel_time_to_city_min (r=-0.17).
+      A household-level cash transfer cannot reclassify a settlement's
+      urbanization degree, so this is exogenous regardless of timing.
     """
     data_dir = Path(data_dir)
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
@@ -128,6 +153,8 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
     market_prices_columns = ['dist_nearest_market_km', 'maize_price_2014_2015']
     nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km']
+    worldpop_columns = ['pop_density_2km']
+    ghsl_columns = ['urbanization_degree']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -180,12 +207,31 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         # convention as the sources above.
         nightlights = pd.DataFrame(columns=['comm', *nightlights_columns])
 
+    worldpop_path = data_dir / 'worldpop' / 'worldpop_community.csv'
+    if worldpop_path.exists():
+        worldpop = pd.read_csv(worldpop_path)[['comm', *worldpop_columns]]
+    else:
+        # not yet processed (run download_worldpop.py) — same NaN-fill
+        # convention as the sources above.
+        worldpop = pd.DataFrame(columns=['comm', *worldpop_columns])
+
+    ghsl_path = data_dir / 'ghsl' / 'ghsl_community.csv'
+    if ghsl_path.exists():
+        ghsl = pd.read_csv(ghsl_path)[['comm', *ghsl_columns]]
+    else:
+        # not yet processed (run download_ghsl.py) — same NaN-fill
+        # convention as the sources above.
+        ghsl = pd.DataFrame(columns=['comm', *ghsl_columns])
+
     merged = (
         rainfall.merge(market_access, on='comm', how='outer')
                 .merge(acled, on='comm', how='outer')
                 .merge(market_prices, on='comm', how='outer')
                 .merge(nightlights, on='comm', how='outer')
+                .merge(worldpop, on='comm', how='outer')
+                .merge(ghsl, on='comm', how='outer')
                 .astype({'comm': 'int64'})
     )
     return merged[['comm', *rainfall_columns, *market_access_columns, *acled_columns,
-                    *market_prices_columns, *nightlights_columns]]
+                    *market_prices_columns, *nightlights_columns,
+                    *worldpop_columns, *ghsl_columns]]
