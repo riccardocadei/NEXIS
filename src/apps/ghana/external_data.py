@@ -12,7 +12,8 @@ cannot cause rainfall — so there's no separate "control-only" lane here.
 
 Add one column-producing block per source to this function rather than
 inventing new merge logic per source. Rainfall (CHIRPS, via
-download_rainfall.py) is the only source so far.
+download_rainfall.py) is the first source; market access (travel time to
+cities, via download_market_access.py) is the second.
 
 Mobile-network coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
 both explored and rejected — see data/ghana/README.md's "Explored and
@@ -58,6 +59,15 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
       the treatment period — the cash transfer cannot cause rainfall, so
       there's no post-treatment-bias risk, unlike a household covariate
       that could genuinely be changed by receiving the transfer.
+
+    Market access contributes 1 column (see download_market_access.py):
+      - travel_time_to_city_min: motorized travel time (minutes) to the
+        nearest city of >50,000 population, Weiss et al. 2018 (Malaria
+        Atlas Project), explicitly dated 2015 — an exact match to the LEAP
+        baseline year, unlike OpenCellID/Ookla which were present-day-only
+        snapshots (see the "Explored and rejected" note below). A cash
+        transfer cannot build roads or move cities, so this is exogenous
+        regardless of timing, same test as rainfall.
     """
     data_dir = Path(data_dir)
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
@@ -65,6 +75,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         'rainfall_mean_pre2015', 'rainfall_std_pre2015', 'drought_freq_pre2015',
         *annual_columns, 'cdd_1517',
     ]
+    market_access_columns = ['travel_time_to_city_min']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -85,4 +96,13 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         # still see the expected columns, filled with NaN, not a KeyError.
         rainfall = pd.DataFrame(columns=['comm', *rainfall_columns])
 
-    return rainfall.astype({'comm': 'int64'})[['comm', *rainfall_columns]]
+    market_access_path = data_dir / 'market_access' / 'market_access_community.csv'
+    if market_access_path.exists():
+        market_access = pd.read_csv(market_access_path)[['comm', *market_access_columns]]
+    else:
+        # not yet processed (run download_market_access.py) — same NaN-fill
+        # convention as rainfall above.
+        market_access = pd.DataFrame(columns=['comm', *market_access_columns])
+
+    merged = rainfall.merge(market_access, on='comm', how='outer').astype({'comm': 'int64'})
+    return merged[['comm', *rainfall_columns, *market_access_columns]]

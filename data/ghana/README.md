@@ -11,11 +11,11 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Satellite imagery](#satellite-imagery-landsat-8-via-google-earth-engine) | [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2) (USGS/NASA), via Google Earth Engine | ~7 GB | Imagery (6-band) | Community | 6 bands/tile (166×166 px) | 143 (131 neurons representation + 12 spectral indices) | 2015 | ✅ |
 | [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Tabular climate | Community | 5,479 daily precipitation values | 3 (average rainfall, rainfall volatility, drought frequency) | 2000–2014 | ✅ |
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
-| Market access (planned) | e.g. [Malaria Atlas Project](https://malariaatlas.org/) accessibility layers (TBD) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
+| [Market access](#market-access-travel-time-to-cities-2015-malaria-atlas-project) | [Malaria Atlas Project](https://malariaatlas.org/) — Weiss et al. 2018 (Nature) | 662 KB (Ghana-clipped raster) | Raster point value | Community | 1 (travel time, minutes) | 1 | 2015 | ✅ |
 | EM-DAT / ACLED events (planned) | [EM-DAT](https://www.emdat.be/) / [ACLED](https://acleddata.com/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
 | [Mobile coverage/usage](#explored-and-rejected-mobile-coverage--usage) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **177** | | |
+| **Total** | | **~7 GB** | | | | **178** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -74,6 +74,23 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why CDD in addition to the annual totals**: two communities can have identical yearly rainfall totals with very different agricultural outcomes if one had a damaging mid-season dry spell and the other's rain was evenly distributed — the total alone can't distinguish them, but the longest dry spell can. **Why one whole-window value (`cdd_1517`) rather than per calendar year**: a calendar-year split is agronomically arbitrary — growing seasons don't align with Jan 1 — and would understate a real drought straddling a year boundary (e.g. Nov 2016–Jan 2017) by resetting the streak at Dec 31. One whole-window value also keeps the covariate count down rather than adding 3 more correlated columns for NEXIS to search over.
 
+## Market access (travel time to cities, 2015, Malaria Atlas Project)
+
+| | |
+|---|---|
+| **Origin** | Weiss et al. 2018 (*Nature*), "A global map of travel time to cities to assess inequalities in accessibility in 2015" — Malaria Atlas Project, public WCS endpoint (no account/API key), 1km resolution. |
+| **Produced by** | `src/apps/ghana/download_market_access.py` — WCS `GetCoverage` request clipped server-side to Ghana's bounding box (662KB GeoTIFF, not a global download). |
+| **Motivation** | Standard economic-geography market-access proxy — motorized travel time to the nearest city of >50,000 population. |
+| **Raw columns** | 1 (the raster's pixel value, minutes). |
+| **Covariates extracted** | 1, community-level `W`: `travel_time_to_city_min` — raster value sampled at each community centroid (rasterio point sample; range 0–181 min, median 40 min across the 162 communities). |
+| **Status** | ✅ complete. |
+
+**Why this one is a cleaner temporal match than OpenCellID/Ookla**: this dataset is *explicitly dated 2015* (its WCS metadata reports `temporalExtent:2015`) — an exact match to the LEAP baseline, not "the earliest snapshot an open archive happens to cover." No representation learning needed — a raster value at a point, same pattern as CHIRPS rainfall.
+
+**Why this is a valid community-level covariate**: same test as rainfall — a household-level cash transfer cannot build roads or move cities, so there's no post-treatment-bias risk.
+
+**Not redundant with existing covariates**: weakly correlated with `dist_to_capital_km` (r=0.24) and `comm_size` (r=0.07) — travel time to the nearest large city captures road/terrain access, which doesn't reduce to straight-line distance to the district capital or a community's own population.
+
 ## Explored and rejected: mobile coverage / usage
 
 Two sources were fully implemented, then removed after closer scrutiny — kept here (rather than silently deleted) so the reasoning doesn't get rediscovered from scratch later.
@@ -94,7 +111,6 @@ An empirical check (correlating each community's LEAP treatment share against ev
 
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `Z` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey `W`/`Z` covariates.
 
-- **Market access** (travel-time-to-market rasters, e.g. Malaria Atlas Project / JRC accessibility layers) — exogenous infrastructure → `Z` candidate. No RL expected: a raster value sampled at each centroid, same pattern as rainfall.
 - **EM-DAT / ACLED** disaster & conflict event records — exogenous to a household-level program → `Z` candidate, same reasoning as rainfall's study-window row. No RL: tabular event counts/dates.
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `Z` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.

@@ -97,6 +97,10 @@ COVARIATES: list[Covariate] = [
     Covariate('cdd_1517', 'Max consecutive dry days, 2015–2017', Level.COMMUNITY,
               support=Support.COUNT, source='rainfall'),
 
+    # ── Community-level (market access, see external_data.py) ──────────────────
+    Covariate('travel_time_to_city_min', 'Travel time to nearest city, 2015 (min)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='market_access'),
+
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
     # data/ghana/README.md's "Explored and rejected" section. Both are
