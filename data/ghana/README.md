@@ -13,9 +13,9 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
 | Market access (planned) | e.g. [Malaria Atlas Project](https://malariaatlas.org/) accessibility layers (TBD) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
 | EM-DAT / ACLED events (planned) | [EM-DAT](https://www.emdat.be/) / [ACLED](https://acleddata.com/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
-| OpenCellID mobile coverage (planned) | [OpenCellID](https://www.opencellid.org/) | — | Tabular / raster point value | Community | — | — | — | ⏳ |
+| [Mobile coverage/usage](#explored-and-rejected-mobile-coverage--usage) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **176** | | |
+| **Total** | | **~7 GB** | | | | **177** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -74,13 +74,28 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why CDD in addition to the annual totals**: two communities can have identical yearly rainfall totals with very different agricultural outcomes if one had a damaging mid-season dry spell and the other's rain was evenly distributed — the total alone can't distinguish them, but the longest dry spell can. **Why one whole-window value (`cdd_1517`) rather than per calendar year**: a calendar-year split is agronomically arbitrary — growing seasons don't align with Jan 1 — and would understate a real drought straddling a year boundary (e.g. Nov 2016–Jan 2017) by resetting the streak at Dec 31. One whole-window value also keeps the covariate count down rather than adding 3 more correlated columns for NEXIS to search over.
 
+## Explored and rejected: mobile coverage / usage
+
+Two sources were fully implemented, then removed after closer scrutiny — kept here (rather than silently deleted) so the reasoning doesn't get rediscovered from scratch later.
+
+**OpenCellID** (crowd-sourced global cell-tower registry, `mcc=620` filter for Ghana: 17,086 towers) — tried as `dist_nearest_tower_km`, distance from each community centroid to the nearest tower. Tower/operator *counts* within a fixed radius were tried first but were 0 for all 162 communities at any radius up to ~50km (the registry is very thin in these deep-rural communities), so only the always-defined distance metric was kept initially.
+
+**Ookla Speedtest Open Data** (real Speedtest.net app runs, aggregated to ~600m tiles, quarterly, public with no account needed) — tried as 5 covariates (distance to nearest measured test, usage sums, average speeds), pooled across all 4 quarters of 2019 (the earliest year Ookla's archive covers) to reduce zero-inflation from 88/162 to 144/162 communities with any data within 25km.
+
+**Why both were rejected**: neither source can reach back to the 2015-2017 LEAP study window, and unlike rainfall (climate is stable across a decade, so a present-day CHIRPS pull is a safe stand-in for the study-window value), both of these reflect fast-changing, non-stationary quantities over the relevant years:
+- Ookla's archive starts at 2019 Q1 — already 2 years after the endline, and Ghana's mobile-data *usage* adoption curve moved substantially between 2019 and today, so a 2019 snapshot isn't a trustworthy stand-in for 2015-2017 usage.
+- OpenCellID looked more defensible at first (infrastructure changes more slowly than usage), but checking the raw `created` timestamps showed 96%+ of all 17,086 Ghana towers were logged in **2025-2026** — not a build date, just when the crowd-sourcing registry happened to scan the area — and 73% of towers are LTE, a technology that didn't meaningfully exist in rural Northern Ghana in 2015-2017. Two attempted fixes both failed: filtering by `created` date leaves only 19 usable towers nationally (the timestamp reflects registry-scan time, not installation time), and restricting to GSM-only towers (the oldest, most likely-pre-2015 technology layer) leaves just 238 towers nationally, with nearest-tower distances 3-5x larger and *negatively* correlated (r=-0.40) with the all-technology distance — i.e. registry sparsity noise, not real geography.
+
+An empirical check (correlating each community's LEAP treatment share against every candidate column) showed no evidence of the classic post-treatment-bias channel (cash transfer → phone/data spending → higher measured usage) — all correlations were small (|r| ≤ 0.11). That mechanism turned out not to be the deciding problem. The deciding problem was construct validity: neither source can be trusted to rank communities the way they'd have ranked in 2015-2017, given how much Ghana's mobile landscape moved in the intervening years, and the usage-magnitude columns (`tests_sum`, `devices_sum`, `avg_d_kbps`) were additionally found to substantially re-derive `dist_to_capital_km`/`comm_size` (already in the covariate set) rather than add new information.
+
+**Bar for revisiting**: a source with actual 2015-2017 (or very close) coverage — e.g. a licensed GSMA historical mobile-coverage layer — not merely "the earliest year an open dataset happens to cover."
+
 ## Planned / candidate future sources
 
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `Z` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey `W`/`Z` covariates.
 
 - **Market access** (travel-time-to-market rasters, e.g. Malaria Atlas Project / JRC accessibility layers) — exogenous infrastructure → `Z` candidate. No RL expected: a raster value sampled at each centroid, same pattern as rainfall.
 - **EM-DAT / ACLED** disaster & conflict event records — exogenous to a household-level program → `Z` candidate, same reasoning as rainfall's study-window row. No RL: tabular event counts/dates.
-- **OpenCellID** mobile network coverage/density (suggested by UNICEF colleagues) — exogenous infrastructure → `Z` candidate. No RL expected, but needs scoping (density within what radius of each community?).
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `Z` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
 

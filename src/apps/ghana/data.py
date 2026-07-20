@@ -96,6 +96,12 @@ COVARIATES: list[Covariate] = [
               support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
     Covariate('cdd_1517', 'Max consecutive dry days, 2015–2017', Level.COMMUNITY,
               support=Support.COUNT, source='rainfall'),
+
+    # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
+    # both explored and rejected as community-level covariates — see
+    # data/ghana/README.md's "Explored and rejected" section. Both are
+    # present-day-only sources with no way to reconstruct 2015-2017
+    # conditions, unlike rainfall, which is stable across a decade.
 ]
 
 # ── Derived views (kept for every existing consumer — do not hand-edit these;
