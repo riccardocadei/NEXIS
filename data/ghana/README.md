@@ -13,8 +13,8 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
 | [Market access](#market-access-travel-time-to-cities-2015-malaria-atlas-project) | [Malaria Atlas Project](https://malariaatlas.org/) — Weiss et al. 2018 (Nature) | 662 KB (Ghana-clipped raster) | Raster point value | Community | 1 (travel time, minutes) | 1 | 2015 | ✅ |
 | [Conflict/protest events](#conflictprotest-events-acled-2015-2017) | [ACLED](https://acleddata.com/) | 500 events, Ghana 2015–2017 | Tabular event records | Community | 29 (per event) | 3 (distance + 2 type-split counts) | 2015–2017 | ✅ |
-| EM-DAT events (planned) | [EM-DAT](https://www.emdat.be/) (TBD) | — | Tabular event records | Community or district (TBD) | — | — | — | ⏳ |
-| [Mobile coverage/usage](#explored-and-rejected-mobile-coverage--usage) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
+| [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
+| [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
 | **Total** | | **~7 GB** | | | | **181** | | |
 
@@ -113,9 +113,13 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Not redundant with existing covariates**: `dist_nearest_conflict_km` correlates 0.44 with `dist_to_capital_km` (moderate — conflict events cluster near populated areas, as expected) and 0.24 with `comm_size`; not so high as to be a re-derivation.
 
-## Explored and rejected: mobile coverage / usage
+## Explored and rejected
 
-Two sources were fully implemented, then removed after closer scrutiny — kept here (rather than silently deleted) so the reasoning doesn't get rediscovered from scratch later.
+Sources that were investigated — some fully implemented then removed, some rejected before extraction based on documented limitations — kept here (rather than silently dropped) so the reasoning doesn't get rediscovered from scratch later.
+
+### Mobile coverage / usage (OpenCellID, Ookla)
+
+Two sources were fully implemented, then removed after closer scrutiny.
 
 **OpenCellID** (crowd-sourced global cell-tower registry, `mcc=620` filter for Ghana: 17,086 towers) — tried as `dist_nearest_tower_km`, distance from each community centroid to the nearest tower. Tower/operator *counts* within a fixed radius were tried first but were 0 for all 162 communities at any radius up to ~50km (the registry is very thin in these deep-rural communities), so only the always-defined distance metric was kept initially.
 
@@ -129,11 +133,20 @@ An empirical check (correlating each community's LEAP treatment share against ev
 
 **Bar for revisiting**: a source with actual 2015-2017 (or very close) coverage — e.g. a licensed GSMA historical mobile-coverage layer — not merely "the earliest year an open dataset happens to cover."
 
+### EM-DAT disaster events
+
+Rejected before extraction, based on EM-DAT's own documentation ([doc.emdat.be/docs/data-structure-and-content/spatial-information](https://doc.emdat.be/docs/data-structure-and-content/spatial-information/)) rather than a downloaded sample — no account was registered for this one.
+
+**What EM-DAT actually offers**: disaster events *are* geocoded to Admin-2 (district) level via GADM administrative units, for non-biological natural hazards since 2000 — matching the GADM 4.1 boundaries already in `data/ghana/geo/`. But critically: "the human and economic impact variables at the country level (Admin-0) are not disaggregated between regions at the Admin-1 or Admin-2 level. Hence, only the *occurrence* is available at a more precise administrative level, and the impact variables remain representative of the country level" (EM-DAT docs, verbatim). So a district is flagged as having *had* a flood/drought/storm, but deaths/people-affected/damage figures only exist at the national level — no district-level magnitude, unlike ACLED's per-event fatality counts.
+
+**Why this rules it out for our specific sample**: the 162 LEAP communities span only 5 districts (East Mamprusi, Karaga, Yendi, Bongo, Garu-Tempane). Even with perfect Admin-2 geocoding, any EM-DAT-derived covariate (e.g. disaster count since 2000) can take at most 5 distinct values across all 162 communities — a coarse district dummy, not a continuous community-level signal like ACLED's per-event distance. At that resolution it risks being largely redundant with district identity itself (which `dist_to_capital_km` already partially encodes) rather than adding new information.
+
+**Bar for revisiting**: if UNICEF's community questionnaire microdata already covers Table 4.2.7-style community shocks (see the Planned section below) with better granularity, that supersedes this option entirely. Otherwise, revisit only if a specific sub-district-level EM-DAT extension or complementary source appears.
+
 ## Planned / candidate future sources
 
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `W` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window, or what level it's measured at. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey's other `W` covariates.
 
-- **EM-DAT** disaster event records — exogenous to a household-level program → `W` candidate, same reasoning as rainfall's study-window row. No RL: tabular event counts/dates. Likely only national/regional geocoding for Ghana (unconfirmed) — check spatial resolution before investing effort, same risk that turned out to sink the first ACLED export attempt above.
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `W` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
 
