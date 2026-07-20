@@ -238,6 +238,96 @@ def plot_neuron_activation_map(
     return ax
 
 
+def plot_community_choropleth(
+    data_dir: Path | str, comm_df: pd.DataFrame, value_col: str,
+    ax=None, cmap: str = 'YlOrRd', label: str | None = None,
+) -> plt.Axes:
+    """General-purpose choropleth: community centroids coloured by any
+    continuous community-level value (rainfall, spectral index, SAE neuron
+    activation, ...). `comm_df` must carry `lat`/`lon`/`value_col`.
+    """
+    import matplotlib.colors as mcolors
+    from matplotlib.cm import ScalarMappable
+
+    data_dir = Path(data_dir)
+    geo_dir = data_dir / 'geo'
+    gdf1 = gpd.read_file(geo_dir / 'gadm41_GHA_1.json')
+    gdf2 = gpd.read_file(geo_dir / 'gadm41_GHA_2.json')
+
+    lakes_shp = geo_dir / 'ne_10m_lakes.shp'
+    if lakes_shp.exists():
+        ghana_box = gpd.GeoDataFrame({'geometry': [box(*gdf1.total_bounds)]}, crs=gdf1.crs)
+        lakes_gh  = gpd.read_file(lakes_shp).to_crs(gdf1.crs).clip(ghana_box)
+    else:
+        lakes_gh = gpd.GeoDataFrame()
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 5))
+
+    gdf1.plot(ax=ax, color='#e8e8e8', edgecolor='white', linewidth=0.6)
+    gdf2.plot(ax=ax, color='#f0f0f0', edgecolor='white', linewidth=0.4)
+    if not lakes_gh.empty:
+        lakes_gh.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=3)
+
+    vals = comm_df[value_col].astype(float)
+    norm = mcolors.Normalize(vmin=vals.min(), vmax=vals.max())
+    ax.scatter(comm_df['lon'], comm_df['lat'], s=22, c=vals, cmap=cmap, norm=norm,
+               edgecolors='#333333', linewidths=0.3, alpha=0.9, zorder=6)
+    cbar = ax.figure.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax,
+                              fraction=0.03, pad=0.02, aspect=20)
+    cbar.set_label(label or value_col, fontsize=7)
+    cbar.ax.tick_params(labelsize=6)
+    ax.axis('off')
+    return ax
+
+
+def plot_boxplot_by_arm(df0: pd.DataFrame, col: str, ax=None,
+                        treat_color: str = TREAT_COLOR, ctrl_color: str = CTRL_COLOR,
+                        labels=('Comparison', 'Treatment')) -> plt.Axes:
+    """Boxplot of one covariate split by treatment arm.
+
+    Plain matplotlib rather than pandas' `.boxplot()` -- the latter ignores
+    color entirely and renders every group in the same gray.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 4))
+    groups = [df0.loc[df0['T'] == t, col].dropna() for t in (0, 1)]
+    bp = ax.boxplot(groups, patch_artist=True, widths=0.5, showfliers=False)
+    for patch, color in zip(bp['boxes'], (ctrl_color, treat_color)):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.75)
+        patch.set_edgecolor('#333333')
+    for median in bp['medians']:
+        median.set_color('#222222')
+    ax.set_xticklabels(labels)
+    return ax
+
+
+def plot_boxplot_by_district(comm_df: pd.DataFrame, col: str, ax=None) -> plt.Axes:
+    """Boxplot of one community-level covariate by district.
+
+    Same district colour palette as `plot_ghana_map`, for visual consistency
+    across figures.
+    """
+    district_colors = {
+        'East Mamprusi': '#e07b39', 'Karaga': '#5b8db8', 'Bongo': '#4caf7d',
+        'Yendi': '#9c6db7', 'Garu-Tempane': '#d4a017',
+    }
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 4))
+    order = [d for d in district_colors if d in comm_df['district'].unique()]
+    groups = [comm_df.loc[comm_df['district'] == d, col].dropna() for d in order]
+    bp = ax.boxplot(groups, patch_artist=True, widths=0.5, showfliers=False)
+    for patch, d in zip(bp['boxes'], order):
+        patch.set_facecolor(district_colors[d])
+        patch.set_alpha(0.65)
+        patch.set_edgecolor('#333333')
+    for median in bp['medians']:
+        median.set_color('#222222')
+    ax.set_xticklabels(order, rotation=20, ha='right', fontsize=8)
+    return ax
+
+
 def plot_love(df0: pd.DataFrame, w_cols: list[str],
               labels: dict[str, str] | None = None,
               ax=None,
@@ -334,23 +424,74 @@ def show_neuron(
     return comm_ids_top
 
 
+def plot_rd_discontinuity(df0: pd.DataFrame, df1: pd.DataFrame,
+                          running: str = 'pmt_score', n_bins_per_side: int = 10,
+                          ax=None,
+                          treat_color: str = TREAT_COLOR,
+                          ctrl_color:  str = CTRL_COLOR) -> plt.Axes:
+    """RD plot: household ΔY against the PMT running variable.
+
+    T is a deterministic function of `running` (below cutoff -> Treatment),
+    so this is simultaneously the RD analogue of the parallel-trends picture:
+    a visible jump in mean ΔY right at the cutoff is evidence *for* a
+    treatment effect, using the running variable instead of survey wave.
+    Every household is drawn (faint) so the underlying density/noise is
+    visible; a per-side binned mean line is overlaid to make the (possible)
+    jump at the cutoff readable through the noise.
+    """
+    dY = (df1.set_index('hhid')['Y'] - df0.set_index('hhid')['Y']).rename('dY')
+    hh = df0.set_index('hhid')[['T', running]].join(dY).dropna()
+
+    cutoff = (hh.loc[hh['T'] == 1, running].max()
+              + hh.loc[hh['T'] == 0, running].min()) / 2
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 4))
+
+    for t, color, label in [(0, ctrl_color, 'Comparison'), (1, treat_color, 'Treatment')]:
+        side = hh[hh['T'] == t]
+        ax.scatter(side[running], side['dY'], s=10, c=color, alpha=0.25,
+                   edgecolors='none', zorder=2, label=f'{label} (household)')
+
+        bins = np.linspace(side[running].min(), side[running].max(), n_bins_per_side + 1)
+        binned = (side.assign(bin=pd.cut(side[running], bins))
+                      .groupby('bin', observed=True)
+                      .agg(x=(running, 'mean'), y=('dY', 'mean'))
+                      .dropna())
+        ax.plot(binned['x'], binned['y'], 'o-', color=color, lw=1.8, ms=5,
+                markeredgecolor='#333333', markeredgewidth=0.5, zorder=4,
+                label=f'{label} (binned mean)')
+
+    ax.axvline(cutoff, color='black', lw=1.0, ls='--', label=f'Cutoff ≈ {cutoff:.3f}')
+    ax.set_xlabel('PMT score (running variable)')
+    ax.set_ylabel('ΔY, Endline − Baseline (GH₵/month)')
+    ax.set_title('RD check: outcome change vs. running variable')
+    ax.legend(fontsize=7, ncol=1, loc='upper right', framealpha=0.9)
+    return ax
+
+
 def plot_parallel_trends(df: pd.DataFrame, outcome: str = 'Y',
                          ylabel: str = 'Mean AE Expenditure (GH₵/month)',
                          ax=None,
                          treat_color: str = TREAT_COLOR,
                          ctrl_color:  str = CTRL_COLOR) -> plt.Axes:
-    """The canonical DiD picture: mean outcome by arm and wave.
+    """The canonical DiD picture: mean outcome by arm and wave, with 95% CIs.
 
-    Draws two connected points (Baseline → Endline) for each arm and
-    annotates the DiD gap at endline.
+    Draws two connected points (Baseline → Endline) for each arm, vertical
+    95% CI bars (±1.96·SE of the mean) at each point, and annotates the DiD
+    gap at endline.
     """
-    means = df.groupby(['wave', 'T'])[outcome].mean().unstack('T')
+    g = df.groupby(['wave', 'T'])[outcome]
+    means = g.mean().unstack('T')
+    ses   = (g.std() / np.sqrt(g.count())).unstack('T')
 
     if ax is None:
         _, ax = plt.subplots(figsize=(6, 4))
 
-    ax.plot([0, 1], means[0].values, 'o--', color=ctrl_color,  lw=2, ms=7, label='Comparison')
-    ax.plot([0, 1], means[1].values, 'o-',  color=treat_color, lw=2, ms=7, label='Treatment')
+    ax.errorbar([0, 1], means[0].values, yerr=1.96 * ses[0].values,
+                fmt='o--', color=ctrl_color,  lw=2, ms=7, capsize=4, label='Comparison')
+    ax.errorbar([0, 1], means[1].values, yerr=1.96 * ses[1].values,
+                fmt='o-',  color=treat_color, lw=2, ms=7, capsize=4, label='Treatment')
 
     # Annotate the DiD gap
     did = (means[1][1] - means[1][0]) - (means[0][1] - means[0][0])

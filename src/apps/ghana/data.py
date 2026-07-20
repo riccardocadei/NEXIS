@@ -132,6 +132,12 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     df['Y']    = df['aeexp_r'].astype(float)
     df['wave'] = df['time'].map({'Baseline': 0, 'Endline': 1}).astype('int64')
 
+    # RDD running variable: lower PMT score = poorer = Treatment-eligible.
+    # Not a NEXIS covariate (near-perfect separation by construction, see
+    # data/ghana/README.md's "Known caveat") -- kept only to illustrate/check
+    # the assignment rule around its cutoff.
+    df['pmt_score'] = df['pmtscore'].astype(float)
+
     # Community identifier and GPS coordinates (community-level centroids)
     df['comm']          = df['comm'].astype(int)
     df['gps_latitude']  = df['gps_latitude'].astype(float)
@@ -205,3 +211,52 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     df = df.merge(load_effect_modifiers(Path(data_dir)), on='comm', how='left')
 
     return df
+
+
+def load_satellite_covariates(
+    data_dir: Path | str = DATA_DIR, min_activations: int = 5,
+) -> tuple[pd.DataFrame, list[Covariate]]:
+    """Lightweight satellite-feature loader for exploration (not NEXIS itself).
+
+    Reads the already-computed SAE activations and spectral indices for the
+    162 LEAP communities directly off disk -- no SAE/foundation-model forward
+    pass, no national-grid contrast pool. That heavier path (needed for VLM
+    neuron interpretation) lives in interpret.py::load_nexis_inputs; this one
+    only needs enough to look at the candidate pool's distribution/geography.
+
+    Returns
+    -------
+    (comm_df, covariates) : comm_df indexed by `comm`, one column per
+    covariate (spectral means + SAE neurons active in >= min_activations
+    communities); covariates is the matching list of Covariate metadata.
+    """
+    sat_dir = Path(data_dir) / 'satellite'
+
+    spectral = pd.read_csv(sat_dir / 'spectral_indices.csv').rename(columns={'comm_id': 'comm'})
+    mean_cols = [c for c in spectral.columns if c.endswith('_mean')]
+    spectral_names = [c[:-5] for c in mean_cols]                    # ndvi_mean -> ndvi
+    spectral_df = spectral.set_index('comm')[mean_cols].rename(
+        columns=dict(zip(mean_cols, spectral_names))
+    )
+    spectral_covariates = [
+        Covariate(name, name.upper(), Level.COMMUNITY, Origin.HAND_CRAFTED,
+                  Support.CONTINUOUS, source='satellite_spectral')
+        for name in spectral_names
+    ]
+
+    codes    = np.load(sat_dir / 'sae_activations.npy')             # (162, 4096)
+    comm_ids = np.load(sat_dir / 'sae_comm_ids.npy')
+    live_idx = np.where((codes > 0).sum(axis=0) >= min_activations)[0]
+    sae_df = pd.DataFrame(
+        codes[:, live_idx], index=pd.Index(comm_ids, name='comm'),
+        columns=[f'neuron_{int(i)}' for i in live_idx],
+    )
+    sae_covariates = [
+        Covariate(f'neuron_{int(i)}', f'Neuron {int(i)}', Level.COMMUNITY,
+                  Origin.LEARNED, Support.SPARSE_NONNEG, source='satellite_sae')
+        for i in live_idx
+    ]
+
+    comm_df    = spectral_df.join(sae_df, how='inner')
+    covariates = spectral_covariates + sae_covariates
+    return comm_df[[c.name for c in covariates]], covariates
