@@ -16,6 +16,8 @@ from shapely.geometry import box
 FILL_THRESHOLD = 5000
 PCT_LO, PCT_HI = 2, 98
 PAPER_BG = '#FFF5EB'  # orange!8!white: 8%*(1,0.5,0) + 92%*(1,1,1)
+TREAT_COLOR = '#e07b39'
+CTRL_COLOR  = '#5b8db8'
 
 # Language group codes → names derived from the language dummy columns in the CSV
 # (acholi_dum, alur_dum, iteso_dum, karamojong_dum, langi_dum, lugbara_dum, madi_dum).
@@ -525,3 +527,135 @@ def w_interaction_tests(df, W_df=None, alpha=0.05):
         rows.append({'W': name, 'γ (T×W)': float(beta[3]), 'p-value': p, 'sig': p <= gate})
 
     return pd.DataFrame(rows).sort_values('p-value'), gate
+
+
+# ── Satellite covariates (lightweight, for exploration) ──────────────────────
+
+def load_satellite_covariates(data_dir, results_dir, min_activations: int = 5):
+    """Site-level satellite features for exploration (not NEXIS itself).
+
+    Reads already-computed spectral indices and SAE activations for the 331
+    RCT satellite sites directly off disk -- no foundation-model forward
+    pass. Mirrors src/apps/ghana/data.py::load_satellite_covariates.
+
+    Returns
+    -------
+    (site_df, covariates) : site_df indexed by `geo_long_lat_key`, one column
+    per covariate (spectral means + SAE neurons active in >= min_activations
+    sites); covariates is the matching list of Covariate metadata.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from src.apps.covariates import Covariate, Level, Origin, Support
+
+    sat_dir = Path(data_dir) / 'satellite' / 'rct'
+
+    spectral = pd.read_csv(sat_dir / 'spectral_indices.csv').rename(columns={'site_key': 'geo_long_lat_key'})
+    mean_cols = [c for c in spectral.columns if c.endswith('_mean')]
+    spectral_names = [c[:-5] for c in mean_cols]                    # ndvi_mean -> ndvi
+    spectral_df = spectral.set_index('geo_long_lat_key')[mean_cols].rename(
+        columns=dict(zip(mean_cols, spectral_names))
+    )
+    spectral_covariates = [
+        Covariate(name, name.upper(), Level.COMMUNITY, Origin.HAND_CRAFTED,
+                  Support.CONTINUOUS, source='satellite_spectral')
+        for name in spectral_names
+    ]
+
+    site_features = np.load(Path(results_dir) / 'site_features.npz')
+    codes    = site_features['site_features']       # (n_sites, 1024), sparse nonneg
+    site_ids = site_features['site_keys']
+    live_idx = np.where((codes > 0).sum(axis=0) >= min_activations)[0]
+    sae_df = pd.DataFrame(
+        codes[:, live_idx], index=pd.Index(site_ids, name='geo_long_lat_key'),
+        columns=[f'neuron_{int(i)}' for i in live_idx],
+    )
+    sae_covariates = [
+        Covariate(f'neuron_{int(i)}', f'Neuron {int(i)}', Level.COMMUNITY,
+                  Origin.LEARNED, Support.SPARSE_NONNEG, source='satellite_sae')
+        for i in live_idx
+    ]
+
+    site_df    = spectral_df.join(sae_df, how='inner')
+    covariates = spectral_covariates + sae_covariates
+    return site_df[[c.name for c in covariates]], covariates
+
+
+# ── Styled plots (consistent colors/labels across this app's figures) ───────
+
+def plot_boxplot_by_arm(df, col, ax=None, treat_color=TREAT_COLOR, ctrl_color=CTRL_COLOR,
+                        labels=('Comparison', 'Treatment')):
+    """Boxplot of one covariate split by treatment arm.
+
+    Plain matplotlib rather than pandas' `.boxplot()` -- the latter ignores
+    color entirely and renders every group in the same gray.
+    """
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(4, 4))
+    groups = [df.loc[df['T'] == t, col].dropna() for t in (0, 1)]
+    bp = ax.boxplot(groups, patch_artist=True, widths=0.5, showfliers=False)
+    for patch, color in zip(bp['boxes'], (ctrl_color, treat_color)):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.75)
+        patch.set_edgecolor('#333333')
+    for median in bp['medians']:
+        median.set_color('#222222')
+    ax.set_xticklabels(labels)
+    return ax
+
+
+def plot_boxplot_by_district(site_df, col, ax=None, top_n=8):
+    """Boxplot of one site-level covariate by district (top-N by site count,
+    rest grouped as 'Other' -- Uganda has far more districts than Ghana)."""
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 4))
+
+    district = site_df['district'].astype(str)
+    top = district.value_counts().index[:top_n]
+    grouped = district.where(district.isin(top), 'Other')
+    order  = [d for d in top if d in grouped.unique()] + (['Other'] if 'Other' in grouped.unique() else [])
+    cmap   = cm.get_cmap('tab20', len(order))
+    colors = {d: cmap(i) for i, d in enumerate(order)}
+
+    groups = [site_df.loc[grouped == d, col].dropna() for d in order]
+    bp = ax.boxplot(groups, patch_artist=True, widths=0.5, showfliers=False)
+    for patch, d in zip(bp['boxes'], order):
+        patch.set_facecolor(colors[d])
+        patch.set_alpha(0.7)
+        patch.set_edgecolor('#333333')
+    for median in bp['medians']:
+        median.set_color('#222222')
+    ax.set_xticklabels(order, rotation=25, ha='right', fontsize=7)
+    return ax
+
+
+def plot_site_choropleth(uganda_gdf, neighbors, lakes_c, site_df, value_col,
+                         cities=None, ax=None, cmap='YlOrRd', label=None):
+    """General-purpose choropleth: satellite sites coloured by any continuous
+    site-level value (spectral index, SAE neuron activation, ...).
+
+    `site_df` must carry `geo_long_center`/`geo_lat_center`/`value_col`.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    from matplotlib.cm import ScalarMappable
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 6))
+
+    draw_base(ax, uganda_gdf, neighbors, lakes_c, cities=cities, paper=False)
+
+    vals = site_df[value_col].astype(float)
+    norm = mcolors.Normalize(vmin=vals.min(), vmax=vals.max())
+    ax.scatter(site_df['geo_long_center'], site_df['geo_lat_center'], s=22, c=vals,
+               cmap=cmap, norm=norm, edgecolors='#333333', linewidths=0.3, alpha=0.9, zorder=6)
+    cbar = ax.figure.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax,
+                              fraction=0.03, pad=0.02, aspect=20)
+    cbar.set_label(label or value_col, fontsize=7)
+    cbar.ax.tick_params(labelsize=6)
+    return ax
