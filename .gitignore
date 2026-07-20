@@ -36,3 +36,6 @@ animations/__pycache__/
 
 # Social media drafts (images/clips staged for tweets, not repo content)
 tweet/
+
+# Superseded notebooks, kept locally for reference only
+notebooks/old/
