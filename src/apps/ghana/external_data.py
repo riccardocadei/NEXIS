@@ -14,7 +14,9 @@ Add one column-producing block per source to this function rather than
 inventing new merge logic per source. Rainfall (CHIRPS, via
 download_rainfall.py) is the first source; market access (travel time to
 cities, via download_market_access.py) is the second; conflict/protest
-events (ACLED, via download_acled.py) are the third.
+events (ACLED, via download_acled.py) are the third; market prices (WFP,
+via download_market_prices.py) are the fourth; nighttime lights (VIIRS, via
+download_nightlights.py) are the fifth.
 
 Mobile-network coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
 both explored and rejected — see data/ghana/README.md's "Explored and
@@ -84,6 +86,37 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
       A household-level cash transfer cannot cause a riot or a battle, so
       this is a valid community-level covariate despite overlapping the
       treatment period, same test as rainfall's study-window columns.
+
+    Market prices contribute 2 columns (see download_market_prices.py), from
+    WFP Ghana food prices (via HDX, public, no account needed):
+      - dist_nearest_market_km: distance to the nearest market with a Maize
+        price observation in 2014-2015, always defined. Maize, not milk --
+        Ghana's WFP monitoring doesn't track milk/dairy at all (no local
+        fresh-milk market); maize is Northern Ghana's actual staple crop.
+      - maize_price_2014_2015: that nearest market's mean Maize price over
+        2014-2015 (pre/at-baseline, not later years) -- deliberately
+        sidesteps the "cash transfer causes local price inflation" general-
+        equilibrium debate by using pre-treatment prices, same logic as
+        rainfall's pre-2015 climatology.
+      A household-level cash transfer cannot retroactively change a
+      2014-2015 market price, so this is exogenous by construction.
+
+    Nighttime lights contribute 2 columns (see download_nightlights.py),
+    from the VIIRS 2015 annual composite (Google Earth Engine, same
+    authentication as rainfall/satellite -- explicitly dated 2015, an exact
+    match to the LEAP baseline, unlike OpenCellID/Ookla):
+      - night_light_radiance: mean radiance within 1km of the community
+        centroid -- "is this specific community itself electrified/
+        economically active". Sparse (~15/162 communities show any
+        detectable light at this scale -- checked at multiple buffer radii,
+        genuinely a fact about these deep-rural communities, not a radius
+        artifact), registered as sparse_nonneg like SAE activations.
+      - dist_nearest_light_km: distance to the nearest pixel with radiance
+        above a standard "detectable urban light" threshold, always
+        defined -- a remoteness/access proxy, weakly correlated with
+        night_light_radiance itself (r=-0.25, answers a different question).
+      A cash transfer cannot build a power grid or move a town, so both are
+      exogenous regardless of timing.
     """
     data_dir = Path(data_dir)
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
@@ -93,6 +126,8 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     ]
     market_access_columns = ['travel_time_to_city_min']
     acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
+    market_prices_columns = ['dist_nearest_market_km', 'maize_price_2014_2015']
+    nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -129,9 +164,28 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         # convention as rainfall/market access above.
         acled = pd.DataFrame(columns=['comm', *acled_columns])
 
+    market_prices_path = data_dir / 'market_prices' / 'market_prices_community.csv'
+    if market_prices_path.exists():
+        market_prices = pd.read_csv(market_prices_path)[['comm', *market_prices_columns]]
+    else:
+        # not yet processed (run download_market_prices.py) — same NaN-fill
+        # convention as the sources above.
+        market_prices = pd.DataFrame(columns=['comm', *market_prices_columns])
+
+    nightlights_path = data_dir / 'nightlights' / 'nightlights_community.csv'
+    if nightlights_path.exists():
+        nightlights = pd.read_csv(nightlights_path)[['comm', *nightlights_columns]]
+    else:
+        # not yet processed (run download_nightlights.py) — same NaN-fill
+        # convention as the sources above.
+        nightlights = pd.DataFrame(columns=['comm', *nightlights_columns])
+
     merged = (
         rainfall.merge(market_access, on='comm', how='outer')
                 .merge(acled, on='comm', how='outer')
+                .merge(market_prices, on='comm', how='outer')
+                .merge(nightlights, on='comm', how='outer')
                 .astype({'comm': 'int64'})
     )
-    return merged[['comm', *rainfall_columns, *market_access_columns, *acled_columns]]
+    return merged[['comm', *rainfall_columns, *market_access_columns, *acled_columns,
+                    *market_prices_columns, *nightlights_columns]]

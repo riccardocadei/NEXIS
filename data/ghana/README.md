@@ -13,10 +13,12 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
 | [Market access](#market-access-travel-time-to-cities-2015-malaria-atlas-project) | [Malaria Atlas Project](https://malariaatlas.org/) — Weiss et al. 2018 (Nature) | 662 KB (Ghana-clipped raster) | Raster point value | Community | 1 (travel time, minutes) | 1 | 2015 | ✅ |
 | [Conflict/protest events](#conflictprotest-events-acled-2015-2017) | [ACLED](https://acleddata.com/) | 500 events, Ghana 2015–2017 | Tabular event records | Community | 29 (per event) | 3 (distance + 2 type-split counts) | 2015–2017 | ✅ |
+| [Market prices](#market-prices-wfp-food-prices-2014-2015) | [WFP Food Prices](https://data.humdata.org/dataset/wfp-food-prices-for-ghana) (via HDX) | 91 markets, 32k+ price obs. | Tabular point value | Community | 16 (per price record) | 2 (distance + maize price) | 2014–2015 | ✅ |
+| [Nighttime lights](#nighttime-lights-viirs-2015) | [NOAA VIIRS DNB](https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21), via Google Earth Engine | 46 KB (Ghana-clipped raster) | Raster point value | Community | 1 (radiance) | 2 (own-community radiance + distance) | 2015 | ✅ |
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **181** | | |
+| **Total** | | **~7 GB** | | | | **185** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -113,6 +115,38 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Not redundant with existing covariates**: `dist_nearest_conflict_km` correlates 0.44 with `dist_to_capital_km` (moderate — conflict events cluster near populated areas, as expected) and 0.24 with `comm_size`; not so high as to be a re-derivation.
 
+## Market prices (WFP food prices, 2014-2015)
+
+| | |
+|---|---|
+| **Origin** | [WFP Food Prices for Ghana](https://data.humdata.org/dataset/wfp-food-prices-for-ghana), via the Humanitarian Data Exchange (HDX) — fully public, no account needed. 91 markets nationally, monthly price observations since 2006. |
+| **Produced by** | `src/apps/ghana/download_market_prices.py` — downloads both the markets list and price CSVs directly, no manual step. |
+| **Motivation** | A market-power/market-integration proxy — originally proposed as milk price, but Ghana's WFP monitoring doesn't track milk/dairy at all (no local fresh-milk market; Ghana is import-dependent for dairy). Maize is Northern Ghana's actual staple crop and has excellent coverage near the study area: markets in/near 4 of the 5 LEAP districts (Nalerigu/East Mamprusi, Yendi, Garu/Garu-Tempane, Bongo), plus several more within reach (Gushegu, Bunkprugu, Bolga, Tamale, Zabzugu). |
+| **Raw columns** | 16 per price record: date, admin1/2, market, market_id, lat/lon, category, commodity, unit, priceflag, pricetype, currency, price, usdprice. |
+| **Covariates extracted** | 2, community-level `W`: `dist_nearest_market_km` (distance to the nearest market with a Maize price observation, always defined, range 1–52km, median 14km) and `maize_price_2014_2015` (that market's mean Maize price over 2014-2015, GHS, range 68–114 across 9 distinct nearest-markets). |
+| **Status** | ✅ complete. |
+
+**Why 2014-2015, not later years**: deliberately pre/at-baseline, not concurrent with or after treatment — sidesteps the classic "cash transfer causes local price inflation" general-equilibrium debate entirely (a household-level cash transfer cannot retroactively change a 2014-2015 price), same logic as rainfall's pre-2015 climatology. Since food prices are genuinely dated historical records (like ACLED), there's no need to use present-day data the way OpenCellID/Ookla were forced to.
+
+**Why nearest-market assignment rather than a district-level price**: markets are point locations, not administrative units, so assigning each community its geographically nearest priced market (rather than "the market in this community's district") gives more granular variation — 9 distinct nearest-markets across the 162 communities, not a 5-category district dummy.
+
+## Nighttime lights (VIIRS, 2015)
+
+| | |
+|---|---|
+| **Origin** | `NOAA/VIIRS/DNB/ANNUAL_V21` (stray-light-corrected annual composite), via Google Earth Engine — same authentication already used for rainfall/satellite imagery, no new account needed. |
+| **Produced by** | `src/apps/ghana/download_nightlights.py` — downloads a small (46KB) Ghana-clipped raster plus a direct GEE `reduceRegions` call for the own-community radiance. |
+| **Motivation** | Proposed as an urbanization/connectivity proxy — checked empirically rather than assumed, since a raw point-sample turned out to need real scrutiny (see below). |
+| **Raw columns** | 1 (radiance, the composite's `average_masked` band). |
+| **Covariates extracted** | 2, community-level `W`: `night_light_radiance` (mean radiance within 1km of the centroid — own-community electrification/economic-activity signal) and `dist_nearest_light_km` (distance to the nearest pixel with radiance above a detectable-light threshold — a remoteness/access proxy). |
+| **Status** | ✅ complete. |
+
+**Why two covariates, not one**: they answer different questions and turned out to be only weakly correlated with each other (r=-0.25). A direct point-sample of the community's own location is heavily zero-inflated — 91% of communities (147/162) show near-zero radiance at their exact centroid, confirmed genuine (not a radius artifact) by checking buffers up to 10km, all still ~15-17/162 nonzero. Rather than discard the signal the way OpenCellID's degenerate tower counts were discarded, both framings were kept because the "zero" here is itself meaningful (deep-rural Northern Ghana genuinely lacks grid electrification in most of these communities, the same reasoning that made Ookla's zero-test-count communities informative rather than noise):
+- `night_light_radiance`: sparse (~15/162 nonzero at a 1km buffer, checked at multiple thresholds), registered as `sparse_nonneg` like SAE activations — "does this specific community itself have detectable light." Weakly correlated with `dist_to_capital_km`/`comm_size`/`travel_time_to_city_min` (all |r| ≤ 0.22) — a fairly independent fact (a specific market centre or school having solar/grid lighting doesn't track general remoteness).
+- `dist_nearest_light_km`: always defined (0.08–32km, median 8.7km), a general remoteness/access proxy instead — correlated with `dist_to_capital_km` (r=0.66) and `travel_time_to_city_min` (r=0.52), higher than `night_light_radiance`'s correlations but not so high as to be a pure re-derivation.
+
+**Why 2015, not the most recent VIIRS composite**: VIIRS's archive starts April 2012, so (unlike Ookla, whose archive only reaches back to 2019) the exact LEAP baseline year is directly available — no temporal-mismatch trade-off needed here at all.
+
 ## Explored and rejected
 
 Sources that were investigated — some fully implemented then removed, some rejected before extraction based on documented limitations — kept here (rather than silently dropped) so the reasoning doesn't get rediscovered from scratch later.
@@ -148,6 +182,8 @@ Rejected before extraction, based on EM-DAT's own documentation ([doc.emdat.be/d
 Not yet started — tracked here so scope stays visible. Add one at a time; before wiring in, ask one question: **could treatment have caused it?** If no (exogenous to the household-level cash transfer), it's a `W` candidate via `external_data.py::load_effect_modifiers`, regardless of whether it's a fixed trait or something realized during the study window, or what level it's measured at. If yes (a household could plausibly change it by receiving the transfer), it must stay baseline-only, same as the survey's other `W` covariates.
 
 - **Original community questionnaire microdata** (if UNICEF can share it) — the *ground-truth* version of the rainfall/shocks data above (Table 4.2.7 was computed from this); should take priority over the modeled CHIRPS proxy if it becomes available. Exogenous items (weather, community-level shocks) → `W` candidates; any item a household's own behavior could have changed stays baseline-only, same caveat as the household survey. No RL: structured survey data.
+- **WorldPop population density** (fine-resolution, ~100m gridded population estimates) — a genuine local-population-density proxy, distinct from `comm_size` (which is just LEAP's own sample count per community, not true local population). GEE-accessible, no new account needed. Not yet checked for degeneracy the way nighttime lights/market prices were — do that before extracting.
+- **GHSL built-up/urbanization degree** — physical built-up area, complementary to nighttime lights (built-up ≠ lit). Also GEE-accessible. Same due-diligence needed before extracting.
 - Any additional UNICEF data drop — extend `load_data()` / `external_data.py` following the same pattern, not a rewrite.
 
 ## Extra: Administrative boundaries & basemaps (plotting only)

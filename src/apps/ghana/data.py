@@ -109,6 +109,18 @@ COVARIATES: list[Covariate] = [
     Covariate('demonstrations_25km', 'Demonstrations within 25km, 2015–2017', Level.COMMUNITY,
               support=Support.SPARSE_NONNEG, source='acled'),
 
+    # ── Community-level (market prices, WFP, see external_data.py) ──────────────
+    Covariate('dist_nearest_market_km', 'Distance to nearest priced market (km)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='market_prices'),
+    Covariate('maize_price_2014_2015', 'Maize price at nearest market, 2014–2015 (GHS)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='market_prices'),
+
+    # ── Community-level (nighttime lights, VIIRS, see external_data.py) ─────────
+    Covariate('night_light_radiance', 'Nighttime light radiance, 2015 (own community)', Level.COMMUNITY,
+              support=Support.SPARSE_NONNEG, source='nightlights'),
+    Covariate('dist_nearest_light_km', 'Distance to nearest detectable light, 2015 (km)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='nightlights'),
+
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
     # data/ghana/README.md's "Explored and rejected" section. Both are
