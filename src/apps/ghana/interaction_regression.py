@@ -32,7 +32,7 @@ import matplotlib.patches as mpatches
 import torch
 import torch.nn.functional as F
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from src.apps.ghana.data import load_data, W_ALL, W_LABELS
@@ -47,6 +47,13 @@ MODIFIERS = {
     "farms":      {"neuron_idx": None, "label": "Farming household"},
     "head_formal":{"neuron_idx": None, "label": "Head in formal sector"},
 }
+
+# Must match interpret.py::_load_nexis_inputs's default and
+# scripts/ghana/{run_interpret,slurm_interpret}.sh's --min-activations (the
+# actual production pipeline) -- this determines which neurons are "live" at
+# all. A mismatch here previously caused this script to silently index the
+# wrong neuron; see _col_for_neuron below, which now fails loudly instead.
+MIN_ACTIVATIONS = 5
 
 TREAT_COLOR = "#e07b39"
 CTRL_COLOR  = "#5b8db8"
@@ -95,18 +102,33 @@ def load_regression_data() -> pd.DataFrame:
     leap_ids  = np.load(SAT_DIR / "prithvi_comm_ids.npy")
     leap_acts = _compute_sae_activations(leap_embs, ckpt, wh_mean, wh_std)
 
-    # Live neurons (≥5 non-zero activations)
-    live_mask = (leap_acts > 0).sum(axis=0) >= 5
+    # Live neurons — MIN_ACTIVATIONS must match interpret.py's default (10) since
+    # these are specific neurons (1777, 3821) NEXIS selected under that
+    # threshold; a different threshold changes which neurons are "live" at all,
+    # silently invalidating any hardcoded filtered-array position.
+    live_mask = (leap_acts > 0).sum(axis=0) >= MIN_ACTIVATIONS
     live_idx  = np.where(live_mask)[0]          # global neuron indices
     leap_live = leap_acts[:, live_mask]          # (n_comm, n_live)
 
-    # filtered_idx 51 → global neuron 1777,  filtered_idx 122 → global neuron 3821
-    col_51  = 51
-    col_122 = 122
+    # Derive the filtered-array position from the neuron ID itself (not a
+    # hardcoded magic number) so this stays correct if MIN_ACTIVATIONS, the SAE
+    # checkpoint, or the live-neuron set ever changes.
+    def _col_for_neuron(neuron_id: int) -> int:
+        hits = np.where(live_idx == neuron_id)[0]
+        if len(hits) == 0:
+            raise ValueError(
+                f"neuron {neuron_id} is not live at MIN_ACTIVATIONS={MIN_ACTIVATIONS} "
+                f"({len(live_idx)} live neurons) — it may have been selected under a "
+                f"different threshold; re-check against interpret.py's actual run."
+            )
+        return int(hits[0])
+
+    col_1777 = _col_for_neuron(1777)
+    col_3821 = _col_for_neuron(3821)
 
     comm_to_row = {int(cid): i for i, cid in enumerate(leap_ids)}
-    merged["z_51"]  = merged["comm"].map(lambda c: float(leap_live[comm_to_row[c], col_51]))
-    merged["z_122"] = merged["comm"].map(lambda c: float(leap_live[comm_to_row[c], col_122]))
+    merged["z_51"]  = merged["comm"].map(lambda c: float(leap_live[comm_to_row[c], col_1777]))
+    merged["z_122"] = merged["comm"].map(lambda c: float(leap_live[comm_to_row[c], col_3821]))
 
     # Spectral indices (community-level) — mean columns only
     sp = pd.read_csv(SAT_DIR / "spectral_indices.csv").rename(columns={"comm_id": "comm"})

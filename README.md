@@ -42,10 +42,20 @@ pip install -e .
 ```python
 from src.method import nexis
 
-result = nexis(y=Y, t=T, z=Z, alpha=0.05)
-print(result.selected)   # indices of selected neurons in Z
-print(result.pvalues)    # Bonferroni-gated p-values at each step
+result = nexis(y=Y, t=T, w=W, alpha=0.05)
+print(result.selected)      # indices of selected columns in W
+print(result.feature_names) # their names (W.columns, if W is a DataFrame)
+print(result.pvalues)       # Bonferroni-gated p-values at each step
 ```
+
+`w` is every pre-treatment candidate — hand-crafted covariates and learned
+(e.g. SAE neuron) representations alike — in one array or DataFrame. Pass a
+DataFrame with a `w.attrs['origin']` list (`"hand_crafted"` / anything else,
+per column) to run a cheaper preliminary screening phase over the
+hand-crafted subset first, whose winners seed the joint search over
+everything; `w.attrs['cluster']` supplies cluster IDs for CR1S standard
+errors. Both are optional — a plain array/DataFrame with no `attrs` runs a
+single flat search.
 
 **Key parameters:**
 
@@ -56,7 +66,7 @@ print(result.pvalues)    # Bonferroni-gated p-values at each step
 | `backward` | `True` | Enable backward pruning step (forward-only if `False`) |
 | `adjust` | `"FWER"` | Multiple-testing correction: `"FWER"` (Bonferroni), `"FDR"` (Benjamini-Hochberg), or `None` |
 | `rho` | `0.5` | Spectral-gap threshold: stop forward if new candidate's \|t\| < ρ · min\|t\| of already-selected |
-| `w` | `None` | Optional (n, q) matrix of structured covariates; screened jointly with Z |
+| `cluster` | `None` | Optional cluster IDs for CR1S SEs; falls back to `w.attrs['cluster']` if `w` is a DataFrame |
 
 See [`src/method/nexis.py`](src/method/nexis.py) for all options and method variants.
 

@@ -3,9 +3,32 @@ Ghana LEAP 1000 — NEXIS feature search + VLM interpretation.
 
 Methods (run for each representation)
 --------------------------------------
-  nexis_no_adj  — NEXIS on Z with W as controls, no multiple-testing correction
-  nexis_fdr     — NEXIS on Z with W as controls, BH-FDR correction
-  marginal_w    — marginal test on W only (no Z), no correction  [run once]
+  nexis_no_adj  — NEXIS over one flat pool (household + community + SAE +
+                  spectral), no multiple-testing correction
+  nexis_fdr     — same pool, BH-FDR correction
+  marginal_w    — marginal test on household covariates only, no correction
+                  [run once, a separate diagnostic -- not part of the main
+                  NEXIS search]
+
+load_nexis_inputs() builds one src.apps.covariates.Dataset per
+representation (household + community: SAE + spectral + rainfall/geo) --
+a single (n, p) matrix with real column names, one real Covariate per
+column (name, level, origin, support), no separate W/Z arrays or name
+lists. run_nexis() just calls nexis(y, t, dataset.X, ...): `level` is
+metadata on each column, not a structural fork into two arguments.
+nexis() reads Covariate.origin off dataset.X.attrs['origin']
+('hand_crafted' for household survey, rainfall/geo, and spectral indices;
+'learned' for SAE neurons) to run a cheaper preliminary screening phase
+over the hand_crafted subset (a smaller Bonferroni denominator -- ~26
+candidates vs. the full ~170-wide joint pool) before both groups compete
+symmetrically in the main round. This reproduces the original two-phase
+household-vs-Z split exactly (verified byte-for-byte against the
+pre-refactor baseline), now driven by each column's own origin instead of
+the caller manually splitting the matrix in two. Uganda
+(src/apps/uganda/analyze.py) builds the same Dataset; CelebA
+(src/apps/celeba/experiment.py) wraps its single, all-learned SAE-feature
+pool in the same Dataset shape for consistency, though with no
+hand_crafted subset there is nothing to stage -- it runs one flat search.
 
 Representations
 ---------------
@@ -49,6 +72,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn.functional as F
 
@@ -60,8 +84,49 @@ TIF_NAT  = SAT_DIR / "tif_national"
 RES_DIR  = ROOT / "results" / "ghana"
 
 sys.path.insert(0, str(ROOT))
-from src.apps.ghana.data import load_data, W_ALL, W_LABELS, COMMUNITY_Z
+from src.apps.ghana.data import load_data, COVARIATES
+from src.apps.covariates import Covariate, Level, Origin, Support, Dataset
 from src.method.nexis    import nexis, marginal_select, SelectionResult
+
+# Filter the registry directly by level -- no need for data.py's legacy
+# W_ALL/COMMUNITY_Z/W_LABELS lists here, since this file already has the full
+# Covariate objects (name AND label together) in hand.
+_HOUSEHOLD_COVARIATES = [c for c in COVARIATES if c.level is Level.HOUSEHOLD]
+_COMMUNITY_COVARIATES = [c for c in COVARIATES if c.level is Level.COMMUNITY]
+
+
+def _neuron_id_from_feature_name(name: str, live_idx: np.ndarray | None = None) -> int | None:
+    """SAE-neuron feature names are 'neuron_<id>' -- nexis() no longer prefixes
+    anything with "z_"/"w_" (there's no W-vs-Z role to disambiguate; every
+    column's real name is used verbatim). Return the neuron ID if `name`
+    refers to one, else None.
+
+    Also accepts two older conventions, for loading result.json files saved
+    before this repo's naming settled:
+      'z_neuron_<id>'   -- an intermediate convention, back when nexis() still
+                           prepended "z_" to every name.
+      'z_<filtered_idx>' -- the original convention, from before SAE columns
+                           had real names at all; nexis() fell back to a bare
+                           positional index. Pass `live_idx` to resolve these.
+    Without live_idx, only the two name-based conventions are recognized.
+    """
+    if name.startswith("neuron_") and name[len("neuron_"):].isdigit():
+        return int(name[len("neuron_"):])
+    prefix = "z_neuron_"
+    if name.startswith(prefix) and name[len(prefix):].isdigit():
+        return int(name[len(prefix):])
+    if live_idx is not None and name.startswith("z_") and name[2:].isdigit():
+        j = int(name[2:])
+        if 0 <= j < len(live_idx):
+            return int(live_idx[j])
+    return None
+
+
+def _j_for_neuron(live_idx: np.ndarray, neuron_id: int) -> int:
+    """Position of `neuron_id` within a filtered live_idx array (i.e. the
+    column index into community_features_hh/sae_activations_comm/Z_pool for
+    that neuron)."""
+    return int(np.where(live_idx == neuron_id)[0][0])
 
 
 # ── Image loading ──────────────────────────────────────────────────────────────
@@ -739,90 +804,124 @@ def _compute_sae_activations(embeddings: np.ndarray, ckpt: dict,
     return acts.numpy()
 
 
-def _load_nexis_inputs(min_activations: int = 10):
-    """Load all data needed for Ghana NEXIS experiments."""
-    import pandas as pd
+def load_nexis_inputs(min_activations: int = 5):
+    """Load all data needed for Ghana NEXIS experiments, one source at a time,
+    then combine. Each block below prepares exactly one source's own
+    DataFrame/array with its own column identity; nothing gets concatenated
+    until the very end of each block, so at any point you can tell which
+    source a given piece of data came from just by which block built it.
+    """
+    household_names = [c.name for c in _HOUSEHOLD_COVARIATES]
+    community_names = [c.name for c in _COMMUNITY_COVARIATES]
 
+    # ── Source 1: household survey (outcome, treatment, cluster ID, and the
+    #    two covariate blocks that live inside the survey: household-level
+    #    and the community-level ones derived from it, e.g. rainfall/geo) ──
     df_full = load_data(DATA_DIR)
     hh_both = df_full.groupby("hhid")["wave"].nunique()
-    df = df_full[df_full["hhid"].isin(hh_both[hh_both == 2].index)].copy()
+    df  = df_full[df_full["hhid"].isin(hh_both[hh_both == 2].index)].copy()
     df0 = df[df["wave"] == 0]
     df1 = df[df["wave"] == 1]
 
-    sp = pd.read_csv(SAT_DIR / "spectral_indices.csv").rename(columns={"comm_id": "comm"})
-    # Use mean columns only; strip _mean suffix for clean z_{name} labels
-    SPECTRAL_COLS  = [c for c in sp.columns if c.endswith("_mean")]
-    SPECTRAL_NAMES = [c[:-5] for c in SPECTRAL_COLS]   # ndvi_mean → ndvi
-
-    merged = (
-        df0.set_index("hhid")[["T", "comm"] + W_ALL + COMMUNITY_Z + ["Y"]]
+    survey_hh = (
+        df0.set_index("hhid")[["T", "comm"] + household_names + community_names + ["Y"]]
            .join(df1.set_index("hhid")[["Y"]].rename(columns={"Y": "Y1"}))
     )
-    merged["dY"] = merged["Y1"] - merged["Y"]
-    merged = merged.reset_index().merge(sp, on="comm", how="left").set_index("hhid")
+    survey_hh["dY"] = survey_hh["Y1"] - survey_hh["Y"]
 
-    y       = merged["dY"].values.astype(float)
-    t       = merged["T"].values.astype(float)
-    W       = merged[W_ALL].values.astype(float)
-    W_NAMES = [W_LABELS.get(c, c) for c in W_ALL]
-    cluster      = merged["comm"].values                             # community IDs for CRVE
-    spectral_hh  = merged[SPECTRAL_COLS].values.astype(float)       # (n_hh, n_spectral)
-    community_hh = merged[COMMUNITY_Z].values.astype(float)         # (n_hh, len(COMMUNITY_Z)) community-level
+    y       = survey_hh["dY"].values.astype(float)
+    t       = survey_hh["T"].values.astype(float)
+    cluster = survey_hh["comm"].values                                   # community IDs for CRVE
+    household_hh        = survey_hh[household_names].values.astype(float)
+    household_labels     = [c.label for c in _HOUSEHOLD_COVARIATES]
+    community_survey_hh = survey_hh[community_names].values.astype(float)  # rainfall/geo, one row per household
 
-    # Load SAE checkpoint + whitening
+    # ── Source 2: spectral indices (hand-crafted, computed from satellite
+    #    imagery -- see extract_satellite_features.py) ──
+    spectral = pd.read_csv(SAT_DIR / "spectral_indices.csv").rename(columns={"comm_id": "comm"})
+    spectral_cols  = [c for c in spectral.columns if c.endswith("_mean")]   # use mean columns only
+    spectral_names = [c[:-5] for c in spectral_cols]                       # ndvi_mean → ndvi
+    spectral_covariates = [
+        Covariate(name, name, Level.COMMUNITY, Origin.HAND_CRAFTED,
+                  Support.CONTINUOUS, source='satellite_spectral')
+        for name in spectral_names
+    ]
+    spectral_hh = (
+        survey_hh[["comm"]].reset_index().merge(spectral, on="comm", how="left")
+        .set_index("hhid")[spectral_cols].values.astype(float)
+    )
+
+    # ── Source 3: SAE neuron activations (learned, from the same satellite
+    #    imagery -- see train_sae.py). Two representations (codes/pre_codes)
+    #    and two pools (the 162 LEAP communities; the 9,592-tile national
+    #    grid, used only as a larger contrast pool for VLM interpretation). ──
     ckpt    = torch.load(SAT_DIR / "sae_model.pt", map_location="cpu", weights_only=False)
     wh_mean = np.load(SAT_DIR / "sae_whiten_mean.npy")
     wh_std  = np.load(SAT_DIR / "sae_whiten_std.npy")
 
-    # LEAP community activations (codes + pre-codes)
     leap_embs = np.load(SAT_DIR / "prithvi_embeddings.npy")
     leap_ids  = np.load(SAT_DIR / "prithvi_comm_ids.npy")
-
     leap_codes     = np.load(SAT_DIR / "sae_activations.npy")
     leap_pre_codes = _compute_sae_activations(leap_embs, ckpt, wh_mean, wh_std, pre_codes=True)
 
-    # National grid activations (for VLM pool)
     nat_embs = np.load(SAT_DIR / "national" / "prithvi_embeddings.npy")
     nat_ids  = np.load(SAT_DIR / "national" / "prithvi_comm_ids.npy")
-
     print("  Computing national grid activations (codes) ...")
     nat_codes     = _compute_sae_activations(nat_embs, ckpt, wh_mean, wh_std, pre_codes=False)
     print("  Computing national grid activations (pre-codes) ...")
     nat_pre_codes = _compute_sae_activations(nat_embs, ckpt, wh_mean, wh_std, pre_codes=True)
 
-    # Build household-level Z matrices
     comm_to_idx = dict(zip(leap_ids, range(len(leap_ids))))
-    hh_idx = merged["comm"].map(comm_to_idx).values
+    hh_idx = survey_hh["comm"].map(comm_to_idx).values
 
-    def make_filtered(comm_acts, hh_idx_arr):
+    def _filter_live(comm_acts, hh_idx_arr):
+        """Drop neurons active in fewer than min_activations communities;
+        return (community-level matrix, true neuron IDs kept, household-level
+        matrix -- each community's row broadcast to its households)."""
         live_mask = (comm_acts > 0).sum(axis=0) >= min_activations
         live_idx  = np.where(live_mask)[0]
         return comm_acts[:, live_mask], live_idx, comm_acts[:, live_mask][hh_idx_arr]
 
-    leap_codes_comm, live_idx_codes, Z_codes_hh = make_filtered(leap_codes,     hh_idx)
-    leap_pre_comm,   live_idx_pre,   Z_pre_hh   = make_filtered(leap_pre_codes, hh_idx)
+    def _sae_covariates(live_idx):
+        return [
+            Covariate(f'neuron_{int(nid)}', f'neuron_{int(nid)}', Level.COMMUNITY,
+                      Origin.LEARNED, Support.SPARSE_NONNEG, source='satellite_sae')
+            for nid in live_idx
+        ]
 
-    nat_codes_filt = nat_codes[:,     np.where((leap_codes     > 0).sum(axis=0) >= min_activations)[0]]
-    nat_pre_filt   = nat_pre_codes[:, np.where((leap_pre_codes > 0).sum(axis=0) >= min_activations)[0]]
+    sae_comm_codes, live_idx_codes, sae_hh_codes = _filter_live(leap_codes,     hh_idx)
+    sae_comm_pre,   live_idx_pre,   sae_hh_pre   = _filter_live(leap_pre_codes, hh_idx)
 
-    # Append spectral indices + community-level variables to Z
-    COMMUNITY_NAMES = [W_LABELS.get(c, c) for c in COMMUNITY_Z]
-    Z_codes_hh = np.concatenate([Z_codes_hh, spectral_hh, community_hh], axis=1)
-    Z_pre_hh   = np.concatenate([Z_pre_hh,   spectral_hh, community_hh], axis=1)
-    z_names_codes = [None] * len(live_idx_codes) + SPECTRAL_NAMES + COMMUNITY_NAMES
-    z_names_pre   = [None] * len(live_idx_pre)   + SPECTRAL_NAMES + COMMUNITY_NAMES
+    sae_nat_codes = nat_codes[:,     np.where((leap_codes     > 0).sum(axis=0) >= min_activations)[0]]
+    sae_nat_pre   = nat_pre_codes[:, np.where((leap_pre_codes > 0).sum(axis=0) >= min_activations)[0]]
+
+    # ── Combine into one Dataset per representation: household + community
+    #    (SAE + spectral + rainfall/geo) as a single (n, p) matrix, real
+    #    column names throughout, one Covariate per column -- no more
+    #    separate W/Z arrays or name lists to keep in sync. `origin` on each
+    #    covariate is what lets nexis() run its hand_crafted-first screening
+    #    phase (see src/method/nexis.py's docstring); `needs_interpretation`
+    #    (True only for SAE neurons) is a lookup, not a regex guess. ──
+    def _build_dataset(sae_hh, sae_live_idx):
+        community_registry = _sae_covariates(sae_live_idx) + spectral_covariates + _COMMUNITY_COVARIATES
+        covariates = _HOUSEHOLD_COVARIATES + community_registry
+        X = pd.DataFrame(
+            np.concatenate([household_hh, sae_hh, spectral_hh, community_survey_hh], axis=1),
+            columns=[c.name for c in covariates],
+        )
+        return Dataset(X=X, covariates=covariates, cluster=cluster)
 
     return dict(
-        y=y, t=t, W=W, W_NAMES=W_NAMES, cluster=cluster,
-        spectral_names=SPECTRAL_NAMES,
-        codes=dict(Z_hh=Z_codes_hh, Z_comm=leap_codes_comm,
-                   comm_ids=leap_ids, live_idx=live_idx_codes,
-                   z_names=z_names_codes),
-        pre_codes=dict(Z_hh=Z_pre_hh, Z_comm=leap_pre_comm,
-                       comm_ids=leap_ids, live_idx=live_idx_pre,
-                       z_names=z_names_pre),
-        nat_codes=dict(Z_nat=nat_codes_filt, nat_ids=nat_ids),
-        nat_pre=dict(  Z_nat=nat_pre_filt,   nat_ids=nat_ids),
+        y=y, t=t,
+        codes=_build_dataset(sae_hh_codes, live_idx_codes),
+        pre_codes=_build_dataset(sae_hh_pre, live_idx_pre),
+        # Community-level (not household-broadcast) SAE activations, for VLM
+        # interpretation only -- a different row space (162 communities, not
+        # 2,331 households), so it isn't part of the regression Dataset above.
+        codes_community=dict(sae_activations=sae_comm_codes, comm_ids=leap_ids),
+        pre_codes_community=dict(sae_activations=sae_comm_pre, comm_ids=leap_ids),
+        nat_codes=dict(sae_activations_nat=sae_nat_codes, nat_ids=nat_ids),
+        nat_pre=dict(  sae_activations_nat=sae_nat_pre,   nat_ids=nat_ids),
     )
 
 
@@ -830,40 +929,44 @@ def _load_nexis_inputs(min_activations: int = 10):
 
 def run_nexis(rep_mode: str, method_name: str, data: dict,
               alpha: float = 0.05, adjust=None) -> SelectionResult:
-    cfg = data[rep_mode]
-    y, t, W, W_NAMES = data["y"], data["t"], data["W"], data["W_NAMES"]
+    y, t = data["y"], data["t"]
+    dataset = data[rep_mode]   # Dataset -- household + community, one object,
+                               # already tagged by real Covariate.origin, which
+                               # is what drives nexis()'s hand_crafted-first
+                               # screening phase (see src/method/nexis.py's
+                               # docstring) -- no separate w=/z=/names= args.
     print(f"\n{'='*60}")
-    print(f"NEXIS  rep={rep_mode}  method={method_name}  Z={cfg['Z_hh'].shape}  adjust={adjust}")
+    print(f"NEXIS  rep={rep_mode}  method={method_name}  X={dataset.X.shape}  adjust={adjust}")
     print(f"{'='*60}")
-    res = nexis(y, t, cfg["Z_hh"], w=W, w_names=W_NAMES, z_names=cfg["z_names"],
-               alpha=alpha, adjust=adjust, cluster=data["cluster"], verbose=True)
+    res = nexis(y, t, dataset.X, alpha=alpha, adjust=adjust, verbose=True)
     print(f"\nSelected: {len(res.selected)}")
     for i in res.selected:
-        name = res.feature_names[i]
-        if name.startswith("z_") and name[2:].isdigit():
-            suffix = f"  [neuron {cfg['live_idx'][int(name[2:])]}]"
-        else:
-            suffix = ""
-        print(f"  {name + suffix:55s}  p = {res.pvalues[i]:.4f}")
-    _save_result(rep_mode, method_name, res, cfg["live_idx"], adjust)
+        name  = res.feature_names[i]
+        label = dataset.label_of(name)
+        neuron_id = _neuron_id_from_feature_name(name)
+        suffix = f"  [neuron {neuron_id}]" if neuron_id is not None else ""
+        print(f"  {label + suffix:55s}  p = {res.pvalues[i]:.4f}")
+    _save_result(rep_mode, method_name, res, dataset, adjust)
     return res
 
 
 def run_marginal_w(data: dict, alpha: float = 0.05, adjust=None) -> SelectionResult:
-    y, t, W, W_NAMES = data["y"], data["t"], data["W"], data["W_NAMES"]
+    y, t = data["y"], data["t"]
+    household = data["codes"].subset(level=Level.HOUSEHOLD)   # same across reps
+    W, labels = household.X.values, household.labels
     print(f"\n{'='*60}")
     print(f"Marginal  on W  shape={W.shape}  adjust={adjust}")
     print(f"{'='*60}")
     res = marginal_select(y, t, W, alpha=alpha, adjust=adjust)
     print(f"\nSelected: {len(res.selected)}")
     for j in res.selected:
-        print(f"  {W_NAMES[j]:40s}  p = {res.pvalues[j]:.4f}")
+        print(f"  {labels[j]:40s}  p = {res.pvalues[j]:.4f}")
     out_dir = RES_DIR / "marginal_w"
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "method": "marginal_w", "adjust": str(adjust),
         "selected": [
-            {"idx": int(j), "name": W_NAMES[j], "pvalue": float(res.pvalues[j])}
+            {"idx": int(j), "name": labels[j], "pvalue": float(res.pvalues[j])}
             for j in res.selected
         ],
     }
@@ -874,17 +977,19 @@ def run_marginal_w(data: dict, alpha: float = 0.05, adjust=None) -> SelectionRes
 
 
 def run_marginal_grouped(rep_mode: str, data: dict, alpha: float = 0.05) -> SelectionResult:
-    """Marginal FWER with per-group correction: survey / SAE neurons / spectral."""
-    y, t, W, W_NAMES = data["y"], data["t"], data["W"], data["W_NAMES"]
-    cfg = data[rep_mode]
-    Z_hh = cfg["Z_hh"]
-    live_idx = cfg["live_idx"]
-    spectral_names = data["spectral_names"]
-    n_w   = W.shape[1]
-    n_sae = len(live_idx)
-    n_sp  = len(spectral_names)
+    """Marginal FWER with per-group correction: survey / SAE neurons / spectral.
 
-    WZ = np.concatenate([W, Z_hh], axis=1)
+    Group boundaries come straight off the Dataset's own covariates (by level/
+    origin/source) instead of manually tracked column-count offsets -- the
+    Dataset's column order (household, then SAE, then spectral, then geo) is
+    what _build_dataset() in load_nexis_inputs() actually constructs.
+    """
+    y, t   = data["y"], data["t"]
+    dataset = data[rep_mode]
+    n_w   = sum(1 for c in dataset.covariates if c.level is Level.HOUSEHOLD)
+    n_sae = sum(1 for c in dataset.covariates if c.origin is Origin.LEARNED)
+    n_sp  = sum(1 for c in dataset.covariates if c.source == "satellite_spectral")
+
     groups = {
         "survey":   list(range(n_w)),
         "neurons":  list(range(n_w, n_w + n_sae)),
@@ -895,42 +1000,31 @@ def run_marginal_grouped(rep_mode: str, data: dict, alpha: float = 0.05) -> Sele
     print(f"Marginal grouped FWER  rep={rep_mode}  groups: "
           f"survey={n_w}, neurons={n_sae}, spectral={n_sp}")
     print(f"{'='*60}")
-    res = marginal_select(y, t, WZ, alpha=alpha, adjust="FWER", groups=groups)
-
-    # Build feature name lookup
-    def _feat_name(idx):
-        if idx < n_w:
-            return f"w_{W_NAMES[idx]}"
-        elif idx < n_w + n_sae:
-            j = idx - n_w
-            return f"z_{j}"
-        else:
-            return f"z_{spectral_names[idx - n_w - n_sae]}"
+    res = marginal_select(y, t, dataset.X.values, alpha=alpha, adjust="FWER", groups=groups)
 
     print(f"\nSelected: {len(res.selected)}")
     for i in res.selected:
-        name = _feat_name(i)
-        if name.startswith("z_") and name[2:].isdigit():
-            suffix = f"  [neuron {live_idx[int(name[2:])]}]"
-        else:
-            suffix = ""
-        print(f"  {name + suffix:55s}  p = {res.pvalues[i]:.4f}")
+        name  = dataset.names[i]
+        label = dataset.label_of(name)
+        neuron_id = _neuron_id_from_feature_name(name)
+        suffix = f"  [neuron {neuron_id}]" if neuron_id is not None else ""
+        print(f"  {label + suffix:55s}  p = {res.pvalues[i]:.4f}")
 
     out_dir = RES_DIR / rep_mode / "marginal_grouped"
     out_dir.mkdir(parents=True, exist_ok=True)
+    sae_names = [c.name for c in dataset.covariates if c.origin is Origin.LEARNED]
     z_entries, w_entries = [], []
     for i in res.selected:
-        name = _feat_name(i)
-        if name.startswith("w_"):
-            w_entries.append({"label": name[2:], "pvalue": float(res.pvalues[i])})
+        name = dataset.names[i]
+        cov  = dataset.covariate_of(name)
+        if cov.level is Level.HOUSEHOLD:
+            w_entries.append({"label": cov.label, "pvalue": float(res.pvalues[i])})
+        elif name in sae_names:
+            j = sae_names.index(name)
+            z_entries.append({"filtered_idx": j, "neuron_idx": int(name[len("neuron_"):]),
+                               "name": name, "pvalue": float(res.pvalues[i])})
         else:
-            suffix = name[2:]
-            if suffix.isdigit():
-                j = int(suffix)
-                z_entries.append({"filtered_idx": j, "neuron_idx": int(live_idx[j]),
-                                   "name": name, "pvalue": float(res.pvalues[i])})
-            else:
-                z_entries.append({"name": name, "pvalue": float(res.pvalues[i])})
+            z_entries.append({"name": name, "pvalue": float(res.pvalues[i])})
     payload = {
         "rep_mode": rep_mode, "method": "marginal_grouped", "adjust": "FWER_grouped",
         "groups": {k: len(v) for k, v in groups.items()},
@@ -943,22 +1037,29 @@ def run_marginal_grouped(rep_mode: str, data: dict, alpha: float = 0.05) -> Sele
 
 
 def _save_result(rep_mode: str, method_name: str, res: SelectionResult,
-                 live_idx: np.ndarray, adjust) -> None:
+                 dataset: "Dataset", adjust) -> None:
+    """Split selected columns into household (W) vs community (Z) by each
+    column's own Covariate.level -- looked up on `dataset`, not guessed from
+    the name string. `label` is the display string (dataset.label_of), so
+    JSON output/notebook plots read the same "Farming household"/"neuron_id"
+    strings as before, even though `dataset.X`'s real columns are canonical
+    names (`farms`, `neuron_2924`, ...)."""
     out_dir = RES_DIR / rep_mode / method_name
     out_dir.mkdir(parents=True, exist_ok=True)
+    sae_names = [c.name for c in dataset.covariates if c.origin is Origin.LEARNED]
     z_entries, w_entries = [], []
     for i in res.selected:
         name = res.feature_names[i] if res.feature_names else f"z_{i}"
-        if name.startswith("z_"):
-            suffix = name[2:]
-            if suffix.isdigit():
-                j = int(suffix)
-                z_entries.append({"filtered_idx": j, "neuron_idx": int(live_idx[j]),
-                                   "name": name, "pvalue": float(res.pvalues[i])})
-            else:
-                z_entries.append({"name": name, "pvalue": float(res.pvalues[i])})
+        cov = dataset.covariate_of(name)
+        if cov.level is Level.HOUSEHOLD:
+            w_entries.append({"label": cov.label, "pvalue": float(res.pvalues[i])})
+        elif name in sae_names:
+            j = sae_names.index(name)
+            neuron_id = int(name[len("neuron_"):])
+            z_entries.append({"filtered_idx": j, "neuron_idx": neuron_id,
+                               "name": name, "pvalue": float(res.pvalues[i])})
         else:
-            w_entries.append({"label": name, "pvalue": float(res.pvalues[i])})
+            z_entries.append({"name": name, "pvalue": float(res.pvalues[i])})
     with open(out_dir / "result.json", "w") as f:
         json.dump({"rep_mode": rep_mode, "method": method_name, "adjust": str(adjust),
                    "selected_z": z_entries, "selected_w": w_entries}, f, indent=2)
@@ -993,29 +1094,38 @@ def interpret_nexis(
         print(f"  [{tag}] Skipping — {interp_path} exists (use --overwrite)")
         return
 
-    cfg      = data[rep_mode]
-    live_idx = cfg["live_idx"]
+    dataset  = data[rep_mode]
+    live_idx = np.array([int(c.name[len("neuron_"):])
+                         for c in dataset.covariates if c.origin is Origin.LEARNED])
 
     if pool == "leap":
-        Z_pool    = cfg["Z_comm"]        # (n_comm, n_live)
-        pool_ids  = cfg["comm_ids"]
+        community    = data[f"{rep_mode}_community"]   # different row space (162
+                                                        # communities, not 2,331
+                                                        # households) -- not part
+                                                        # of the regression Dataset
+        Z_pool    = community["sae_activations"]        # (n_comm, n_live)
+        pool_ids  = community["comm_ids"]
         load_group_fn = load_group_community
         pool_label = f"{len(pool_ids)} LEAP community tiles"
     else:
         nat_key   = "nat_codes" if rep_mode == "codes" else "nat_pre"
         nat_cfg   = data[nat_key]
-        Z_pool    = nat_cfg["Z_nat"]
+        Z_pool    = nat_cfg["sae_activations_nat"]
         pool_ids  = nat_cfg["nat_ids"]
         load_group_fn = load_group_national
         pool_label = f"{len(pool_ids)} national tiles"
 
-    # SAE neurons only — spectral z features (non-numeric suffix) have no TIF
-    z_feats = [
-        (int(res.feature_names[i][2:]), float(res.pvalues[i]))
-        for i in res.selected
-        if res.feature_names[i].startswith("z_") and res.feature_names[i][2:].isdigit()
-        and (neuron_filter is None or int(live_idx[int(res.feature_names[i][2:])]) in neuron_filter)
-    ]
+    # SAE neurons only — spectral/community z features have no TIF to show a VLM.
+    # `needs_interpretation` (via the neuron-id lookup) replaces the old
+    # regex-on-auto-generated-name guess.
+    z_feats = []
+    for i in res.selected:
+        neuron_id = _neuron_id_from_feature_name(res.feature_names[i], live_idx)
+        if neuron_id is None:
+            continue
+        if neuron_filter is not None and neuron_id not in neuron_filter:
+            continue
+        z_feats.append((_j_for_neuron(live_idx, neuron_id), float(res.pvalues[i])))
     if not z_feats:
         print(f"  [{tag}] No SAE neuron features selected — nothing to interpret.")
         return
@@ -1124,7 +1234,9 @@ def _load_result_from_json(rep_mode: str, method_name: str):
         selected.append(idx)
         idx += 1
     for entry in d.get("selected_z", []):
-        feature_names[idx] = f"z_{entry['filtered_idx']}"
+        # Prefer the stored name verbatim (works under any naming convention,
+        # past or present) over reconstructing it from filtered_idx.
+        feature_names[idx] = entry.get("name", f"z_{entry.get('filtered_idx')}")
         pvalues[idx] = entry["pvalue"]
         selected.append(idx)
         idx += 1
@@ -1140,17 +1252,18 @@ def _collect_geochat_descriptions(
     desc_cache: dict, k: int, neuron_filter=None,
 ):
     """Pass-1 helper: run GeoChat on all images for this result, store in desc_cache."""
-    cfg     = data[rep_mode]
-    nat_key = "nat_codes" if rep_mode == "codes" else "nat_pre"
-    Z_nat   = data[nat_key]["Z_nat"]
-    nat_ids = data[nat_key]["nat_ids"]
-    live_idx = cfg["live_idx"]
+    dataset  = data[rep_mode]
+    nat_key  = "nat_codes" if rep_mode == "codes" else "nat_pre"
+    Z_nat    = data[nat_key]["sae_activations_nat"]
+    nat_ids  = data[nat_key]["nat_ids"]
+    live_idx = np.array([int(c.name[len("neuron_"):])
+                         for c in dataset.covariates if c.origin is Origin.LEARNED])
 
-    z_feats = [
-        (int(res.feature_names[i][2:]), float(res.pvalues[i]))
-        for i in res.selected
-        if res.feature_names[i].startswith("z_") and res.feature_names[i][2:].isdigit()
-    ]
+    z_feats = []
+    for i in res.selected:
+        neuron_id = _neuron_id_from_feature_name(res.feature_names[i], live_idx)
+        if neuron_id is not None:
+            z_feats.append((_j_for_neuron(live_idx, neuron_id), float(res.pvalues[i])))
     for j, _ in z_feats:
         neuron = int(live_idx[j])
         if neuron_filter and neuron not in neuron_filter:
@@ -1209,8 +1322,10 @@ def parse_args():
     p.add_argument("--pool", default="national", choices=["national", "leap"],
                    help="Image pool for VLM contrast: 'national' (default, 9592 tiles) "
                         "or 'leap' (162 RCT community tiles).")
-    p.add_argument("--min-activations", type=int, default=10,
-                   help="Min community activations for a neuron to enter Z (default 10).")
+    p.add_argument("--min-activations", type=int, default=5,
+                   help="Min community activations for a neuron to enter Z (default 5, "
+                        "matching scripts/ghana/run_interpret.sh and slurm_interpret.sh, "
+                        "the actual production pipeline).")
     return p.parse_args()
 
 
@@ -1234,7 +1349,7 @@ def main():
 
     if args.interpret_only:
         print("Loading data for image pool ...")
-        data = _load_nexis_inputs(args.min_activations)
+        data = load_nexis_inputs(args.min_activations)
         nexis_results = {}
         for rep_mode in rep_modes:
             nexis_results[rep_mode] = {}
@@ -1242,16 +1357,17 @@ def main():
                 nexis_results[rep_mode][method_name] = _load_result_from_json(
                     rep_mode, method_name
                 )
-                z_count = sum(
-                    1 for i in nexis_results[rep_mode][method_name].selected
-                    if nexis_results[rep_mode][method_name].feature_names[i].startswith("z_")
+                res = nexis_results[rep_mode][method_name]
+                neuron_count = sum(
+                    1 for i in res.selected
+                    if _neuron_id_from_feature_name(res.feature_names[i]) is not None
                 )
                 print(f"  Loaded {rep_mode}/{method_name}: "
-                      f"{len(nexis_results[rep_mode][method_name].selected)} selected "
-                      f"({z_count} Z neurons)")
+                      f"{len(res.selected)} selected "
+                      f"({neuron_count} SAE neurons)")
     else:
         print("Loading data and computing activations ...")
-        data = _load_nexis_inputs(args.min_activations)
+        data = load_nexis_inputs(args.min_activations)
 
         nexis_results = {}
         for rep_mode in rep_modes:

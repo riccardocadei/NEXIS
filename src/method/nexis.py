@@ -172,7 +172,7 @@ class SelectionResult:
     method: str
     alpha: float
     metadata: Dict[str, float]
-    feature_names: List[str] = field(default_factory=list)  # w_{name} / z_{j} labels
+    feature_names: List[str] = field(default_factory=list)  # real column names, verbatim
 
 
 def _residualize_against(D: np.ndarray, V: np.ndarray) -> np.ndarray:
@@ -436,10 +436,8 @@ def marginal_select(
 def nexis(
     y: np.ndarray,
     t: np.ndarray,
-    z: np.ndarray,
-    w: Optional[np.ndarray] = None,
-    w_names: Optional[List[str]] = None,
-    z_names: Optional[List[str]] = None,
+    w: np.ndarray,
+    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs (linear test)
     alpha: float = 0.05,
     max_rounds: Optional[int] = 20,
     rho: Optional[float] = 0.5,
@@ -450,8 +448,7 @@ def nexis(
     n_splits: int = 5,             # gcm only
     n_estimators: int = 100,       # gcm only
     max_depth: Optional[int] = None,  # gcm only
-    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs for Z-phase (linear test)
-    hc1: bool = False,                     # HC1 robust SEs for W-phase and Z-phase fallback
+    hc1: bool = False,                     # HC1 robust SEs (fallback when cluster is None)
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
@@ -472,13 +469,30 @@ def nexis(
 
     backward=False runs a pure greedy forward pass — useful for ablation.
 
-    w: optional (n, q) matrix of interpretable covariates.  When provided, a
-      preliminary phase runs NEXIS on W first; the features selected there seed
-      the initial S for the main phase on Z.  Both W and Z features compete
-      symmetrically in that phase: forward can re-add expelled W features,
-      backward can expel W features.  SelectionResult.feature_names labels
-      each column as w_{name} (using w_names if given, else column index) or
-      z_{j}.
+    w: (n, M) array-like of every pre-treatment candidate, OR a pandas.DataFrame.
+      When `w` is a DataFrame, three things are picked up automatically from it
+      rather than needing separate arguments:
+        - column names        -> w.columns          (SelectionResult.feature_names
+                                                       uses these directly, verbatim,
+                                                       no "w_"/"z_" prefixing)
+        - cluster labels       -> w.attrs['cluster']  (only if `cluster=` isn't
+                                                        explicitly passed)
+        - per-column staging   -> w.attrs['origin']   (see below)
+      A plain ndarray (no .columns/.attrs) gets today's positional fallback
+      names and a single flat search -- this is the path Uganda/CelebA already
+      use and it is unchanged.
+
+      Staging (w.attrs['origin']): if present, columns tagged 'hand_crafted'
+      are screened in a cheaper preliminary phase first (their own Bonferroni
+      pool, sized to just that subset); the ones that clear it seed the main
+      round, where every column (hand_crafted or not) competes symmetrically --
+      forward can re-add expelled hand_crafted features, backward can expel
+      them. This reproduces the old two-argument `w=`/`z=` split's statistical
+      behaviour, but the split is now a property of the columns themselves
+      (their `origin`), not of how the caller organised two separate matrices.
+      Columns with no 'hand_crafted' tag (including everything when `origin`
+      isn't given at all) go straight into the main round -- i.e. no staging,
+      matching Uganda/CelebA's current single-pool behaviour exactly.
 
     test:
       "linear"  — parametric interaction t-test; fast, assumes linear effects.
@@ -512,35 +526,50 @@ def nexis(
 
     y_arr = np.asarray(y, dtype=float).reshape(-1)
     t_arr = np.asarray(t, dtype=float).reshape(-1)
-    Z = np.asarray(z, dtype=float)
-    n, m = Z.shape
 
-    if w is not None and w_names is None:
-        raise ValueError("w_names is required when w is provided")
+    # Auto-derive names/origin/cluster from a DataFrame; a plain ndarray has no
+    # .columns/.attrs, so this is a no-op and behaviour is unchanged for it.
+    attrs = getattr(w, "attrs", {})
+    w_names = list(w.columns) if hasattr(w, "columns") else None
+    origin  = attrs.get("origin")
+    if cluster is None:
+        cluster = attrs.get("cluster")
+    W_arr = np.asarray(w, dtype=float)
+    if W_arr.ndim == 1:
+        W_arr = W_arr[:, None]
+    n, M = W_arr.shape
 
-    # ── Phase 1: W selection ──────────────────────────────────────────────────
+    hand_crafted_idx = [j for j, o in enumerate(origin) if o == "hand_crafted"] if origin else []
+    other_idx = [j for j in range(M) if j not in hand_crafted_idx]
+
+    # ── Phase 1: hand_crafted screening (only when origin tags request it) ────
     S_w: List[int] = []
     k = 0
-    if w is not None:
-        W = np.asarray(w, dtype=float)
-        if W.ndim == 1:
-            W = W[:, None]
-        result_w = nexis(
-            y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
+    if hand_crafted_idx:
+        result_hc = nexis(
+            y=y_arr, t=t_arr, w=W_arr[:, hand_crafted_idx], alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
             rho=rho, adjust=adjust, cluster=None, hc1=hc1,
             backward=backward, verbose=verbose,
         )
-        S_w = result_w.selected
+        S_w = result_hc.selected
         k = len(S_w)
-        if k > 0:
-            # Prepend selected W columns to Z; forward step will only add Z columns
-            Z = np.hstack([W[:, S_w], Z])
-            if verbose:
-                print(f"  [W phase] selected {k} features: {S_w}", flush=True)
+        if verbose and k > 0:
+            print(f"  [hand_crafted phase] selected {k} features: {S_w}", flush=True)
 
-    total = Z.shape[1]  # k + m (or m when k=0)
+    # working_cols maps a position in the search space back to its original
+    # column in W_arr/w_names -- selected hand_crafted columns first (seeded,
+    # already "in"), then everything else, exactly like the old W-then-Z order.
+    if k > 0:
+        selected_hc_idx = [hand_crafted_idx[i] for i in S_w]
+        working_cols = selected_hc_idx + other_idx
+    else:
+        working_cols = other_idx
+    Z = W_arr[:, working_cols]
+    working_names = [w_names[j] for j in working_cols] if w_names else None
+
+    total = Z.shape[1]  # k + len(other_idx) (or just len(other_idx) when k=0)
 
     gcm_kwargs: dict = (dict(nuisance=nuisance, n_splits=n_splits,
                              n_estimators=n_estimators, max_depth=max_depth)
@@ -699,28 +728,22 @@ def nexis(
     for j in selected:
         out_pvals[j] = selected_pvals[j]
 
-    # Feature names: w_{name} for prior features, z_{j} for neural features
-    z_labels = [
-        f"z_{z_names[j]}" if (z_names is not None and j < len(z_names) and z_names[j])
-        else f"z_{j}"
-        for j in range(m)
-    ]
-    if k > 0:
-        w_labels = [
-            f"w_{w_names[S_w[i]]}" if w_names else f"w_{S_w[i]}"
-            for i in range(k)
-        ]
-        feature_names = w_labels + z_labels
-    else:
-        feature_names = z_labels
+    # Feature names: the real column name, verbatim -- no "w_"/"z_" prefixing,
+    # since there's no longer a W-vs-Z role to disambiguate (see module note on
+    # `origin`-driven staging above). Falls back to a bare positional string
+    # only when the input carried no names at all (a plain ndarray).
+    feature_names = (
+        list(working_names) if working_names is not None
+        else [str(j) for j in range(total)]
+    )
 
     if test == "gcm":
         test_label = "gcm_quadratic" if nuisance == "poly2" else "gcm_lgbm"
     else:
         test_label = test
     method_str = f"nexis_{test_label}"
-    if w is not None:
-        method_str = "w_" + method_str
+    if hand_crafted_idx:
+        method_str = "staged_" + method_str
     if not backward:
         method_str += "_fwd"
     if rho is not None:
@@ -794,19 +817,19 @@ def evaluate_methods_on_dataset(
             "precision": float(precision),
         }
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear")
     out["NEXIS (linear)"] = _metrics(res.selected)
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=z, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=rho)
     out["NEXIS (auto) (linear)"] = _metrics(res.selected)
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=z, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2")
     out["NEXIS (poly2)"] = _metrics(res.selected)
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=z, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2", rho=rho)
     out["NEXIS (auto) (poly2)"] = _metrics(res.selected)
 

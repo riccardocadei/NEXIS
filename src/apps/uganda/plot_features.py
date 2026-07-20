@@ -699,7 +699,7 @@ def _draw_boxes(fig, spans, rows, ratios, gs_top, gs_bot, gs_left, gs_right, fig
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_hours",
-                        pipeline="qwen7b"):
+                        pipeline="qwen7b", method="nexis_fwer"):
     csv_col   = resolve_outcome(outcome)
     model_dir = ROOT / "results" / "uganda" / f"{embed_model}_{sae_dim}"
     out_dir   = model_dir / outcome
@@ -709,7 +709,17 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
         return
 
     with open(nexis_path) as f:
-        nexis_out = json.load(f)
+        nexis_result = json.load(f)
+
+    # analyze.py writes per-adjustment keys (nexis_exploratory/nexis_fdr/nexis_fwer),
+    # never a bare "nexis" key -- that lookup was stale and would always KeyError.
+    # `method` picks which one to plot (default: FWER, the paper's main result).
+    _method_candidates = [method, "nexis_fwer", "nexis_fdr", "nexis_exploratory"]
+    method_key = next((mk for mk in _method_candidates if mk in nexis_result), None)
+    if method_key is None:
+        print(f"  Skipping {embed_model}_{sae_dim}/{outcome}: none of "
+              f"{_method_candidates} found in nexis_result.json")
+        return
 
     pipeline_dir = out_dir / pipeline
     gate_map, ate_est = {}, float("nan")
@@ -771,7 +781,7 @@ def plot_model_features(embed_model, sae_dim, k, df_rct, outcome="log_skilled_ho
         print(f"  Warning: could not load basemap: {e}")
 
     rows, ratios, spans = _build_row_plan(
-        nexis_out["nexis"]["selected"], site_feats, site_keys, k, gate_map,
+        nexis_result[method_key]["selected"], site_feats, site_keys, k, gate_map,
         interp_full_map=interp_full_map)
 
     if not rows:
@@ -959,6 +969,9 @@ def main():
     p.add_argument("--outcome", default="log_skilled_hours")
     p.add_argument("--pipeline", default="qwen7b", choices=["qwen7b", "qwen72b", "points", "geochat"],
                    help="Which interpretation pipeline's output to use.")
+    p.add_argument("--method", default="nexis_fwer",
+                   choices=["nexis_fwer", "nexis_fdr", "nexis_exploratory"],
+                   help="Which NEXIS adjustment's selection to plot.")
     p.add_argument("--all", action="store_true")
     args = p.parse_args()
     df_rct = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
@@ -976,7 +989,8 @@ def main():
         triples = [(args.embed_model, args.sae_dim, args.outcome)]
     for model, dim, outcome in triples:
         print(f"Plotting {model}_{dim}/{outcome} …")
-        plot_model_features(model, dim, args.k, df_rct, outcome, pipeline=args.pipeline)
+        plot_model_features(model, dim, args.k, df_rct, outcome,
+                            pipeline=args.pipeline, method=args.method)
 
 if __name__ == "__main__":
     main()

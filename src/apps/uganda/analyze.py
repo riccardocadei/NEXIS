@@ -6,16 +6,18 @@ The NEXIS model per feature j:
   Y = β₀ + βₜT + βⱼZⱼ + γⱼ(T·Zⱼ) + ε
   H0: γⱼ = 0  (feature j does not modify the treatment effect)
 
-Z is the (obs × features) matrix of SAE features (+ optionally W covariates
-when --w-candidates is active), where each individual inherits the site-level
-feature vector of their satellite image.
-
-Pre-treatment covariates (W) can be handled in two ways:
-  default (--w-candidates)  W is treated identically to SAE features: appended
-                            to Z_full and tested as a 2-regressor [W_k, T*W_k]
-                            candidate.  D contains only [1, T, Z_S, T*Z_S].
-  --no-w-candidates         W and T*W are both partialled out as nuisance;
-                            not tested (original behaviour).
+W is a single pool of every pre-treatment candidate -- survey covariates
+(age, female, father_educ, mother_educ, group_female, lang/district dummies),
+spectral indices, and SAE neuron activations -- each individual inheriting
+the site-level feature vector of their satellite image. Every column is
+tagged by its real Covariate.origin (hand_crafted for survey/spectral,
+learned for SAE neurons) via W.attrs['origin'], which nexis() reads to run a
+cheaper hand_crafted-first screening phase before the joint search (see
+src/method/nexis.py's docstring; same design as Ghana's
+src/apps/ghana/interpret.py::run_nexis). --no-w-candidates is now a no-op:
+the old "W as partialled-out nuisance controls" branch was already dead code
+(never actually passed to nexis()), so origin-driven staging is the one
+remaining, and actually-exercised, behavior.
 
 Analysis can be run at individual level (default) or group level
 (--group-level).  At group level all outcomes, features, and covariates
@@ -43,6 +45,14 @@ DATA_DIR = ROOT / "data" / "uganda"
 
 from method.nexis import nexis, marginal_select
 from apps.uganda.data import resolve_outcome
+
+# Import via the fully-qualified path (src.apps.covariates), NOT a bare
+# `from apps.covariates import ...` -- see src/apps/ghana/data.py's comment:
+# the same file imported under two different names becomes two independent
+# modules with two independent Level/Origin classes, silently breaking every
+# `c.level is Level.INDIVIDUAL`-style identity check downstream.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from src.apps.covariates import Covariate, Level, Origin, Support, Dataset
 
 
 def parse_args():
@@ -114,6 +124,28 @@ def build_covariates(df: pd.DataFrame, district_dummies: bool = False) -> pd.Dat
     if not parts:
         return pd.DataFrame(index=df.index)
     return pd.concat(parts, axis=1)
+
+
+def _hand_crafted_registry(columns) -> list[Covariate]:
+    """Tag every build_covariates()/spectral column with its Covariate
+    metadata -- level (individual survey answer / group / district) and
+    support (binary vs continuous), all origin=HAND_CRAFTED. This is what
+    lets nexis() read W.attrs['origin'] and run its hand_crafted-first
+    screening phase (see src/method/nexis.py docstring)."""
+    registry = []
+    for col in columns:
+        if col in ("age", "father_educ", "mother_educ"):
+            level, support = Level.INDIVIDUAL, Support.CONTINUOUS
+        elif col == "female":
+            level, support = Level.INDIVIDUAL, Support.BINARY
+        elif col == "group_female" or col.startswith("lang_"):
+            level, support = Level.GROUP, Support.BINARY
+        elif col.startswith("district_"):
+            level, support = Level.DISTRICT, Support.BINARY
+        else:  # spectral index (ndvi, ndwi, ...) -- site-level, satellite-derived
+            level, support = Level.GROUP, Support.CONTINUOUS
+        registry.append(Covariate(col, col, level, Origin.HAND_CRAFTED, support, source='uganda'))
+    return registry
 
 
 # Group-level covariate columns: constant within group, take first value.
@@ -245,7 +277,6 @@ def main():
             W_df = pd.concat([W_df, spec_part], axis=1)
             print(f"Spectral indices added as W candidates: {spec_cols}")
 
-    W_vals  = W_df.values.astype(float) if not W_df.empty else None
     w_names = list(W_df.columns)
 
     Y = df_sub["Y"].values.astype(float)
@@ -257,84 +288,115 @@ def main():
           f"SAE features={p}  W covariates={len(w_names)}")
     print(f"Treatment rate:    {T.mean():.1%}  ({int(T.sum())} treated)")
     print(f"W covariates:      {w_names}")
-    w_mode_str = 'candidates' if args.w_candidates else 'controls'
-    if args.w_candidates and args.w_priority:
-        w_mode_str += ' (W-priority)'
-    if args.w_candidates and args.district_dummies:
+    if not args.w_candidates:
+        print("Note: --no-w-candidates is now a no-op -- W was already never "
+              "partialled out as controls in the previous implementation "
+              "(the 'controls' branch was dead code, never passed to nexis()); "
+              "origin-driven staging (see below) is the one remaining path.")
+    w_mode_str = 'candidates (hand_crafted-staged)'
+    if args.w_priority:
+        w_mode_str += ' [w_priority: no-op, not a nexis() parameter]'
+    if args.district_dummies:
         w_mode_str += ' (district dummies)'
     print(f"W mode:            {w_mode_str}")
     print()
 
-    # ── Decide how W enters the model ─────────────────────────────────────────
-    if args.w_candidates and W_vals is not None:
-        controls  = None
-        main_ctrl = None
-        Z_full    = np.hstack([Z_sub, W_vals])
-        n_w_cols  = W_vals.shape[1]
-    else:
-        controls  = W_vals
-        main_ctrl = None
-        Z_full    = Z_sub
-        n_w_cols  = 0
+    # ── One combined pool: hand_crafted covariates (survey + spectral) tagged
+    #    via Covariate.origin, SAE neurons real-named `neuron_<id>` and tagged
+    #    'learned'. nexis() reads W.attrs['origin'] to run hand_crafted-first
+    #    screening and W.attrs['cluster'] (RCT group id) for CR1S SEs -- same
+    #    single-object design as Ghana's src/apps/ghana/interpret.py::run_nexis.
+    hc_registry  = _hand_crafted_registry(w_names)
+    sae_level    = Level.GROUP if args.group_level else Level.INDIVIDUAL
+    sae_names    = [f"neuron_{int(nid)}" for nid in sae_orig_idx]
+    sae_registry = [
+        Covariate(name, name, sae_level, Origin.LEARNED, Support.SPARSE_NONNEG, source='uganda_sae')
+        for name in sae_names
+    ]
+    covariates = hc_registry + sae_registry
+    W_vals = W_df.values.astype(float) if not W_df.empty else np.empty((len(df_sub), 0))
+    dataset = Dataset(
+        X=pd.DataFrame(np.hstack([W_vals, Z_sub]), columns=[c.name for c in covariates]),
+        covariates=covariates,
+        cluster=df_sub["groupid"].values if "groupid" in df_sub.columns else None,
+    )
+    cluster = dataset.cluster
 
     # ── Run NEXIS (3 correction variants) ─────────────────────────────────────
     print(f"Running NEXIS exploratory  (α={args.alpha}, adjust=None)...")
-    nexis_expl = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+    nexis_expl = nexis(Y, T, dataset.X, alpha=args.alpha, max_rounds=args.max_steps,
                        adjust=None, verbose=True)
     print(f"  → {len(nexis_expl.selected)} feature(s) selected")
 
     print(f"\nRunning NEXIS FDR  (α={args.alpha}, adjust=FDR)...")
-    nexis_fdr = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+    nexis_fdr = nexis(Y, T, dataset.X, alpha=args.alpha, max_rounds=args.max_steps,
                       adjust="FDR", verbose=True)
     print(f"  → {len(nexis_fdr.selected)} feature(s) selected")
 
     print(f"\nRunning NEXIS FWER  (α={args.alpha}, adjust=FWER)...")
-    nexis_fwer = nexis(Y, T, Z_full, alpha=args.alpha, max_rounds=args.max_steps,
+    nexis_fwer = nexis(Y, T, dataset.X, alpha=args.alpha, max_rounds=args.max_steps,
                        adjust="FWER", verbose=True)
     print(f"  → {len(nexis_fwer.selected)} feature(s) selected")
 
     # ── Marginal baseline (unadjusted / exploratory only) ────────────────────
+    # marginal_select() doesn't read .attrs (no staging concept), so pass the
+    # raw values + cluster explicitly; column order is untouched (no reorder),
+    # so dataset.names still lines up positionally with dataset.X.values.
     print(f"\nRunning marginal (unadjusted) baseline...")
-    marg_none = marginal_select(Y, T, Z_full, alpha=args.alpha, adjust=None)
+    marg_none = marginal_select(Y, T, dataset.X.values, alpha=args.alpha, adjust=None, cluster=cluster)
     print(f"  → {len(marg_none.selected)} feature(s) selected")
 
     # ── Per-feature summary helpers ───────────────────────────────────────────
-    # site_feats is already loaded (filtered to active features)
+    _hc_names = set(w_names)   # hand_crafted covariate names, for W-vs-SAE bucketing
 
-    def _feature_label(idx: int) -> str:
-        if idx < n_sae_features:
-            return f"Z_{int(sae_orig_idx[idx])}"
-        return f"W_{w_names[idx - n_sae_features]}"
+    def _group_for(name: str) -> str:
+        return "W" if name in _hc_names else "SAE"
 
-    def _activation_summary(idx: int) -> str:
-        if idx < n_sae_features:
-            act = site_feats[:, idx]
-            if (act > 0).any():
-                return (f"active={(act > 0).mean():.0%} of sites  "
-                        f"mean|active={act[act>0].mean():.3f}")
-            return "never active"
-        return "W covariate"
+    def _sae_pos(name: str) -> int:
+        """Position in sae_orig_idx / Z_sub / site_feats for a 'neuron_<id>' name."""
+        nid = int(name[len("neuron_"):])
+        return int(np.where(sae_orig_idx == nid)[0][0])
+
+    def _activation_summary(name: str) -> str:
+        if name in _hc_names:
+            return "W covariate"
+        act = site_feats[:, _sae_pos(name)]
+        if (act > 0).any():
+            return (f"active={(act > 0).mean():.0%} of sites  "
+                    f"mean|active={act[act>0].mean():.3f}")
+        return "never active"
+
+    def _entry(name: str, pvalue: float) -> dict:
+        """selected-entry dict. Keeps "idx"/"label" in the exact shape
+        summarize.py / plot_features.py / interpret.py already expect (idx =
+        position in Z_sub/site_feats for SAE features, matching sae_orig_idx;
+        label = "Z_<neuron id>" / "W_<name>") -- those scripts index Z_sub and
+        site_feats directly by "idx" and pattern-match "label"'s prefix, so
+        this shape can't change even though nexis()'s own naming moved on to
+        bare names. "name" is the real, bare column name for new consumers."""
+        if name in _hc_names:
+            idx, label = -1, f"W_{name}"
+        else:
+            idx, label = _sae_pos(name), f"Z_{name[len('neuron_'):]}"
+        return {"idx": idx, "label": label, "name": name,
+                "group": _group_for(name), "pvalue": float(pvalue)}
 
     def _nexis_selected(res):
-        return [{"idx": i, "label": _feature_label(i),
-                 "group": "SAE" if i < n_sae_features else "W",
-                 "pvalue": float(res.pvalues[i])}
-                for i in res.selected]
+        return [_entry(res.feature_names[i], res.pvalues[i]) for i in res.selected]
+
+    marg_names = dataset.names   # marginal_select doesn't reorder columns
 
     def _marg_selected(res):
-        return [{"idx": i, "label": _feature_label(i),
-                 "group": "SAE" if i < n_sae_features else "W",
-                 "pvalue": float(res.pvalues[i])}
-                for i in res.selected]
+        return [_entry(marg_names[i], res.pvalues[i]) for i in res.selected]
 
     print()
     for tag, res in [("exploratory", nexis_expl), ("FDR", nexis_fdr), ("FWER", nexis_fwer)]:
         if res.selected:
             print(f"── NEXIS ({tag}) selected features ───────────────────────")
-            for rank, feat_idx in enumerate(res.selected):
-                p_val = res.pvalues[feat_idx]
-                print(f"  rank={rank+1}  feature={_feature_label(feat_idx):16s}  "
-                      f"p={p_val:.2e}  {_activation_summary(feat_idx)}")
+            for rank, i in enumerate(res.selected):
+                name = res.feature_names[i]
+                print(f"  rank={rank+1}  feature={name:16s}  "
+                      f"p={res.pvalues[i]:.2e}  {_activation_summary(name)}")
         else:
             print(f"NEXIS ({tag}) selected no features at α={args.alpha}.")
 
@@ -366,10 +428,10 @@ def main():
             "n_sae_features":   n_sae_features,
             "sae_active_idx":   sae_orig_idx.tolist(),
             "active_threshold": args.active_threshold,
-            "n_w_features":     n_w_cols,
+            "n_w_features":     len(w_names),
             "w_names":          w_names,
-            "w_mode":           "candidates" if args.w_candidates else "controls",
-            "w_priority":       args.w_priority if args.w_candidates else False,
+            "w_mode":           "candidates (hand_crafted-staged)",
+            "w_priority":       args.w_priority,
             "district_dummies": args.district_dummies,
             "spectral":         args.spectral,
             "level":            level_label,

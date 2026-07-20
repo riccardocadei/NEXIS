@@ -1,92 +1,115 @@
 """Ghana LEAP 1000 — data loading and variable definitions."""
 
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from external_data import load_effect_modifiers
+# Import covariates.py via its fully-qualified path (src.apps.covariates),
+# NOT a bare `from covariates import ...` -- Python treats the same file
+# imported under two different names as two independent modules with two
+# independent classes, so a bare import here would give a *different* Level
+# enum than interpret.py's `from src.apps.covariates import Level`, silently
+# breaking every `c.level is Level.HOUSEHOLD` identity check downstream.
+# Adding the repo root to sys.path guarantees this resolves to the exact
+# same module interpret.py (and anything else) already imports.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from src.apps.covariates import Covariate, Level, Origin, Support
+# Same reasoning for external_data.py: a bare `from external_data import ...`
+# only resolves when src/apps/ghana happens to already be on sys.path (e.g.
+# a script run from that directory) -- it silently ModuleNotFoundErrors from
+# any other cwd/PYTHONPATH, including the notebooks/ directory. Qualified
+# import works unconditionally once the repo root is on sys.path (above).
+from src.apps.ghana.external_data import load_effect_modifiers
 
 DATA_DIR = Path('../data/ghana')
 
-# ── Covariate groups ──────────────────────────────────────────────────────────
-NUMERIC_W = [
-    'hhsize', 'children_u5', 'children_6_17',
-    'adults', 'elderly', 'head_age', 'rooms',
-]
-
-BINARY_W = [
-    'head_married', 'head_female', 'head_schooled', 'head_formal',
-    'no_electricity', 'mud_walls', 'thatch_roof', 'mud_floor',
-    'improved_water', 'has_poultry', 'has_livestock', 'has_business',
-    'farms',
-]
-
-ENGINEERED_W = [
-    'livelihood_diversity',
-    'dependency_ratio',
-    'rooms_per_person',
-    'housing_depriv',
-]
-
-# Community-level features — go into Z alongside SAE neurons and spectral indices
+# ── Covariate registry ────────────────────────────────────────────────────────
+# The single source of truth for every covariate known upfront (i.e.
+# everything except SAE neurons/spectral indices, which don't exist until a
+# model is trained/run — those are registered dynamically in interpret.py).
+# NUMERIC_W/BINARY_W/ENGINEERED_W/W_ALL/COMMUNITY_Z/W_LABELS below are all
+# DERIVED views over this list, kept only because every existing consumer
+# (analysis.py, visualize.py, interpret.py, interaction_regression.py, the
+# notebook) already imports them — they can't drift out of sync anymore
+# since there's nothing left to hand-maintain in parallel.
 #
-# A covariate is excluded from here only if treatment could plausibly have
-# caused it (post-treatment bias/collider risk — e.g. a household covariate
-# a cash transfer could itself change). Exogenous sources like weather don't
-# carry that risk regardless of whether they're measured before or during
-# the study window, since treatment cannot cause rainfall — see
-# external_data.py::load_effect_modifiers.
-COMMUNITY_Z = [
-    'dist_to_capital_km',
-    'comm_size',
-    'rainfall_mean_pre2015',
-    'rainfall_std_pre2015',
-    'drought_freq_pre2015',
-    'rainfall_2015',
-    'rainfall_2016',
-    'rainfall_2017',
-    'cdd_1517',
+# A covariate is excluded from Level.HOUSEHOLD/COMMUNITY only if treatment
+# could plausibly have caused it (post-treatment bias/collider risk — e.g. a
+# household covariate a cash transfer could itself change, which is why
+# every survey covariate here is baseline-2015-only). Exogenous sources like
+# weather don't carry that risk regardless of when they're measured, since
+# treatment cannot cause rainfall — see external_data.py::load_effect_modifiers.
+COVARIATES: list[Covariate] = [
+    # ── Household-level (raw survey) ──────────────────────────────────────────
+    Covariate('hhsize',       'Household size',    Level.HOUSEHOLD, support=Support.COUNT),
+    Covariate('children_u5',  'Children 0–5',       Level.HOUSEHOLD, support=Support.COUNT),
+    Covariate('children_6_17','Children 6–17',      Level.HOUSEHOLD, support=Support.COUNT),
+    Covariate('adults',       'Adults 18–64',       Level.HOUSEHOLD, support=Support.COUNT),
+    Covariate('elderly',      'Elderly 65+',        Level.HOUSEHOLD, support=Support.COUNT),
+    Covariate('head_age',     'Head age',           Level.HOUSEHOLD, support=Support.COUNT),
+    Covariate('rooms',        'Rooms',              Level.HOUSEHOLD, support=Support.COUNT),
+
+    Covariate('head_married',   'Head married',            Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('head_female',    'Female head',             Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('head_schooled',  'Head attended school',    Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('head_formal',    'Head in formal sector',   Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('no_electricity', 'No electricity',          Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('mud_walls',      'Mud walls',               Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('thatch_roof',    'Thatch roof',             Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('mud_floor',      'Mud floor',               Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('improved_water', 'Improved water',          Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('has_poultry',    'Has poultry',             Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('has_livestock',  'Has livestock',           Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('has_business',   'Has business',            Level.HOUSEHOLD, support=Support.BINARY),
+    Covariate('farms',          'Farming household',       Level.HOUSEHOLD, support=Support.BINARY),
+
+    # ── Household-level (engineered from the survey) ──────────────────────────
+    Covariate('livelihood_diversity', 'Livelihood diversity',        Level.HOUSEHOLD,
+              support=Support.COUNT, source='survey_engineered'),
+    Covariate('dependency_ratio',     'Dependency ratio',            Level.HOUSEHOLD,
+              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered'),
+    Covariate('rooms_per_person',     'Rooms per person',            Level.HOUSEHOLD,
+              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered'),
+    Covariate('housing_depriv',       'Housing deprivation index',   Level.HOUSEHOLD,
+              support=Support.COUNT, source='survey_engineered'),
+
+    # ── Community-level (engineered from the survey's GPS/hhid) ───────────────
+    Covariate('dist_to_capital_km', 'Distance to district capital (km)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered'),
+    Covariate('comm_size',          'Community size',                    Level.COMMUNITY,
+              support=Support.COUNT, source='survey_engineered'),
+
+    # ── Community-level (rainfall, see external_data.py) ──────────────────────
+    Covariate('rainfall_mean_pre2015', 'Mean annual rainfall, 2000–2014 (mm)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
+    Covariate('rainfall_std_pre2015',  'Std. annual rainfall, 2000–2014 (mm)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
+    Covariate('drought_freq_pre2015',  'Drought frequency, 2000–2014 (share of years)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
+    Covariate('rainfall_2015', 'Annual rainfall, 2015 (mm)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
+    Covariate('rainfall_2016', 'Annual rainfall, 2016 (mm)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
+    Covariate('rainfall_2017', 'Annual rainfall, 2017 (mm)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall'),
+    Covariate('cdd_1517', 'Max consecutive dry days, 2015–2017', Level.COMMUNITY,
+              support=Support.COUNT, source='rainfall'),
 ]
 
-W_ALL = NUMERIC_W + BINARY_W + ENGINEERED_W
-
-# ── Human-readable labels ─────────────────────────────────────────────────────
-W_LABELS: dict[str, str] = {
-    'hhsize':               'Household size',
-    'children_u5':          'Children 0–5',
-    'children_6_17':        'Children 6–17',
-    'adults':               'Adults 18–64',
-    'elderly':              'Elderly 65+',
-    'head_age':             'Head age',
-    'rooms':                'Rooms',
-    'head_married':         'Head married',
-    'head_female':          'Female head',
-    'head_schooled':        'Head attended school',
-    'head_formal':          'Head in formal sector',
-    'no_electricity':       'No electricity',
-    'mud_walls':            'Mud walls',
-    'thatch_roof':          'Thatch roof',
-    'mud_floor':            'Mud floor',
-    'improved_water':       'Improved water',
-    'has_poultry':          'Has poultry',
-    'has_livestock':        'Has livestock',
-    'has_business':         'Has business',
-    'farms':                'Farming household',
-    'livelihood_diversity': 'Livelihood diversity',
-    'dependency_ratio':     'Dependency ratio',
-    'rooms_per_person':     'Rooms per person',
-    'housing_depriv':       'Housing deprivation index',
-    'dist_to_capital_km':   'Distance to district capital (km)',
-    'comm_size':            'Community size',
-    'drought_freq_pre2015': 'Drought frequency, 2000–2014 (share of years)',
-    'rainfall_mean_pre2015': 'Mean annual rainfall, 2000–2014 (mm)',
-    'rainfall_std_pre2015': 'Std. annual rainfall, 2000–2014 (mm)',
-    'rainfall_2015':        'Annual rainfall, 2015 (mm)',
-    'rainfall_2016':        'Annual rainfall, 2016 (mm)',
-    'rainfall_2017':        'Annual rainfall, 2017 (mm)',
-    'cdd_1517':             'Max consecutive dry days, 2015–2017',
-}
+# ── Derived views (kept for every existing consumer — do not hand-edit these;
+#    edit COVARIATES above instead) ────────────────────────────────────────────
+NUMERIC_W = [c.name for c in COVARIATES
+             if c.level is Level.HOUSEHOLD and c.source == 'survey'
+             and c.support in (Support.COUNT, Support.POSITIVE_CONTINUOUS, Support.CONTINUOUS)]
+BINARY_W = [c.name for c in COVARIATES
+            if c.level is Level.HOUSEHOLD and c.source == 'survey' and c.support is Support.BINARY]
+ENGINEERED_W = [c.name for c in COVARIATES
+                if c.level is Level.HOUSEHOLD and c.source == 'survey_engineered']
+W_ALL = [c.name for c in COVARIATES if c.nexis_arg == 'w']
+COMMUNITY_Z = [c.name for c in COVARIATES if c.nexis_arg == 'z']
+W_LABELS: dict[str, str] = {c.name: c.label for c in COVARIATES}
 
 # ── District capital GPS (WGS-84) ─────────────────────────────────────────────
 _DISTRICT_CAPITALS: dict[str, tuple[float, float]] = {

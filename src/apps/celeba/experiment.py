@@ -18,6 +18,7 @@ Each sweep repeats over n_seeds random draws to average out sampling noise.
 """
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -28,6 +29,13 @@ from joblib import Parallel, delayed
 
 from method.nexis import nexis, marginal_select, iou_score
 from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
+
+# Import via the fully-qualified path (src.apps.covariates), NOT a bare
+# `from apps.covariates import ...` -- see src/apps/ghana/data.py's comment:
+# the same file imported under two different names becomes two independent
+# modules with two independent Origin/Level classes.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from src.apps.covariates import Covariate, Level, Origin, Support, Dataset
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +95,24 @@ def evaluate_methods_on_dataset(
     truth_set = set(int(x) for x in truth)
     n_truth = len(truth_set)
 
+    # Every column here is a machine-derived embedding dimension (SAE neuron
+    # or, under --raw, a frozen-ViT channel) -- there is no hand_crafted/
+    # learned duality to stage on in this app (unlike Ghana's real survey-vs-
+    # SAE split), so every covariate is 'learned' and nexis() runs one flat
+    # search, same as passing a bare ndarray. Still built as a real Dataset
+    # (src/apps/covariates.py) for consistency with Ghana/Uganda's single
+    # multi-source pre-treatment object (see
+    # src/apps/ghana/interpret.py::load_nexis_inputs, src/apps/uganda/analyze.py).
+    covariates = [
+        Covariate(f"feature_{i}", f"feature_{i}", Level.INDIVIDUAL,
+                  Origin.LEARNED, Support.SPARSE_NONNEG, source="celeba_sae")
+        for i in range(z.shape[1])
+    ]
+    dataset = Dataset(
+        X=pd.DataFrame(z, columns=[c.name for c in covariates]),
+        covariates=covariates,
+    )
+
     def _metrics(selected: Sequence[int], t_s: float) -> Dict[str, float]:
         sel_set = set(int(x) for x in selected)
         tp = float(len(sel_set & truth_set))
@@ -121,34 +147,34 @@ def evaluate_methods_on_dataset(
          lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FDR"))
     # NEXIS default: test=linear, adjust=FWER, rho=0.5, backward=True
     _run("NEXIS",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds))
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds))
     # test ablation
     _run("NEXIS (test=GCM: quadratic)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       test="GCM: quadratic", n_splits=gcm_splits))
     _run("NEXIS (test=GCM: lgbm)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       test="GCM: lgbm", n_splits=gcm_splits))
     # adjust ablation
     _run("NEXIS (adjust=None)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       adjust=None))
     _run("NEXIS (adjust=FDR)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       adjust="FDR"))
     # rho ablation
     _run("NEXIS (rho=0)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       rho=0))
     _run("NEXIS (rho=0.8)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       rho=0.8))
     _run("NEXIS (rho=0.2)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       rho=0.2))
     # backward ablation
     _run("NEXIS (backward=False)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=dataset.X, alpha=alpha, max_rounds=max_rounds,
                       backward=False))
 
     return out
