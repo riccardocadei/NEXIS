@@ -37,9 +37,9 @@ Every covariate also carries a `domain` tag (`src/apps/covariates.py::Domain`) �
 | `economy` | Livelihoods, business/farm/livestock ownership, prices | 7 |
 | `accessibility` | Distance/travel-time to anywhere — capital, city, market, light | 4 |
 | `urbanization` | Own-place settlement character — population, built-up, lit | 4 |
-| `environment` | Climate + land cover/vegetation + air quality (rainfall + PM2.5 + satellite representation) | 8 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
+| `environment` | Climate + land cover/vegetation (rainfall + satellite representation) | 7 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
 | `security` | Conflict, violence, unrest | 3 |
-| `health` | Disease burden | 2 |
+| `health` | Disease burden | 3 |
 
 `Dataset.subset(domain=Domain.X)` filters by this tag, same pattern as `level`/`origin`.
 

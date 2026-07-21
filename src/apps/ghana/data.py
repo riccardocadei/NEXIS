@@ -137,7 +137,7 @@ COVARIATES: list[Covariate] = [
 
     # ── Community-level (air pollution, WashU ACAG, see external_data.py) ──────
     Covariate('pm25_2015', 'PM2.5 air pollution, 2015 (ug/m3)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='air_pollution', domain=Domain.ENVIRONMENT, origin=Origin.RAW),
+              support=Support.POSITIVE_CONTINUOUS, source='air_pollution', domain=Domain.HEALTH, origin=Origin.RAW),
 
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
