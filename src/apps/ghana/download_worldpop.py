@@ -11,7 +11,7 @@ within 2km of each community centroid (not a raster point-value -- a single
 100m pixel's population estimate is too granular/noisy; summing over a
 small neighbourhood gives a locally-smoothed density). Checked for
 degeneracy before adopting: 0/162 communities are zero at this radius
-(range 209-9271), and it's only weakly correlated with comm_size (r=0.04,
+(range 209-9271), and it's only weakly correlated with community_size (r=0.04,
 confirming it captures true local population density rather than
 duplicating the LEAP sample count) and moderately with
 dist_to_capital_km/travel_time_to_city_min (r=-0.48, expected).

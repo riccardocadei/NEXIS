@@ -54,7 +54,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         averaged into one scalar (2016 correlates -0.66 with 2015 and -0.52
         with 2017, so a mean would mostly cancel out real year-to-year
         signal).
-      - cdd_1517: max consecutive dry days (CDD) over the whole 2015-2017
+      - max_dry_days_2015_2017: max consecutive dry days (CDD) over the whole 2015-2017
         window, a drought-severity index a raw annual total can mask (two
         communities can have identical yearly rainfall with very different
         mid-season dry-spell exposure). Computed once over the full window
@@ -96,11 +96,13 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         price observation in 2014-2015, always defined. Maize, not milk --
         Ghana's WFP monitoring doesn't track milk/dairy at all (no local
         fresh-milk market); maize is Northern Ghana's actual staple crop.
-      - maize_price_2014_2015: that nearest market's mean Maize price over
-        2014-2015 (pre/at-baseline, not later years) -- deliberately
+      - maize_price_2015: that nearest market's mean Maize price over
+        2014-2015 (pre/at-baseline, not later years -- deliberately
         sidesteps the "cash transfer causes local price inflation" general-
         equilibrium debate by using pre-treatment prices, same logic as
-        rainfall's pre-2015 climatology.
+        rainfall's pre-2015 climatology). Named _2015, not _2014_2015: 2014
+        is only pooled in for enough price observations per market, same
+        "as of baseline" naming convention as every other 2015-dated source.
       A household-level cash transfer cannot retroactively change a
       2014-2015 market price, so this is exogenous by construction.
 
@@ -125,7 +127,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     from WorldPop's 2015 100m gridded population estimate (Google Earth
     Engine, same authentication as the sources above):
       - pop_density_2km: summed estimated population within 2km of the
-        community centroid. Weakly correlated with comm_size (r=0.04,
+        community centroid. Weakly correlated with community_size (r=0.04,
         confirming it captures true local population density rather than
         duplicating LEAP's own household sample count) and moderately with
         dist_to_capital_km/travel_time_to_city_min (r=-0.48, expected).
@@ -149,7 +151,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     time series -- a genuine annual series (2000-2022), so 2015 is
     selected directly via a WCS time subset, an exact match to the LEAP
     baseline year, same as market access:
-      - pf_mortality_rate_2015, pf_incidence_rate_2015: raster values
+      - malaria_mortality_rate_2015, malaria_incidence_rate_2015: raster values
         sampled at each community centroid. Negatively correlated with each
         other (r=-0.62) -- plausibly because higher-incidence areas
         sometimes have better malaria program targeting/case management,
@@ -166,15 +168,15 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
     rainfall_columns = [
         'rainfall_mean_pre2015', 'rainfall_std_pre2015', 'drought_freq_pre2015',
-        *annual_columns, 'cdd_1517',
+        *annual_columns, 'max_dry_days_2015_2017',
     ]
     market_access_columns = ['travel_time_to_city_min']
     acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
-    market_prices_columns = ['dist_nearest_market_km', 'maize_price_2014_2015']
+    market_prices_columns = ['dist_nearest_market_km', 'maize_price_2015']
     nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km']
     worldpop_columns = ['pop_density_2km']
     ghsl_columns = ['urbanization_degree']
-    malaria_columns = ['pf_mortality_rate_2015', 'pf_incidence_rate_2015']
+    malaria_columns = ['malaria_mortality_rate_2015', 'malaria_incidence_rate_2015']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -188,7 +190,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
             .rename(columns={2015: 'rainfall_2015', 2016: 'rainfall_2016', 2017: 'rainfall_2017'})
             .reset_index()
         )
-        cdd = pd.read_csv(cdd_path)[['comm', 'cdd_1517']]
+        cdd = pd.read_csv(cdd_path)[['comm', 'max_dry_days_2015_2017']]
         rainfall = climatology.merge(annual_wide, on='comm').merge(cdd, on='comm')
     else:
         # rainfall not yet downloaded (run download_rainfall.py) — callers

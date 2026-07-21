@@ -26,7 +26,7 @@ Produces two raw rasters (Ghana-clipped, ~100KB each) and one community CSV:
     malaria/pf_mortality_2015_ghana.tif
     malaria/pf_incidence_2015_ghana.tif
     malaria/malaria_community.csv
-        comm, pf_mortality_rate_2015, pf_incidence_rate_2015
+        comm, malaria_mortality_rate_2015, malaria_incidence_rate_2015
 
 Usage:
     python download_malaria.py [--dry-run]
@@ -124,19 +124,19 @@ def main():
     download_raster(MORTALITY_COVERAGE, mortality_path)
     download_raster(INCIDENCE_COVERAGE, incidence_path)
 
-    mortality = sample_at_centroids(mortality_path, centroids, 'pf_mortality_rate_2015')
-    incidence = sample_at_centroids(incidence_path, centroids, 'pf_incidence_rate_2015')
+    mortality = sample_at_centroids(mortality_path, centroids, 'malaria_mortality_rate_2015')
+    incidence = sample_at_centroids(incidence_path, centroids, 'malaria_incidence_rate_2015')
     stats = mortality.merge(incidence, on='comm')
 
     out_path = out_dir / 'malaria_community.csv'
     stats.to_csv(out_path, index=False)
     log(f"Wrote {out_path}  ({len(stats)} communities)")
-    log(f"  pf_mortality_rate_2015: min={stats['pf_mortality_rate_2015'].min():.5f}  "
-        f"median={stats['pf_mortality_rate_2015'].median():.5f}  "
-        f"max={stats['pf_mortality_rate_2015'].max():.5f}")
-    log(f"  pf_incidence_rate_2015: min={stats['pf_incidence_rate_2015'].min():.3f}  "
-        f"median={stats['pf_incidence_rate_2015'].median():.3f}  "
-        f"max={stats['pf_incidence_rate_2015'].max():.3f}")
+    log(f"  malaria_mortality_rate_2015: min={stats['malaria_mortality_rate_2015'].min():.5f}  "
+        f"median={stats['malaria_mortality_rate_2015'].median():.5f}  "
+        f"max={stats['malaria_mortality_rate_2015'].max():.5f}")
+    log(f"  malaria_incidence_rate_2015: min={stats['malaria_incidence_rate_2015'].min():.3f}  "
+        f"median={stats['malaria_incidence_rate_2015'].median():.3f}  "
+        f"max={stats['malaria_incidence_rate_2015'].max():.3f}")
 
 
 if __name__ == '__main__':

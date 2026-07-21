@@ -25,6 +25,23 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
+## Domains
+
+Every covariate also carries a `domain` tag (`src/apps/covariates.py::Domain`) — what it's *about*, cross-cutting `level` and `source` on purpose (e.g. a household's own farming status and a community's maize price are both ECONOMY, despite one being household/survey and the other community/WFP). Single words, not compound labels — see the `Domain` enum docstring for the exact rule used to assign each borderline case (e.g. why distance-to-market sits in ACCESSIBILITY while the price itself sits in ECONOMY).
+
+| Domain | Covers | Count (static registry) |
+|---|---|---|
+| `demographics` | Household composition — size, age structure, head traits | 10 |
+| `housing` | Dwelling materials, water, electricity, crowding | 8 |
+| `economy` | Livelihoods, business/farm/livestock ownership, prices | 7 |
+| `accessibility` | Distance/travel-time to anywhere — capital, city, market, light | 4 |
+| `urbanization` | Own-place settlement character — population, built-up, lit | 4 |
+| `environment` | Climate + land cover/vegetation (rainfall + satellite representation) | 7 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
+| `security` | Conflict, violence, unrest | 3 |
+| `health` | Disease burden | 2 |
+
+`Dataset.subset(domain=Domain.X)` filters by this tag, same pattern as `level`/`origin`.
+
 **How to decide what belongs in `W`**: `W` is every pre-treatment covariate NEXIS can search over, whatever level it's measured at — there is no separate household-vs-community pool (see `src/apps/covariates.py`'s module docstring). The household-survey covariates are baseline-2015-only, and the community-level rows derived from it are time-invariant — both by design, because a cash transfer could plausibly *change* things like business ownership, livestock, or housing by 2017, and using an endline value as an effect modifier would condition on something partly caused by treatment (post-treatment bias). Rainfall's study-window row (2015–2017) is the one exception to "everything is baseline or time-invariant" — it genuinely varies during the treatment period — but it's still a valid `W` candidate, because the real test isn't *when* a covariate is measured, it's whether *treatment could have caused it*. A cash transfer cannot cause rainfall, so there's no post-treatment-bias risk here, unlike a household characteristic the transfer could genuinely alter. Only `Y` itself (the outcome being differenced, `Y_2017 − Y_2015`) is expected to vary with wave in a way that reflects treatment. "Raw columns" is the source's native dimensionality (survey columns, imagery bands, the one CHIRPS variable); "Covariates extracted" is how many end up in the analysis after processing, broken into raw-carried-through vs. derived/engineered where that's meaningful. Only satellite imagery needs a representation-learning step (foundation-model embedding + sparse autoencoder) to go from raw to extracted — every other row is already numeric per community and plugs in directly. See per-source sections below for the full detail, and [Extra](#extra-administrative-boundaries--basemaps-plotting-only) for the non-analytical cartographic files (region/district-level boundaries, used only for map plotting).
 
 ## LEAP-1000 household survey (core, restricted)
@@ -37,7 +54,7 @@ Rows marked "↳" share Data/Source/Size/Modality with the row directly above (l
 | **Years** | 2 waves — Baseline 2015 (n=2,497), Endline 2017 (n=2,331). |
 | **Size** | 4,828 rows × 30 columns, 83 KB. 162 communities. |
 | **Description** | Household panel: PMT eligibility score, treatment status, adult-equivalent expenditure, demographics, housing, livelihoods. See `survey/variable_description.csv` for the full column dictionary. |
-| **Covariates extracted** | 26 = 24H + 2C = 20 raw + 6 derived. 24 household-level `W`: 20 raw survey columns + 4 engineered (`livelihood_diversity`, `dependency_ratio`, `rooms_per_person`, `housing_depriv`). 2 community-level `W`: `dist_to_capital_km`, `comm_size` — both engineered, from GPS/`hhid`, not raw survey columns. |
+| **Covariates extracted** | 26 = 24H + 2C = 20 raw + 6 derived. 24 household-level `W`: 20 raw survey columns + 4 engineered (`livelihood_diversity`, `dependency_ratio`, `rooms_per_person`, `housing_deprivation`). 2 community-level `W`: `dist_to_capital_km`, `community_size` — both engineered, from GPS/`hhid`, not raw survey columns. |
 | **Known caveat** | `pmtscore` is the eligibility/targeting score (RDD running variable) — do not use as an outcome or NEXIS effect modifier (near-perfect separation between arms by construction). |
 | **Reference reports** | `survey/LEAP-1000_Baseline-Survey_2015.pdf`, `survey/Ghana-LEAP-1000-Endline-Household-Survey-v8.pdf` — full UNICEF/ISSER/UNC endline evaluation report (June 2018), used for context (e.g. Table 4.2.7 "Shocks in the community" motivated the rainfall covariate below). |
 
@@ -61,8 +78,8 @@ Rows marked "↳" share Data/Source/Size/Modality with the row directly above (l
 | **Origin** | `UCSB-CHG/CHIRPS/DAILY` (Climate Hazards Center InfraRed Precipitation with Station data), via `earthengine-api`. |
 | **Produced by** | `src/apps/ghana/download_rainfall.py` |
 | **Motivation** | LEAP 1000 endline evaluation report, Table 4.2.7: drought (74% of communities, 2015–2017) and floods (57%) are the dominant self-reported community shocks in this exact sample. |
-| **Covariates extracted** | 7, all community-level `W`: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` (2000–2014 climatology) + `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (realized annual rainfall, one column per study year, raw mm) + `cdd_1517` (max consecutive dry days, whole study window). |
-| **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017) + full 2015–2017 daily series for `cdd_1517`. |
+| **Covariates extracted** | 7, all community-level `W`: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` (2000–2014 climatology) + `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (realized annual rainfall, one column per study year, raw mm) + `max_dry_days_2015_2017` (max consecutive dry days, whole study window). |
+| **Status** | ✅ **Downloaded** — 162/162 communities, all 18 years (2000–2017) + full 2015–2017 daily series for `max_dry_days_2015_2017`. |
 
 No representation learning needed — CHIRPS is already a per-pixel numeric rainfall value, sampled directly at each community centroid (`reduceRegions`, no FM/SAE step). Three files, all feeding `W` (see `external_data.py::load_effect_modifiers`):
 
@@ -70,15 +87,15 @@ No representation learning needed — CHIRPS is already a per-pixel numeric rain
 |---|---|---|---|
 | `rainfall/rainfall_climatology.csv` | 2000–2014 (pre-baseline) | 1 row × 3 cols: `rainfall_mean_pre2015`, `rainfall_std_pre2015`, `drought_freq_pre2015` | Stable community traits → NEXIS `W` effect-modifier candidates (`COMMUNITY_W` in `data.py`) |
 | `rainfall/rainfall_annual.csv` | 2015–2017 (study window) | 3 rows × 1 col: `rainfall_mm` | Pivoted into `rainfall_2015`, `rainfall_2016`, `rainfall_2017` (one column per year, raw mm, no z-scoring, no averaging) → also `W` candidates |
-| `rainfall/rainfall_cdd.csv` | 2015–2017 (study window, daily) | 1 row × 1 col: `cdd_1517` | Max consecutive dry days over the whole window (a day counts as dry below `--dry-day-mm`, default 1.0mm) → also a `W` candidate |
+| `rainfall/rainfall_cdd.csv` | 2015–2017 (study window, daily) | 1 row × 1 col: `max_dry_days_2015_2017` | Max consecutive dry days over the whole window (a day counts as dry below `--dry-day-mm`, default 1.0mm) → also a `W` candidate |
 
-Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%) over 2000–2014, vs. 1,014mm (2015) / 888mm (2016) / 860mm (2017) realized during the study window — i.e. this community's study period ran progressively drier than its historical norm. `cdd_1517` = 134 days — a long but unsurprising dry stretch for a Northern Ghana community, whose Nov–Apr dry season alone typically spans 4-6 months.
+Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 pre-2015 years (13.3%) over 2000–2014, vs. 1,014mm (2015) / 888mm (2016) / 860mm (2017) realized during the study window — i.e. this community's study period ran progressively drier than its historical norm. `max_dry_days_2015_2017` = 134 days — a long but unsurprising dry stretch for a Northern Ghana community, whose Nov–Apr dry season alone typically spans 4-6 months.
 
 **Why the annual and CDD columns are `W` candidates despite overlapping the treatment period**: the test for whether a covariate can be a valid effect modifier is whether *treatment could have caused it*, not whether it was measured before treatment started (see the note above the summary table). A cash transfer cannot cause rainfall, so unlike a household covariate that receiving cash could genuinely change (e.g. business ownership), there's no post-treatment-bias risk in asking "did treatment help more in communities that got worse rainfall during the study" — that's exactly the sort of heterogeneity question NEXIS is built to test.
 
 **Why 3 separate annual columns rather than one averaged scalar**: the 3 realized years are anti-correlated with each other (2016 correlates −0.66 with 2015 and −0.52 with 2017), so averaging them would mostly cancel out real year-to-year signal rather than summarize it. Keeping them separate also means each behaves like every other `W` feature — one number per community, no per-wave attachment needed — while still letting NEXIS's own selection decide which year(s), if any, matter.
 
-**Why CDD in addition to the annual totals**: two communities can have identical yearly rainfall totals with very different agricultural outcomes if one had a damaging mid-season dry spell and the other's rain was evenly distributed — the total alone can't distinguish them, but the longest dry spell can. **Why one whole-window value (`cdd_1517`) rather than per calendar year**: a calendar-year split is agronomically arbitrary — growing seasons don't align with Jan 1 — and would understate a real drought straddling a year boundary (e.g. Nov 2016–Jan 2017) by resetting the streak at Dec 31. One whole-window value also keeps the covariate count down rather than adding 3 more correlated columns for NEXIS to search over.
+**Why CDD in addition to the annual totals**: two communities can have identical yearly rainfall totals with very different agricultural outcomes if one had a damaging mid-season dry spell and the other's rain was evenly distributed — the total alone can't distinguish them, but the longest dry spell can. **Why one whole-window value (`max_dry_days_2015_2017`) rather than per calendar year**: a calendar-year split is agronomically arbitrary — growing seasons don't align with Jan 1 — and would understate a real drought straddling a year boundary (e.g. Nov 2016–Jan 2017) by resetting the streak at Dec 31. One whole-window value also keeps the covariate count down rather than adding 3 more correlated columns for NEXIS to search over.
 
 ## Market access (travel time to cities, 2015, Malaria Atlas Project)
 
@@ -95,7 +112,7 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why this is a valid community-level covariate**: same test as rainfall — a household-level cash transfer cannot build roads or move cities, so there's no post-treatment-bias risk.
 
-**Not redundant with existing covariates**: weakly correlated with `dist_to_capital_km` (r=0.24) and `comm_size` (r=0.07) — travel time to the nearest large city captures road/terrain access, which doesn't reduce to straight-line distance to the district capital or a community's own population.
+**Not redundant with existing covariates**: weakly correlated with `dist_to_capital_km` (r=0.24) and `community_size` (r=0.07) — travel time to the nearest large city captures road/terrain access, which doesn't reduce to straight-line distance to the district capital or a community's own population.
 
 ## Conflict/protest events (ACLED, 2015-2017)
 
@@ -116,7 +133,7 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why 2015-2017 (the study window itself) rather than a longer or shifted history**: unlike OpenCellID/Ookla, ACLED events are genuinely dated historical records, not a present-day snapshot standing in for the past — so the same test as rainfall's study-window columns applies directly: a household-level cash transfer cannot cause a riot or a battle, so measuring during the treatment period itself carries no post-treatment-bias risk. The 2015-2017 export already gives non-degenerate coverage (120/162 communities have some event within 25km), so there was no need to pull additional pre-2015 history to fix a sparsity problem the way a longer window might otherwise have been used for.
 
-**Not redundant with existing covariates**: `dist_nearest_conflict_km` correlates 0.44 with `dist_to_capital_km` (moderate — conflict events cluster near populated areas, as expected) and 0.24 with `comm_size`; not so high as to be a re-derivation.
+**Not redundant with existing covariates**: `dist_nearest_conflict_km` correlates 0.44 with `dist_to_capital_km` (moderate — conflict events cluster near populated areas, as expected) and 0.24 with `community_size`; not so high as to be a re-derivation.
 
 ## Market prices (WFP food prices, 2014-2015)
 
@@ -126,8 +143,10 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 | **Produced by** | `src/apps/ghana/download_market_prices.py` — downloads both the markets list and price CSVs directly, no manual step. |
 | **Motivation** | A market-power/market-integration proxy — originally proposed as milk price, but Ghana's WFP monitoring doesn't track milk/dairy at all (no local fresh-milk market; Ghana is import-dependent for dairy). Maize is Northern Ghana's actual staple crop and has excellent coverage near the study area: markets in/near 4 of the 5 LEAP districts (Nalerigu/East Mamprusi, Yendi, Garu/Garu-Tempane, Bongo), plus several more within reach (Gushegu, Bunkprugu, Bolga, Tamale, Zabzugu). |
 | **Raw columns** | 16 per price record: date, admin1/2, market, market_id, lat/lon, category, commodity, unit, priceflag, pricetype, currency, price, usdprice. |
-| **Covariates extracted** | 2, community-level `W`: `dist_nearest_market_km` (distance to the nearest market with a Maize price observation, always defined, range 1–52km, median 14km) and `maize_price_2014_2015` (that market's mean Maize price over 2014-2015, GHS, range 68–114 across 9 distinct nearest-markets). |
+| **Covariates extracted** | 2, community-level `W`: `dist_nearest_market_km` (distance to the nearest market with a Maize price observation, always defined, range 1–52km, median 14km) and `maize_price_2015` (that market's mean Maize price over 2014-2015, GHS, range 68–114 across 9 distinct nearest-markets). |
 | **Status** | ✅ complete. |
+
+**Why 2014-2015 data but named `maize_price_2015`**: pooling 2 years is purely to get enough price observations per market (many rural markets have only 1 observation in a single year); the intent is "the price as of baseline," matching the naming convention every other 2015-dated covariate in this project uses (`urbanization_degree`, `pop_density_2km`, etc. don't encode their exact data-pooling window in the name either).
 
 **Why 2014-2015, not later years**: deliberately pre/at-baseline, not concurrent with or after treatment — sidesteps the classic "cash transfer causes local price inflation" general-equilibrium debate entirely (a household-level cash transfer cannot retroactively change a 2014-2015 price), same logic as rainfall's pre-2015 climatology. Since food prices are genuinely dated historical records (like ACLED), there's no need to use present-day data the way OpenCellID/Ookla were forced to.
 
@@ -145,7 +164,7 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 | **Status** | ✅ complete. |
 
 **Why two covariates, not one**: they answer different questions and turned out to be only weakly correlated with each other (r=-0.25). A direct point-sample of the community's own location is heavily zero-inflated — 91% of communities (147/162) show near-zero radiance at their exact centroid, confirmed genuine (not a radius artifact) by checking buffers up to 10km, all still ~15-17/162 nonzero. Rather than discard the signal the way OpenCellID's degenerate tower counts were discarded, both framings were kept because the "zero" here is itself meaningful (deep-rural Northern Ghana genuinely lacks grid electrification in most of these communities, the same reasoning that made Ookla's zero-test-count communities informative rather than noise):
-- `night_light_radiance`: sparse (~15/162 nonzero at a 1km buffer, checked at multiple thresholds), registered as `sparse_nonneg` like SAE activations — "does this specific community itself have detectable light." Weakly correlated with `dist_to_capital_km`/`comm_size`/`travel_time_to_city_min` (all |r| ≤ 0.22) — a fairly independent fact (a specific market centre or school having solar/grid lighting doesn't track general remoteness).
+- `night_light_radiance`: sparse (~15/162 nonzero at a 1km buffer, checked at multiple thresholds), registered as `sparse_nonneg` like SAE activations — "does this specific community itself have detectable light." Weakly correlated with `dist_to_capital_km`/`community_size`/`travel_time_to_city_min` (all |r| ≤ 0.22) — a fairly independent fact (a specific market centre or school having solar/grid lighting doesn't track general remoteness).
 - `dist_nearest_light_km`: always defined (0.08–32km, median 8.7km), a general remoteness/access proxy instead — correlated with `dist_to_capital_km` (r=0.66) and `travel_time_to_city_min` (r=0.52), higher than `night_light_radiance`'s correlations but not so high as to be a pure re-derivation.
 
 **Why 2015, not the most recent VIIRS composite**: VIIRS's archive starts April 2012, so (unlike Ookla, whose archive only reaches back to 2019) the exact LEAP baseline year is directly available — no temporal-mismatch trade-off needed here at all.
@@ -156,14 +175,14 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 |---|---|
 | **Origin** | `WorldPop/GP/100m/pop`, 2015, via Google Earth Engine — same authentication as the sources above, no new account needed. ~100m resolution gridded population estimate. |
 | **Produced by** | `src/apps/ghana/download_worldpop.py`. |
-| **Motivation** | A genuine local-population-density proxy, distinct from `comm_size` (which is just LEAP's own sample count per community, not true local population). |
+| **Motivation** | A genuine local-population-density proxy, distinct from `community_size` (which is just LEAP's own sample count per community, not true local population). |
 | **Raw columns** | 1 (population, per 100m pixel). |
 | **Covariates extracted** | 1, community-level `W`: `pop_density_2km` — summed estimated population within 2km of the community centroid (not a raster point-value; a single 100m pixel is too granular/noisy, so a small-neighbourhood sum gives a locally-smoothed density). Range 209–9271, 0/162 communities at zero. |
 | **Status** | ✅ complete. |
 
 **Why 2km, not a point sample or a smaller/larger buffer**: checked at 500m/1km/2km before choosing — 500m already has 3/162 communities at zero, 1km and 2km both give 0/162 zero, so 2km was chosen as the more smoothed (less single-pixel-noise-sensitive) of the two non-degenerate options.
 
-**Not redundant with existing covariates**: correlates 0.04 with `comm_size` — essentially uncorrelated, confirming it captures true local population density rather than duplicating the LEAP sample count. Correlates -0.48 with `dist_to_capital_km`/`travel_time_to_city_min` (expected — denser areas tend to be closer to cities), not high enough to be a re-derivation.
+**Not redundant with existing covariates**: correlates 0.04 with `community_size` — essentially uncorrelated, confirming it captures true local population density rather than duplicating the LEAP sample count. Correlates -0.48 with `dist_to_capital_km`/`travel_time_to_city_min` (expected — denser areas tend to be closer to cities), not high enough to be a re-derivation.
 
 **Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot move the local population, so this is exogenous regardless of timing.
 
@@ -190,7 +209,7 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 | **Produced by** | `src/apps/ghana/download_malaria.py` — two WCS `GetCoverage` requests clipped to Ghana's bbox (~99KB each), not a global download. |
 | **Motivation** | Malaria is a leading cause of under-5 mortality in Ghana, and LEAP-1000 specifically targets pregnant women and children under 1 — a directly relevant children's-care exposure proxy (raised when scoping what else could complement the market/urbanization covariates). |
 | **Raw columns** | 1 each (the raster's pixel value: deaths per capita for mortality, case rate for incidence). |
-| **Covariates extracted** | 2, community-level `W`: `pf_mortality_rate_2015` (range 0.00038–0.00286) and `pf_incidence_rate_2015` (range 0.130–0.492), both raster values sampled at each community centroid. |
+| **Covariates extracted** | 2, community-level `W`: `malaria_mortality_rate_2015` (range 0.00038–0.00286) and `malaria_incidence_rate_2015` (range 0.130–0.492), both raster values sampled at each community centroid. |
 | **Status** | ✅ complete. |
 
 **Why both, not just one**: mortality and incidence are *negatively* correlated with each other (r=-0.62) — plausibly because higher-incidence areas sometimes have better malaria program targeting/case management, lowering mortality despite more cases. That makes them genuinely different aspects of the local disease environment, not one redundant with the other, the same reasoning that kept both nighttime-lights covariates.
@@ -215,7 +234,7 @@ Two sources were fully implemented, then removed after closer scrutiny.
 - Ookla's archive starts at 2019 Q1 — already 2 years after the endline, and Ghana's mobile-data *usage* adoption curve moved substantially between 2019 and today, so a 2019 snapshot isn't a trustworthy stand-in for 2015-2017 usage.
 - OpenCellID looked more defensible at first (infrastructure changes more slowly than usage), but checking the raw `created` timestamps showed 96%+ of all 17,086 Ghana towers were logged in **2025-2026** — not a build date, just when the crowd-sourcing registry happened to scan the area — and 73% of towers are LTE, a technology that didn't meaningfully exist in rural Northern Ghana in 2015-2017. Two attempted fixes both failed: filtering by `created` date leaves only 19 usable towers nationally (the timestamp reflects registry-scan time, not installation time), and restricting to GSM-only towers (the oldest, most likely-pre-2015 technology layer) leaves just 238 towers nationally, with nearest-tower distances 3-5x larger and *negatively* correlated (r=-0.40) with the all-technology distance — i.e. registry sparsity noise, not real geography.
 
-An empirical check (correlating each community's LEAP treatment share against every candidate column) showed no evidence of the classic post-treatment-bias channel (cash transfer → phone/data spending → higher measured usage) — all correlations were small (|r| ≤ 0.11). That mechanism turned out not to be the deciding problem. The deciding problem was construct validity: neither source can be trusted to rank communities the way they'd have ranked in 2015-2017, given how much Ghana's mobile landscape moved in the intervening years, and the usage-magnitude columns (`tests_sum`, `devices_sum`, `avg_d_kbps`) were additionally found to substantially re-derive `dist_to_capital_km`/`comm_size` (already in the covariate set) rather than add new information.
+An empirical check (correlating each community's LEAP treatment share against every candidate column) showed no evidence of the classic post-treatment-bias channel (cash transfer → phone/data spending → higher measured usage) — all correlations were small (|r| ≤ 0.11). That mechanism turned out not to be the deciding problem. The deciding problem was construct validity: neither source can be trusted to rank communities the way they'd have ranked in 2015-2017, given how much Ghana's mobile landscape moved in the intervening years, and the usage-magnitude columns (`tests_sum`, `devices_sum`, `avg_d_kbps`) were additionally found to substantially re-derive `dist_to_capital_km`/`community_size` (already in the covariate set) rather than add new information.
 
 **Bar for revisiting**: a source with actual 2015-2017 (or very close) coverage — e.g. a licensed GSMA historical mobile-coverage layer — not merely "the earliest year an open dataset happens to cover."
 

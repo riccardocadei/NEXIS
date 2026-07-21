@@ -85,7 +85,7 @@ RES_DIR  = ROOT / "results" / "ghana"
 
 sys.path.insert(0, str(ROOT))
 from src.apps.ghana.data import load_data, COVARIATES
-from src.apps.covariates import Covariate, Level, Origin, Support, Dataset
+from src.apps.covariates import Covariate, Level, Origin, Support, Domain, Dataset
 from src.method.nexis    import nexis, marginal_select, SelectionResult
 
 # Filter the registry directly by level -- no need for data.py's legacy
@@ -843,7 +843,7 @@ def load_nexis_inputs(min_activations: int = 5):
     spectral_names = [c[:-5] for c in spectral_cols]                       # ndvi_mean → ndvi
     spectral_covariates = [
         Covariate(name, name, Level.COMMUNITY, Origin.HAND_CRAFTED,
-                  Support.CONTINUOUS, source='satellite_spectral')
+                  Support.CONTINUOUS, source='satellite_spectral', domain=Domain.ENVIRONMENT)
         for name in spectral_names
     ]
     spectral_hh = (
@@ -885,7 +885,7 @@ def load_nexis_inputs(min_activations: int = 5):
     def _sae_covariates(live_idx):
         return [
             Covariate(f'neuron_{int(nid)}', f'neuron_{int(nid)}', Level.COMMUNITY,
-                      Origin.LEARNED, Support.SPARSE_NONNEG, source='satellite_sae')
+                      Origin.LEARNED, Support.SPARSE_NONNEG, source='satellite_sae', domain=Domain.ENVIRONMENT)
             for nid in live_idx
         ]
 
@@ -1038,12 +1038,12 @@ def run_marginal_grouped(rep_mode: str, data: dict, alpha: float = 0.05) -> Sele
 
 def _save_result(rep_mode: str, method_name: str, res: SelectionResult,
                  dataset: "Dataset", adjust) -> None:
-    """Split selected columns into household (W) vs community (Z) by each
+    """Split selected columns into household-level vs community-level by each
     column's own Covariate.level -- looked up on `dataset`, not guessed from
     the name string. `label` is the display string (dataset.label_of), so
     JSON output/notebook plots read the same "Farming household"/"neuron_id"
     strings as before, even though `dataset.X`'s real columns are canonical
-    names (`farms`, `neuron_2924`, ...)."""
+    names (`has_farm`, `neuron_2924`, ...)."""
     out_dir = RES_DIR / rep_mode / method_name
     out_dir.mkdir(parents=True, exist_ok=True)
     sae_names = [c.name for c in dataset.covariates if c.origin is Origin.LEARNED]

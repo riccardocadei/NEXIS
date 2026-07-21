@@ -16,11 +16,14 @@ Bolga, Tamale, Zabzugu).
 Period: 2014-2015 (pre/at-baseline), not later years -- deliberately
 avoiding the classic "cash transfer causes local price inflation" general-
 equilibrium debate. Using pre-treatment prices sidesteps it entirely, same
-logic as rainfall's pre-2015 climatology.
+logic as rainfall's pre-2015 climatology. Named maize_price_2015 (not
+maize_price_2014_2015) since 2014 is only pooled in to get enough price
+observations per market -- the intent is "the price as of baseline", same
+naming convention as every other 2015-dated covariate in this project.
 
 Produces one file, community-level, feeding NEXIS covariates:
     market_prices/market_prices_community.csv
-        comm, dist_nearest_market_km, maize_price_2014_2015
+        comm, dist_nearest_market_km, maize_price_2015
 
 Usage:
     python download_market_prices.py [--dry-run]
@@ -111,7 +114,7 @@ def community_market_stats(centroids: pd.DataFrame, maize_markets: pd.DataFrame)
         rows.append({
             'comm': comm['comm'],
             'dist_nearest_market_km': dist_km.values[idx],
-            'maize_price_2014_2015': maize_markets['price'].iloc[idx],
+            'maize_price_2015': maize_markets['price'].iloc[idx],
         })
     return pd.DataFrame(rows)
 
@@ -141,9 +144,9 @@ def main():
     log(f"  dist_nearest_market_km: min={stats['dist_nearest_market_km'].min():.1f}  "
         f"median={stats['dist_nearest_market_km'].median():.1f}  "
         f"max={stats['dist_nearest_market_km'].max():.1f}")
-    log(f"  maize_price_2014_2015: min={stats['maize_price_2014_2015'].min():.1f}  "
-        f"median={stats['maize_price_2014_2015'].median():.1f}  "
-        f"max={stats['maize_price_2014_2015'].max():.1f} GHS")
+    log(f"  maize_price_2015: min={stats['maize_price_2015'].min():.1f}  "
+        f"median={stats['maize_price_2015'].median():.1f}  "
+        f"max={stats['maize_price_2015'].max():.1f} GHS")
 
 
 if __name__ == '__main__':

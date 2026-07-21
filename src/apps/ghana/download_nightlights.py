@@ -17,7 +17,7 @@ existing covariates.
     scale (checked at multiple buffer radii up to 10km -- genuinely a fact
     about these deep-rural communities, not a radius artifact), so this is
     registered as Support.SPARSE_NONNEG, same convention as SAE activations.
-    Weakly correlated with dist_to_capital_km/comm_size/travel_time_to_city_min
+    Weakly correlated with dist_to_capital_km/community_size/travel_time_to_city_min
     (|r| <= 0.22) -- a fairly independent fact (a specific market centre or
     school having solar/grid lighting doesn't track general remoteness).
 

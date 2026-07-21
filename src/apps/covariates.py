@@ -29,6 +29,20 @@ Every covariate is tagged along three independent axes:
     support  — binary / count / continuous / positive_continuous /
                sparse_nonneg: determines the binarization rule used for
                NEXIS's GATE-style split test (zero-threshold vs. median-split).
+
+A fourth axis, `domain`, tags what a covariate is *about* (demographics,
+housing, economy, accessibility, urbanization, environment, security,
+health) rather than how/where it was measured -- cross-cutting level and
+source on purpose. E.g. `maize_price_2015` (a market price) and `has_farm`
+(household livelihood behaviour) are both ECONOMY despite one being
+community-level/WFP-sourced and the other household-level/survey-sourced;
+`dist_nearest_market_km` sits in ACCESSIBILITY instead, alongside every
+other distance/travel-time covariate regardless of what it's a distance
+*to* -- empirically, these behave as one latent "remoteness" factor (r=0.5-
+0.8 pairwise among dist_to_capital_km/travel_time_to_city_min/
+dist_nearest_market_km/dist_nearest_light_km), not independent stories.
+Defaults to OTHER for apps that haven't tagged their covariates yet
+(Uganda/CelebA); every Ghana covariate in data.py is tagged.
 """
 
 from dataclasses import dataclass, field
@@ -60,6 +74,18 @@ class Support(str, Enum):
     SPARSE_NONNEG        = 'sparse_nonneg'           # non-negative, mostly zero (SAE activations)
 
 
+class Domain(str, Enum):
+    DEMOGRAPHICS  = 'demographics'    # household composition (size, age structure, head traits)
+    HOUSING       = 'housing'         # dwelling materials, water, electricity, crowding
+    ECONOMY       = 'economy'         # livelihoods, business/farm/livestock ownership, prices
+    ACCESSIBILITY = 'accessibility'   # distance/travel-time to anywhere (capital, city, market, light)
+    URBANIZATION  = 'urbanization'    # own-place settlement character (population, built-up, lit)
+    ENVIRONMENT   = 'environment'     # climate, land cover, vegetation (rainfall + satellite)
+    SECURITY      = 'security'        # conflict, violence, unrest
+    HEALTH        = 'health'          # disease burden
+    OTHER         = 'other'           # not yet tagged (Uganda/CelebA, pre-migration)
+
+
 @dataclass(frozen=True)
 class Covariate:
     name: str
@@ -67,6 +93,7 @@ class Covariate:
     level: Level
     origin: Origin = Origin.HAND_CRAFTED
     support: Support = Support.CONTINUOUS
+    domain: Domain = Domain.OTHER
     source: str = 'survey'   # matches the source names in data/ghana/README.md
 
     @property
@@ -142,16 +169,18 @@ class Dataset:
 
     def subset(self, *, level: Optional[Level] = None,
                origin: Optional[Origin] = None,
+               domain: Optional[Domain] = None,
                predicate=None) -> "Dataset":
-        """New Dataset with only the covariates matching level/origin/predicate.
+        """New Dataset with only the covariates matching level/origin/domain/predicate.
 
         `predicate`, if given, is a Callable[[Covariate], bool] for filters
-        beyond level/origin (e.g. by `.source` or `.support`) -- combine with
-        level/origin freely; all given conditions must hold (AND)."""
+        beyond level/origin/domain (e.g. by `.source` or `.support`) --
+        combine with the others freely; all given conditions must hold (AND)."""
         keep = [
             i for i, c in enumerate(self.covariates)
             if (level is None or c.level == level)
             and (origin is None or c.origin == origin)
+            and (domain is None or c.domain == domain)
             and (predicate is None or predicate(c))
         ]
         return Dataset(

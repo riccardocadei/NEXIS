@@ -17,7 +17,7 @@ external_data.py::load_effect_modifiers):
      transfer cannot cause rainfall, so there's no post-treatment-bias risk
      here, unlike a household covariate the transfer could itself change.
 
-  3. rainfall_cdd.csv — cdd_1517, max consecutive dry days (CDD, a day
+  3. rainfall_cdd.csv — max_dry_days_2015_2017, max consecutive dry days (CDD, a day
      counts as dry below `--dry-day-mm`) over the whole 2015-2017 window.
      A standard drought-severity index that a raw annual total can mask
      (two communities can have identical yearly rainfall with very
@@ -206,7 +206,7 @@ def main():
             f"rainfall_std_pre2015, drought_freq_pre2015)  → NEXIS Z effect-modifier candidates")
         log(f"    - rainfall_annual.csv       (comm, year, rainfall_mm)  "
             f"→ pivoted into rainfall_2015/2016/2017, also Z effect-modifier candidates")
-        log(f"    - rainfall_cdd.csv          (comm, cdd_1517)  "
+        log(f"    - rainfall_cdd.csv          (comm, max_dry_days_2015_2017)  "
             f"→ max consecutive dry days over the whole study window, also a Z candidate")
         for _, row in centroids.iterrows():
             log(f"  comm{int(row.comm_id):04d}  lat={row.lat:.4f}  lon={row.lon:.4f}")
@@ -268,7 +268,7 @@ def main():
     daily = daily_precip_by_community(fc, study_start, study_end, args.scale)
     log(f"  {daily['rainfall_mm'].notna().sum()}/{len(daily)} community-days OK")
 
-    cdd = max_consecutive_dry_days(daily, args.dry_day_mm).rename(columns={'cdd': 'cdd_1517'})
+    cdd = max_consecutive_dry_days(daily, args.dry_day_mm).rename(columns={'cdd': 'max_dry_days_2015_2017'})
     cdd_path = out_dir / 'rainfall_cdd.csv'
     cdd.to_csv(cdd_path, index=False)
     log(f"Wrote {cdd_path}  ({len(cdd)} communities)")

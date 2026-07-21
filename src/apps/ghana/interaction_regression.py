@@ -6,8 +6,8 @@ Fits a first-differences OLS model with heterogeneous treatment effects:
     dY_i = α + τ·T_i
            + β₁·T_i·z51_c  + γ₁·z51_c      (neuron 1777 — Vegetation Density)
            + β₂·T_i·z122_c + γ₂·z122_c     (neuron 3821)
-           + β₃·T_i·farms_c + γ₃·farms_c   (Farming household)
-           + β₄·T_i·formal_c + γ₄·formal_c (Head in formal sector)
+           + β₃·T_i·has_farm_c + γ₃·has_farm_c                       (Farming household)
+           + β₄·T_i·head_formal_employment_c + γ₄·head_formal_employment_c (Head in formal sector)
            + W_i'δ + ε_i
 
 Modifiers are centred (mean zero) so τ = ATE at the mean of all modifiers.
@@ -50,8 +50,8 @@ OUT_DIR  = ROOT / "results" / "ghana" / "codes" / "nexis_no_adj"
 MODIFIERS = {
     "z_51":       {"neuron_idx": 1777, "label": "Vegetation Density (neuron 1777)"},
     "z_122":      {"neuron_idx": 3821, "label": "Neuron 3821"},
-    "farms":      {"neuron_idx": None, "label": "Farming household"},
-    "head_formal":{"neuron_idx": None, "label": "Head in formal sector"},
+    "has_farm":              {"neuron_idx": None, "label": "Farming household"},
+    "head_formal_employment":{"neuron_idx": None, "label": "Head in formal sector"},
 }
 
 # Must match interpret.py::_load_nexis_inputs's default and
@@ -153,17 +153,18 @@ def _prune_redundant_controls(core: np.ndarray, df_c: pd.DataFrame, ctrl_cols: l
     full column rank, via QR with column pivoting -- checked against the
     *full* design matrix (intercept, T, modifiers, interactions), not the
     control block in isolation, since a dependency can involve both sides
-    (e.g. livelihood_diversity = farms + has_livestock + has_poultry +
-    has_business + head_formal is only an exact identity among controls
-    alone if farms/head_formal are also controls; here they're modifiers
-    instead, so the same identity resurfaces as
+    (e.g. livelihood_diversity = has_farm + has_livestock + has_poultry +
+    has_business + head_formal_employment is only an exact identity among
+    controls alone if has_farm/head_formal_employment are also controls;
+    here they're modifiers instead, so the same identity resurfaces as
     livelihood_diversity - has_livestock - has_poultry - has_business
-    - farms_c - head_formal_c - const = 0 across the combined matrix).
+    - has_farm_c - head_formal_employment_c - const = 0 across the combined
+    matrix).
 
     Guards against *exact* linear dependencies hiding in the covariate
     registry -- e.g. engineered aggregates and their raw components both
-    being present as separate controls (hhsize = children_u5 + children_6_17
-    + adults + elderly; housing_depriv = mud_walls + thatch_roof + mud_floor
+    being present as separate controls (household_size = children_u5 +
+    children_6_17 + adults + elderly; housing_deprivation = mud_walls + thatch_roof + mud_floor
     + no_electricity -- both confirmed exact, not just correlated). A rank-
     deficient design matrix doesn't raise -- floating point makes it merely
     near-singular, so np.linalg.inv silently returns numerically unstable
@@ -281,7 +282,7 @@ def main():
     n  = len(df)
     print(f"  n = {n} households, {df['comm'].nunique()} communities")
 
-    mod_keys   = ["z_51", "z_122", "farms", "head_formal"]
+    mod_keys   = ["z_51", "z_122", "has_farm", "head_formal_employment"]
     mod_labels = [MODIFIERS[k]["label"] for k in mod_keys]
 
     # Centre modifiers (sample mean → 0, so T coef = ATE at the mean)
@@ -290,12 +291,12 @@ def main():
         df_c[f"{k}_c"] = df_c[k] - df_c[k].mean()
 
     # Survey modifiers already in model as centred main effects — exclude from ctrl
-    _mod_survey = {"farms", "head_formal"}
+    _mod_survey = {"has_farm", "head_formal_employment"}
     W_ctrl = [c for c in HOUSEHOLD_W + COMMUNITY_W if c not in _mod_survey]
 
     # ── Specification 1: every pretreatment covariate NEXIS itself searches
     #    over (household-level + community-level W — rainfall, market access,
-    #    ACLED, dist_to_capital_km, comm_size) as controls ───────────────────
+    #    ACLED, dist_to_capital_km, community_size) as controls ───────────────────
     # ── Specification 2: + Y₀ (ANCOVA — absorbs baseline wealth level) ────────
     # NOTE: spectral indices are derived from the same imagery as the SAE neurons
     # and would create near-perfect multicollinearity with T×neuron terms.
@@ -374,7 +375,7 @@ def main():
         "note":  ("Spec W controls for every pretreatment covariate NEXIS itself "
                   "searches over (household-level and community-level alike) and is "
                   "the primary result. Spec W+Y0 is ANCOVA — valid for SAE neurons but binary "
-                  "modifier estimates are unstable due to near-constant support (farms=96%)."),
+                  "modifier estimates are unstable due to near-constant support (has_farm=96%)."),
         "specs": [_spec_payload(sn, d) for sn, d in results.items()],
     }
 
@@ -462,14 +463,14 @@ def main():
             "It likely captures a finer sub-dimension of vegetation structure "
             "that the VLM cannot verbalize but the SAE separates statistically."
         ),
-        "farms": (
+        "has_farm": (
             "Farming household (96% of sample). The positive β reflects that the "
             "rare non-farming households (~93 hh) benefit substantially less — "
             "plausibly because farming provides the channel (inputs, livestock) "
             "through which cash translates to consumption gains. "
             "Interpret with caution: small minority, wide CI."
         ),
-        "head_formal": (
+        "head_formal_employment": (
             "Head in formal sector (9% of sample). The negative β (not significant) "
             "is consistent with diminishing marginal returns to income: wage-employed "
             "heads already have more stable income, so the transfer's marginal "
