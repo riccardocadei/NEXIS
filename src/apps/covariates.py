@@ -49,6 +49,14 @@ other distance/travel-time covariate regardless of what it's a distance
 dist_nearest_market_km/dist_nearest_light_km), not independent stories.
 Defaults to OTHER for apps that haven't tagged their covariates yet
 (Uganda/CelebA); every Ghana covariate in data.py is tagged.
+
+A fifth axis, `access`, tags how the *source* was actually obtained --
+proprietary (not ours to redistribute, e.g. UNICEF's LEAP-1000 survey),
+public (downloadable with no account at all, e.g. HDX/public S3/WCS), or
+restricted (needed a free account/registration, e.g. Google Earth Engine,
+ACLED). This is a property of the source, not the individual covariate, so
+every covariate from the same source shares one access tag. Also defaults
+to OTHER for untagged apps.
 """
 
 from dataclasses import dataclass, field
@@ -93,6 +101,13 @@ class Domain(str, Enum):
     OTHER         = 'other'           # not yet tagged (Uganda/CelebA, pre-migration)
 
 
+class Access(str, Enum):
+    PROPRIETARY = 'proprietary'   # not ours to redistribute (e.g. UNICEF's LEAP-1000 survey)
+    PUBLIC      = 'public'        # downloadable with no account at all (HDX, public S3/WCS)
+    RESTRICTED  = 'restricted'    # needed a free account/registration (Earth Engine, ACLED)
+    OTHER       = 'other'         # not yet tagged (Uganda/CelebA, pre-migration)
+
+
 @dataclass(frozen=True)
 class Covariate:
     name: str
@@ -101,6 +116,7 @@ class Covariate:
     origin: Origin = Origin.HAND_CRAFTED
     support: Support = Support.CONTINUOUS
     domain: Domain = Domain.OTHER
+    access: Access = Access.OTHER
     source: str = 'survey'   # matches the source names in data/ghana/README.md
 
     @property
@@ -178,17 +194,19 @@ class Dataset:
     def subset(self, *, level: Optional[Level] = None,
                origin: Optional[Origin] = None,
                domain: Optional[Domain] = None,
+               access: Optional[Access] = None,
                predicate=None) -> "Dataset":
-        """New Dataset with only the covariates matching level/origin/domain/predicate.
+        """New Dataset with only the covariates matching level/origin/domain/access/predicate.
 
         `predicate`, if given, is a Callable[[Covariate], bool] for filters
-        beyond level/origin/domain (e.g. by `.source` or `.support`) --
+        beyond level/origin/domain/access (e.g. by `.source` or `.support`) --
         combine with the others freely; all given conditions must hold (AND)."""
         keep = [
             i for i, c in enumerate(self.covariates)
             if (level is None or c.level == level)
             and (origin is None or c.origin == origin)
             and (domain is None or c.domain == domain)
+            and (access is None or c.access == access)
             and (predicate is None or predicate(c))
         ]
         return Dataset(

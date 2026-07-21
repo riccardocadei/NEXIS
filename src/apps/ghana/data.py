@@ -15,7 +15,7 @@ import pandas as pd
 # Adding the repo root to sys.path guarantees this resolves to the exact
 # same module interpret.py (and anything else) already imports.
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from src.apps.covariates import Covariate, Level, Origin, Support, Domain
+from src.apps.covariates import Covariate, Level, Origin, Support, Domain, Access
 # Same reasoning for external_data.py: a bare `from external_data import ...`
 # only resolves when src/apps/ghana happens to already be on sys.path (e.g.
 # a script run from that directory) -- it silently ModuleNotFoundErrors from
@@ -43,101 +43,101 @@ DATA_DIR = Path('../data/ghana')
 # treatment cannot cause rainfall — see external_data.py::load_effect_modifiers.
 COVARIATES: list[Covariate] = [
     # ── Household-level (raw survey) ──────────────────────────────────────────
-    Covariate('household_size', 'Household size',  Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('children_u5',  'Children 0–5',       Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('children_6_17','Children 6–17',      Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('adults',       'Adults 18–64',       Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('elderly',      'Elderly 65+',        Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('head_age',     'Head age',           Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('rooms',        'Rooms',              Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.HOUSING, origin=Origin.RAW),
+    Covariate('household_size', 'Household size',  Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('children_u5',  'Children 0–5',       Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('children_6_17','Children 6–17',      Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('adults',       'Adults 18–64',       Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('elderly',      'Elderly 65+',        Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('head_age',     'Head age',           Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('rooms',        'Rooms',              Level.HOUSEHOLD, support=Support.COUNT, domain=Domain.HOUSING, origin=Origin.RAW, access=Access.PROPRIETARY),
 
-    Covariate('head_married',   'Head married',            Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('head_female',    'Female head',             Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('head_schooled',  'Head attended school',    Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW),
-    Covariate('head_formal_employment', 'Head in formal sector', Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW),
-    Covariate('no_electricity', 'No electricity',          Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW),
-    Covariate('mud_walls',      'Mud walls',               Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW),
-    Covariate('thatch_roof',    'Thatch roof',             Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW),
-    Covariate('mud_floor',      'Mud floor',               Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW),
-    Covariate('improved_water', 'Improved water',          Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW),
-    Covariate('has_poultry',    'Has poultry',             Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW),
-    Covariate('has_livestock',  'Has livestock',           Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW),
-    Covariate('has_business',   'Has business',            Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW),
-    Covariate('has_farm',       'Farming household',       Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW),
+    Covariate('head_married',   'Head married',            Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('head_female',    'Female head',             Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('head_schooled',  'Head attended school',    Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.DEMOGRAPHICS, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('head_formal_employment', 'Head in formal sector', Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('no_electricity', 'No electricity',          Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('mud_walls',      'Mud walls',               Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('thatch_roof',    'Thatch roof',             Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('mud_floor',      'Mud floor',               Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('improved_water', 'Improved water',          Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.HOUSING, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('has_poultry',    'Has poultry',             Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('has_livestock',  'Has livestock',           Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('has_business',   'Has business',            Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW, access=Access.PROPRIETARY),
+    Covariate('has_farm',       'Farming household',       Level.HOUSEHOLD, support=Support.BINARY, domain=Domain.ECONOMY, origin=Origin.RAW, access=Access.PROPRIETARY),
 
     # ── Household-level (engineered from the survey) ──────────────────────────
     Covariate('livelihood_diversity', 'Livelihood diversity',        Level.HOUSEHOLD,
-              support=Support.COUNT, source='survey_engineered', domain=Domain.ECONOMY),
+              support=Support.COUNT, source='survey_engineered', domain=Domain.ECONOMY, access=Access.PROPRIETARY),
     Covariate('dependency_ratio',     'Dependency ratio',            Level.HOUSEHOLD,
-              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered', domain=Domain.DEMOGRAPHICS),
+              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered', domain=Domain.DEMOGRAPHICS, access=Access.PROPRIETARY),
     Covariate('rooms_per_person',     'Rooms per person',            Level.HOUSEHOLD,
-              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered', domain=Domain.HOUSING),
+              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered', domain=Domain.HOUSING, access=Access.PROPRIETARY),
     Covariate('housing_deprivation',       'Housing deprivation index',   Level.HOUSEHOLD,
-              support=Support.COUNT, source='survey_engineered', domain=Domain.HOUSING),
+              support=Support.COUNT, source='survey_engineered', domain=Domain.HOUSING, access=Access.PROPRIETARY),
 
     # ── Community-level (engineered from the survey's GPS/hhid) ───────────────
     Covariate('dist_to_capital_km', 'Distance to district capital (km)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered', domain=Domain.ACCESSIBILITY),
+              support=Support.POSITIVE_CONTINUOUS, source='survey_engineered', domain=Domain.ACCESSIBILITY, access=Access.PROPRIETARY),
     Covariate('community_size',          'Community size',                    Level.COMMUNITY,
-              support=Support.COUNT, source='survey_engineered', domain=Domain.URBANIZATION),
+              support=Support.COUNT, source='survey_engineered', domain=Domain.URBANIZATION, access=Access.PROPRIETARY),
 
     # ── Community-level (rainfall, see external_data.py) ──────────────────────
     Covariate('rainfall_mean_pre2015', 'Mean annual rainfall, 2000–2014 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
     Covariate('rainfall_std_pre2015',  'Std. annual rainfall, 2000–2014 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
     Covariate('drought_freq_pre2015',  'Drought frequency, 2000–2014 (share of years)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
     Covariate('rainfall_2015', 'Annual rainfall, 2015 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
     Covariate('rainfall_2016', 'Annual rainfall, 2016 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
     Covariate('rainfall_2017', 'Annual rainfall, 2017 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
     Covariate('max_dry_days_2015_2017', 'Max consecutive dry days, 2015–2017', Level.COMMUNITY,
-              support=Support.COUNT, source='rainfall', domain=Domain.ENVIRONMENT),
+              support=Support.COUNT, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED),
 
     # ── Community-level (market access, see external_data.py) ──────────────────
     Covariate('travel_time_to_city_min', 'Travel time to nearest city, 2015 (min)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='market_access', domain=Domain.ACCESSIBILITY, origin=Origin.RAW),
+              support=Support.POSITIVE_CONTINUOUS, source='market_access', domain=Domain.ACCESSIBILITY, origin=Origin.RAW, access=Access.PUBLIC),
 
     # ── Community-level (conflict/protest events, ACLED, see external_data.py) ─
     Covariate('dist_nearest_conflict_km', 'Distance to nearest conflict event, 2015–2017 (km)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='acled', domain=Domain.SECURITY),
+              support=Support.POSITIVE_CONTINUOUS, source='acled', domain=Domain.SECURITY, access=Access.RESTRICTED),
     Covariate('political_violence_25km', 'Political violence events within 25km, 2015–2017', Level.COMMUNITY,
-              support=Support.SPARSE_NONNEG, source='acled', domain=Domain.SECURITY),
+              support=Support.SPARSE_NONNEG, source='acled', domain=Domain.SECURITY, access=Access.RESTRICTED),
     Covariate('demonstrations_25km', 'Demonstrations within 25km, 2015–2017', Level.COMMUNITY,
-              support=Support.SPARSE_NONNEG, source='acled', domain=Domain.SECURITY),
+              support=Support.SPARSE_NONNEG, source='acled', domain=Domain.SECURITY, access=Access.RESTRICTED),
 
     # ── Community-level (market prices, WFP, see external_data.py) ──────────────
     Covariate('dist_nearest_market_km', 'Distance to nearest priced market (km)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ACCESSIBILITY),
+              support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ACCESSIBILITY, access=Access.PUBLIC),
     Covariate('maize_price_2015', 'Maize price at nearest market, 2015 (GHS, 2014–2015 avg.)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ECONOMY),
+              support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ECONOMY, access=Access.PUBLIC),
 
     # ── Community-level (nighttime lights, VIIRS, see external_data.py) ─────────
     Covariate('night_light_radiance', 'Nighttime light radiance, 2015 (own community)', Level.COMMUNITY,
-              support=Support.SPARSE_NONNEG, source='nightlights', domain=Domain.URBANIZATION),
+              support=Support.SPARSE_NONNEG, source='nightlights', domain=Domain.URBANIZATION, access=Access.RESTRICTED),
     Covariate('dist_nearest_light_km', 'Distance to nearest detectable light, 2015 (km)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='nightlights', domain=Domain.ACCESSIBILITY),
+              support=Support.POSITIVE_CONTINUOUS, source='nightlights', domain=Domain.ACCESSIBILITY, access=Access.RESTRICTED),
 
     # ── Community-level (population density, WorldPop, see external_data.py) ───
     Covariate('pop_density_2km', 'Population within 2km, 2015', Level.COMMUNITY,
-              support=Support.COUNT, source='worldpop', domain=Domain.URBANIZATION),
+              support=Support.COUNT, source='worldpop', domain=Domain.URBANIZATION, access=Access.RESTRICTED),
 
     # ── Community-level (urbanization degree, GHSL, see external_data.py) ──────
     Covariate('urbanization_degree', 'Settlement urbanization degree, 2015', Level.COMMUNITY,
-              support=Support.COUNT, source='ghsl', domain=Domain.URBANIZATION, origin=Origin.RAW),
+              support=Support.COUNT, source='ghsl', domain=Domain.URBANIZATION, origin=Origin.RAW, access=Access.RESTRICTED),
 
     # ── Community-level (malaria, Malaria Atlas Project, see external_data.py) ─
     Covariate('malaria_mortality_rate_2015', 'Malaria mortality rate, 2015', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='malaria', domain=Domain.HEALTH, origin=Origin.RAW),
+              support=Support.POSITIVE_CONTINUOUS, source='malaria', domain=Domain.HEALTH, origin=Origin.RAW, access=Access.PUBLIC),
     Covariate('malaria_incidence_rate_2015', 'Malaria incidence rate, 2015', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='malaria', domain=Domain.HEALTH, origin=Origin.RAW),
+              support=Support.POSITIVE_CONTINUOUS, source='malaria', domain=Domain.HEALTH, origin=Origin.RAW, access=Access.PUBLIC),
 
     # ── Community-level (air pollution, WashU ACAG, see external_data.py) ──────
     Covariate('pm25_2015', 'PM2.5 air pollution, 2015 (ug/m3)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='air_pollution', domain=Domain.HEALTH, origin=Origin.RAW),
+              support=Support.POSITIVE_CONTINUOUS, source='air_pollution', domain=Domain.HEALTH, origin=Origin.RAW, access=Access.PUBLIC),
 
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
@@ -318,7 +318,8 @@ def load_satellite_covariates(
     )
     spectral_covariates = [
         Covariate(name, name.upper(), Level.COMMUNITY, Origin.HAND_CRAFTED,
-                  Support.CONTINUOUS, source='satellite_spectral', domain=Domain.ENVIRONMENT)
+                  Support.CONTINUOUS, domain=Domain.ENVIRONMENT, access=Access.RESTRICTED,
+                  source='satellite_spectral')
         for name in spectral_names
     ]
 
@@ -331,7 +332,8 @@ def load_satellite_covariates(
     )
     sae_covariates = [
         Covariate(f'neuron_{int(i)}', f'Neuron {int(i)}', Level.COMMUNITY,
-                  Origin.LEARNED, Support.SPARSE_NONNEG, source='satellite_sae', domain=Domain.ENVIRONMENT)
+                  Origin.LEARNED, Support.SPARSE_NONNEG, domain=Domain.ENVIRONMENT,
+                  access=Access.RESTRICTED, source='satellite_sae')
         for i in live_idx
     ]
 
