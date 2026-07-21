@@ -43,6 +43,16 @@ Every covariate also carries a `domain` tag (`src/apps/covariates.py::Domain`) �
 
 `Dataset.subset(domain=Domain.X)` filters by this tag, same pattern as `level`/`origin`.
 
+A sixth tag, `access` (`src/apps/covariates.py::Access`), records how the *source* was actually obtained — a property of the source, so every covariate from one source shares the same tag:
+
+| Access | Meaning | Sources |
+|---|---|---|
+| `proprietary` | Not ours to redistribute | LEAP-1000 household survey (UNICEF) |
+| `public` | Downloadable with no account at all | Market access, malaria (Malaria Atlas Project WCS), market prices (WFP/HDX), air pollution (WashU ACAG public S3) |
+| `restricted` | Needed a free account/registration | Rainfall, nighttime lights, population density, urbanization degree, satellite imagery (all Google Earth Engine); conflict/protest events (ACLED, approval-gated) |
+
+`Dataset.subset(access=Access.X)` filters by this tag too.
+
 **How to decide what belongs in `W`**: `W` is every pre-treatment covariate NEXIS can search over, whatever level it's measured at — there is no separate household-vs-community pool (see `src/apps/covariates.py`'s module docstring). The household-survey covariates are baseline-2015-only, and the community-level rows derived from it are time-invariant — both by design, because a cash transfer could plausibly *change* things like business ownership, livestock, or housing by 2017, and using an endline value as an effect modifier would condition on something partly caused by treatment (post-treatment bias). Rainfall's study-window row (2015–2017) is the one exception to "everything is baseline or time-invariant" — it genuinely varies during the treatment period — but it's still a valid `W` candidate, because the real test isn't *when* a covariate is measured, it's whether *treatment could have caused it*. A cash transfer cannot cause rainfall, so there's no post-treatment-bias risk here, unlike a household characteristic the transfer could genuinely alter. Only `Y` itself (the outcome being differenced, `Y_2017 − Y_2015`) is expected to vary with wave in a way that reflects treatment. "Raw columns" is the source's native dimensionality (survey columns, imagery bands, the one CHIRPS variable); "Covariates extracted" is how many end up in the analysis after processing, broken into raw-carried-through vs. derived/engineered where that's meaningful. Only satellite imagery needs a representation-learning step (foundation-model embedding + sparse autoencoder) to go from raw to extracted — every other row is already numeric per community and plugs in directly. See per-source sections below for the full detail, and [Extra](#extra-administrative-boundaries--basemaps-plotting-only) for the non-analytical cartographic files (region/district-level boundaries, used only for map plotting).
 
 ## LEAP-1000 household survey (core, restricted)
