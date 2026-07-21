@@ -19,7 +19,8 @@ via download_market_prices.py) are the fourth; nighttime lights (VIIRS, via
 download_nightlights.py) are the fifth; population density (WorldPop, via
 download_worldpop.py) is the sixth; settlement/urbanization degree (GHSL,
 via download_ghsl.py) is the seventh; malaria mortality/incidence (Malaria
-Atlas Project, via download_malaria.py) is the eighth.
+Atlas Project, via download_malaria.py) is the eighth; PM2.5 air pollution
+(WashU ACAG SatPM2.5, via download_air_pollution.py) is the ninth.
 
 Mobile-network coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
 both explored and rejected — see data/ghana/README.md's "Explored and
@@ -163,6 +164,24 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         children under 1.
       A household-level cash transfer cannot move a district's malaria
       burden, so this is exogenous regardless of timing.
+
+    Air pollution contributes 1 column (see download_air_pollution.py),
+    from Washington University's ACAG SatPM2.5 (V6.GL.03) -- satellite
+    aerosol optical depth fused with GEOS-Chem simulation and ground
+    monitors, public AWS Open Data, no account needed. Annual Africa
+    composite, explicitly dated 2015 -- an exact match to the LEAP
+    baseline year, same as market access/malaria:
+      - pm25_2015: nearest-gridcell PM2.5 concentration (ug/m3), range
+        32-37 across the 162 communities. Correlated with
+        rainfall_mean_pre2015 (r=0.75) -- physically sensible, this Sahel
+        region's air quality is Harmattan-dust-driven and rainfall tracks
+        distance from the Sahara -- comparable in magnitude to the
+        already-accepted rainfall/malaria correlation (r=0.87), not a
+        reason to drop. Weakly correlated with accessibility/urbanization
+        covariates (|r| <= 0.23), confirming this is dust-driven rather
+        than urban-pollution-driven in this rural Sahel setting.
+      A household-level cash transfer cannot move regional air quality, so
+      this is exogenous regardless of timing.
     """
     data_dir = Path(data_dir)
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
@@ -177,6 +196,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     worldpop_columns = ['pop_density_2km']
     ghsl_columns = ['urbanization_degree']
     malaria_columns = ['malaria_mortality_rate_2015', 'malaria_incidence_rate_2015']
+    air_pollution_columns = ['pm25_2015']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -253,6 +273,14 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         # convention as the sources above.
         malaria = pd.DataFrame(columns=['comm', *malaria_columns])
 
+    air_pollution_path = data_dir / 'air_pollution' / 'air_pollution_community.csv'
+    if air_pollution_path.exists():
+        air_pollution = pd.read_csv(air_pollution_path)[['comm', *air_pollution_columns]]
+    else:
+        # not yet processed (run download_air_pollution.py) — same NaN-fill
+        # convention as the sources above.
+        air_pollution = pd.DataFrame(columns=['comm', *air_pollution_columns])
+
     merged = (
         rainfall.merge(market_access, on='comm', how='outer')
                 .merge(acled, on='comm', how='outer')
@@ -261,8 +289,10 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
                 .merge(worldpop, on='comm', how='outer')
                 .merge(ghsl, on='comm', how='outer')
                 .merge(malaria, on='comm', how='outer')
+                .merge(air_pollution, on='comm', how='outer')
                 .astype({'comm': 'int64'})
     )
     return merged[['comm', *rainfall_columns, *market_access_columns, *acled_columns,
                     *market_prices_columns, *nightlights_columns,
-                    *worldpop_columns, *ghsl_columns, *malaria_columns]]
+                    *worldpop_columns, *ghsl_columns, *malaria_columns,
+                    *air_pollution_columns]]

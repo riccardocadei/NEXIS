@@ -135,6 +135,10 @@ COVARIATES: list[Covariate] = [
     Covariate('malaria_incidence_rate_2015', 'Malaria incidence rate, 2015', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='malaria', domain=Domain.HEALTH),
 
+    # ── Community-level (air pollution, WashU ACAG, see external_data.py) ──────
+    Covariate('pm25_2015', 'PM2.5 air pollution, 2015 (ug/m3)', Level.COMMUNITY,
+              support=Support.POSITIVE_CONTINUOUS, source='air_pollution', domain=Domain.ENVIRONMENT),
+
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see
     # data/ghana/README.md's "Explored and rejected" section. Both are

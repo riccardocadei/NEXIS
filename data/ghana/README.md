@@ -18,10 +18,11 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Population density](#population-density-worldpop-2015) | [WorldPop](https://developers.google.com/earth-engine/datasets/catalog/WorldPop_GP_100m_pop), via Google Earth Engine | ~100m gridded, Ghana | Raster point value | Community | 1 (population) | 1 | 2015 | ✅ |
 | [Urbanization degree](#urbanization-degree-ghsl-settlement-model-2015) | [GHSL Settlement Model](https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2023A_GHS_SMOD_V2-0), via Google Earth Engine | 1km gridded, Ghana | Raster point value | Community | 1 (settlement code) | 1 | 2015 | ✅ |
 | [Malaria mortality/incidence](#malaria-mortality--incidence-malaria-atlas-project-2015) | [Malaria Atlas Project](https://malariaatlas.org/) | 2× 99 KB (Ghana-clipped rasters) | Raster point value | Community | 1 each (rate) | 2 | 2015 | ✅ |
+| [Air pollution](#air-pollution-pm25-washu-acag-2015) | [WashU ACAG SatPM2.5](https://registry.opendata.aws/surface-pm2-5-v6gl/) (AWS Open Data) | 1 MB (Africa-clipped NetCDF) | Raster point value | Community | 1 (PM2.5) | 1 | 2015 | ✅ |
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **189** | | |
+| **Total** | | **~7 GB** | | | | **190** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household or region level today).
 
@@ -36,7 +37,7 @@ Every covariate also carries a `domain` tag (`src/apps/covariates.py::Domain`) �
 | `economy` | Livelihoods, business/farm/livestock ownership, prices | 7 |
 | `accessibility` | Distance/travel-time to anywhere — capital, city, market, light | 4 |
 | `urbanization` | Own-place settlement character — population, built-up, lit | 4 |
-| `environment` | Climate + land cover/vegetation (rainfall + satellite representation) | 7 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
+| `environment` | Climate + land cover/vegetation + air quality (rainfall + PM2.5 + satellite representation) | 8 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
 | `security` | Conflict, violence, unrest | 3 |
 | `health` | Disease burden | 2 |
 
@@ -217,6 +218,23 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 **Why 2015, not the most recent malaria estimates**: unlike the travel-time-to-healthcare layer in the same MAP family (only available for 2020, a 5-year gap from baseline), the Pf mortality/incidence collection is a genuine annual series covering 2000-2022, so the exact LEAP baseline year is directly selectable via a WCS time subset — no temporal-mismatch trade-off needed here at all, same as market access.
 
 **Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot move a district's malaria burden, so this is exogenous regardless of timing.
+
+## Air pollution (PM2.5, WashU ACAG, 2015)
+
+| | |
+|---|---|
+| **Origin** | [Washington University ACAG SatPM2.5](https://registry.opendata.aws/surface-pm2-5-v6gl/) (V6.GL.03) — fine particulate matter estimated by fusing satellite aerosol optical depth, GEOS-Chem simulation, and ground monitors. Public AWS Open Data (`s3://satpmdata/`), no account needed, CC-BY 4.0. |
+| **Produced by** | `src/apps/ghana/download_air_pollution.py` — downloads the annual Africa-clipped NetCDF (~1MB), not a global file. |
+| **Motivation** | Raised alongside urbanization/market covariates as a general environment/health-adjacent proxy; checked for degeneracy and redundancy the same way as every other source here before adopting. |
+| **Raw columns** | 1 (`PM25`, µg/m³, per 0.1° gridcell). |
+| **Covariates extracted** | 1, community-level `W`: `pm25_2015` — nearest-gridcell PM2.5 concentration, range 32–37 µg/m³ across the 162 communities (std 1.3). |
+| **Status** | ✅ complete. |
+
+**Why 2015, not the most recent PM2.5 estimate**: this collection publishes annual Africa composites back to 1998, so the exact LEAP baseline year is directly available — no temporal-mismatch trade-off needed, same as market access/malaria.
+
+**Correlation worth noting, not a redundancy problem**: `pm25_2015` correlates 0.75 with `rainfall_mean_pre2015` — physically sensible, since this Sahel region's air quality is Harmattan-dust-driven and rainfall gradients track distance from the Sahara. Comparable in magnitude to the already-accepted rainfall/malaria correlation (r=0.87); NEXIS's stepwise conditional search handles correlated candidates fine (see the interaction-regression discussion above), so this doesn't rule it out, just means "rainfall and PM2.5 both selected" would point to one desert-proximity mechanism rather than two independent findings. Weakly correlated with accessibility/urbanization covariates (|r| ≤ 0.23) — confirms this is dust-driven, not urban-pollution-driven, in this rural Sahel setting.
+
+**Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot move regional air quality, so this is exogenous regardless of timing.
 
 ## Explored and rejected
 
