@@ -482,16 +482,18 @@ def nexis(
       names and a single flat search -- this is the path Uganda/CelebA already
       use and it is unchanged.
 
-      Staging (w.attrs['origin']): if present, columns tagged 'hand_crafted'
-      are screened in a cheaper preliminary phase first (their own Bonferroni
+      Staging (w.attrs['origin']): if present, every column NOT tagged
+      'learned' (e.g. 'hand_crafted', 'raw', or any future non-learned tag)
+      is screened in a cheaper preliminary phase first (their own Bonferroni
       pool, sized to just that subset); the ones that clear it seed the main
-      round, where every column (hand_crafted or not) competes symmetrically --
-      forward can re-add expelled hand_crafted features, backward can expel
-      them. This reproduces the old two-argument `w=`/`z=` split's statistical
+      round, where every column (staged or not) competes symmetrically --
+      forward can re-add expelled staged features, backward can expel them.
+      This reproduces the old two-argument `w=`/`z=` split's statistical
       behaviour, but the split is now a property of the columns themselves
       (their `origin`), not of how the caller organised two separate matrices.
-      Columns with no 'hand_crafted' tag (including everything when `origin`
-      isn't given at all) go straight into the main round -- i.e. no staging,
+      The only origin that's ever excluded from staging is 'learned' (an SAE
+      neuron, meaningless until interpreted); everything else, including no
+      `origin` at all, goes straight into the main round -- i.e. no staging,
       matching Uganda/CelebA's current single-pool behaviour exactly.
 
     test:
@@ -539,15 +541,16 @@ def nexis(
         W_arr = W_arr[:, None]
     n, M = W_arr.shape
 
-    hand_crafted_idx = [j for j, o in enumerate(origin) if o == "hand_crafted"] if origin else []
-    other_idx = [j for j in range(M) if j not in hand_crafted_idx]
+    staged_idx = [j for j, o in enumerate(origin) if o != "learned"] if origin else []
+    other_idx = [j for j in range(M) if j not in staged_idx]
 
-    # ── Phase 1: hand_crafted screening (only when origin tags request it) ────
+    # ── Phase 1: preliminary screening of staged (non-learned) columns ────────
+    # (only when origin tags request it)
     S_w: List[int] = []
     k = 0
-    if hand_crafted_idx:
+    if staged_idx:
         result_hc = nexis(
-            y=y_arr, t=t_arr, w=W_arr[:, hand_crafted_idx], alpha=alpha, max_rounds=max_rounds,
+            y=y_arr, t=t_arr, w=W_arr[:, staged_idx], alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
             rho=rho, adjust=adjust, cluster=None, hc1=hc1,
@@ -556,14 +559,14 @@ def nexis(
         S_w = result_hc.selected
         k = len(S_w)
         if verbose and k > 0:
-            print(f"  [hand_crafted phase] selected {k} features: {S_w}", flush=True)
+            print(f"  [staged phase] selected {k} features: {S_w}", flush=True)
 
     # working_cols maps a position in the search space back to its original
-    # column in W_arr/w_names -- selected hand_crafted columns first (seeded,
+    # column in W_arr/w_names -- selected staged columns first (seeded,
     # already "in"), then everything else, exactly like the old W-then-Z order.
     if k > 0:
-        selected_hc_idx = [hand_crafted_idx[i] for i in S_w]
-        working_cols = selected_hc_idx + other_idx
+        selected_staged_idx = [staged_idx[i] for i in S_w]
+        working_cols = selected_staged_idx + other_idx
     else:
         working_cols = other_idx
     Z = W_arr[:, working_cols]
@@ -742,7 +745,7 @@ def nexis(
     else:
         test_label = test
     method_str = f"nexis_{test_label}"
-    if hand_crafted_idx:
+    if staged_idx:
         method_str = "staged_" + method_str
     if not backward:
         method_str += "_fwd"

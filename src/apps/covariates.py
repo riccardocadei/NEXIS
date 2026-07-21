@@ -20,12 +20,18 @@ Every covariate is tagged along three independent axes:
                set inside nexis.py's own GCM/interaction-test math -- neither
                usage denotes a distinct covariate pool the way the old
                two-argument `nexis(y, t, w, z)` API's w/z split once did.
-    origin   — hand_crafted (name explains it) / learned (an SAE neuron —
-               meaningless until a VLM interprets it a posteriori). This is
-               what actually drives staging: nexis() screens hand_crafted
-               columns in a cheaper preliminary phase first (regardless of
-               level), then lets everything compete symmetrically in the
-               main round (see nexis()'s own docstring for the mechanics).
+    origin   — raw (an untouched source column, just renamed/binarized, not
+               computed) / hand_crafted (a formula combining multiple
+               inputs, e.g. dependency_ratio or a haversine distance) /
+               learned (an SAE neuron — meaningless until a VLM interprets
+               it a posteriori). raw and hand_crafted are both already
+               self-explanatory from their name; only learned needs a
+               posteriori interpretation. This is what actually drives
+               staging: nexis() screens every non-learned column (raw or
+               hand_crafted alike) in a cheaper preliminary phase first
+               (regardless of level), then lets everything compete
+               symmetrically in the main round (see nexis()'s own
+               docstring for the mechanics).
     support  — binary / count / continuous / positive_continuous /
                sparse_nonneg: determines the binarization rule used for
                NEXIS's GATE-style split test (zero-threshold vs. median-split).
@@ -62,7 +68,8 @@ class Level(str, Enum):
 
 
 class Origin(str, Enum):
-    HAND_CRAFTED = 'hand_crafted'   # formula/lookup — self-explanatory from the name
+    RAW          = 'raw'            # untouched source column (renamed/binarized, not computed)
+    HAND_CRAFTED = 'hand_crafted'   # formula/lookup combining multiple inputs — self-explanatory
     LEARNED      = 'learned'        # SAE neuron — needs a posteriori interpretation
 
 
@@ -98,8 +105,9 @@ class Covariate:
 
     @property
     def needs_interpretation(self) -> bool:
-        """True only for learned features (SAE neurons) — everything
-        hand-crafted is already self-explanatory from its name/label."""
+        """True only for learned features (SAE neurons) — raw and
+        hand-crafted covariates are already self-explanatory from their
+        name/label."""
         return self.origin is Origin.LEARNED
 
     def binarize(self, col):
@@ -123,7 +131,7 @@ class Dataset:
     `Level` (household/community/district/...) is just metadata carried by
     its Covariate -- not a structural fork into two separate arguments.
     `nexis()` reads `X.attrs['origin']` off this object directly to decide
-    its own hand_crafted-first screening phase (see src/method/nexis.py's
+    its own non-learned-first screening phase (see src/method/nexis.py's
     docstring), and `X.attrs['cluster']` for CR1S standard errors -- so
     there is nothing besides this object to pass to `nexis(y, t, dataset.X)`.
     """
