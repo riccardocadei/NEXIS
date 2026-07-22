@@ -47,7 +47,7 @@ other distance/travel-time covariate regardless of what it's a distance
 *to* -- empirically, these behave as one latent "remoteness" factor (r=0.5-
 0.8 pairwise among dist_to_capital_km/travel_time_to_city_min/
 dist_nearest_market_km/dist_nearest_light_km), not independent stories.
-Defaults to OTHER for apps that haven't tagged their covariates yet
+Defaults to UNKNOWN for apps that haven't tagged their covariates yet
 (Uganda/CelebA); every Ghana covariate in data.py is tagged.
 
 A fifth axis, `access`, tags how the *source* was actually obtained --
@@ -56,7 +56,20 @@ public (downloadable with no account at all, e.g. HDX/public S3/WCS), or
 restricted (needed a free account/registration, e.g. Google Earth Engine,
 ACLED). This is a property of the source, not the individual covariate, so
 every covariate from the same source shares one access tag. Also defaults
-to OTHER for untagged apps.
+to UNKNOWN for untagged apps.
+
+A sixth axis, `timing`, tags a covariate's relationship to the treatment
+window -- pre (measured before/at baseline, the overwhelming majority: every
+covariate NEXIS actually searches over, since post-treatment values risk
+collider bias -- see the note above COVARIATES in data.py), during
+(measured within the treatment window, e.g. a midline observation that
+survives the same exogeneity argument as the acled/rainfall study-window
+columns), or post (measured after the endline, e.g. a 2017 market price used
+to deflate/actualize expenditures downstream, NOT registered as a NEXIS
+covariate at all -- see download_market_prices.py). Defaults to UNKNOWN for
+untagged apps, same as domain/access; no real Ghana covariate should ever
+carry UNKNOWN since every one of them has a definite relationship to the
+baseline by construction.
 """
 
 from dataclasses import dataclass, field
@@ -70,6 +83,9 @@ import pandas as pd
 class Level(str, Enum):
     HOUSEHOLD  = 'household'
     COMMUNITY  = 'community'
+    REGIONAL   = 'regional'      # shared by a market-catchment-sized cluster of communities,
+                                  # coarser than community, not aligned to administrative districts
+                                  # (e.g. maize_price_2015: 9 markets serve all 162 communities)
     DISTRICT   = 'district'
     INDIVIDUAL = 'individual'   # Uganda: household-member-level survey answers
     GROUP      = 'group'        # Uganda: RCT randomization unit / site
@@ -98,14 +114,22 @@ class Domain(str, Enum):
     ENVIRONMENT   = 'environment'     # climate, land cover, vegetation (rainfall + satellite)
     SECURITY      = 'security'        # conflict, violence, unrest
     HEALTH        = 'health'          # disease burden
-    OTHER         = 'other'           # not yet tagged (Uganda/CelebA, pre-migration)
+    UNKNOWN       = 'unknown'         # not yet tagged (Uganda/CelebA, pre-migration)
 
 
 class Access(str, Enum):
     PROPRIETARY = 'proprietary'   # not ours to redistribute (e.g. UNICEF's LEAP-1000 survey)
     PUBLIC      = 'public'        # downloadable with no account at all (HDX, public S3/WCS)
     RESTRICTED  = 'restricted'    # needed a free account/registration (Earth Engine, ACLED)
-    OTHER       = 'other'         # not yet tagged (Uganda/CelebA, pre-migration)
+    UNKNOWN     = 'unknown'       # not yet tagged (Uganda/CelebA, pre-migration)
+
+
+class Timing(str, Enum):
+    PRE    = 'pre'      # measured before/at baseline -- what NEXIS actually searches over
+    DURING = 'during'   # measured within the treatment window (e.g. a midline observation)
+    POST   = 'post'     # measured after endline -- not a NEXIS covariate (collider risk);
+                         # e.g. a 2017 price used to deflate/actualize expenditures downstream
+    UNKNOWN = 'unknown' # not yet tagged (Uganda/CelebA, pre-migration)
 
 
 @dataclass(frozen=True)
@@ -115,8 +139,9 @@ class Covariate:
     level: Level
     origin: Origin = Origin.HAND_CRAFTED
     support: Support = Support.CONTINUOUS
-    domain: Domain = Domain.OTHER
-    access: Access = Access.OTHER
+    domain: Domain = Domain.UNKNOWN
+    access: Access = Access.UNKNOWN
+    timing: Timing = Timing.UNKNOWN
     source: str = 'survey'   # matches the source names in data/ghana/README.md
 
     @property
@@ -195,18 +220,21 @@ class Dataset:
                origin: Optional[Origin] = None,
                domain: Optional[Domain] = None,
                access: Optional[Access] = None,
+               timing: Optional[Timing] = None,
                predicate=None) -> "Dataset":
-        """New Dataset with only the covariates matching level/origin/domain/access/predicate.
+        """New Dataset with only the covariates matching level/origin/domain/access/timing/predicate.
 
         `predicate`, if given, is a Callable[[Covariate], bool] for filters
-        beyond level/origin/domain/access (e.g. by `.source` or `.support`) --
-        combine with the others freely; all given conditions must hold (AND)."""
+        beyond level/origin/domain/access/timing (e.g. by `.source` or
+        `.support`) -- combine with the others freely; all given conditions
+        must hold (AND)."""
         keep = [
             i for i, c in enumerate(self.covariates)
             if (level is None or c.level == level)
             and (origin is None or c.origin == origin)
             and (domain is None or c.domain == domain)
             and (access is None or c.access == access)
+            and (timing is None or c.timing == timing)
             and (predicate is None or predicate(c))
         ]
         return Dataset(

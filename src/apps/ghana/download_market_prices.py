@@ -21,9 +21,26 @@ maize_price_2014_2015) since 2014 is only pooled in to get enough price
 observations per market -- the intent is "the price as of baseline", same
 naming convention as every other 2015-dated covariate in this project.
 
-Produces one file, community-level, feeding NEXIS covariates:
+2014 isn't optional pooling for stability -- it's load-bearing. Restricted
+to 2015 alone, 7 of the 9 markets currently assigned as someone's nearest
+have ZERO Maize observations that year (their only observation is from
+2014); median distance to the nearest priced market jumps from 13.7km to
+75.3km and only 2 distinct markets cover all 162 communities (vs. 9).
+
+Also produces maize_price_2017 (2016-2017 pooled, same per-market-
+observation-count logic), NOT fed into NEXIS's COVARIATES registry --
+it's post-endline, for deflating/actualizing expenditures downstream, not
+a covariate NEXIS should search over (post-treatment collider risk, same
+reasoning as every other Timing.POST source -- see covariates.py). Market
+coverage near the LEAP districts largely collapsed after 2015: only 3
+distinct nearest-markets (vs. 9 pre-period), median distance 62.1km (vs.
+13.7km) -- pooling 2016 in doesn't recover any closer markets, it's the
+identical 3 markets/distances as 2017 alone, just more observations to
+average per market.
+
+Produces one file, community-level:
     market_prices/market_prices_community.csv
-        comm, dist_nearest_market_km, maize_price_2015
+        comm, dist_nearest_market_km, maize_price_2015, maize_price_2017
 
 Usage:
     python download_market_prices.py [--dry-run]
@@ -44,6 +61,8 @@ MARKETS_URL = ('https://data.humdata.org/dataset/626e809c-c4fc-467b-a60c-129acb5
 COMMODITY = 'Maize'
 PERIOD_START = '2014-01-01'
 PERIOD_END = '2015-12-31'
+POST_PERIOD_START = '2016-01-01'
+POST_PERIOD_END = '2017-12-31'
 
 
 def log(msg: str):
@@ -79,14 +98,11 @@ def load_community_centroids(data_path: str) -> pd.DataFrame:
     return centroids
 
 
-def load_maize_markets() -> pd.DataFrame:
-    prices = pd.read_csv(PRICES_URL, skiprows=[1])
-    markets = pd.read_csv(MARKETS_URL)
-    prices['date'] = pd.to_datetime(prices['date'])
-
+def load_maize_markets(prices: pd.DataFrame, markets: pd.DataFrame,
+                       start: str, end: str) -> pd.DataFrame:
     maize = prices[
         (prices['commodity'] == COMMODITY)
-        & (prices['date'] >= PERIOD_START) & (prices['date'] <= PERIOD_END)
+        & (prices['date'] >= start) & (prices['date'] <= end)
     ]
     by_market = maize.groupby('market_id').agg(
         price=('price', 'mean'), n_obs=('price', 'size'),
@@ -102,20 +118,21 @@ def _haversine_km(lat1, lon1, lat2, lon2):
     return R * 2 * np.arcsin(np.sqrt(a))
 
 
-def community_market_stats(centroids: pd.DataFrame, maize_markets: pd.DataFrame) -> pd.DataFrame:
-    """One row per community: distance to the nearest market with a
-    {COMMODITY} price in {PERIOD_START}-{PERIOD_END}, and that market's
-    mean price over the period (assigned, not interpolated)."""
+def nearest_market_price(centroids: pd.DataFrame, maize_markets: pd.DataFrame,
+                         price_col: str, dist_col: str = None) -> pd.DataFrame:
+    """One row per community: that period's nearest-market mean {COMMODITY}
+    price (assigned, not interpolated), plus the distance to it if dist_col
+    is given (each period can have a different nearest market, since not
+    every market reports in every period)."""
     rows = []
     for _, comm in centroids.iterrows():
         dist_km = _haversine_km(comm['lat'], comm['lon'],
                                  maize_markets['latitude'], maize_markets['longitude'])
         idx = dist_km.values.argmin()
-        rows.append({
-            'comm': comm['comm'],
-            'dist_nearest_market_km': dist_km.values[idx],
-            'maize_price_2015': maize_markets['price'].iloc[idx],
-        })
+        row = {'comm': comm['comm'], price_col: maize_markets['price'].iloc[idx]}
+        if dist_col:
+            row[dist_col] = dist_km.values[idx]
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -127,16 +144,27 @@ def main():
 
     if args.dry_run:
         log(f"[DRY RUN]")
-        log(f"  Commodity: {COMMODITY}  |  Period: {PERIOD_START} to {PERIOD_END}")
+        log(f"  Commodity: {COMMODITY}")
+        log(f"  Pre-treatment period (maize_price_2015): {PERIOD_START} to {PERIOD_END}")
+        log(f"  Post-treatment period (maize_price_2017): {POST_PERIOD_START} to {POST_PERIOD_END}")
         log(f"  Output: {out_dir / 'market_prices_community.csv'}")
         return
 
     centroids = load_community_centroids(str(data_path))
     log(f"Downloading WFP Ghana market/price data ...")
-    maize_markets = load_maize_markets()
-    log(f"  {len(maize_markets)} markets with {COMMODITY} price data in {PERIOD_START[:4]}-{PERIOD_END[:4]}")
+    prices = pd.read_csv(PRICES_URL, skiprows=[1])
+    markets = pd.read_csv(MARKETS_URL)
+    prices['date'] = pd.to_datetime(prices['date'])
 
-    stats = community_market_stats(centroids, maize_markets)
+    pre_markets = load_maize_markets(prices, markets, PERIOD_START, PERIOD_END)
+    log(f"  {len(pre_markets)} markets with {COMMODITY} price data in {PERIOD_START[:4]}-{PERIOD_END[:4]}")
+    post_markets = load_maize_markets(prices, markets, POST_PERIOD_START, POST_PERIOD_END)
+    log(f"  {len(post_markets)} markets with {COMMODITY} price data in {POST_PERIOD_START[:4]}-{POST_PERIOD_END[:4]}")
+
+    pre = nearest_market_price(centroids, pre_markets, 'maize_price_2015', dist_col='dist_nearest_market_km')
+    post = nearest_market_price(centroids, post_markets, 'maize_price_2017')
+    stats = pre.merge(post, on='comm')
+
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / 'market_prices_community.csv'
     stats.to_csv(out_path, index=False)
@@ -147,6 +175,10 @@ def main():
     log(f"  maize_price_2015: min={stats['maize_price_2015'].min():.1f}  "
         f"median={stats['maize_price_2015'].median():.1f}  "
         f"max={stats['maize_price_2015'].max():.1f} GHS")
+    log(f"  maize_price_2017 (post-endline, NOT a NEXIS covariate -- for expenditure "
+        f"deflation only): min={stats['maize_price_2017'].min():.1f}  "
+        f"median={stats['maize_price_2017'].median():.1f}  "
+        f"max={stats['maize_price_2017'].max():.1f} GHS")
 
 
 if __name__ == '__main__':
