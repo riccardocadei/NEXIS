@@ -83,11 +83,11 @@ COVARIATES: list[Covariate] = [
 
     # ── Community-level (rainfall, see external_data.py) ──────────────────────
     Covariate('rainfall_mean_pre2015', 'Mean annual rainfall, 2000–2014 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.PRE),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.HISTORIC),
     Covariate('rainfall_std_pre2015',  'Std. annual rainfall, 2000–2014 (mm)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.PRE),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.HISTORIC),
     Covariate('drought_freq_pre2015',  'Drought frequency, 2000–2014 (share of years)', Level.COMMUNITY,
-              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.PRE),
+              support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.HISTORIC),
     Covariate('rainfall_2015', 'Annual rainfall, 2015 (mm)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='rainfall', domain=Domain.ENVIRONMENT, access=Access.RESTRICTED, timing=Timing.PRE),
     Covariate('rainfall_2016', 'Annual rainfall, 2016 (mm)', Level.COMMUNITY,
@@ -112,12 +112,15 @@ COVARIATES: list[Covariate] = [
     # ── Regional-level (market prices, WFP, see external_data.py) ───────────────
     # dist_nearest_market_km is COMMUNITY (a genuine per-community haversine
     # distance); maize_price_2015 is REGIONAL (one value shared by every
-    # community assigned to the same nearest-priced market -- 9 markets serve
-    # all 162 communities in cluster sizes of 3-35, a real step function, not
-    # community-level variation).
+    # community assigned to the same nearest-priced market). Interim choice
+    # (2015 alone, not pooled with 2014): only 2 distinct markets nationally
+    # report Maize in 2015 near the LEAP districts (median distance 75km,
+    # vs. 9 markets/13.7km if pooled with 2014) -- see
+    # download_market_prices.py for the full tradeoff and why this is
+    # deliberately marked "for now, revisit".
     Covariate('dist_nearest_market_km', 'Distance to nearest priced market (km)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ACCESSIBILITY, access=Access.PUBLIC, timing=Timing.PRE),
-    Covariate('maize_price_2015', 'Maize price at nearest market, 2015 (GHS, 2014–2015 avg.)', Level.REGIONAL,
+    Covariate('maize_price_2015', 'Maize price at nearest market, 2015 (GHS)', Level.REGIONAL,
               support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ECONOMY, access=Access.PUBLIC, timing=Timing.PRE),
 
     # ── Community-level (nighttime lights, VIIRS, see external_data.py) ─────────

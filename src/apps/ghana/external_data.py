@@ -95,33 +95,36 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     download_market_prices.py), from WFP Ghana food prices (via HDX, public,
     no account needed):
       - dist_nearest_market_km: distance to the nearest market with a Maize
-        price observation in 2014-2015, always defined. Maize, not milk --
+        price observation in 2015, always defined. Maize, not milk --
         Ghana's WFP monitoring doesn't track milk/dairy at all (no local
         fresh-milk market); maize is Northern Ghana's actual staple crop.
-      - maize_price_2015: that nearest market's mean Maize price over
-        2014-2015 (pre/at-baseline, not later years -- deliberately
-        sidesteps the "cash transfer causes local price inflation" general-
-        equilibrium debate by using pre-treatment prices, same logic as
-        rainfall's pre-2015 climatology). Named _2015, not _2014_2015: 2014
-        is only pooled in for enough price observations per market, same
-        "as of baseline" naming convention as every other 2015-dated source
-        -- and it's load-bearing, not cosmetic: restricted to 2015 alone, 7
-        of the 9 nearest-markets have zero Maize observations that year.
-        Level.REGIONAL, not COMMUNITY: 9 markets serve all 162 communities
-        (cluster sizes 3-35), a real step function shared across a market's
-        catchment area, not per-community variation.
-      A household-level cash transfer cannot retroactively change a
-      2014-2015 market price, so this is exogenous by construction.
+      - maize_price_2015: that nearest market's mean Maize price over 2015
+        alone (pre/at-baseline, not later years -- deliberately sidesteps
+        the "cash transfer causes local price inflation" general-
+        equilibrium debate by using a pre-treatment price, same logic as
+        rainfall's pre-2015 climatology). Level.REGIONAL, not COMMUNITY:
+        only 2 distinct markets nationally report Maize in 2015 near the
+        LEAP districts (median distance 75km) -- a real step function
+        shared across a market's catchment area, not per-community
+        variation. This is an interim, non-data-driven choice: an earlier
+        version of this covariate pooled 2014+2015 to fix exactly this
+        sparsity (9 markets, 13.7km median instead) -- see git history and
+        download_market_prices.py's module docstring for the tradeoff.
+      A household-level cash transfer cannot retroactively change a 2015
+      market price, so this is exogenous by construction regardless.
 
-      download_market_prices.py also writes a third column,
-      maize_price_2017 (2016-2017 pooled, Timing.POST), to the same CSV --
-      deliberately NOT loaded here / not part of COVARIATES. It's for
-      deflating/actualizing expenditures post-endline, not a NEXIS
-      covariate: using a post-treatment price as a "pre-treatment"
+      download_market_prices.py also writes 6 more yearly columns to the
+      same CSV, deliberately NOT loaded here / not part of COVARIATES:
+      maize_price_2010..maize_price_2014 (Timing.HISTORIC -- long-run price
+      history predating baseline, same role as rainfall's 2000-2014
+      climatology) and maize_price_2016/maize_price_2017 (Timing.POST --
+      after endline, for deflating/actualizing expenditures downstream, not
+      a NEXIS covariate: using a post-treatment price as a "pre-treatment"
       covariate would risk exactly the collider bias every other exclusion
-      in this file avoids. Market coverage near the LEAP districts largely
-      collapsed after 2015 (3 distinct nearest-markets vs. 9, median
-      distance 62km vs. 14km), so treat it as noisier than maize_price_2015.
+      in this file avoids). Outside of 2014, WFP Maize coverage near the
+      LEAP districts collapses to the same 2 distant markets every year, so
+      these 6 diagnostics are largely near-duplicates of each other and of
+      maize_price_2015, tracking the same 2 markets' price over time.
 
     Nighttime lights contribute 2 columns (see download_nightlights.py),
     from the VIIRS 2015 annual composite (Google Earth Engine, same

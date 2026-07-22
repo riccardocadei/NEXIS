@@ -59,17 +59,20 @@ every covariate from the same source shares one access tag. Also defaults
 to UNKNOWN for untagged apps.
 
 A sixth axis, `timing`, tags a covariate's relationship to the treatment
-window -- pre (measured before/at baseline, the overwhelming majority: every
-covariate NEXIS actually searches over, since post-treatment values risk
-collider bias -- see the note above COVARIATES in data.py), during
-(measured within the treatment window, e.g. a midline observation that
-survives the same exogeneity argument as the acled/rainfall study-window
-columns), or post (measured after the endline, e.g. a 2017 market price used
-to deflate/actualize expenditures downstream, NOT registered as a NEXIS
-covariate at all -- see download_market_prices.py). Defaults to UNKNOWN for
-untagged apps, same as domain/access; no real Ghana covariate should ever
-carry UNKNOWN since every one of them has a definite relationship to the
-baseline by construction.
+window -- historic (long-run character predating baseline, e.g. rainfall's
+2000-2014 climatology or maize price years 2010-2014 -- these characterize
+"what this place is normally like", not "what it was like right before
+treatment"), pre (measured at/immediately before baseline, e.g. rainfall_2015
+or maize_price_2015 -- what NEXIS actually searches over, since post-
+treatment values risk collider bias -- see the note above COVARIATES in
+data.py), during (measured within the treatment window, e.g. a midline
+observation that survives the same exogeneity argument as the acled/rainfall
+study-window columns), or post (measured after the endline, e.g. maize prices
+2016-2017, potentially used to deflate/actualize expenditures downstream, NOT
+registered as a NEXIS covariate at all -- see download_market_prices.py).
+Defaults to UNKNOWN for untagged apps, same as domain/access; no real Ghana
+covariate should ever carry UNKNOWN since every one of them has a definite
+relationship to the baseline by construction.
 """
 
 from dataclasses import dataclass, field
@@ -125,7 +128,10 @@ class Access(str, Enum):
 
 
 class Timing(str, Enum):
-    PRE    = 'pre'      # measured before/at baseline -- what NEXIS actually searches over
+    HISTORIC = 'historic'  # long-run character predating baseline (e.g. rainfall's 2000-2014
+                            # climatology, maize prices 2010-2014) -- "normal for this place",
+                            # not "right before treatment"
+    PRE    = 'pre'      # measured at/immediately before baseline -- what NEXIS actually searches over
     DURING = 'during'   # measured within the treatment window (e.g. a midline observation)
     POST   = 'post'     # measured after endline -- not a NEXIS covariate (collider risk);
                          # e.g. a 2017 price used to deflate/actualize expenditures downstream

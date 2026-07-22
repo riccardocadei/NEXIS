@@ -13,34 +13,49 @@ coverage near the 5 LEAP districts: Nalerigu (East Mamprusi), Yendi, Garu
 (Garu-Tempane), Bongo, and several others within reach (Gushegu, Bunkprugu,
 Bolga, Tamale, Zabzugu).
 
-Period: 2014-2015 (pre/at-baseline), not later years -- deliberately
-avoiding the classic "cash transfer causes local price inflation" general-
-equilibrium debate. Using pre-treatment prices sidesteps it entirely, same
-logic as rainfall's pre-2015 climatology. Named maize_price_2015 (not
-maize_price_2014_2015) since 2014 is only pooled in to get enough price
-observations per market -- the intent is "the price as of baseline", same
-naming convention as every other 2015-dated covariate in this project.
+Extracts one price per YEAR, 2010-2017, each independently (no pooling
+across years) -- nearest-market assignment is recomputed per year, since not
+every market reports Maize every year. All are Level.REGIONAL: WFP coverage
+near the LEAP districts is sparse enough that a "nearest priced market"
+value is really shared by a whole catchment of communities, not a
+per-community measurement.
 
-2014 isn't optional pooling for stability -- it's load-bearing. Restricted
-to 2015 alone, 7 of the 9 markets currently assigned as someone's nearest
-have ZERO Maize observations that year (their only observation is from
-2014); median distance to the nearest priced market jumps from 13.7km to
-75.3km and only 2 distinct markets cover all 162 communities (vs. 9).
+IMPORTANT caveat, checked before extracting: outside of 2014, WFP Maize
+coverage near the LEAP districts collapses to just 2 distinct markets,
+median distance ~75km (max ~116km) -- 2014 is the one anomalous year with
+rich nearby coverage (9 markets, median 13.7km), which is why the ORIGINAL
+version of this script pooled 2014+2015 into a single "maize_price_2015"
+covariate (see git history). That pooling was deliberately dropped in favor
+of a clean per-year series -- maize_price_2015 is now 2015 ALONE, sharing
+the same degenerate 2-market/75km-median coverage as every other non-2014
+year. This is an interim choice, not a data-driven one: it's simpler and
+consistent with the rest of the per-year series, at the cost of reverting a
+previously-fixed sparsity problem in the one covariate that still feeds
+NEXIS. Revisit if maize_price_2015 turns out to matter for the results.
 
-Also produces maize_price_2017 (2016-2017 pooled, same per-market-
-observation-count logic), NOT fed into NEXIS's COVARIATES registry --
-it's post-endline, for deflating/actualizing expenditures downstream, not
-a covariate NEXIS should search over (post-treatment collider risk, same
-reasoning as every other Timing.POST source -- see covariates.py). Market
-coverage near the LEAP districts largely collapsed after 2015: only 3
-distinct nearest-markets (vs. 9 pre-period), median distance 62.1km (vs.
-13.7km) -- pooling 2016 in doesn't recover any closer markets, it's the
-identical 3 markets/distances as 2017 alone, just more observations to
-average per market.
+Of the 8 yearly columns, only maize_price_2015 (paired with
+dist_nearest_market_km, both Timing.PRE) is registered as a NEXIS covariate
+in data.py's COVARIATES. The other 7 are diagnostics only, not fed into W:
+    - maize_price_2010..maize_price_2014 (Timing.HISTORIC): long-run price
+      history predating baseline, analogous to rainfall's 2000-2014
+      climatology (rainfall_mean_pre2015/rainfall_std_pre2015/
+      drought_freq_pre2015, also Timing.HISTORIC -- see covariates.py).
+    - maize_price_2016, maize_price_2017 (Timing.POST): after endline,
+      potentially useful for deflating/actualizing expenditures downstream,
+      but a post-treatment value is not something NEXIS should search over
+      (collider-bias risk, same reasoning as every other Timing.POST
+      source).
+
+dist_nearest_market_km is paired only with maize_price_2015 (the one W
+covariate) -- the other 7 years don't get their own distance column, same
+reasoning as before: they're diagnostics, not paired effect-modifier
+candidates.
 
 Produces one file, community-level:
     market_prices/market_prices_community.csv
-        comm, dist_nearest_market_km, maize_price_2015, maize_price_2017
+        comm, dist_nearest_market_km, maize_price_2010, maize_price_2011,
+        maize_price_2012, maize_price_2013, maize_price_2014,
+        maize_price_2015, maize_price_2016, maize_price_2017
 
 Usage:
     python download_market_prices.py [--dry-run]
@@ -59,10 +74,8 @@ PRICES_URL = ('https://data.humdata.org/dataset/626e809c-c4fc-467b-a60c-129acb5e
 MARKETS_URL = ('https://data.humdata.org/dataset/626e809c-c4fc-467b-a60c-129acb5e9320/'
                'resource/e674838c-87ba-4c7c-afc5-614226842768/download/wfp_markets_gha.csv')
 COMMODITY = 'Maize'
-PERIOD_START = '2014-01-01'
-PERIOD_END = '2015-12-31'
-POST_PERIOD_START = '2016-01-01'
-POST_PERIOD_END = '2017-12-31'
+YEARS = list(range(2010, 2018))   # 2010-2017 inclusive
+W_YEAR = 2015                     # the only year fed into NEXIS's COVARIATES
 
 
 def log(msg: str):
@@ -98,11 +111,10 @@ def load_community_centroids(data_path: str) -> pd.DataFrame:
     return centroids
 
 
-def load_maize_markets(prices: pd.DataFrame, markets: pd.DataFrame,
-                       start: str, end: str) -> pd.DataFrame:
+def load_maize_markets(prices: pd.DataFrame, markets: pd.DataFrame, year: int) -> pd.DataFrame:
     maize = prices[
         (prices['commodity'] == COMMODITY)
-        & (prices['date'] >= start) & (prices['date'] <= end)
+        & (prices['date'] >= f'{year}-01-01') & (prices['date'] <= f'{year}-12-31')
     ]
     by_market = maize.groupby('market_id').agg(
         price=('price', 'mean'), n_obs=('price', 'size'),
@@ -120,10 +132,10 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 
 def nearest_market_price(centroids: pd.DataFrame, maize_markets: pd.DataFrame,
                          price_col: str, dist_col: str = None) -> pd.DataFrame:
-    """One row per community: that period's nearest-market mean {COMMODITY}
+    """One row per community: that year's nearest-market mean {COMMODITY}
     price (assigned, not interpolated), plus the distance to it if dist_col
-    is given (each period can have a different nearest market, since not
-    every market reports in every period)."""
+    is given (each year can have a different nearest market, since not
+    every market reports every year)."""
     rows = []
     for _, comm in centroids.iterrows():
         dist_km = _haversine_km(comm['lat'], comm['lon'],
@@ -145,8 +157,8 @@ def main():
     if args.dry_run:
         log(f"[DRY RUN]")
         log(f"  Commodity: {COMMODITY}")
-        log(f"  Pre-treatment period (maize_price_2015): {PERIOD_START} to {PERIOD_END}")
-        log(f"  Post-treatment period (maize_price_2017): {POST_PERIOD_START} to {POST_PERIOD_END}")
+        log(f"  Years: {YEARS[0]}-{YEARS[-1]} (each extracted independently)")
+        log(f"  W covariate: maize_price_{W_YEAR} (+ dist_nearest_market_km)")
         log(f"  Output: {out_dir / 'market_prices_community.csv'}")
         return
 
@@ -156,14 +168,14 @@ def main():
     markets = pd.read_csv(MARKETS_URL)
     prices['date'] = pd.to_datetime(prices['date'])
 
-    pre_markets = load_maize_markets(prices, markets, PERIOD_START, PERIOD_END)
-    log(f"  {len(pre_markets)} markets with {COMMODITY} price data in {PERIOD_START[:4]}-{PERIOD_END[:4]}")
-    post_markets = load_maize_markets(prices, markets, POST_PERIOD_START, POST_PERIOD_END)
-    log(f"  {len(post_markets)} markets with {COMMODITY} price data in {POST_PERIOD_START[:4]}-{POST_PERIOD_END[:4]}")
-
-    pre = nearest_market_price(centroids, pre_markets, 'maize_price_2015', dist_col='dist_nearest_market_km')
-    post = nearest_market_price(centroids, post_markets, 'maize_price_2017')
-    stats = pre.merge(post, on='comm')
+    stats = centroids[['comm']].copy()
+    for year in YEARS:
+        year_markets = load_maize_markets(prices, markets, year)
+        log(f"  {len(year_markets)} markets with {COMMODITY} price data in {year}")
+        price_col = f'maize_price_{year}'
+        dist_col = 'dist_nearest_market_km' if year == W_YEAR else None
+        year_stats = nearest_market_price(centroids, year_markets, price_col, dist_col=dist_col)
+        stats = stats.merge(year_stats, on='comm')
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / 'market_prices_community.csv'
@@ -172,13 +184,11 @@ def main():
     log(f"  dist_nearest_market_km: min={stats['dist_nearest_market_km'].min():.1f}  "
         f"median={stats['dist_nearest_market_km'].median():.1f}  "
         f"max={stats['dist_nearest_market_km'].max():.1f}")
-    log(f"  maize_price_2015: min={stats['maize_price_2015'].min():.1f}  "
-        f"median={stats['maize_price_2015'].median():.1f}  "
-        f"max={stats['maize_price_2015'].max():.1f} GHS")
-    log(f"  maize_price_2017 (post-endline, NOT a NEXIS covariate -- for expenditure "
-        f"deflation only): min={stats['maize_price_2017'].min():.1f}  "
-        f"median={stats['maize_price_2017'].median():.1f}  "
-        f"max={stats['maize_price_2017'].max():.1f} GHS")
+    for year in YEARS:
+        col = f'maize_price_{year}'
+        tag = ' (W covariate)' if year == W_YEAR else ''
+        log(f"  {col}{tag}: min={stats[col].min():.1f}  median={stats[col].median():.1f}  "
+            f"max={stats[col].max():.1f} GHS")
 
 
 if __name__ == '__main__':
