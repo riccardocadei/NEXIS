@@ -85,7 +85,7 @@ RES_DIR  = ROOT / "results" / "ghana"
 
 sys.path.insert(0, str(ROOT))
 from src.apps.ghana.data import load_data, COVARIATES
-from src.apps.covariates import Covariate, Level, Origin, Support, Domain, Access, Dataset
+from src.apps.covariates import Covariate, Level, Origin, Support, Domain, Access, Timing, Dataset
 from src.method.nexis    import nexis, marginal_select, SelectionResult
 
 # Filter the registry directly by level -- no need for data.py's legacy
@@ -844,7 +844,7 @@ def load_nexis_inputs(min_activations: int = 5):
     spectral_covariates = [
         Covariate(name, name, Level.COMMUNITY, Origin.HAND_CRAFTED,
                   Support.CONTINUOUS, domain=Domain.ENVIRONMENT, access=Access.RESTRICTED,
-                  source='satellite_spectral')
+                  timing=Timing.PRE, source='satellite_spectral')
         for name in spectral_names
     ]
     spectral_hh = (
@@ -887,7 +887,7 @@ def load_nexis_inputs(min_activations: int = 5):
         return [
             Covariate(f'neuron_{int(nid)}', f'neuron_{int(nid)}', Level.COMMUNITY,
                       Origin.LEARNED, Support.SPARSE_NONNEG, domain=Domain.ENVIRONMENT,
-                      access=Access.RESTRICTED, source='satellite_sae')
+                      access=Access.RESTRICTED, timing=Timing.PRE, source='satellite_sae')
             for nid in live_idx
         ]
 
