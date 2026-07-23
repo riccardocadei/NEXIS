@@ -111,17 +111,20 @@ COVARIATES: list[Covariate] = [
 
     # ── Regional-level (market prices, WFP, see external_data.py) ───────────────
     # dist_nearest_market_km is COMMUNITY (a genuine per-community haversine
-    # distance); maize_price_2015 is REGIONAL (one value shared by every
-    # community assigned to the same nearest-priced market). Interim choice
-    # (2015 alone, not pooled with 2014): only 2 distinct markets nationally
-    # report Maize in 2015 near the LEAP districts (median distance 75km,
-    # vs. 9 markets/13.7km if pooled with 2014) -- see
-    # download_market_prices.py for the full tradeoff and why this is
-    # deliberately marked "for now, revisit".
+    # distance, anchored to Maize -- see download_market_prices.py).
+    # staple_price_index_2015 -- an equal-weighted average of z-scored 2015
+    # nearest-market prices across 7 staples (Maize, Rice x2, Millet,
+    # Sorghum, Yam, Plantains), a purchasing-power proxy -- is the sole
+    # price covariate here, replacing an earlier single-commodity
+    # (Maize-only) version entirely (see git history). Level.REGIONAL: only
+    # 2 distinct markets nationally serve this basket near the LEAP
+    # districts in 2015 (median distance 75km) -- a real step function
+    # shared across a market's catchment area, not per-community variation.
+    # Support.CONTINUOUS, not POSITIVE_CONTINUOUS: z-scored, can be negative.
     Covariate('dist_nearest_market_km', 'Distance to nearest priced market (km)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ACCESSIBILITY, access=Access.PUBLIC, timing=Timing.PRE),
-    Covariate('maize_price_2015', 'Maize price at nearest market, 2015 (GHS)', Level.REGIONAL,
-              support=Support.POSITIVE_CONTINUOUS, source='market_prices', domain=Domain.ECONOMY, access=Access.PUBLIC, timing=Timing.PRE),
+    Covariate('staple_price_index_2015', 'Staple food price index, 2015 (z-scored)', Level.REGIONAL,
+              support=Support.CONTINUOUS, source='market_prices', domain=Domain.ECONOMY, access=Access.PUBLIC, timing=Timing.PRE),
 
     # ── Community-level (nighttime lights, VIIRS, see external_data.py) ─────────
     Covariate('night_light_radiance', 'Nighttime light radiance, 2015 (own community)', Level.COMMUNITY,
@@ -146,6 +149,19 @@ COVARIATES: list[Covariate] = [
     # ── Community-level (air pollution, WashU ACAG, see external_data.py) ──────
     Covariate('pm25_2015', 'PM2.5 air pollution, 2015 (ug/m3)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='air_pollution', domain=Domain.HEALTH, origin=Origin.RAW, access=Access.PUBLIC, timing=Timing.PRE),
+
+    # ── Regional-level (agroecological potential, FAO GAEZ, see external_data.py) ─
+    # Level.REGIONAL, not COMMUNITY: only 16 distinct raster cell values across
+    # 162 communities (~9km resolution over a compact study area), and one value
+    # (the ceiling, 10000) alone covers 127/162 communities -- far coarser than
+    # every other raster-sampled covariate here (rainfall/malaria/pm25 all have
+    # 61-125 distinct values, no single value covering more than 11 communities).
+    # Timing.HISTORIC: GAEZ v4's baseline is 1981-2010 climate normals, "what this
+    # land is normally like", genuinely time-invariant -- same role as rainfall's
+    # 2000-2014 climatology, with no year-matching question at all (unlike every
+    # other source in this file, soil suitability doesn't change year to year).
+    Covariate('maize_suitability_index', 'Rainfed maize suitability index (GAEZ, 0-10000)', Level.REGIONAL,
+              support=Support.POSITIVE_CONTINUOUS, source='gaez', domain=Domain.ENVIRONMENT, origin=Origin.RAW, access=Access.PUBLIC, timing=Timing.HISTORIC),
 
     # Mobile coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
     # both explored and rejected as community-level covariates — see

@@ -20,7 +20,8 @@ download_nightlights.py) are the fifth; population density (WorldPop, via
 download_worldpop.py) is the sixth; settlement/urbanization degree (GHSL,
 via download_ghsl.py) is the seventh; malaria mortality/incidence (Malaria
 Atlas Project, via download_malaria.py) is the eighth; PM2.5 air pollution
-(WashU ACAG SatPM2.5, via download_air_pollution.py) is the ninth.
+(WashU ACAG SatPM2.5, via download_air_pollution.py) is the ninth; rainfed
+maize suitability (FAO GAEZ v4, via download_gaez.py) is the tenth.
 
 Mobile-network coverage (OpenCellID) and mobile usage (Ookla Speedtest) were
 both explored and rejected — see data/ghana/README.md's "Explored and
@@ -98,33 +99,35 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         price observation in 2015, always defined. Maize, not milk --
         Ghana's WFP monitoring doesn't track milk/dairy at all (no local
         fresh-milk market); maize is Northern Ghana's actual staple crop.
-      - maize_price_2015: that nearest market's mean Maize price over 2015
-        alone (pre/at-baseline, not later years -- deliberately sidesteps
-        the "cash transfer causes local price inflation" general-
-        equilibrium debate by using a pre-treatment price, same logic as
-        rainfall's pre-2015 climatology). Level.REGIONAL, not COMMUNITY:
-        only 2 distinct markets nationally report Maize in 2015 near the
-        LEAP districts (median distance 75km) -- a real step function
-        shared across a market's catchment area, not per-community
-        variation. This is an interim, non-data-driven choice: an earlier
-        version of this covariate pooled 2014+2015 to fix exactly this
-        sparsity (9 markets, 13.7km median instead) -- see git history and
-        download_market_prices.py's module docstring for the tradeoff.
+      - staple_price_index_2015: a purchasing-power / cost-of-living proxy
+        -- equal-weighted average of z-scored 2015 nearest-market prices
+        across 7 staples (Maize, Rice imported/local, Millet, Sorghum, Yam,
+        Plantains), not just Maize alone. Answers "how far does a fixed-GHS
+        transfer go here" rather than "what does maize cost here". Level.
+        REGIONAL, not COMMUNITY: only 2 distinct markets nationally report
+        these staples in 2015 near the LEAP districts (median distance
+        75km) -- a real step function shared across a market's catchment
+        area, not per-community variation. See download_market_prices.py's
+        module docstring for why Cassava/Rice (paddy) were excluded from
+        the basket.
       A household-level cash transfer cannot retroactively change a 2015
-      market price, so this is exogenous by construction regardless.
+      market price, so both are exogenous by construction regardless.
 
-      download_market_prices.py also writes 6 more yearly columns to the
-      same CSV, deliberately NOT loaded here / not part of COVARIATES:
-      maize_price_2010..maize_price_2014 (Timing.HISTORIC -- long-run price
-      history predating baseline, same role as rainfall's 2000-2014
-      climatology) and maize_price_2016/maize_price_2017 (Timing.POST --
-      after endline, for deflating/actualizing expenditures downstream, not
-      a NEXIS covariate: using a post-treatment price as a "pre-treatment"
-      covariate would risk exactly the collider bias every other exclusion
-      in this file avoids). Outside of 2014, WFP Maize coverage near the
-      LEAP districts collapses to the same 2 distant markets every year, so
-      these 6 diagnostics are largely near-duplicates of each other and of
-      maize_price_2015, tracking the same 2 markets' price over time.
+      download_market_prices.py also writes 7 more yearly staple_price_index
+      columns to the same CSV (same 7-commodity basket, one year each),
+      deliberately NOT loaded here / not part of COVARIATES:
+      staple_price_index_2010..staple_price_index_2014 (Timing.HISTORIC --
+      long-run price history predating baseline, same role as rainfall's
+      2000-2014 climatology) and staple_price_index_2016/
+      staple_price_index_2017 (Timing.POST -- after endline, for
+      deflating/actualizing expenditures downstream, not a NEXIS covariate:
+      using a post-treatment price as a "pre-treatment" covariate would
+      risk exactly the collider bias every other exclusion in this file
+      avoids). Outside of 2014, WFP coverage near the LEAP districts
+      collapses to the same 2 distant markets every year for this basket,
+      so these 7 diagnostics are largely near-duplicates of each other and
+      of staple_price_index_2015, tracking the same 2 markets' price over
+      time.
 
     Nighttime lights contribute 2 columns (see download_nightlights.py),
     from the VIIRS 2015 annual composite (Google Earth Engine, same
@@ -201,6 +204,27 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         than urban-pollution-driven in this rural Sahel setting.
       A household-level cash transfer cannot move regional air quality, so
       this is exogenous regardless of timing.
+
+    Agroecological potential contributes 1 column (see download_gaez.py),
+    from FAO's GAEZ v4 (Global Agro-Ecological Zones) -- public ArcGIS
+    ImageServer, no account needed. Static baseline (1981-2010 climate
+    normals), not a rolling annual series -- genuinely time-invariant,
+    unlike every other source above:
+      - maize_suitability_index: rainfed, high-input-level maize
+        suitability index (0-10000, higher = more suitable land),
+        ~9km-resolution raster value sampled at each community centroid.
+        Level.REGIONAL, not COMMUNITY: only 16 distinct values across 162
+        communities, one of which (the ceiling, 10000) alone covers
+        127/162 -- far coarser than every other raster-sampled covariate
+        here (rainfall/malaria/pm25 all have 61-125 distinct values, no
+        single value covering more than 11 communities). Weakly correlated
+        with rainfall_mean_pre2015 (r=0.11), pm25_2015 (r=0.15),
+        dist_to_capital_km (r=-0.12), and travel_time_to_city_min
+        (r=0.0006) -- captures something genuinely distinct from realized
+        weather or remoteness: the land's ceiling for intensified maize
+        farming, not what a given year's weather did to it.
+      A household-level cash transfer cannot change the underlying soil or
+      1981-2010 climate normals, so this is exogenous by construction.
     """
     data_dir = Path(data_dir)
     annual_columns = ['rainfall_2015', 'rainfall_2016', 'rainfall_2017']
@@ -210,12 +234,13 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     ]
     market_access_columns = ['travel_time_to_city_min']
     acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
-    market_prices_columns = ['dist_nearest_market_km', 'maize_price_2015']
+    market_prices_columns = ['dist_nearest_market_km', 'staple_price_index_2015']
     nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km']
     worldpop_columns = ['pop_density_2km']
     ghsl_columns = ['urbanization_degree']
     malaria_columns = ['malaria_mortality_rate_2015', 'malaria_incidence_rate_2015']
     air_pollution_columns = ['pm25_2015']
+    gaez_columns = ['maize_suitability_index']
 
     climatology_path = data_dir / 'rainfall' / 'rainfall_climatology.csv'
     annual_path = data_dir / 'rainfall' / 'rainfall_annual.csv'
@@ -300,6 +325,14 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         # convention as the sources above.
         air_pollution = pd.DataFrame(columns=['comm', *air_pollution_columns])
 
+    gaez_path = data_dir / 'gaez' / 'gaez_community.csv'
+    if gaez_path.exists():
+        gaez = pd.read_csv(gaez_path)[['comm', *gaez_columns]]
+    else:
+        # not yet processed (run download_gaez.py) — same NaN-fill
+        # convention as the sources above.
+        gaez = pd.DataFrame(columns=['comm', *gaez_columns])
+
     merged = (
         rainfall.merge(market_access, on='comm', how='outer')
                 .merge(acled, on='comm', how='outer')
@@ -309,9 +342,10 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
                 .merge(ghsl, on='comm', how='outer')
                 .merge(malaria, on='comm', how='outer')
                 .merge(air_pollution, on='comm', how='outer')
+                .merge(gaez, on='comm', how='outer')
                 .astype({'comm': 'int64'})
     )
     return merged[['comm', *rainfall_columns, *market_access_columns, *acled_columns,
                     *market_prices_columns, *nightlights_columns,
                     *worldpop_columns, *ghsl_columns, *malaria_columns,
-                    *air_pollution_columns]]
+                    *air_pollution_columns, *gaez_columns]]

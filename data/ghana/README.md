@@ -13,16 +13,17 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
 | [Market access](#market-access-travel-time-to-cities-2015-malaria-atlas-project) | [Malaria Atlas Project](https://malariaatlas.org/) — Weiss et al. 2018 (Nature) | 662 KB (Ghana-clipped raster) | Raster point value | Community | 1 (travel time, minutes) | 1 | 2015 | ✅ |
 | [Conflict/protest events](#conflictprotest-events-acled-2015-2017) | [ACLED](https://acleddata.com/) | 500 events, Ghana 2015–2017 | Tabular event records | Community | 29 (per event) | 3 (distance + 2 type-split counts) | 2015–2017 | ✅ |
-| [Market prices](#market-prices-wfp-food-prices-2010-2017) | [WFP Food Prices](https://data.humdata.org/dataset/wfp-food-prices-for-ghana) (via HDX) | 91 markets, 32k+ price obs. | Tabular time series | Community + Regional | 16 (per price record) | 2 in `W` (distance + 2015 maize price) + 6 extracted but not in `W` (2010–2014 historic, 2016–2017 post) | 2010–2017 | ✅ |
+| [Market prices](#market-prices-wfp-food-prices-2010-2017) | [WFP Food Prices](https://data.humdata.org/dataset/wfp-food-prices-for-ghana) (via HDX) | 91 markets, 32k+ price obs. | Tabular time series | Community + Regional | 16 (per price record) | 2 in `W` (distance + 2015 staple price index) + 7 extracted but not in `W` (2010–2014 historic, 2016–2017 post, same 7-commodity basket) | 2010–2017 | ✅ |
 | [Nighttime lights](#nighttime-lights-viirs-2015) | [NOAA VIIRS DNB](https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21), via Google Earth Engine | 46 KB (Ghana-clipped raster) | Raster point value | Community | 1 (radiance) | 2 (own-community radiance + distance) | 2015 | ✅ |
 | [Population density](#population-density-worldpop-2015) | [WorldPop](https://developers.google.com/earth-engine/datasets/catalog/WorldPop_GP_100m_pop), via Google Earth Engine | ~100m gridded, Ghana | Raster point value | Community | 1 (population) | 1 | 2015 | ✅ |
 | [Urbanization degree](#urbanization-degree-ghsl-settlement-model-2015) | [GHSL Settlement Model](https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2023A_GHS_SMOD_V2-0), via Google Earth Engine | 1km gridded, Ghana | Raster point value | Community | 1 (settlement code) | 1 | 2015 | ✅ |
 | [Malaria mortality/incidence](#malaria-mortality--incidence-malaria-atlas-project-2015) | [Malaria Atlas Project](https://malariaatlas.org/) | 2× 99 KB (Ghana-clipped rasters) | Raster point value | Community | 1 each (rate) | 2 | 2015 | ✅ |
 | [Air pollution](#air-pollution-pm25-washu-acag-2015) | [WashU ACAG SatPM2.5](https://registry.opendata.aws/surface-pm2-5-v6gl/) (AWS Open Data) | 1 MB (Africa-clipped NetCDF) | Raster point value | Community | 1 (PM2.5) | 1 | 2015 | ✅ |
+| [Agroecological potential](#agroecological-potential-fao-gaez-v4) | [FAO GAEZ v4](https://gaez.fao.org/) | ~1 MB (Ghana-clipped GeoTIFF) | Raster point value | Regional | 1 (suitability index) | 1 | 1981–2010 (static) | ✅ |
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **195** | | |
+| **Total** | | **~7 GB** | | | | **197** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, regional, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household level today). See [Level](#level) for what distinguishes "regional" from "community".
 
@@ -30,16 +31,16 @@ Rows marked "↳" share Data/Source/Size/Modality with the row directly above (l
 
 Every covariate carries a `level` tag (`src/apps/covariates.py::Level`) for where it's natively measured — pure metadata, not a routing decision: every covariate at any level feeds the same single `W` NEXIS searches over (see `src/apps/covariates.py`'s module docstring). Most Ghana covariates are `household` (raw/engineered survey answers) or `community` (a value that genuinely varies per community, even when derived from a shared source — e.g. `dist_nearest_market_km`'s haversine distance differs for every community even within the same market's catchment).
 
-`regional` is the odd one out, and exists for exactly one covariate so far: `maize_price_2015`. Unlike a distance, a market's mean price is the *same* value for every community assigned to that market — WFP Maize coverage near the LEAP districts is sparse enough (2 distinct markets nationally in 2015, ~75km median distance) that tagging this `community` would overstate how granular the variation actually is. `regional` means "shared by a market-catchment-sized cluster of communities, coarser than community, not aligned to administrative districts" (market catchments are geographic, not district-bounded). `district` remains unused today but reserved for sources that are genuinely district-administrative (e.g. EM-DAT, currently rejected — see below).
+`regional` is the odd one out, and exists for two covariates so far: `staple_price_index_2015` and `maize_suitability_index`. Unlike a distance, both are the *same* value for whole clusters of communities — `staple_price_index_2015` because WFP market coverage near the LEAP districts is sparse enough (2 distinct markets nationally in 2015, ~75km median distance) that tagging it `community` would overstate how granular the variation actually is; `maize_suitability_index` because FAO GAEZ's ~9km raster resolution over this compact study area collapses 162 communities into just 16 distinct values (one of which alone covers 127/162). Two different underlying causes (market-catchment sparsity vs. coarse raster resolution), same diagnosis: `regional` means "shared by a cluster of communities coarser than community, not aligned to administrative districts." `district` remains unused today but reserved for sources that are genuinely district-administrative (e.g. EM-DAT, currently rejected — see below).
 
 ## Timing
 
 A `timing` tag (`src/apps/covariates.py::Timing`) records a covariate's relationship to the treatment window:
 
-- `historic` — long-run character predating baseline, "what this place is normally like" rather than "what it was like right before treatment": rainfall's 2000-2014 climatology (`rainfall_mean_pre2015`/`rainfall_std_pre2015`/`drought_freq_pre2015`) and maize prices `maize_price_2010`..`maize_price_2014`.
-- `pre` — measured at/immediately before baseline, the only timing NEXIS's `W` is built from by default: `rainfall_2015`, `maize_price_2015`, and most other covariates.
+- `historic` — long-run character predating baseline, "what this place is normally like" rather than "what it was like right before treatment": rainfall's 2000-2014 climatology (`rainfall_mean_pre2015`/`rainfall_std_pre2015`/`drought_freq_pre2015`), staple prices `staple_price_index_2010`..`staple_price_index_2014`, and `maize_suitability_index` (GAEZ's 1981-2010 climate-normal baseline).
+- `pre` — measured at/immediately before baseline, the only timing NEXIS's `W` is built from by default: `rainfall_2015`, `staple_price_index_2015`, and most other covariates.
 - `during` — measured within the treatment window, e.g. `rainfall_2016`/`rainfall_2017`/`max_dry_days_2015_2017` and the ACLED 2015-2017 columns — all exogenous regardless of timing, so they clear the same bar as rainfall's study-window rows.
-- `post` — measured after endline, not registered as a NEXIS covariate at all since a post-treatment value risks collider bias: `maize_price_2016`/`maize_price_2017`, potentially useful for expenditure deflation but not as an effect modifier.
+- `post` — measured after endline, not registered as a NEXIS covariate at all since a post-treatment value risks collider bias: `staple_price_index_2016`/`staple_price_index_2017`, potentially useful for expenditure deflation but not as an effect modifier.
 
 `Dataset.subset(timing=Timing.X)` filters by this tag too. All three of `domain`/`access`/`timing` default to `unknown` for apps that haven't migrated to this tagging scheme yet (Uganda/CelebA) — no real Ghana covariate should ever carry that value, since every one has a definite domain/access/timing by construction.
 
@@ -69,7 +70,7 @@ Every covariate also carries a `domain` tag (`src/apps/covariates.py::Domain`) �
 | `economy` | Livelihoods, business/farm/livestock ownership, prices | 7 |
 | `accessibility` | Distance/travel-time to anywhere — capital, city, market, light | 4 |
 | `urbanization` | Own-place settlement character — population, built-up, lit | 4 |
-| `environment` | Climate + land cover/vegetation (rainfall + satellite representation) | 7 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
+| `environment` | Climate + land cover/vegetation (rainfall + satellite representation) + agroecological potential (GAEZ) | 8 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
 | `security` | Conflict, violence, unrest | 3 |
 | `health` | Disease burden | 3 |
 
@@ -80,7 +81,7 @@ A sixth tag, `access` (`src/apps/covariates.py::Access`), records how the *sourc
 | Access | Meaning | Sources |
 |---|---|---|
 | `proprietary` | Not ours to redistribute | LEAP-1000 household survey (UNICEF) |
-| `public` | Downloadable with no account at all | Market access, malaria (Malaria Atlas Project WCS), market prices (WFP/HDX), air pollution (WashU ACAG public S3) |
+| `public` | Downloadable with no account at all | Market access, malaria (Malaria Atlas Project WCS), market prices (WFP/HDX), air pollution (WashU ACAG public S3), agroecological potential (FAO GAEZ ArcGIS ImageServer) |
 | `restricted` | Needed a free account/registration | Rainfall, nighttime lights, population density, urbanization degree, satellite imagery (all Google Earth Engine); conflict/protest events (ACLED, approval-gated) |
 
 `Dataset.subset(access=Access.X)` filters by this tag too.
@@ -184,18 +185,24 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 |---|---|
 | **Origin** | [WFP Food Prices for Ghana](https://data.humdata.org/dataset/wfp-food-prices-for-ghana), via the Humanitarian Data Exchange (HDX) — fully public, no account needed. 91 markets nationally, monthly price observations since 2006. |
 | **Produced by** | `src/apps/ghana/download_market_prices.py` — downloads both the markets list and price CSVs directly, no manual step. |
-| **Motivation** | A market-power/market-integration proxy — originally proposed as milk price, but Ghana's WFP monitoring doesn't track milk/dairy at all (no local fresh-milk market; Ghana is import-dependent for dairy). Maize is Northern Ghana's actual staple crop and has excellent coverage near the study area: markets in/near 4 of the 5 LEAP districts (Nalerigu/East Mamprusi, Yendi, Garu/Garu-Tempane, Bongo), plus several more within reach (Gushegu, Bunkprugu, Bolga, Tamale, Zabzugu). |
+| **Motivation** | A purchasing-power / cost-of-living proxy — how far a fixed-GHS LEAP transfer goes locally, not what any single crop costs. Originally proposed as milk price, but Ghana's WFP monitoring doesn't track milk/dairy at all (no local fresh-milk market; Ghana is import-dependent for dairy). Maize (Northern Ghana's actual staple) anchors the basket below, with excellent coverage near the study area: markets in/near 4 of the 5 LEAP districts (Nalerigu/East Mamprusi, Yendi, Garu/Garu-Tempane, Bongo), plus several more within reach (Gushegu, Bunkprugu, Bolga, Tamale, Zabzugu). |
 | **Raw columns** | 16 per price record: date, admin1/2, market, market_id, lat/lon, category, commodity, unit, priceflag, pricetype, currency, price, usdprice. |
-| **Covariates extracted** | 8 columns total, one per year 2010-2017, each computed independently (no pooling across years). Only 2 feed NEXIS's `W`: `dist_nearest_market_km` (`level=community`, distance to the nearest market with a Maize price observation in 2015) and `maize_price_2015` (`level=regional`, that market's mean Maize price over 2015 alone). The other 6 (`maize_price_2010`..`maize_price_2014`, `maize_price_2016`, `maize_price_2017`) are written to the same CSV but deliberately **not** loaded into `W` — see below. |
+| **Covariates extracted** | 9 columns total: `dist_nearest_market_km` and a **staple price index** for every year 2010-2017 (each year computed independently, no pooling across years) — an equal-weighted average of z-scored nearest-market prices across 7 staples (Maize, Rice imported/local, Millet, Sorghum, Yam, Plantains). Only 2 feed NEXIS's `W`: `dist_nearest_market_km` (`level=community`) and `staple_price_index_2015` (`level=regional`). The other 7 (`staple_price_index_2010`..`staple_price_index_2014`, `staple_price_index_2016`, `staple_price_index_2017`) are written to the same CSV but deliberately **not** loaded into `W` — see below. |
 | **Status** | ✅ complete. |
 
-**Why per-year, not pooled**: an earlier version of `maize_price_2015` pooled 2014+2015 specifically to fix a sparsity problem (see below) — that pooling has since been dropped in favor of a clean, consistent per-year series across 2010-2017. This is a deliberate simplification, not a data-driven improvement — see the tradeoff it reintroduces, next.
+**Why a basket, not a single crop's price**: an earlier version of this covariate (`maize_price_2015`) tracked Maize alone. Maize's price answers "what does maize cost here," a different question from "how far does the fixed-GHS LEAP grant go here" (the actual construct of interest). The basket approach was adopted instead, checked to have real coverage for all 7 commodities in every year 2010-2017 before adopting it. Z-scoring each commodity first is necessary because raw price levels aren't comparable across commodities (a GHS/kg of rice isn't the same unit as a GHS/kg of yam) — the index is each community's average *standardized* price across the basket, so higher = locally more expensive staples overall, not any single commodity's literal price.
 
-**The tradeoff this reintroduces**: 2015 alone is data-poor. Only 2 distinct markets nationally report Maize in 2015 near the LEAP districts (median distance to nearest priced market: 75km, max 116km). 2014 is the one anomalous year with rich nearby coverage (9 markets, 13.7km median) — pooling 2014+2015 previously fixed this (7 of the 9 markets used had *zero* 2015-only observations, only a 2014 one). Reverting to 2015-alone knowingly brings back that sparsity in the one covariate that still feeds NEXIS. Flagged here as an open question, not a settled tradeoff — revisit if `maize_price_2015`/`dist_nearest_market_km` turn out to matter for the results.
+Two commodities were checked and excluded from the basket: Cassava has coverage, but resolves to a *different, farther* nearest-market catchment (median 129km vs. 75km for every other staple in 2015) — mixing it in would silently swap the geographic assignment underlying part of the index, breaking comparability with the other 7. Rice (paddy) was dropped as redundant with Rice (imported)/Rice (local) (the consumer-facing forms actually purchased, vs. the unprocessed wholesale form).
 
-**Why nearest-market assignment rather than a district-level price**: markets are point locations, not administrative units, so assigning each community its geographically nearest priced market (rather than "the market in this community's district") gives more granular variation than a 5-category district dummy would. That granularity is still coarser than "community", though — `maize_price_2015` is a genuine step function shared across a market's catchment area (only 2 markets serving all 162 communities in 2015), not per-community variation the way `dist_nearest_market_km`'s continuous haversine distance is — hence `level=regional`, not `community` (see [Level](#level) above).
+**Why per-year, not pooled**: each year's index is computed independently, no pooling across years — nearest-market assignment is recomputed per year since not every market reports every commodity every year.
 
-**The other 6 years — not `W` covariates**: `maize_price_2010`..`maize_price_2014` are tagged `timing=historic` (long-run price history predating baseline, the same role as rainfall's 2000-2014 climatology — see [Timing](#timing) above); `maize_price_2016`/`maize_price_2017` are `timing=post` (after endline, for deflating/actualizing expenditures downstream, not a NEXIS covariate — a cash transfer plausibly *can* move local Maize prices post-endline, unlike a 2015 price it predates). Checked before extracting: outside of 2014, WFP Maize coverage near the LEAP districts collapses to the *same* 2 distant markets in essentially every year (2010-2013, 2015, 2016; 2017 gets a 3rd) — so these 6 diagnostics are largely near-duplicates of each other and of `maize_price_2015`, tracking the same handful of markets' price over time rather than adding independent local variation. There's no genuine "during-treatment" window either: 2016-only, 2016-2017-pooled, and 2017-only all resolve to the identical nearest-markets, so `timing=during` doesn't apply to any market-price column (it does apply elsewhere — `rainfall_2016`/`rainfall_2017`, the ACLED 2015-2017 columns).
+**The tradeoff this carries**: 2015 alone is data-poor. Only 2 distinct markets nationally serve this basket in 2015 near the LEAP districts (median distance to nearest priced market: 75km, max 116km). 2014 is the one anomalous year with rich nearby coverage (9 markets, 13.7km median for Maize specifically) — an earlier version of this covariate pooled 2014+2015 to fix exactly this sparsity. That pooling has since been dropped in favor of per-year consistency, knowingly bringing back that sparsity in the covariate that still feeds NEXIS. Averaging across 7 commodities reduces commodity-specific idiosyncratic noise (a bad maize harvest alone doesn't sink the whole index) but does **not** fix this underlying sparsity, since every commodity in the basket shares the same market geography. Flagged here as an open question, not a settled tradeoff — revisit if `staple_price_index_2015`/`dist_nearest_market_km` turn out to matter for the results.
+
+**Why nearest-market assignment rather than a district-level price**: markets are point locations, not administrative units, so assigning each community its geographically nearest priced market (rather than "the market in this community's district") gives more granular variation than a 5-category district dummy would. That granularity is still coarser than "community", though — `staple_price_index_2015` is a genuine step function shared across a market's catchment area (only 2 markets serving all 162 communities in 2015), not per-community variation the way `dist_nearest_market_km`'s continuous haversine distance is — hence `level=regional`, not `community` (see [Level](#level) above).
+
+**The 7 non-`W` yearly columns**: `staple_price_index_2010`..`staple_price_index_2014` are tagged `timing=historic` (long-run price history predating baseline, the same role as rainfall's 2000-2014 climatology — see [Timing](#timing) above); `staple_price_index_2016`/`staple_price_index_2017` are `timing=post` (after endline, for deflating/actualizing expenditures downstream, not a NEXIS covariate — a cash transfer plausibly *can* move local prices post-endline, unlike a 2015 value it predates). Checked before extracting: outside of 2014, WFP coverage near the LEAP districts collapses to the *same* 2 distant markets in essentially every year for this basket (2010-2013, 2015, 2016; 2017 gets a 3rd) — so these diagnostics are largely near-duplicates of each other and of `staple_price_index_2015`, tracking the same handful of markets' price over time rather than adding independent local variation. There's no genuine "during-treatment" window either: 2016-only, 2016-2017-pooled, and 2017-only all resolve to the identical nearest-markets, so `timing=during` doesn't apply to any market-price column (it does apply elsewhere — `rainfall_2016`/`rainfall_2017`, the ACLED 2015-2017 columns).
+
+Every included commodity shares the identical 2 nearest markets as Maize (the basket's distance anchor, `dist_nearest_market_km`) in 2015 — so this index mainly reduces commodity-specific idiosyncratic noise (a bad maize harvest alone doesn't sink the whole index) rather than fixing the underlying market-sparsity problem documented above; it's built on the same geography, not new geographic coverage.
 
 ## Nighttime lights (VIIRS, 2015)
 
@@ -280,6 +287,27 @@ Example (community 14, Garu-Tempane): mean 945mm/yr, std 111mm, drought in 2/15 
 
 **Why this is a valid community-level covariate**: same test as the sources above — a household-level cash transfer cannot move regional air quality, so this is exogenous regardless of timing.
 
+## Agroecological potential (FAO GAEZ v4)
+
+| | |
+|---|---|
+| **Origin** | [FAO GAEZ v4](https://gaez.fao.org/) (Global Agro-Ecological Zones) — public ArcGIS ImageServer (`gaez-services.fao.org`), no account needed. Confirmed feasible via a live `GetCapabilities`/`exportImage` check before adopting (see memory notes from the sourcing discussion): a mosaic-dataset service selected via a `where` clause on the catalog's `name` attribute, same "public unauthenticated raster endpoint" pattern as CHIRPS/Malaria Atlas, just ArcGIS REST instead of WCS. |
+| **Produced by** | `src/apps/ghana/download_gaez.py` — `exportImage` request clipped to Ghana's bounding box server-side (~1MB GeoTIFF, not the ~9km global raster). |
+| **Motivation** | Raised while auditing this registry for gaps in household economic power: existing covariates capture realized weather (rainfall) and remoteness (accessibility), but nothing about the land's *ceiling* — whether a farming household's soil/agroclimate can support intensified maize cultivation at all, regardless of a given year's weather. |
+| **Raw columns** | 1 (`suHr0_mze` — rainfed, high-input-level maize suitability index, 0–10000, continuous). |
+| **Covariates extracted** | 1: `maize_suitability_index` (`level=regional`, `timing=historic`). |
+| **Status** | ✅ complete. |
+
+**Why Maize**: matches the staple-crop choice already made for market prices (see the Market prices section above) — Northern Ghana's actual staple, not an arbitrary pick. GAEZ also publishes sorghum/millet/etc. suitability layers under the same service if a broader basket is ever wanted here too.
+
+**Why genuinely time-invariant, unlike every other source in this file**: GAEZ v4's baseline represents 1981–2010 climate normals, not a rolling annual series — there's no year-matching question to resolve at all, unlike rainfall (needs a study-window/pre-baseline split), market prices (extracted per-year precisely because of this), or malaria/PM2.5 (both explicitly dated to 2015). Soil/agroclimatic suitability simply doesn't change year to year the way those do. `timing=historic` (same role as rainfall's 2000-2014 climatology): "what this land is normally like," not "right before treatment."
+
+**Why `level=regional`, not `community`**: checked before extracting, the same way `staple_price_index_2015` was checked. Only 16 distinct raster values across the 162 communities (~9km/5-arcmin resolution over a compact study area), and one value — the ceiling, 10000 — alone covers 127/162 communities. That's far coarser than every other raster-sampled covariate in this registry: `rainfall_2015`, `malaria_mortality_rate_2015`, and `pm25_2015` all have 61–125 distinct values among the 162 communities, with no single value covering more than 11. `maize_suitability_index` is a genuine step function shared across large clusters, not per-community variation — same reasoning as `staple_price_index_2015`, different underlying cause (coarse raster resolution vs. market catchment sparsity).
+
+**Not redundant with existing covariates**: weakly correlated with `rainfall_mean_pre2015` (r=0.11), `pm25_2015` (r=0.15), `dist_to_capital_km` (r=-0.12), and `travel_time_to_city_min` (r=0.0006) — confirms it captures something genuinely distinct from realized weather or remoteness.
+
+**Why this is a valid covariate regardless of timing**: a household-level cash transfer cannot change the underlying soil or 1981-2010 climate normals, so this is exogenous by construction.
+
 ## Explored and rejected
 
 Sources that were investigated — some fully implemented then removed, some rejected before extraction based on documented limitations — kept here (rather than silently dropped) so the reasoning doesn't get rediscovered from scratch later.
@@ -309,6 +337,26 @@ Rejected before extraction, based on EM-DAT's own documentation ([doc.emdat.be/d
 **Why this rules it out for our specific sample**: the 162 LEAP communities span only 5 districts (East Mamprusi, Karaga, Yendi, Bongo, Garu-Tempane). Even with perfect Admin-2 geocoding, any EM-DAT-derived covariate (e.g. disaster count since 2000) can take at most 5 distinct values across all 162 communities — a coarse district dummy, not a continuous community-level signal like ACLED's per-event distance. At that resolution it risks being largely redundant with district identity itself (which `dist_to_capital_km` already partially encodes) rather than adding new information.
 
 **Bar for revisiting**: if UNICEF's community questionnaire microdata already covers Table 4.2.7-style community shocks (see the Planned section below) with better granularity, that supersedes this option entirely. Otherwise, revisit only if a specific sub-district-level EM-DAT extension or complementary source appears.
+
+### Travel time to healthcare (Malaria Atlas Project)
+
+Rejected before extraction, based on the WCS catalog's own metadata (checked directly against the live endpoint, no download needed).
+
+**What's available**: the same Malaria Atlas Project WCS endpoint that serves `Accessibility__201501_Global_Travel_Time_to_Cities` (used for `travel_time_to_city_min`, explicitly dated 2015) also serves `Accessibility__202001_Global_Motorized_Travel_Time_to_Healthcare` — a more targeted accessibility proxy given LEAP-1000 specifically targets maternal/child health, so worth checking. But unlike the cities layer, it's only available dated **2020**, not 2015 (confirmed via `GetCapabilities`; no 2015-dated healthcare-specific coverage exists on this endpoint).
+
+**Why this rules it out**: health facility locations open and close over a 5-year window the same way cell towers do — the same temporal-validity failure mode that got OpenCellID/Ookla rejected above. A 2020 facility-access snapshot isn't a trustworthy stand-in for 2015 baseline conditions.
+
+**Bar for revisiting**: a 2015-dated (or genuinely time-invariant) healthcare-accessibility layer, from Malaria Atlas Project or elsewhere.
+
+### Market thickness (WFP market density)
+
+Rejected after computing it, not before.
+
+**What was tried**: count of distinct WFP-monitored markets with any price observation (any commodity) in 2015-2017, within a fixed radius of each community centroid — reusing the same nearest-market machinery as `download_market_prices.py`, just counting instead of nearest-assigning.
+
+**Why this rules it out**: even at a 150km radius, the count only takes values {1, 2, 3} across all 162 communities (25km: {0, 1}; 50km: {0, 1}; 100km: {1, 2, 3}) — near-degenerate. This reflects how few WFP-monitored markets exist nationally near the LEAP districts (only 16 of 91 listed markets have any 2015-2017 observation at all — the same sparsity documented throughout the Market prices section above), not a coverage-radius tuning problem.
+
+**Bar for revisiting**: a market registry with denser coverage near Northern Ghana than WFP's own price-monitoring list.
 
 ## Planned / candidate future sources
 
