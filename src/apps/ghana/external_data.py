@@ -129,7 +129,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
       of staple_price_index_2015, tracking the same 2 markets' price over
       time.
 
-    Nighttime lights contribute 2 columns (see download_nightlights.py),
+    Nighttime lights contribute 3 columns (see download_nightlights.py),
     from the VIIRS 2015 annual composite (Google Earth Engine, same
     authentication as rainfall/satellite -- explicitly dated 2015, an exact
     match to the LEAP baseline, unlike OpenCellID/Ookla):
@@ -143,8 +143,19 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         above a standard "detectable urban light" threshold, always
         defined -- a remoteness/access proxy, weakly correlated with
         night_light_radiance itself (r=-0.25, answers a different question).
-      A cash transfer cannot build a power grid or move a town, so both are
-      exogenous regardless of timing.
+      - night_light_trend: night_light_radiance(2015) minus the same
+        quantity for 2013 -- not "how lit is this community" but "was it
+        getting more lit" (a local economic-momentum proxy, Henderson,
+        Storeygard & Weil 2012, AER). 2013, not 2012: NOAA/GEE's own
+        catalog metadata flags 2012 as inconsistent with later years'
+        processing, checked before picking a trend window. Also checked
+        per-community `cf_cvg` (cloud-free observation count) in both
+        years before trusting the difference -- all 162 communities have
+        cf_cvg > 80 in both 2013 and 2015, so no masking was actually
+        needed here. Correlates -0.71 with night_light_radiance (leaves
+        real independent variation, not a re-derivation).
+      A cash transfer cannot build a power grid or move a town, so all
+      three are exogenous regardless of timing.
 
     Population density contributes 1 column (see download_worldpop.py),
     from WorldPop's 2015 100m gridded population estimate (Google Earth
@@ -235,7 +246,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     market_access_columns = ['travel_time_to_city_min']
     acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
     market_prices_columns = ['dist_nearest_market_km', 'staple_price_index_2015']
-    nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km']
+    nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km', 'night_light_trend']
     worldpop_columns = ['pop_density_2km']
     ghsl_columns = ['urbanization_degree']
     malaria_columns = ['malaria_mortality_rate_2015', 'malaria_incidence_rate_2015']

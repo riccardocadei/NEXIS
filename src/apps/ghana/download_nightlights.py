@@ -29,6 +29,25 @@ existing covariates.
     (r=0.66) and travel_time_to_city_min (r=0.52), but not so high as to be
     a pure re-derivation.
 
+A third covariate, night_light_trend, answers a different question again:
+not "how lit is this community" (a level) but "was it getting more lit in
+the run-up to treatment" (a trend) -- a local economic-momentum proxy
+(Henderson, Storeygard & Weil 2012, AER, is the canonical satellite-
+nightlights-as-growth-proxy citation), distinct from a snapshot level.
+Computed as night_light_radiance(2015) - night_light_radiance(TREND_YEAR).
+
+TREND_YEAR=2013, not 2012: checked against the collection's own catalog
+metadata first -- NOAA/GEE explicitly flag 2012 as inconsistent ("2012
+data are not yet included because of differences in processing"), so the
+clean annual series only starts at 2013. Cross-year radiometric-consistency
+caveat also checked: the catalog doesn't carry an explicit DMSP-OLS-style
+intercalibration warning, but does expose a `cf_cvg` (cloud-free
+observation count) band as a quality signal. Checked per-community cf_cvg
+for both 2013 and 2015 before trusting the difference -- every one of the
+162 communities has cf_cvg > 80 in both years (median ~91-94), so no
+masking was actually needed for this specific set of communities (unlike,
+say, a rainforest-zone study area might require).
+
 Usage:
     python download_nightlights.py [--dry-run]
 """
@@ -44,6 +63,7 @@ import requests
 
 VIIRS_COLLECTION = 'NOAA/VIIRS/DNB/ANNUAL_V21'
 YEAR = 2015
+TREND_YEAR = 2013             # earliest year with a clean (non-2012-flagged) annual composite
 LIGHT_THRESHOLD = 1.0        # radiance above which a pixel counts as "lit"
 OWN_COMMUNITY_BUFFER_M = 1000
 GHANA_BBOX = dict(lat_min=9.0, lat_max=11.5, lon_min=-1.5, lon_max=0.8)
@@ -103,14 +123,14 @@ def download_raster(out_path: Path):
     log(f"  Wrote {out_path} ({len(r.content) / 1e3:.0f} KB)")
 
 
-def own_community_radiance(centroids: pd.DataFrame) -> pd.DataFrame:
+def own_community_radiance(centroids: pd.DataFrame, year: int, col: str) -> pd.DataFrame:
     """Mean radiance within OWN_COMMUNITY_BUFFER_M of each centroid, via GEE
     reduceRegions -- direct measurement of the community's own detectable
     light, not a proxy sampled from a downloaded raster."""
     import ee
     ee.Initialize()
     img = (ee.ImageCollection(VIIRS_COLLECTION)
-             .filterDate(f'{YEAR}-01-01', f'{YEAR + 1}-01-01')
+             .filterDate(f'{year}-01-01', f'{year + 1}-01-01')
              .first().select('average_masked'))
     fc = ee.FeatureCollection([
         ee.Feature(ee.Geometry.Point([float(row.lon), float(row.lat)])
@@ -120,7 +140,7 @@ def own_community_radiance(centroids: pd.DataFrame) -> pd.DataFrame:
     ])
     reduced = img.reduceRegions(collection=fc, reducer=ee.Reducer.mean(), scale=500).getInfo()
     rows = [
-        {'comm': f['properties']['comm_id'], 'night_light_radiance': f['properties'].get('mean')}
+        {'comm': f['properties']['comm_id'], col: f['properties'].get('mean')}
         for f in reduced['features']
     ]
     return pd.DataFrame(rows)
@@ -160,7 +180,7 @@ def main():
 
     if args.dry_run:
         log(f"[DRY RUN]")
-        log(f"  Collection: {VIIRS_COLLECTION}  year={YEAR}")
+        log(f"  Collection: {VIIRS_COLLECTION}  year={YEAR}  trend_year={TREND_YEAR}")
         log(f"  Output: {out_dir / 'nightlights_community.csv'}")
         return
 
@@ -168,9 +188,12 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     download_raster(raster_path)
 
-    radiance = own_community_radiance(centroids)
+    radiance = own_community_radiance(centroids, YEAR, 'night_light_radiance')
+    trend_radiance = own_community_radiance(centroids, TREND_YEAR, 'night_light_radiance_trend_year')
     dist = dist_to_nearest_light(centroids, raster_path)
-    stats = radiance.merge(dist, on='comm')
+    stats = radiance.merge(trend_radiance, on='comm').merge(dist, on='comm')
+    stats['night_light_trend'] = stats['night_light_radiance'] - stats['night_light_radiance_trend_year']
+    stats = stats.drop(columns=['night_light_radiance_trend_year'])
 
     out_path = out_dir / 'nightlights_community.csv'
     stats.to_csv(out_path, index=False)
@@ -180,6 +203,9 @@ def main():
     log(f"  dist_nearest_light_km: min={stats['dist_nearest_light_km'].min():.2f}  "
         f"median={stats['dist_nearest_light_km'].median():.2f}  "
         f"max={stats['dist_nearest_light_km'].max():.2f}")
+    log(f"  night_light_trend ({YEAR} - {TREND_YEAR}): min={stats['night_light_trend'].min():.3f}  "
+        f"median={stats['night_light_trend'].median():.3f}  "
+        f"max={stats['night_light_trend'].max():.3f}")
 
 
 if __name__ == '__main__':
