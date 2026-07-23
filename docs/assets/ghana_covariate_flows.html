@@ -567,6 +567,12 @@
           <p class="what">night_light_radiance change 2013-2015 — an economic-momentum proxy, tried and dropped after a 3-round investigation.</p>
           <p class="used"><span class="not-used-label">Not used</span> Not fire contamination (the biggest "decliner" is a real town — Yendi — with high radiance every month, not a transient spike) and not sensor drift (stable reference cities Tamale/Bolgatanga <em>grew</em> over the same window). Actual cause: our brightest communities sit at radiance ~1-5, close enough to VIIRS's detection noise floor that a 2-3 year difference isn't trustworthy.</p>
         </article>
+
+        <article class="source-card">
+          <h4><a href="https://data.humdata.org/dataset/relative-wealth-index" target="_blank" rel="noopener">Meta (Relative Wealth Index)</a></h4>
+          <p class="what">Satellite+mobile-connectivity+OSM-derived wealth proxy, ~2.4km grid, trained against DHS/LSMS wealth scores.</p>
+          <p class="used"><span class="not-used-label">Not used</span> Access and density were never the problem (fully public via HDX, 3,341 grid points near the LEAP districts) — the paper's own methods section states the input data are primarily generated ~2018. The mobile-connectivity features specifically are the same category of Facebook-infrastructure snapshot as OpenCellID/Ookla, both already rejected here for being present-day, not 2015-2017. RWI is one indivisible composite score, not decomposable to keep just the slower-moving satellite/population layers.</p>
+        </article>
       </div>
     </div>
   </section>

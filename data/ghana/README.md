@@ -22,6 +22,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Agroecological potential](#agroecological-potential-fao-gaez-v4) | [FAO GAEZ v4](https://gaez.fao.org/) | ~1 MB (Ghana-clipped GeoTIFF) | Raster point value | Regional | 1 (suitability index) | 1 | 1981–2010 (static) | ✅ |
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
+| [Relative Wealth Index](#meta-relative-wealth-index) | [Meta Data for Good](https://data.humdata.org/dataset/relative-wealth-index) (via HDX) | — | Tabular point value | — | 4 (lat/lon/rwi/error) | 0 (rejected) | ~2018 (construction-time, blended) | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
 | **Total** | | **~7 GB** | | | | **197** | | |
 
@@ -373,6 +374,16 @@ Rejected after building and inspecting it, not before — a genuine multi-round 
 **The actual explanation**: our brightest LEAP communities sit at radiance ~1-5, while the stable reference cities sit at ~5-14 — much closer to VIIRS's detection noise floor. Small/dim light sources are inherently noisier year-to-year in this product than large, well-established cities (a known signal-to-noise limitation in the nightlights literature), independent of both fire and sensor drift. A 2-3 year difference at this magnitude isn't reliable enough to trust as a covariate. (One genuine exception, not generalizable: `comm 1265` shows a real one-off crash-to-near-zero pattern — radiance 1.06 in 2013, then ~0 in both 2014 and 2015 — consistent with an actual transient event at that specific location, but this doesn't rescue the covariate as a whole.)
 
 **Bar for revisiting**: either a longer pre-baseline VIIRS window than the 3 years available (2013-2015, capped by 2015 being baseline and 2012 being flagged inconsistent — not enough years for a genuinely robust multi-year estimator), or a dedicated fire-detection product (VIIRS Nightfire) to explicitly mask contaminated pixels rather than infer contamination indirectly.
+
+### Meta Relative Wealth Index
+
+Rejected before extraction, based on the paper's own methods section rather than a downloaded sample — no data was pulled for this one (access itself was confirmed feasible and fully public via HDX, same no-account CSV-download pattern as WFP; the rejection is about temporal validity, not access).
+
+**What it is**: Chi et al. 2022 (*PNAS*), "Microestimates of wealth for all low- and middle-income countries" — a satellite+mobile-connectivity+OSM-derived wealth proxy, ~2.4km grid, trained against DHS/LSMS household wealth scores. Confirmed dense near the LEAP districts (3,341 grid points within the study bbox, vs. WFP's ~13-15 markets or GAEZ's 16 distinct raster values) — density was never the problem.
+
+**Why this rules it out**: the paper states directly (SM7, p.19 of the SI) — *"the input data are primarily generated in 2018... this often creates a mismatch between the dates of the input variables and the survey labels."* The mobile/connectivity features specifically (cell towers, WiFi access points, device counts) are Facebook's proprietary infrastructure snapshot, dated to construction time (~2018) — the same category of data as OpenCellID/Ookla, both already rejected in this project for being present-day snapshots that don't represent 2015-2017 conditions. Unlike those two, RWI blends this with satellite imagery and population layers that are individually slower-moving — but the published product is one **indivisible composite score**, not something that can be decomposed to keep only the slow-moving layers and discard the 2018 connectivity snapshot. The whole index carries one construction-time vintage, not the vintage of any one input.
+
+**Bar for revisiting**: a version of RWI (or an equivalent wealth-index product) built entirely from inputs with a genuine 2015-dated vintage, or a documented decomposition that isolates the satellite/population components from the connectivity features.
 
 ## Planned / candidate future sources
 
