@@ -14,7 +14,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [Market access](#market-access-travel-time-to-cities-2015-malaria-atlas-project) | [Malaria Atlas Project](https://malariaatlas.org/) — Weiss et al. 2018 (Nature) | 662 KB (Ghana-clipped raster) | Raster point value | Community | 1 (travel time, minutes) | 1 | 2015 | ✅ |
 | [Conflict/protest events](#conflictprotest-events-acled-2015-2017) | [ACLED](https://acleddata.com/) | 500 events, Ghana 2015–2017 | Tabular event records | Community | 29 (per event) | 3 (distance + 2 type-split counts) | 2015–2017 | ✅ |
 | [Market prices](#market-prices-wfp-food-prices-2010-2017) | [WFP Food Prices](https://data.humdata.org/dataset/wfp-food-prices-for-ghana) (via HDX) | 91 markets, 32k+ price obs. | Tabular time series | Community + Regional | 16 (per price record) | 2 in `W` (distance + 2015 staple price index) + 7 extracted but not in `W` (2010–2014 historic, 2016–2017 post, same 7-commodity basket) | 2010–2017 | ✅ |
-| [Nighttime lights](#nighttime-lights-viirs-2013-2015) | [NOAA VIIRS DNB](https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21), via Google Earth Engine | 46 KB (Ghana-clipped raster) | Raster point value | Community | 1 (radiance) | 3 (own-community radiance + distance + 2013–2015 rolling-average trend) | 2013–2015 | ✅ |
+| [Nighttime lights](#nighttime-lights-viirs-2015) | [NOAA VIIRS DNB](https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21), via Google Earth Engine | 46 KB (Ghana-clipped raster) | Raster point value | Community | 1 (radiance) | 2 (own-community radiance + distance) | 2015 | ✅ |
 | [Population density](#population-density-worldpop-2015) | [WorldPop](https://developers.google.com/earth-engine/datasets/catalog/WorldPop_GP_100m_pop), via Google Earth Engine | ~100m gridded, Ghana | Raster point value | Community | 1 (population) | 1 | 2015 | ✅ |
 | [Urbanization degree](#urbanization-degree-ghsl-settlement-model-2015) | [GHSL Settlement Model](https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2023A_GHS_SMOD_V2-0), via Google Earth Engine | 1km gridded, Ghana | Raster point value | Community | 1 (settlement code) | 1 | 2015 | ✅ |
 | [Malaria mortality/incidence](#malaria-mortality--incidence-malaria-atlas-project-2015) | [Malaria Atlas Project](https://malariaatlas.org/) | 2× 99 KB (Ghana-clipped rasters) | Raster point value | Community | 1 each (rate) | 2 | 2015 | ✅ |
@@ -23,7 +23,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 | [EM-DAT events](#em-dat-disaster-events) | [EM-DAT](https://www.emdat.be/) | — | Tabular event records | District | — | 0 (rejected) | — | ❌ |
 | [Mobile coverage/usage](#mobile-coverage--usage-opencellid-ookla) — OpenCellID + Ookla | [OpenCellID](https://www.opencellid.org/) / [Ookla](https://registry.opendata.aws/speedtest-global-performance/) | — | Tabular point value | Community | — | 0 (rejected) | — | ❌ |
 | Community questionnaire microdata (requested) | UNICEF Ghana (requested, not yet received) | — | Tabular survey | Community | — | — | — | ⏳ |
-| **Total** | | **~7 GB** | | | | **198** | | |
+| **Total** | | **~7 GB** | | | | **197** | | |
 
 Rows marked "↳" share Data/Source/Size/Modality with the row directly above (left blank rather than repeated) — GitHub-flavored markdown has no merged/spanning cells, so this is the closest approximation. "Level" is the unit each row's covariates are natively measured at — household, community, regional, or (for some planned sources) district — before anything is merged onto the household panel (`comm` is the join key for every community-level row; no source here operates at an individual-within-household level today). See [Level](#level) for what distinguishes "regional" from "community".
 
@@ -69,7 +69,7 @@ Every covariate also carries a `domain` tag (`src/apps/covariates.py::Domain`) �
 | `housing` | Dwelling materials, water, electricity, crowding | 8 |
 | `economy` | Livelihoods, business/farm/livestock ownership, prices | 7 |
 | `accessibility` | Distance/travel-time to anywhere — capital, city, market, light | 4 |
-| `urbanization` | Own-place settlement character — population, built-up, lit | 5 |
+| `urbanization` | Own-place settlement character — population, built-up, lit | 4 |
 | `environment` | Climate + land cover/vegetation (rainfall + satellite representation) + agroecological potential (GAEZ) | 8 static + 143 dynamic (SAE neurons/spectral indices, registered in `interpret.py`) |
 | `security` | Conflict, violence, unrest | 3 |
 | `health` | Disease burden | 3 |
@@ -204,30 +204,24 @@ Two commodities were checked and excluded from the basket: Cassava has coverage,
 
 Every included commodity shares the identical 2 nearest markets as Maize (the basket's distance anchor, `dist_nearest_market_km`) in 2015 — so this index mainly reduces commodity-specific idiosyncratic noise (a bad maize harvest alone doesn't sink the whole index) rather than fixing the underlying market-sparsity problem documented above; it's built on the same geography, not new geographic coverage.
 
-## Nighttime lights (VIIRS, 2013-2015)
+## Nighttime lights (VIIRS, 2015)
 
 | | |
 |---|---|
 | **Origin** | `NOAA/VIIRS/DNB/ANNUAL_V21` (stray-light-corrected annual composite), via Google Earth Engine — same authentication already used for rainfall/satellite imagery, no new account needed. |
-| **Produced by** | `src/apps/ghana/download_nightlights.py` — downloads a small (46KB) Ghana-clipped raster plus direct GEE `reduceRegions` calls for the own-community radiance (2015 and 2013). |
+| **Produced by** | `src/apps/ghana/download_nightlights.py` — downloads a small (46KB) Ghana-clipped raster plus a direct GEE `reduceRegions` call for the own-community radiance. |
 | **Motivation** | Proposed as an urbanization/connectivity proxy — checked empirically rather than assumed, since a raw point-sample turned out to need real scrutiny (see below). |
-| **Raw columns** | 1 (radiance, the composite's `average_masked` band), pulled for three years (2013-2015). |
-| **Covariates extracted** | 3, community-level `W`: `night_light_radiance` (mean radiance within 1km of the centroid, 2015 — own-community electrification/economic-activity signal), `dist_nearest_light_km` (distance to the nearest pixel with radiance above a detectable-light threshold, 2015 — a remoteness/access proxy), and `night_light_trend` (`mean(radiance_2014, radiance_2015) - mean(radiance_2013, radiance_2014)` — a local economic-momentum proxy, not a re-derivation of the level). |
+| **Raw columns** | 1 (radiance, the composite's `average_masked` band). |
+| **Covariates extracted** | 2, community-level `W`: `night_light_radiance` (mean radiance within 1km of the centroid — own-community electrification/economic-activity signal) and `dist_nearest_light_km` (distance to the nearest pixel with radiance above a detectable-light threshold — a remoteness/access proxy). |
 | **Status** | ✅ complete. |
 
-**Why three covariates, not two**: `night_light_radiance` and `dist_nearest_light_km` answer different questions and turned out to be only weakly correlated with each other (r=-0.25). A direct point-sample of the community's own location is heavily zero-inflated — 91% of communities (147/162) show near-zero radiance at their exact centroid, confirmed genuine (not a radius artifact) by checking buffers up to 10km, all still ~15-17/162 nonzero. Rather than discard the signal the way OpenCellID's degenerate tower counts were discarded, both framings were kept because the "zero" here is itself meaningful (deep-rural Northern Ghana genuinely lacks grid electrification in most of these communities, the same reasoning that made Ookla's zero-test-count communities informative rather than noise):
+**Why two covariates, not one**: they answer different questions and turned out to be only weakly correlated with each other (r=-0.25). A direct point-sample of the community's own location is heavily zero-inflated — 91% of communities (147/162) show near-zero radiance at their exact centroid, confirmed genuine (not a radius artifact) by checking buffers up to 10km, all still ~15-17/162 nonzero. Rather than discard the signal the way OpenCellID's degenerate tower counts were discarded, both framings were kept because the "zero" here is itself meaningful (deep-rural Northern Ghana genuinely lacks grid electrification in most of these communities, the same reasoning that made Ookla's zero-test-count communities informative rather than noise):
 - `night_light_radiance`: sparse (~15/162 nonzero at a 1km buffer, checked at multiple thresholds), registered as `sparse_nonneg` like SAE activations — "does this specific community itself have detectable light." Weakly correlated with `dist_to_capital_km`/`community_size`/`travel_time_to_city_min` (all |r| ≤ 0.22) — a fairly independent fact (a specific market centre or school having solar/grid lighting doesn't track general remoteness).
 - `dist_nearest_light_km`: always defined (0.08–32km, median 8.7km), a general remoteness/access proxy instead — correlated with `dist_to_capital_km` (r=0.66) and `travel_time_to_city_min` (r=0.52), higher than `night_light_radiance`'s correlations but not so high as to be a pure re-derivation.
 
-**`night_light_trend` — a different question again**: not "how lit is this community" (a level) but "was it getting more lit in the run-up to treatment" (a trend) — a local economic-momentum proxy (Henderson, Storeygard & Weil 2012, *AER*, is the canonical satellite-nightlights-as-growth-proxy citation). Only 32/162 communities have a nonzero trend (33 distinct values total) — the same underlying sparsity as `night_light_radiance` itself, not a new artifact. Signed (min -0.95, max 0.18), so registered as `continuous`, not `sparse_nonneg`. Correlates -0.71 with `night_light_radiance` — real, but leaves genuine independent variation, not a pure re-derivation.
+**Why 2015, not the most recent VIIRS composite**: VIIRS's archive starts April 2012, so (unlike Ookla, whose archive only reaches back to 2019) the exact LEAP baseline year is directly available — no temporal-mismatch trade-off needed here at all.
 
-**Why a 2-year rolling average, not single endpoint years**: `radiance(2015) - radiance(2013)` was tried first, then rejected after inspecting the result — the raw levels showed 2013 nationally *brighter* than 2015 (one community's single-year value hitting 5.67 vs. a next-highest of ~2.3), which is far more consistent with fire/biomass-burning contamination in one composite-year than genuine de-electrification over 2 years. VIIRS DNB annual composites in savanna/Sahel zones are known to pick up agricultural-residue and bushfire glow — "stray-light corrected" in this product's name refers to correcting for lunar illumination, not fire. Averaging each side over 2 years (`mean(2013,2014)` vs. `mean(2014,2015)`) roughly halves any single year's one-off event rather than letting it flip the trend's sign outright — checked: the most extreme single-endpoint value (-1.91) became -0.95 once averaged, while the same 12-negative/20-positive/130-zero split persisted, confirming this dampens outlier magnitude without erasing the underlying pattern.
-
-**Why 2013, not 2012, as the earliest year in the average**: checked the collection's own catalog metadata before picking a window — NOAA/GEE explicitly flag 2012 as inconsistent with later years' processing ("2012 data are not yet included because of differences in processing"), so the clean annual series only starts at 2013.
-
-**Cross-year comparability, checked rather than assumed**: unlike DMSP-OLS (which famously needed explicit intercalibration before any year-over-year comparison), this VIIRS collection's catalog page doesn't carry an equivalent warning — but it does expose a `cf_cvg` (cloud-free observation count) band as a quality signal. Checked per-community `cf_cvg` across 2013/2014/2015 before trusting any difference: all 162 communities have `cf_cvg` > 80 in every year (median 91-94) — no masking was actually needed for this specific, relatively cloud-free study area.
-
-**Why 2015, not the most recent VIIRS composite, for the level covariates**: VIIRS's archive starts April 2012, so (unlike Ookla, whose archive only reaches back to 2019) the exact LEAP baseline year is directly available — no temporal-mismatch trade-off needed here at all.
+A third covariate, `night_light_trend` (an economic-momentum proxy), was tried and dropped — see the "Explored and rejected" section below for the full investigation.
 
 ## Population density (WorldPop, 2015)
 
@@ -365,6 +359,20 @@ Rejected after computing it, not before.
 **Why this rules it out**: even at a 150km radius, the count only takes values {1, 2, 3} across all 162 communities (25km: {0, 1}; 50km: {0, 1}; 100km: {1, 2, 3}) — near-degenerate. This reflects how few WFP-monitored markets exist nationally near the LEAP districts (only 16 of 91 listed markets have any 2015-2017 observation at all — the same sparsity documented throughout the Market prices section above), not a coverage-radius tuning problem.
 
 **Bar for revisiting**: a market registry with denser coverage near Northern Ghana than WFP's own price-monitoring list.
+
+### Nighttime lights trend (VIIRS, 2013-2015)
+
+Rejected after building and inspecting it, not before — a genuine multi-round investigation, not a one-line rejection.
+
+**What was tried**: `night_light_trend`, an economic-momentum proxy (Henderson, Storeygard & Weil 2012, *AER*) — `night_light_radiance(2015) − night_light_radiance(2013)`. First hypothesis when the raw levels showed 2013 nationally *brighter* than 2015 (one community hitting 5.67 in 2013 vs. a next-highest of ~2.3): fire/biomass-burning contamination in one composite-year, a documented issue for VIIRS DNB composites in savanna/Sahel zones. Averaging each side over 2 years (`mean(2014,2015) − mean(2013,2014)`) was tried as a mitigation, and did roughly halve the most extreme value (-1.91 → -0.95) — but the underlying pattern persisted.
+
+**Why the fire hypothesis was wrong, checked rather than assumed**: the single largest "decliner" (`comm 1122`) turned out to have `dist_to_capital_km`=1.15km, `urbanization_degree`=30 (GHSL's max "urban centre" code), and `pop_density_2km`=9,270 — this is a real town (likely Yendi), not a rare rural fire event. Its within-year minimum radiance was also high in every year (e.g. 3.67 in 2013), which is inconsistent with a transient spike — a real fire-contaminated pixel would show a low minimum with an occasional high maximum, not uniformly high radiance all year.
+
+**Why the sensor-drift hypothesis was also wrong, checked against reference cities**: if a shared calibration drift explained the decline, stable major cities should show it too. Checked directly: Tamale (+5.6%) and Bolgatanga (+15.8%) both *grew* over 2013–2015, not declined. So the systematic-decline pattern among our brightest communities isn't a shared product-level artifact either.
+
+**The actual explanation**: our brightest LEAP communities sit at radiance ~1-5, while the stable reference cities sit at ~5-14 — much closer to VIIRS's detection noise floor. Small/dim light sources are inherently noisier year-to-year in this product than large, well-established cities (a known signal-to-noise limitation in the nightlights literature), independent of both fire and sensor drift. A 2-3 year difference at this magnitude isn't reliable enough to trust as a covariate. (One genuine exception, not generalizable: `comm 1265` shows a real one-off crash-to-near-zero pattern — radiance 1.06 in 2013, then ~0 in both 2014 and 2015 — consistent with an actual transient event at that specific location, but this doesn't rescue the covariate as a whole.)
+
+**Bar for revisiting**: either a longer pre-baseline VIIRS window than the 3 years available (2013-2015, capped by 2015 being baseline and 2012 being flagged inconsistent — not enough years for a genuinely robust multi-year estimator), or a dedicated fire-detection product (VIIRS Nightfire) to explicitly mask contaminated pixels rather than infer contamination indirectly.
 
 ## Planned / candidate future sources
 

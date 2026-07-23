@@ -129,7 +129,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
       of staple_price_index_2015, tracking the same 2 markets' price over
       time.
 
-    Nighttime lights contribute 3 columns (see download_nightlights.py),
+    Nighttime lights contribute 2 columns (see download_nightlights.py),
     from the VIIRS 2015 annual composite (Google Earth Engine, same
     authentication as rainfall/satellite -- explicitly dated 2015, an exact
     match to the LEAP baseline, unlike OpenCellID/Ookla):
@@ -143,32 +143,16 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         above a standard "detectable urban light" threshold, always
         defined -- a remoteness/access proxy, weakly correlated with
         night_light_radiance itself (r=-0.25, answers a different question).
-      - night_light_trend: mean(radiance_2014, radiance_2015) minus
-        mean(radiance_2013, radiance_2014) -- not "how lit is this
-        community" but "was it getting more lit" (a local economic-
-        momentum proxy, Henderson, Storeygard & Weil 2012, AER). A 2-year
-        rolling average, not single endpoint years: tried radiance(2015) -
-        radiance(2013) first, then rejected after inspecting the result --
-        raw levels showed 2013 nationally brighter than 2015 (one
-        community's single-year value hitting 5.67 vs. a next-highest of
-        ~2.3), far more consistent with fire/biomass-burning contamination
-        in one composite-year (VIIRS DNB annual composites in savanna/
-        Sahel zones are known to pick up agricultural-residue/bushfire
-        glow -- "stray-light corrected" here means lunar illumination, not
-        fire) than genuine de-electrification over 2 years. Averaging each
-        side over 2 years roughly halves any single year's one-off event
-        rather than letting it flip the trend's sign outright (checked:
-        the most extreme single-endpoint value, -1.91, became -0.95 once
-        averaged). 2013 as the earliest year, not 2012: NOAA/GEE's own
-        catalog metadata flags 2012 as inconsistent with later years'
-        processing. Also checked per-community `cf_cvg` (cloud-free
-        observation count) across 2013/2014/2015 before trusting any
-        difference -- all 162 communities have cf_cvg > 80 in every year,
-        so no masking was actually needed here. Correlates -0.71 with
-        night_light_radiance (leaves real independent variation, not a
-        re-derivation).
-      A cash transfer cannot build a power grid or move a town, so all
-      three are exogenous regardless of timing.
+      A cash transfer cannot build a power grid or move a town, so both are
+      exogenous regardless of timing.
+
+      A third column, night_light_trend (radiance change over 2013-2015),
+      was tried and dropped -- see data/ghana/README.md's "Explored and
+      rejected" section for the full investigation. Not fire, not sensor
+      drift (checked against stable reference cities that grew, not
+      declined, over the same window): the real issue is that our
+      brightest communities sit at radiance ~1-5, close enough to VIIRS's
+      detection noise floor that a 2-3-year difference isn't trustworthy.
 
     Population density contributes 1 column (see download_worldpop.py),
     from WorldPop's 2015 100m gridded population estimate (Google Earth
@@ -259,7 +243,7 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     market_access_columns = ['travel_time_to_city_min']
     acled_columns = ['dist_nearest_conflict_km', 'political_violence_25km', 'demonstrations_25km']
     market_prices_columns = ['dist_nearest_market_km', 'staple_price_index_2015']
-    nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km', 'night_light_trend']
+    nightlights_columns = ['night_light_radiance', 'dist_nearest_light_km']
     worldpop_columns = ['pop_density_2km']
     ghsl_columns = ['urbanization_degree']
     malaria_columns = ['malaria_mortality_rate_2015', 'malaria_incidence_rate_2015']

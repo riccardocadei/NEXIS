@@ -131,16 +131,13 @@ COVARIATES: list[Covariate] = [
               support=Support.SPARSE_NONNEG, source='nightlights', domain=Domain.URBANIZATION, access=Access.RESTRICTED, timing=Timing.PRE),
     Covariate('dist_nearest_light_km', 'Distance to nearest detectable light, 2015 (km)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='nightlights', domain=Domain.ACCESSIBILITY, access=Access.RESTRICTED, timing=Timing.PRE),
-    # Economic-momentum proxy (Henderson, Storeygard & Weil 2012, AER):
-    # mean(2014,2015) - mean(2013,2014), a 2-year rolling average rather than single
-    # endpoint years -- a single-endpoint version was tried first and rejected after
-    # the raw levels showed 2013 nationally brighter than 2015 (likely fire/biomass-
-    # burning contamination in one composite-year, not real de-electrification; see
-    # download_nightlights.py). Not a re-derivation of the level -- correlates -0.71
-    # with night_light_radiance (leaves real independent variation, not redundant).
-    # Signed (can be negative), so Support.CONTINUOUS, not SPARSE_NONNEG like the level.
-    Covariate('night_light_trend', 'Nighttime light trend, 2013-2015 (own community)', Level.COMMUNITY,
-              support=Support.CONTINUOUS, source='nightlights', domain=Domain.URBANIZATION, access=Access.RESTRICTED, timing=Timing.PRE),
+    # A third covariate, night_light_trend (radiance change over 2013-2015), was
+    # tried and dropped -- see data/ghana/README.md's "Explored and rejected"
+    # section. Not fire, not sensor drift (checked against stable reference
+    # cities, which grew over the same window): the real problem is that our
+    # brightest communities sit at radiance ~1-5, far closer to VIIRS's
+    # detection noise floor than the reference cities (~5-14), making any
+    # 2-3-year difference at that scale too unreliable to trust as a covariate.
 
     # ── Community-level (population density, WorldPop, see external_data.py) ───
     Covariate('pop_density_2km', 'Population within 2km, 2015', Level.COMMUNITY,
