@@ -549,6 +549,24 @@
           <p class="what">Global disaster event database, occurrences geocoded to district level.</p>
           <p class="used"><span class="not-used-label">Not used</span> Impact variables aren't disaggregated below the national level, and the 162 LEAP communities span only 5 districts — at most 5 distinct values, largely redundant with district identity itself.</p>
         </article>
+
+        <article class="source-card">
+          <h4><a href="https://malariaatlas.org/" target="_blank" rel="noopener">Travel time to healthcare (Malaria Atlas Project)</a></h4>
+          <p class="what">Motorized/walking travel-time-to-healthcare-facility surfaces, same WCS endpoint as travel_time_to_city_min.</p>
+          <p class="used"><span class="not-used-label">Not used</span> Only available dated 2020, not 2015 — unlike the cities layer (explicitly dated 2015), no 2015-dated healthcare-specific coverage exists on this endpoint. Same temporal-validity failure as OpenCellID/Ookla: health facilities open/close over a 5-year window.</p>
+        </article>
+
+        <article class="source-card">
+          <h4><a href="https://data.humdata.org/dataset/wfp-food-prices-for-ghana" target="_blank" rel="noopener">Market thickness (WFP market density)</a></h4>
+          <p class="what">Count of distinct WFP-monitored markets with any price observation within a fixed radius of each community.</p>
+          <p class="used"><span class="not-used-label">Not used</span> Near-degenerate even at a 150km radius (values only span {1, 2, 3}) — only 16 of 91 listed markets have any 2015-2017 observation at all near the LEAP districts, the same sparsity documented throughout Market prices.</p>
+        </article>
+
+        <article class="source-card">
+          <h4><a href="https://developers.google.com/earth-engine/datasets/catalog/NOAA_VIIRS_DNB_ANNUAL_V21" target="_blank" rel="noopener">Nighttime lights trend (VIIRS)</a></h4>
+          <p class="what">night_light_radiance change 2013-2015 — an economic-momentum proxy, tried and dropped after a 3-round investigation.</p>
+          <p class="used"><span class="not-used-label">Not used</span> Not fire contamination (the biggest "decliner" is a real town — Yendi — with high radiance every month, not a transient spike) and not sensor drift (stable reference cities Tamale/Bolgatanga <em>grew</em> over the same window). Actual cause: our brightest communities sit at radiance ~1-5, close enough to VIIRS's detection noise floor that a 2-3 year difference isn't trustworthy.</p>
+        </article>
       </div>
     </div>
   </section>
