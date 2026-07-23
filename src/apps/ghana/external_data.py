@@ -143,17 +143,30 @@ def load_effect_modifiers(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
         above a standard "detectable urban light" threshold, always
         defined -- a remoteness/access proxy, weakly correlated with
         night_light_radiance itself (r=-0.25, answers a different question).
-      - night_light_trend: night_light_radiance(2015) minus the same
-        quantity for 2013 -- not "how lit is this community" but "was it
-        getting more lit" (a local economic-momentum proxy, Henderson,
-        Storeygard & Weil 2012, AER). 2013, not 2012: NOAA/GEE's own
+      - night_light_trend: mean(radiance_2014, radiance_2015) minus
+        mean(radiance_2013, radiance_2014) -- not "how lit is this
+        community" but "was it getting more lit" (a local economic-
+        momentum proxy, Henderson, Storeygard & Weil 2012, AER). A 2-year
+        rolling average, not single endpoint years: tried radiance(2015) -
+        radiance(2013) first, then rejected after inspecting the result --
+        raw levels showed 2013 nationally brighter than 2015 (one
+        community's single-year value hitting 5.67 vs. a next-highest of
+        ~2.3), far more consistent with fire/biomass-burning contamination
+        in one composite-year (VIIRS DNB annual composites in savanna/
+        Sahel zones are known to pick up agricultural-residue/bushfire
+        glow -- "stray-light corrected" here means lunar illumination, not
+        fire) than genuine de-electrification over 2 years. Averaging each
+        side over 2 years roughly halves any single year's one-off event
+        rather than letting it flip the trend's sign outright (checked:
+        the most extreme single-endpoint value, -1.91, became -0.95 once
+        averaged). 2013 as the earliest year, not 2012: NOAA/GEE's own
         catalog metadata flags 2012 as inconsistent with later years'
-        processing, checked before picking a trend window. Also checked
-        per-community `cf_cvg` (cloud-free observation count) in both
-        years before trusting the difference -- all 162 communities have
-        cf_cvg > 80 in both 2013 and 2015, so no masking was actually
-        needed here. Correlates -0.71 with night_light_radiance (leaves
-        real independent variation, not a re-derivation).
+        processing. Also checked per-community `cf_cvg` (cloud-free
+        observation count) across 2013/2014/2015 before trusting any
+        difference -- all 162 communities have cf_cvg > 80 in every year,
+        so no masking was actually needed here. Correlates -0.71 with
+        night_light_radiance (leaves real independent variation, not a
+        re-derivation).
       A cash transfer cannot build a power grid or move a town, so all
       three are exogenous regardless of timing.
 

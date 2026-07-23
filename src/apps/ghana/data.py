@@ -131,10 +131,14 @@ COVARIATES: list[Covariate] = [
               support=Support.SPARSE_NONNEG, source='nightlights', domain=Domain.URBANIZATION, access=Access.RESTRICTED, timing=Timing.PRE),
     Covariate('dist_nearest_light_km', 'Distance to nearest detectable light, 2015 (km)', Level.COMMUNITY,
               support=Support.POSITIVE_CONTINUOUS, source='nightlights', domain=Domain.ACCESSIBILITY, access=Access.RESTRICTED, timing=Timing.PRE),
-    # Economic-momentum proxy (Henderson, Storeygard & Weil 2012, AER): radiance(2015) -
-    # radiance(2013), not a re-derivation of the level -- correlates -0.71 with
-    # night_light_radiance (leaves real independent variation, not redundant). Signed
-    # (can be negative), so Support.CONTINUOUS, not SPARSE_NONNEG like the level.
+    # Economic-momentum proxy (Henderson, Storeygard & Weil 2012, AER):
+    # mean(2014,2015) - mean(2013,2014), a 2-year rolling average rather than single
+    # endpoint years -- a single-endpoint version was tried first and rejected after
+    # the raw levels showed 2013 nationally brighter than 2015 (likely fire/biomass-
+    # burning contamination in one composite-year, not real de-electrification; see
+    # download_nightlights.py). Not a re-derivation of the level -- correlates -0.71
+    # with night_light_radiance (leaves real independent variation, not redundant).
+    # Signed (can be negative), so Support.CONTINUOUS, not SPARSE_NONNEG like the level.
     Covariate('night_light_trend', 'Nighttime light trend, 2013-2015 (own community)', Level.COMMUNITY,
               support=Support.CONTINUOUS, source='nightlights', domain=Domain.URBANIZATION, access=Access.RESTRICTED, timing=Timing.PRE),
 

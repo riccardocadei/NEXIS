@@ -34,17 +34,31 @@ not "how lit is this community" (a level) but "was it getting more lit in
 the run-up to treatment" (a trend) -- a local economic-momentum proxy
 (Henderson, Storeygard & Weil 2012, AER, is the canonical satellite-
 nightlights-as-growth-proxy citation), distinct from a snapshot level.
-Computed as night_light_radiance(2015) - night_light_radiance(TREND_YEAR).
 
-TREND_YEAR=2013, not 2012: checked against the collection's own catalog
-metadata first -- NOAA/GEE explicitly flag 2012 as inconsistent ("2012
-data are not yet included because of differences in processing"), so the
-clean annual series only starts at 2013. Cross-year radiometric-consistency
-caveat also checked: the catalog doesn't carry an explicit DMSP-OLS-style
-intercalibration warning, but does expose a `cf_cvg` (cloud-free
+Computed as a 2-year rolling average, not single endpoint years:
+    mean(radiance_2014, radiance_2015) - mean(radiance_2013, radiance_2014)
+Single-endpoint (radiance(2015) - radiance(2013)) was tried first and
+rejected after inspecting the result: the raw levels showed 2013
+systematically brighter than 2015 nationally (mean 0.111 vs 0.082, one
+community's single-year value hitting 5.67 vs a next-highest of ~2.3),
+which is far more consistent with fire/biomass-burning contamination in a
+specific composite-year (VIIRS DNB annual composites in savanna/Sahel
+zones are known to pick up agricultural-residue and bushfire glow --
+"stray-light corrected" in this product's name refers to lunar
+illumination, not fire) than with genuine de-electrification over 2 years.
+Averaging each side over 2 years dilutes any single year's one-off fire
+event roughly in half rather than letting it single-handedly flip the
+sign of the trend.
+
+TREND years start at 2013, not 2012: checked against the collection's own
+catalog metadata first -- NOAA/GEE explicitly flag 2012 as inconsistent
+("2012 data are not yet included because of differences in processing"),
+so the clean annual series only starts at 2013. Cross-year radiometric-
+consistency also checked: the catalog doesn't carry an explicit DMSP-OLS-
+style intercalibration warning, but does expose a `cf_cvg` (cloud-free
 observation count) band as a quality signal. Checked per-community cf_cvg
-for both 2013 and 2015 before trusting the difference -- every one of the
-162 communities has cf_cvg > 80 in both years (median ~91-94), so no
+for 2013/2014/2015 before trusting any difference -- every one of the 162
+communities has cf_cvg > 80 in all three years (median ~91-94), so no
 masking was actually needed for this specific set of communities (unlike,
 say, a rainforest-zone study area might require).
 
@@ -63,7 +77,7 @@ import requests
 
 VIIRS_COLLECTION = 'NOAA/VIIRS/DNB/ANNUAL_V21'
 YEAR = 2015
-TREND_YEAR = 2013             # earliest year with a clean (non-2012-flagged) annual composite
+TREND_YEARS = [2013, 2014, 2015]   # 2013 = earliest clean (non-2012-flagged) annual composite
 LIGHT_THRESHOLD = 1.0        # radiance above which a pixel counts as "lit"
 OWN_COMMUNITY_BUFFER_M = 1000
 GHANA_BBOX = dict(lat_min=9.0, lat_max=11.5, lon_min=-1.5, lon_max=0.8)
@@ -180,7 +194,7 @@ def main():
 
     if args.dry_run:
         log(f"[DRY RUN]")
-        log(f"  Collection: {VIIRS_COLLECTION}  year={YEAR}  trend_year={TREND_YEAR}")
+        log(f"  Collection: {VIIRS_COLLECTION}  year={YEAR}  trend_years={TREND_YEARS}")
         log(f"  Output: {out_dir / 'nightlights_community.csv'}")
         return
 
@@ -189,11 +203,19 @@ def main():
     download_raster(raster_path)
 
     radiance = own_community_radiance(centroids, YEAR, 'night_light_radiance')
-    trend_radiance = own_community_radiance(centroids, TREND_YEAR, 'night_light_radiance_trend_year')
     dist = dist_to_nearest_light(centroids, raster_path)
-    stats = radiance.merge(trend_radiance, on='comm').merge(dist, on='comm')
-    stats['night_light_trend'] = stats['night_light_radiance'] - stats['night_light_radiance_trend_year']
-    stats = stats.drop(columns=['night_light_radiance_trend_year'])
+
+    yearly = {}
+    for year in TREND_YEARS:
+        yearly[year] = own_community_radiance(centroids, year, f'_tmp_{year}')
+    trend_df = yearly[TREND_YEARS[0]]
+    for year in TREND_YEARS[1:]:
+        trend_df = trend_df.merge(yearly[year], on='comm')
+    early_cols = [f'_tmp_{y}' for y in TREND_YEARS[:2]]   # 2013, 2014
+    late_cols  = [f'_tmp_{y}' for y in TREND_YEARS[1:]]   # 2014, 2015
+    trend_df['night_light_trend'] = trend_df[late_cols].mean(axis=1) - trend_df[early_cols].mean(axis=1)
+
+    stats = radiance.merge(dist, on='comm').merge(trend_df[['comm', 'night_light_trend']], on='comm')
 
     out_path = out_dir / 'nightlights_community.csv'
     stats.to_csv(out_path, index=False)
@@ -203,7 +225,8 @@ def main():
     log(f"  dist_nearest_light_km: min={stats['dist_nearest_light_km'].min():.2f}  "
         f"median={stats['dist_nearest_light_km'].median():.2f}  "
         f"max={stats['dist_nearest_light_km'].max():.2f}")
-    log(f"  night_light_trend ({YEAR} - {TREND_YEAR}): min={stats['night_light_trend'].min():.3f}  "
+    log(f"  night_light_trend (mean(2014,2015) - mean(2013,2014)): "
+        f"min={stats['night_light_trend'].min():.3f}  "
         f"median={stats['night_light_trend'].median():.3f}  "
         f"max={stats['night_light_trend'].max():.3f}")
 
