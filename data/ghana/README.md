@@ -8,6 +8,7 @@ Tracks every dataset used by `src/apps/ghana/`, where it comes from, and its sta
 |---|---|---|---|---|---|---|---|---|
 | [LEAP-1000 household survey](#leap-1000-household-survey-core-restricted) | UNICEF Ghana (proprietary, not public) | 83 KB | Tabular survey | Household | 30 | 24 = 20 raw + 4 derived | 2015 | ✅ |
 | ↳ | | | | Community | | 2 derived | 2015 | ✅ |
+| [LEAP-1000 extended survey modules](#leap-1000-extended-survey-modules-unicef-delivery-2026-08-26) | UNICEF Ghana (proprietary, not public) | ~90 MB (7 files) | Tabular survey | Household + Individual | 1,138 (sum across 7 files, incl. repeated identifiers) | 0 (not yet wired into `W`) | 2015, 2017 | ⏳ |
 | [Satellite imagery](#satellite-imagery-landsat-8-via-google-earth-engine) | [Landsat 8](https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LC08_C02_T1_L2) (USGS/NASA), via Google Earth Engine | ~7 GB | Imagery (6-band) | Community | 6 bands/tile (166×166 px) | 143 (131 neurons representation + 12 spectral indices) | 2015 | ✅ |
 | [Rainfall / drought exposure](#rainfall--drought-exposure-chirps-via-google-earth-engine) | [CHIRPS](https://developers.google.com/earth-engine/datasets/catalog/UCSB-CHG_CHIRPS_DAILY) (UCSB Climate Hazards Center), via Google Earth Engine | <1 MB | Raster time series | Community | 5,479 daily precipitation values | 3 (average rainfall, rainfall volatility, drought frequency) | 2000–2014 | ✅ |
 | ↳ | | | | Community | 1,096 daily precipitation values | 4 (3 annual rainfall + 1 consecutive-dry-days) | 2015–2017 | ✅ |
@@ -102,6 +103,44 @@ A sixth tag, `access` (`src/apps/covariates.py::Access`), records how the *sourc
 | **Covariates extracted** | 26 = 24H + 2C = 20 raw + 6 derived. 24 household-level `W`: 20 raw survey columns + 4 engineered (`livelihood_diversity`, `dependency_ratio`, `rooms_per_person`, `housing_deprivation`). 2 community-level `W`: `dist_to_capital_km`, `community_size` — both engineered, from GPS/`hhid`, not raw survey columns. |
 | **Known caveat** | `pmtscore` is the eligibility/targeting score (RDD running variable) — do not use as an outcome or NEXIS effect modifier (near-perfect separation between arms by construction). |
 | **Reference reports** | `survey/LEAP-1000_Baseline-Survey_2015.pdf`, `survey/Ghana-LEAP-1000-Endline-Household-Survey-v8.pdf` — full UNICEF/ISSER/UNC endline evaluation report (June 2018), used for context (e.g. Table 4.2.7 "Shocks in the community" motivated the rainfall covariate below). |
+
+## LEAP-1000 extended survey modules (UNICEF delivery, 2026-08-26)
+
+| | |
+|---|---|
+| **Origin** | UNICEF Ghana (contact: Nyasha; files prepared by Frank). Same restricted/proprietary status as the core household survey above — not publicly available. |
+| **Received** | 2026-08-26 as 8 Stata `.dta` files in `survey_extra/`; moved into `survey/` after verification (see below), `survey_extra/` removed. |
+| **Coverage** | Same 162 LEAP-1000 communities, 5 districts, 2 waves (Baseline 2015 / Endline 2017) as the core household file above. IDs: `hhid` (household), `pid` (person), `comm` (community; a redundant `com` recode also exists — see verified findings below), `time` (wave: 0=2015, 1=2017). All 7 files merge cleanly onto the existing pipeline file on `hhid`. |
+| **Status** | ⏳ received, not yet wired into `external_data.py::load_effect_modifiers` — inventory only. |
+
+**Files** (all under `survey/`):
+
+| File | Level | Shape (rows × cols) | Content |
+|---|---|---|---|
+| `LEAP1000_households_append.dta` | Household | 4,828 × 259 | Poverty status/lines, AE expenditure (food/non-food split, ~90 detailed `exp_*` categories), self-reported shocks (`sh_*`), food security (`foodsec*`), loans/business modules, attrition flag + adjusted weights, `TAC` treatment |
+| `LEAP1000_individuals_append.dta` | Individual | 31,749 × 126 | Full household member roster — NHIS health insurance, education, labor/time use |
+| `LEAP1000_children_append.dta` | Individual (ages 0–17) | 18,431 × 175 | Anthropometrics (stunting/wasting/underweight), vaccination, IYCF/breastfeeding, birth registration, illness care-seeking |
+| `LEAP1000_women_append.dta` | Individual (eligible women) | 4,767 × 190 | Psychosocial (stress/agency/social capital), IPV module, family planning, savings |
+| `LEAP1000_women_append_all.dta` | Individual (women, padded) | 4,828 × 190 | Same content as `..._women_append.dta`, padded to one row per household |
+| `LEAP1000_women_marriage_append.dta` | Individual, event-level | 31,831 × 150 | Marriage/migration history — one row per reported event, can exceed 1 row/person |
+| `LEAP1000_women_reprohealth_append.dta` | Individual (full roster) | 31,749 × 48 | Reproductive health — antenatal care visits, pregnancy, child mortality |
+
+**Key new variable groups**: poverty status (`pstatus`) + 4 poverty-line variants (`povline`/`extpovline` in Aug-17 prices, `povline15`/`extpovline15` in Sep-15 prices); adult-equivalent expenditure split into total/food/non-food (`aeexp_r`/`aefexp_r`/`aenfexp_r`, plus `_r15` Sep-15-price versions); ~90 `exp_*` detailed expenditure categories (agricultural inputs, food sub-categories, health, education, housing, etc.); `sh_*` self-reported community/household shocks (drought, flood, pests, price shocks, illness, death — the LEAP-specific counterpart to the ACLED/rainfall shock proxies already in `W`); `foodsec*` food-security module (HFIAS-style + monthly insufficient-food indicators); loans/business modules; `hh_attr` attrition flag (166 households) + `w_new` attrition-adjusted weights; plus the individual/children/women modules summarized above.
+
+**Duplicate resolved**: `LEAP1000_baseline.dta` (4,828×30) arrived byte-identical (`cmp`, 0 differing bytes) to the existing `survey/LEAP1000 2015-2017 household data++.dta` — deleted after verification, not moved into `survey/`.
+
+**Verified in-house (2026-08-26)** before asking UNICEF:
+- `TAC` matches the pipeline's `tac` and `aeexp_r` matches the pipeline's outcome `Y` exactly (0 mismatches across all 4,828 rows); the same 2,497 households as the core file.
+- **`pstatus` caveat — do not use as a cross-wave outcome as shipped.** It reproduces exactly within each wave, but on inconsistent price bases (baseline: `aeexp_r15` vs Sep-15 lines; endline: `aeexp_r` vs Aug-17 lines), and the lines were escalated ×1.361 between waves while the file's own deflators imply ×1.220 (food) / ×1.428 (non-food) / ≈×1.27 (this sample's basket). Of the +25.2 pp extreme-poverty swing (62%→87%), 4.3 pp is this construction artifact; the remaining ~21 pp is a real decline in measured expenditure, in both arms (even nominal `aeexp` falls ~16% — instrument comparability pending with UNICEF, see below). For analysis, rebuild poverty status from `aeexp_r` vs the Aug-17 lines (`povline`/`extpovline`) in both waves. The published treatment effect is intact: balanced-panel DiD on log `aeexp_r` = +10.0%, p=0.001.
+- Attrition (166 of 2,497 households, 6.6%) is balanced across arms: 6.1% treatment vs 7.2% comparison, p≈0.30; attriters do not differ from stayers on baseline `aeexp_r`. `w_new` reweights the 2,331 stayers back to the 2,497 baseline total — apply to endline/panel analyses only, never to baseline-only tabulations.
+- `com` is an alphabetical-name-index recode of `comm` with 6 corrupted rows (raw `comm`-style codes leaked through unrecoded) — use `comm`, ignore `com`.
+
+**Open questions for UNICEF** (email pending):
+- Consumption-module comparability: nominal per-AE expenditure falls ~16% between 2015 and 2017 in both arms during a high-inflation period — were the item list and recall periods identical across waves?
+- What index the ×1.361 poverty-line escalation follows, given the in-file expenditure deflators of ×1.220 (food) / ×1.428 (non-food); and confirmation that rebuilding `pstatus` on a single price base is the intended cross-wave use.
+- `LEAP1000_women_reprohealth_append.dta` is sized like the full roster (31,749 rows, matching `..._individuals_append.dta`), i.e. appears to include men, despite the "women" filename.
+- Two women-file variants (`..._women_append.dta` vs. the padded `..._women_append_all.dta`) — which is the intended analysis file.
+- Codebook requested — variable labels alone leave some `exp_*`/generic `s3_*`/`nstress*` items ambiguous.
 
 ## Satellite imagery (Landsat 8, via Google Earth Engine)
 
