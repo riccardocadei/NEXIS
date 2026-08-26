@@ -739,7 +739,7 @@ def _compute_sae_activations(embeddings: np.ndarray, ckpt: dict,
     return acts.numpy()
 
 
-def _load_nexis_inputs(min_activations: int = 10):
+def _load_nexis_inputs(min_activations: int = 5):
     """Load all data needed for Ghana NEXIS experiments."""
     import pandas as pd
 
@@ -830,22 +830,41 @@ def _load_nexis_inputs(min_activations: int = 10):
 
 def run_nexis(rep_mode: str, method_name: str, data: dict,
               alpha: float = 0.05, adjust=None) -> SelectionResult:
+    """NEXIS over the JOINT candidate pool: SAE features and survey covariates together.
+
+    The survey covariates must stay in the pool for the whole search, not just seed it.
+    Passing them via nexis(w=...) runs the two-phase form, which carries only the
+    *selected* W columns into the main phase — and no survey covariate is selected here,
+    so the pool would shrink from 163 to 139 and every Bonferroni gate would loosen by
+    the same factor.  That is not a cosmetic difference: at step 3 the gate moves from
+    alpha/161 = 3.11e-04 to alpha/137 = 3.65e-04, which straddles neuron 3318
+    (p = 3.64e-04) and admits a third feature that the correct pool rejects.
+
+    Stacking W into the candidate matrix is also what the Uganda application does
+    (analyze.py, w_candidates=True), so the two case studies now run the same search.
+    The preliminary survey-covariate phase is vacuous on this dataset — the W-only pass
+    selects nothing at alpha/24 — so seeding changes no result here.
+    """
     cfg = data[rep_mode]
     y, t, W, W_NAMES = data["y"], data["t"], data["W"], data["W_NAMES"]
+    Z_joint = np.hstack([cfg["Z_hh"], W])
+    n_z = cfg["Z_hh"].shape[1]
+    z_names_joint = list(cfg["z_names"]) + list(W_NAMES)
     print(f"\n{'='*60}")
-    print(f"NEXIS  rep={rep_mode}  method={method_name}  Z={cfg['Z_hh'].shape}  adjust={adjust}")
+    print(f"NEXIS  rep={rep_mode}  method={method_name}  "
+          f"pool={Z_joint.shape} ({n_z} Z + {W.shape[1]} W)  adjust={adjust}")
     print(f"{'='*60}")
-    res = nexis(y, t, cfg["Z_hh"], w=W, w_names=W_NAMES, z_names=cfg["z_names"],
-               alpha=alpha, adjust=adjust, cluster=data["cluster"], verbose=True)
+    res = nexis(y, t, Z_joint, z_names=z_names_joint,
+                alpha=alpha, adjust=adjust, cluster=data["cluster"], verbose=True)
     print(f"\nSelected: {len(res.selected)}")
     for i in res.selected:
         name = res.feature_names[i]
-        if name.startswith("z_") and name[2:].isdigit():
+        if i < n_z and name.startswith("z_") and name[2:].isdigit():
             suffix = f"  [neuron {cfg['live_idx'][int(name[2:])]}]"
         else:
             suffix = ""
-        print(f"  {name + suffix:55s}  p = {res.pvalues[i]:.4f}")
-    _save_result(rep_mode, method_name, res, cfg["live_idx"], adjust)
+        print(f"  {name + suffix:55s}  p = {res.pvalues[i]:.4g}")
+    _save_result(rep_mode, method_name, res, cfg["live_idx"], adjust, n_z=n_z)
     return res
 
 
@@ -943,13 +962,19 @@ def run_marginal_grouped(rep_mode: str, data: dict, alpha: float = 0.05) -> Sele
 
 
 def _save_result(rep_mode: str, method_name: str, res: SelectionResult,
-                 live_idx: np.ndarray, adjust) -> None:
+                 live_idx: np.ndarray, adjust, n_z: int | None = None) -> None:
+    """Persist the selection.  `n_z` marks the Z/W split in the joint candidate pool:
+    columns at or beyond it are survey covariates and belong in selected_w, not
+    selected_z (they carry a readable label, not a neuron index)."""
     out_dir = RES_DIR / rep_mode / method_name
     out_dir.mkdir(parents=True, exist_ok=True)
     z_entries, w_entries = [], []
     for i in res.selected:
         name = res.feature_names[i] if res.feature_names else f"z_{i}"
-        if name.startswith("z_"):
+        if n_z is not None and i >= n_z:
+            w_entries.append({"label": name[2:] if name.startswith("z_") else name,
+                              "pvalue": float(res.pvalues[i])})
+        elif name.startswith("z_"):
             suffix = name[2:]
             if suffix.isdigit():
                 j = int(suffix)
@@ -1051,6 +1076,7 @@ def interpret_nexis(
                 "label": "low activation — uninterpretable", "confidence": "low",
                 "activated_concept": "", "not_activated_concept": "",
                 "model_tag": model_tag, "pipeline": pipeline, "raw": "",
+                "image_pool": pool, "pool_size": int(n_total),
                 "top_ids": top_ids, "bot_ids": bot_ids,
             })
             continue
@@ -1070,8 +1096,16 @@ def interpret_nexis(
             max_act=max_act, n_total=n_total, n_nonzero=n_nonzero, max_act_pct=act_pct,
             _cache_key=(rep_mode, method_name, j),
         )
+        # Record WHICH tile pool produced this label.  The label is a description of
+        # the top-vs-bottom contrast, so it is a function of the pool, not of the
+        # neuron alone: neuron 3821 reads as "ephemeral waterways" on the national
+        # grid (peak activation 5.77) and as "active land clearing" on the 162 LEAP
+        # tiles (peak 2.85), because the study communities are not where it fires
+        # hardest.  Without this field two such files are indistinguishable and the
+        # disagreement looks like VLM non-determinism rather than a different input.
         res_c.update({"neuron_idx": neuron, "pvalue": pval,
-                      "model_tag": model_tag, "pipeline": pipeline})
+                      "model_tag": model_tag, "pipeline": pipeline,
+                      "image_pool": pool, "pool_size": int(n_total)})
 
         dup = _label_is_duplicate(res_c.get("label", ""), interpretations)
         if dup:
@@ -1209,8 +1243,10 @@ def parse_args():
     p.add_argument("--pool", default="national", choices=["national", "leap"],
                    help="Image pool for VLM contrast: 'national' (default, 9592 tiles) "
                         "or 'leap' (162 RCT community tiles).")
-    p.add_argument("--min-activations", type=int, default=10,
-                   help="Min community activations for a neuron to enter Z (default 10).")
+    p.add_argument("--min-activations", type=int, default=5,
+                   help="Min community activations for a neuron to enter Z (default 5, "
+                        "the reported setting: 131 of 4096 SAE features survive, which with "
+                        "the 24 survey covariates gives the 155-candidate pool).")
     return p.parse_args()
 
 

@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 """
-Stage 2 — Train a Sparse Autoencoder on CelebA SigLIP embeddings.
+Stage 2 — Train a Sparse Autoencoder on frozen CelebA backbone embeddings.
 
-Reads:   data/celeba/embeddings/siglip.npy         (N, 1152) mean-pooled — always needed
-         data/celeba/embeddings/siglip_patches.npy  (N, 729, 1152) float16 — per-patch training
-                                                    (if present, used for SAE training)
+Reads:   data/celeba/embeddings/{backbone}.npy          (N, d) mean-pooled — always needed
+         data/celeba/embeddings/{backbone}_patches.npy  (N, T, d) float16 — per-patch training
+                                                        (if present, used for SAE training)
 
-Writes:  results/celeba/sae_siglip.pt        SAE weights + normalisation stats
-         data/celeba/embeddings/sae.npy       (N, hidden_dim) SAE feature activations (z, post-topk)
-         data/celeba/embeddings/sae_precode.npy (N, hidden_dim) SAE pre-activations (z_pre)
+Writes:  results/celeba/sae_{backbone}_k{K}.pt   SAE weights + normalisation stats
+         data/celeba/embeddings/sae[_{backbone}]_k{K}.npy          (N, hidden_dim) codes z
+         data/celeba/embeddings/sae_precode[_{backbone}]_k{K}.npy  (N, hidden_dim) z_pre
 
-The SAE is trained on per-patch features if siglip_patches.npy exists (recommended —
-this replicates the ECI paper which trains on all 729 SigLIP patch tokens per image,
-giving 729× more training vectors and much stronger principal alignment).
+(The `_{backbone}` tag is omitted for SigLIP, preserving the original file names.)
 
-Inference always runs on mean-pooled embeddings (siglip.npy), following ECI's
+The SAE is trained on per-patch features if {backbone}_patches.npy exists (recommended —
+this replicates the ECI paper which trains on all patch tokens per image,
+giving T× more training vectors and much stronger principal alignment).
+
+Inference always runs on mean-pooled embeddings, following ECI's
 s4-sae_encoding.py which also encodes mean/CLS-pooled features through the SAE.
 
 Usage
 -----
     python src/apps/celeba/train_sae.py
+    python src/apps/celeba/train_sae.py --backbone dinov2 --top-k 20
     python src/apps/celeba/train_sae.py --hidden-dim 4608 --epochs 100
     python src/apps/celeba/train_sae.py --out-dir results/celeba
 """
@@ -36,6 +39,12 @@ ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from train.sae import TopKSAE, TopKSAETrainConfig, SAETrainResult, train_topk_sae, get_features, get_pre_features
+from apps.celeba.backbones import (
+    BACKBONES, DEFAULT_BACKBONE, get_backbone,
+    embed_path as _embed_path, patches_path as _patches_path,
+    sae_ckpt_path as _sae_ckpt_path, code_path as _code_path,
+    precode_path as _precode_path,
+)
 
 
 # ── Checkpoint helpers ────────────────────────────────────────────────────────
@@ -75,15 +84,17 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data-dir",       type=Path, default="data/celeba",
-                   help="Directory with embeddings/siglip.npy; SAE features written here too")
+                   help="Directory with embeddings/{backbone}.npy; SAE features written here too")
+    p.add_argument("--backbone",       default=DEFAULT_BACKBONE, choices=sorted(BACKBONES),
+                   help=f"Frozen backbone whose embeddings to encode (default: {DEFAULT_BACKBONE})")
     p.add_argument("--train-data-dir", type=Path, default=None,
-                   help="Directory with siglip_patches.npy for SAE TRAINING (default: same as "
+                   help="Directory with {backbone}_patches.npy for SAE TRAINING (default: same as "
                         "--data-dir). Set to e.g. data/celeba_train to train on the larger "
                         "CelebA training split while encoding the validation split.")
     p.add_argument("--out-dir",        type=Path, default="results/celeba",
-                   help="Directory for sae_siglip.pt model checkpoint (default: results/celeba)")
+                   help="Directory for the sae_{backbone}_k{K}.pt checkpoint (default: results/celeba)")
     p.add_argument("--hidden-dim",     type=int,  default=13824,
-                   help="SAE hidden dim (default: 12× SigLIP dim = 13824)")
+                   help="SAE hidden dim (default: 13824; the reported runs use 9216 = 12× 768)")
     p.add_argument("--top-k",          type=int,  default=5,
                    help="Top-k sparsity (default: 5)")
     p.add_argument("--epochs",         type=int,   default=20,
@@ -112,12 +123,14 @@ def main():
                 if not args.out_dir.is_absolute() else args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    embed_path      = data_dir / "embeddings" / "siglip.npy"           # for encoding (eval split)
-    patches_path    = train_data_dir / "embeddings" / "siglip_patches.npy"  # for SAE training
-    sae_path        = out_dir  / f"sae_siglip_k{args.top_k}.pt"
-    features_path   = data_dir / "embeddings" / f"sae_k{args.top_k}.npy"
-    precode_path    = data_dir / "embeddings" / f"sae_precode_k{args.top_k}.npy"
+    spec            = get_backbone(args.backbone)
+    embed_path      = _embed_path(data_dir, spec.key)              # for encoding (eval split)
+    patches_path    = _patches_path(train_data_dir, spec.key)      # for SAE training
+    sae_path        = _sae_ckpt_path(out_dir, spec.key, args.top_k)
+    features_path   = _code_path(data_dir, spec.key, args.top_k)
+    precode_path    = _precode_path(data_dir, spec.key, args.top_k)
 
+    print(f"Backbone: {spec.label} ({spec.key})")
     if train_data_dir != data_dir:
         print(f"SAE training data : {train_data_dir}")
         print(f"SAE encoding data : {data_dir}")
@@ -135,13 +148,13 @@ def main():
 
     # ── Train SAE ────────────────────────────────────────────────────────────
     if not sae_path.exists() or args.force:
-        # Prefer per-patch training if siglip_patches.npy is available.
+        # Prefer per-patch training if {backbone}_patches.npy is available.
         use_patches = patches_path.exists()
         if use_patches:
             print(f"\nFound per-patch features at {patches_path}")
-            print("Opening with memmap (file may be ~33 GB, only touched pages are read)…")
+            print("Opening with memmap (file may be several GB, only touched pages are read)…")
             # Written by np.memmap (raw binary, no .npy header) — must use np.memmap to read.
-            # Shape: (N_images, N_patches, embed_dim). We peek at siglip.npy to get N and d.
+            # Shape: (N_images, N_patches, embed_dim). We peek at the mean-pooled file for N and d.
             N_imgs = embeddings.shape[0]
             d      = embeddings.shape[1]
             T      = int(patches_path.stat().st_size // (N_imgs * d * 2))  # 2 bytes per float16

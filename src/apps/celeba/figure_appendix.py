@@ -52,7 +52,9 @@ LABEL_SIZE = 13
 ETA_MAIN, ETA_ALT = 5.0, 2.0
 N_MAIN,   N_ALT   = 2000, 500
 
-OUT = ROOT / "results/celeba/appendix"
+# Defaults; overridable from the CLI (see main) to render a different backbone.
+EXPERIMENT_DIR = ROOT / "results/celeba/experiment"
+OUT            = ROOT / "results/celeba/appendix"
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +147,7 @@ def make_12panel(
 # ---------------------------------------------------------------------------
 
 def _load(k: int, feat: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    base = ROOT / "results/celeba/experiment" / f"k{k}" / feat
+    base = EXPERIMENT_DIR / f"k{k}" / feat
     return (pd.read_parquet(base / "n_sweep.parquet"),
             pd.read_parquet(base / "effect_sweep.parquet"))
 
@@ -154,35 +156,35 @@ def _load(k: int, feat: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 # Individual figures
 # ---------------------------------------------------------------------------
 
-def fig_dgp(out: Path = OUT / "dgp.pdf") -> None:
+def fig_dgp(out: Path | None = None) -> None:
     """Reference figure (k=20/z, MAIN_METHODS).  Also serves as the DGP ablation:
     row 1 = main setting, row 2 = weaker setting — same methods, different DGP."""
     n, e = _load(20, "sae")
-    make_12panel(n, e, MAIN_METHODS, out)
+    make_12panel(n, e, MAIN_METHODS, out or OUT / "dgp.pdf")
 
 
-def fig_model_k5(out: Path = OUT / "model_k5.pdf") -> None:
+def fig_model_k5(out: Path | None = None) -> None:
     """k=5 SAE ablation: all MAIN_METHODS evaluated on k=5 sparse codes."""
     n, e = _load(5, "sae")
-    make_12panel(n, e, MAIN_METHODS, out)
+    make_12panel(n, e, MAIN_METHODS, out or OUT / "model_k5.pdf")
 
 
-def fig_model_precode(out: Path = OUT / "model_precode.pdf") -> None:
+def fig_model_precode(out: Path | None = None) -> None:
     """Feature-type ablation: all MAIN_METHODS on k=20 continuous pre-activations (z_pre)."""
     n, e = _load(20, "sae_precode")
-    make_12panel(n, e, MAIN_METHODS, out)
+    make_12panel(n, e, MAIN_METHODS, out or OUT / "model_precode.pdf")
 
 
-def _method_fig(ablation_key: str, out: Path) -> None:
+def _method_fig(ablation_key: str, out: Path | None, default_name: str) -> None:
     n, e = _load(20, "sae")
     grp  = ABLATION_GROUPS[ablation_key]
-    make_12panel(n, e, grp["methods"], out)
+    make_12panel(n, e, grp["methods"], out or OUT / default_name)
 
 
-def fig_method_test(out:     Path = OUT / "method_test.pdf")     -> None: _method_fig("test",     out)
-def fig_method_adjust(out:   Path = OUT / "method_adjust.pdf")   -> None: _method_fig("adjust",   out)
-def fig_method_rho(out:      Path = OUT / "method_rho.pdf")      -> None: _method_fig("rho",      out)
-def fig_method_backward(out: Path = OUT / "method_backward.pdf") -> None: _method_fig("backward", out)
+def fig_method_test(out:     Path | None = None) -> None: _method_fig("test",     out, "method_test.pdf")
+def fig_method_adjust(out:   Path | None = None) -> None: _method_fig("adjust",   out, "method_adjust.pdf")
+def fig_method_rho(out:      Path | None = None) -> None: _method_fig("rho",      out, "method_rho.pdf")
+def fig_method_backward(out: Path | None = None) -> None: _method_fig("backward", out, "method_backward.pdf")
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +205,8 @@ def _fmt(v) -> str:
     return str(int(v)) if isinstance(v, (int, float)) and v == int(v) else str(v)
 
 
-def write_brief(out: Path = OUT / "brief.md") -> None:
+def write_brief(out: Path | None = None) -> None:
+    out = out or OUT / "brief.md"
     n20,  e20  = _load(20, "sae")
     n5,   e5   = _load(5,  "sae")
     n20p, e20p = _load(20, "sae_precode")
@@ -433,7 +436,29 @@ def write_brief(out: Path = OUT / "brief.md") -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+def parse_args():
+    import argparse
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--experiment-dir", type=Path, default=EXPERIMENT_DIR,
+                   help="Sweep-results root containing k{5,20}/{sae,sae_precode}/ "
+                        "(default: results/celeba/experiment; use "
+                        "results/celeba/experiment/dinov2 for the DINOv2 backbone)")
+    p.add_argument("--out-dir",        type=Path, default=OUT,
+                   help="Where to write the figures and brief.md "
+                        "(default: results/celeba/appendix)")
+    return p.parse_args()
+
+
 def main():
+    global EXPERIMENT_DIR, OUT
+    args = parse_args()
+    EXPERIMENT_DIR = (ROOT / args.experiment_dir
+                      if not args.experiment_dir.is_absolute() else args.experiment_dir)
+    OUT            = (ROOT / args.out_dir
+                      if not args.out_dir.is_absolute() else args.out_dir)
+    print(f"Reading sweeps from {EXPERIMENT_DIR}")
+
     fig_dgp()
     fig_model_k5()
     fig_model_precode()

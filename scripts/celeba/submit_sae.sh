@@ -8,15 +8,20 @@
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
 #
-# Stage 2: Train SAE on CelebA SigLIP-base embeddings and encode all images.
+# Stage 2: Train SAE on frozen CelebA backbone embeddings and encode all images.
 # Trains two SAEs sequentially: top-k=5 and top-k=20.
-# Checkpoints/features are named sae_siglip_k{K}.pt / sae_k{K}.npy / sae_precode_k{K}.npy.
+# Checkpoints/features are named sae_{backbone}_k{K}.pt / sae[_{backbone}]_k{K}.npy /
+# sae_precode[_{backbone}]_k{K}.npy  (the tag is dropped for siglip: legacy names).
 # Estimated runtime: ~2-3 h per SAE on GPU (~4-6 h total).
 #
+# Usage:   [sbatch|bash] scripts/celeba/submit_sae.sh [siglip|dinov2]
 # Submit:  sbatch scripts/celeba/submit_sae.sh
+#          sbatch scripts/celeba/submit_sae.sh dinov2
 # Or run:  bash   scripts/celeba/submit_sae.sh
 
 set -euo pipefail
+
+BACKBONE="${1:-siglip}"
 
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$PROJECT_ROOT"
@@ -27,6 +32,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
 SAE_COMMON=(
     --data-dir   data/celeba
+    --backbone   "$BACKBONE"
     --out-dir    results/celeba
     --hidden-dim 9216
     --epochs     20
@@ -37,7 +43,7 @@ SAE_COMMON=(
 
 for K in 5 20; do
     echo "============================================================"
-    echo " CelebA Stage 2: train_sae  top-k=${K}"
+    echo " CelebA Stage 2: train_sae  backbone=${BACKBONE}  top-k=${K}"
     echo "============================================================"
 
     $PYTHON src/apps/celeba/train_sae.py \

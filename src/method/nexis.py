@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Sequence, Dict, Tuple
+from math import lgamma, log10
+from typing import Callable, List, Optional, Sequence, Dict, Tuple, Union
 import numpy as np
 from scipy import stats
 
@@ -165,6 +166,331 @@ def conditional_interaction_pvalues_gcm(
     return pvals
 
 
+# ── PCM helpers ───────────────────────────────────────────────────────────────
+#
+# Projected Covariance Measure (Lundborg, Kim, Shah & Samworth, Ann. Statist. 2024),
+# modified for the CATE-equivalence null of Equation (8).
+#
+# PCM tests conditional MEAN independence, H0: E[V | X, Z] = E[V | Z], by
+#   (i)  learning, on one half of the sample, a scalar projection f̂(X, Z) that
+#        approximates the conditional-mean contrast E[V|X,Z] − E[V|Z], and
+#   (ii) forming a GCM-style residual-product statistic on the other half using
+#        f̂ in place of the raw X.
+# Because f̂ is estimated on data independent of the half it is evaluated on, the
+# statistic is asymptotically N(0,1) under H0 no matter how bad f̂ is, while under
+# the alternative the covariance is positive by construction — hence a ONE-SIDED
+# test that is consistent against essentially any conditional-mean alternative,
+# including those with vanishing conditional covariance that the GCM cannot see.
+#
+# The modification needed here is that the response of interest, τ = Y(1) − Y(0),
+# is never observed.  Under randomisation with known e = P(T=1), the R-learner
+# pseudo-outcome  φ = (Y − m(Z^S))(T − e)/(e(1−e))  satisfies E[φ | Z] = E[τ | Z]
+# for ANY function m of Z (the choice of m affects variance only), so
+#
+#     H0(j | S):  E[τ | Z^{S∪{j}}] = E[τ | Z^S]   ⟺   E[φ | Z^{S∪{j}}] = E[φ | Z^S],
+#
+# which is exactly PCM's null with V = φ, X = Z^j and Z = Z^S.
+
+def _pcm_basis(x: np.ndarray, order: int) -> List[np.ndarray]:
+    """Polynomial basis {x, x², …} applied column-wise to an (n, c) block."""
+    return [x ** k for k in range(1, order + 1)]
+
+
+def _pcm_fit_projection(
+    Zc_tr: np.ndarray,        # (n_tr, c) candidate columns on the training half
+    phi_tr_resid: np.ndarray, # (n_tr,) φ residualised linearly against [1, Z^S]
+    Q_tr: np.ndarray,         # (n_tr, d) orthonormal basis of [1, Z^S] on the training half
+    order: int,
+):
+    """Vectorised per-candidate projection fit.
+
+    For every candidate column of ``Zc_tr`` independently, regress the training-half
+    pseudo-outcome on the polynomial basis of that column after partialling out
+    [1, Z^S], and return the coefficients (normalised so the fitted function has
+    unit variance), the standardisation constants needed to re-evaluate the basis
+    on the held-out half, and the explained sum of squares (used for screening).
+
+    Unit-norming is what keeps the projection non-degenerate: under H0 the fitted
+    coefficients are pure noise and shrink to zero, which would make both the mean
+    and the variance of the residual product vanish and the studentised statistic
+    ill-defined.  Rescaling to unit variance fixes the *direction* without touching
+    the (train-half-measurable, hence null-irrelevant) magnitude.
+    """
+    n_tr, c = Zc_tr.shape
+    B = _pcm_basis(Zc_tr, order)                       # order × (n_tr, c)
+
+    mu = np.empty((order, c)); sd = np.empty((order, c))
+    Bt: List[np.ndarray] = []
+    for k, b in enumerate(B):
+        mu[k] = b.mean(axis=0)
+        s = b.std(axis=0)
+        s[s < 1e-12] = 1.0
+        sd[k] = s
+        bs = (b - mu[k]) / s
+        Bt.append(bs - Q_tr @ (Q_tr.T @ bs))           # partial out [1, Z^S]
+
+    # Per-candidate normal equations: (order × order) Gram + rhs, all vectorised.
+    G = np.empty((order, order, c))
+    for a in range(order):
+        for b_ in range(a, order):
+            G[a, b_] = G[b_, a] = (Bt[a] * Bt[b_]).sum(axis=0)
+    r = np.stack([(Bt[a] * phi_tr_resid[:, None]).sum(axis=0) for a in range(order)])
+
+    lam = 1e-6 * np.einsum("aac->c", G) / order + 1e-12
+    Gm = np.moveaxis(G, 2, 0).copy()                   # (c, order, order)
+    idx = np.arange(order)
+    Gm[:, idx, idx] += lam[:, None]
+
+    beta = np.zeros((order, c))
+    try:
+        sol = np.linalg.solve(Gm, np.moveaxis(r, 0, 1)[..., None])[:, :, 0]  # (c, order)
+        beta = np.moveaxis(sol, 0, 1)
+    except np.linalg.LinAlgError:                      # fall back candidate-by-candidate
+        for jj in range(c):
+            try:
+                beta[:, jj] = np.linalg.solve(Gm[jj], r[:, jj])
+            except np.linalg.LinAlgError:
+                beta[:, jj] = 0.0
+    beta = np.nan_to_num(beta, nan=0.0, posinf=0.0, neginf=0.0)
+
+    fit_tr = sum(beta[a] * Bt[a] for a in range(order))            # (n_tr, c)
+    scale = np.sqrt((fit_tr ** 2).mean(axis=0))
+    ess = (beta * r).sum(axis=0)                                   # explained SS (screening)
+    ok = scale > 1e-10
+    beta = np.where(ok, beta / np.where(ok, scale, 1.0), 0.0)
+    return beta, mu, sd, ess, ok
+
+
+def _pcm_eval_projection(Zc_te, beta, mu, sd, order: int) -> np.ndarray:
+    """Evaluate the fitted projection on the held-out half → (n_te, c).
+
+    Uses the training-half standardisation, so the evaluated function is exactly
+    the one that was fitted.
+    """
+    out = np.zeros_like(Zc_te, dtype=float)
+    for k, b in enumerate(_pcm_basis(Zc_te, order)):
+        out += beta[k] * ((b - mu[k]) / sd[k])
+    return out
+
+
+def _studentise(R: np.ndarray) -> np.ndarray:
+    """√n · mean(R)/sd(R) per column; 0 where the column is degenerate.
+
+    Deliberately plain.  The PCM is one-sided and NEXIS reads its p-values at the
+    Bonferroni gate α/m ≈ 5×10⁻⁶, so far-tail accuracy is what matters, and a
+    one-term Cornish–Fisher correction T + γ̂(2T²+1)/(6√n) was tried and *worsened*
+    it (rejections at 10⁻³ over 8×9216 null tests at n=5000: 100 uncorrected vs 141
+    corrected, against 74 expected).  The excess is driven by a handful of
+    high-leverage observations rather than by third-order skewness, so the Edgeworth
+    expansion does not apply and its estimated γ̂ only adds noise.  The residual
+    finite-sample tail excess is reported as a documented limitation instead.
+    """
+    n = R.shape[0]
+    mu = R.mean(axis=0)
+    sd = R.std(axis=0, ddof=1)
+    good = sd > 1e-12
+    T = np.zeros(R.shape[1])
+    T[good] = np.sqrt(n) * mu[good] / sd[good]
+    return T
+
+
+def conditional_interaction_pvalues_pcm(
+    y: np.ndarray,
+    t: np.ndarray,
+    z: np.ndarray,
+    S: Optional[Sequence[int]] = None,
+    candidates: Optional[Sequence[int]] = None,
+    nuisance: str = "poly2",
+    n_splits: int = 3,
+    n_estimators: int = 100,
+    max_depth: Optional[int] = None,
+    order: int = 2,
+    projection: str = "poly",       # "poly" | "lgbm"
+    screen_top: int = 32,           # lgbm only: candidates given an ML projection
+    combine: str = "bonferroni",    # "bonferroni" (2·min) | "single" | "crossfit"
+    random_state: int = 0,
+    chunk: int = 1024,
+    return_tstats: bool = False,
+) -> np.ndarray:
+    """Modified-PCM p-values for H0(j|S) over j in candidates.
+
+    Sample-splitting scheme (both halves used, hence no data is wasted):
+
+      1. φ = (Y − m̂(Z^S))(T − e)/(e(1−e)) with m̂ cross-fitted on the full sample.
+      2. Split [n] into halves A, B.  For each direction (train, test) ∈ {(A,B),(B,A)}:
+         a. on `train`, fit a projection f̂_j for every candidate j — a polynomial in
+            Z^j (vectorised over all candidates at once) and, for the `screen_top`
+            candidates with the largest training-half explained sum of squares, a
+            LightGBM fit of E[φ | Z^j, Z^S] when projection="lgbm";
+         b. on `test`, form R_i = (φ_i − Ê[φ|Z^S_i])·(f̂_j(Z_i) − Ê[f̂_j|Z^S_i]) with
+            Ê[φ|Z^S] cross-fitted within the test half.
+      3. combine="bonferroni" (default) studentises each direction separately and
+         reports 2·min(p₁, p₂).  combine="single" keeps only the (A→B) direction.
+         combine="crossfit" pools the residual products from both directions and
+         studentises over all n — DO NOT USE: unlike in DML, the projection does not
+         converge under H0 (it is normalised noise), so the two half-blocks stay
+         strongly dependent and the pooled variance is understated.  Measured size at
+         α=0.05 on the null design of `check_pcm_calibration.py`: 0.090 (crossfit) vs
+         0.048 (bonferroni) and 0.045 (single).  Bonferroni also dominates single on
+         power, so it is the default.
+
+    The test is ONE-SIDED (large positive statistic ⇒ evidence against H0): under the
+    alternative the projection is aligned with the conditional-mean contrast by
+    construction, so the population covariance is positive.
+
+    projection:
+      "poly"  — vectorised polynomial projection of degree `order` for every
+                candidate.  Cost is O(n·m·order), comparable to the GCM.
+      "lgbm"  — additionally refits the `screen_top` most promising candidates with
+                gradient-boosted trees on (Z^j, Z^S) and residualises them against
+                Z^S nonparametrically.  Which candidates get the ML projection is
+                decided on the training half only, so held-out validity is retained.
+    """
+    y = np.asarray(y, dtype=float).reshape(-1)
+    t = np.asarray(t, dtype=float).reshape(-1)
+    Z = np.asarray(z, dtype=float)
+    n, m = Z.shape
+    S_list = [] if S is None else sorted(set(int(k) for k in S))
+    if candidates is None:
+        cand = np.array([j for j in range(m) if j not in S_list], dtype=int)
+    else:
+        cand = np.array([int(j) for j in candidates if int(j) not in S_list], dtype=int)
+
+    pvals = np.ones(m, dtype=float)
+    all_t = np.zeros(m, dtype=float)
+    if cand.size == 0 or n < 8:
+        return (pvals, all_t) if return_tstats else pvals
+
+    e = float(t.mean())
+    if abs(e * (1 - e)) < 1e-12:
+        return (pvals, all_t) if return_tstats else pvals
+
+    model_fn = _make_nuisance_model(nuisance, n_estimators, max_depth, random_state=0)
+    Z_S = Z[:, S_list] if S_list else np.zeros((n, 0))
+
+    # ── Step 1: half-split ──────────────────────────────────────────────────────
+    rng = np.random.default_rng(random_state)
+    perm = rng.permutation(n)
+    A, B = np.sort(perm[: n // 2]), np.sort(perm[n // 2:])
+    if len(A) < 8 or len(B) < 8:
+        return (pvals, all_t) if return_tstats else pvals
+
+    # ── Step 2: doubly-robust pseudo-outcome, cross-fitted WITHIN each half ─────
+    # m̂ only affects variance, never bias, but it must not couple the two halves:
+    # a projection fitted on φ_train would otherwise see held-out outcomes through
+    # m̂ and break the independence the held-out statistic relies on.  Leaving it
+    # full-sample cross-fitted measures 0.095 size at α=0.05 for the lgbm
+    # projection; splitting it restores nominal size.
+    phi = np.empty(n)
+    for half in (A, B):
+        if S_list:
+            k_h = max(2, min(n_splits, len(half) // 4))
+            m_h = _crossfit(Z_S[half], y[half], model_fn,
+                            splits=_make_splits(Z_S[half], n_splits=k_h))
+        else:
+            m_h = np.full(len(half), y[half].mean())
+        phi[half] = (y[half] - m_h) * (t[half] - e) / (e * (1 - e))
+
+    def _prep(tr, te):
+        """Direction-level quantities that do not depend on the candidate."""
+        D_tr = np.column_stack([np.ones(len(tr))] + ([Z_S[tr]] if S_list else []))
+        Q_tr, _ = np.linalg.qr(D_tr, mode="reduced")
+        phi_tr = phi[tr] - Q_tr @ (Q_tr.T @ phi[tr])
+        D_te = np.column_stack([np.ones(len(te))] + ([Z_S[te]] if S_list else []))
+        Q_te, _ = np.linalg.qr(D_te, mode="reduced")
+        if S_list:
+            k_te = max(2, min(n_splits, len(te) // 4))
+            phi_te = phi[te] - _crossfit(Z_S[te], phi[te], model_fn,
+                                         splits=_make_splits(Z_S[te], n_splits=k_te))
+        else:
+            phi_te = phi[te] - phi[te].mean()
+        return Q_tr, phi_tr, Q_te, phi_te
+
+    directions = [(A, B)] if combine == "single" else [(A, B), (B, A)]
+    prepped = [_prep(tr, te) for tr, te in directions]
+
+    # ── Step 3: projections, residual products, statistic ───────────────────────
+    R_pool = np.zeros((n, cand.size)) if combine == "crossfit" else None
+    T_dir = np.full((len(directions), cand.size), np.nan)
+
+    for d, ((tr, te), (Q_tr, phi_tr, Q_te, phi_te)) in enumerate(zip(directions, prepped)):
+        beta_all = np.zeros((order, cand.size))
+        mu_all   = np.zeros((order, cand.size))
+        sd_all   = np.ones((order, cand.size))
+        ess_all  = np.zeros(cand.size)
+        ok_all   = np.zeros(cand.size, dtype=bool)
+
+        for a in range(0, cand.size, chunk):
+            b_ = min(a + chunk, cand.size)
+            beta, mu, sd, ess, ok = _pcm_fit_projection(
+                Z[np.ix_(tr, cand[a:b_])], phi_tr, Q_tr, order)
+            beta_all[:, a:b_] = beta
+            mu_all[:, a:b_]   = mu
+            sd_all[:, a:b_]   = sd
+            ess_all[a:b_]     = ess
+            ok_all[a:b_]      = ok
+
+        # ML projection for the training-half top candidates (selection is
+        # train-measurable, so the held-out statistic stays valid).
+        ml_cols: Dict[int, np.ndarray] = {}
+        if projection == "lgbm" and screen_top > 0:
+            k_top = int(min(screen_top, cand.size))
+            top = np.argsort(-ess_all)[:k_top]
+            top = [int(i) for i in top if ok_all[i]]
+            if top:
+                ml_fn = _make_nuisance_model("lgbm", n_estimators, max_depth,
+                                             random_state=random_state)
+                for i in top:
+                    j = int(cand[i])
+                    Xtr = np.column_stack([Z[tr, j]] + ([Z_S[tr]] if S_list else []))
+                    Xte = np.column_stack([Z[te, j]] + ([Z_S[te]] if S_list else []))
+                    mdl = ml_fn()
+                    mdl.fit(Xtr, phi[tr])
+                    g = np.asarray(mdl.predict(Xte), dtype=float)
+                    if g.std() < 1e-12:
+                        continue
+                    g = g / g.std()
+                    # v̂ = Ê[f̂ | Z^S] estimated nonparametrically within the test half
+                    if S_list:
+                        k_te = max(2, min(n_splits, len(te) // 4))
+                        g = g - _crossfit(Z_S[te], g, ml_fn,
+                                          splits=_make_splits(Z_S[te], n_splits=k_te))
+                    else:
+                        g = g - g.mean()
+                    ml_cols[i] = g
+
+        for a in range(0, cand.size, chunk):
+            b_ = min(a + chunk, cand.size)
+            g = _pcm_eval_projection(Z[np.ix_(te, cand[a:b_])],
+                                     beta_all[:, a:b_], mu_all[:, a:b_],
+                                     sd_all[:, a:b_], order)
+            g = g - Q_te @ (Q_te.T @ g)                # linear v̂ for the poly projection
+            for i, col in ml_cols.items():
+                if a <= i < b_:
+                    g[:, i - a] = col
+            R = phi_te[:, None] * g
+            R[:, ~ok_all[a:b_]] = 0.0
+            if combine == "crossfit":
+                R_pool[np.ix_(te, np.arange(a, b_))] = R
+            else:
+                T_dir[d, a:b_] = _studentise(R)
+
+    if combine == "crossfit":
+        Tn = _studentise(R_pool)
+        p = stats.norm.sf(Tn)                          # one-sided
+    else:
+        p_dir = stats.norm.sf(np.nan_to_num(T_dir, nan=-np.inf))
+        p = np.clip(len(directions) * p_dir.min(axis=0), 0.0, 1.0)
+        Tn = np.nanmax(T_dir, axis=0)
+
+    p = np.clip(np.nan_to_num(p, nan=1.0, posinf=1.0, neginf=1.0), 0.0, 1.0)
+    pvals[cand] = p
+    if return_tstats:
+        all_t[cand] = Tn
+        return pvals, all_t
+    return pvals
+
+
 @dataclass
 class SelectionResult:
     selected: List[int]            # indices into the feature space nexis ran on
@@ -173,6 +499,116 @@ class SelectionResult:
     alpha: float
     metadata: Dict[str, float]
     feature_names: List[str] = field(default_factory=list)  # w_{name} / z_{j} labels
+
+
+# ── Pathwise Bonferroni backward gate ─────────────────────────────────────────
+#
+# The backward sweep tests H0(j | S\{j}) for j in S.  Correcting only over the
+# |S| coordinates on the realised path ignores that S itself was chosen by the
+# data.  The family of backward hypotheses reachable on ANY data-dependent path
+# partitions by selected-set size s = |S|: at depth s there are
+#
+#     N_s = m * C(m-1, s-1) = s * C(m, s)
+#
+# distinct (coordinate, conditioning-set) pairs.  Spending alpha across depths
+# with deterministic weights w_s >= 0, sum_s w_s <= 1, and Bonferroni within each
+# depth gives the gate
+#
+#     g_s = alpha * w_s / N_s
+#
+# so the total Type-I budget over every reachable backward hypothesis is <= alpha.
+# Default w_s = 1/(s(s+1)) sums to 1 over all positive integers, so no maximum
+# search depth has to be pre-specified.
+
+def default_alpha_spending(s: int) -> float:
+    """w_s = 1 / (s (s+1));  sum_{s>=1} w_s = 1."""
+    return 1.0 / (s * (s + 1))
+
+
+AlphaSpending = Union[Callable[[int], float], Sequence[float], None]
+
+
+def _log_comb(n: int, k: int) -> float:
+    """Natural log of C(n, k)."""
+    if k < 0 or k > n:
+        return -np.inf
+    return lgamma(n + 1) - lgamma(k + 1) - lgamma(n - k + 1)
+
+
+def log10_n_backward_hypotheses(m: int, s: int) -> float:
+    """log10 N_s = log10( m * C(m-1, s-1) )."""
+    if s < 1 or m < 1:
+        return -np.inf
+    return (np.log(m) + _log_comb(m - 1, s - 1)) / np.log(10)
+
+
+def resolve_alpha_spending(spending: AlphaSpending,
+                           max_depth: Optional[int] = None) -> Callable[[int], float]:
+    """Validate and normalise an alpha-spending specification.
+
+    spending may be None (use the default 1/(s(s+1))), a callable s -> w_s, or a
+    sequence [w_1, w_2, ...].  Weights must be non-negative and their total mass
+    over the supported depths must not exceed 1 (checked exactly for sequences,
+    and over 1..max_depth for callables when max_depth is given).
+    """
+    if spending is None:
+        return default_alpha_spending
+
+    if callable(spending):
+        fn = spending
+        if max_depth is not None:
+            ws = [float(fn(s)) for s in range(1, int(max_depth) + 1)]
+            if any(w < 0 for w in ws):
+                raise ValueError("alpha_spending weights must be non-negative")
+            if sum(ws) > 1.0 + 1e-9:
+                raise ValueError(
+                    f"alpha_spending mass over depths 1..{max_depth} is "
+                    f"{sum(ws):.6f} > 1")
+
+        def _checked(s: int) -> float:
+            w = float(fn(s))
+            if w < 0:
+                raise ValueError(f"alpha_spending weight w_{s}={w} is negative")
+            return w
+
+        return _checked
+
+    ws = [float(w) for w in spending]
+    if any(w < 0 for w in ws):
+        raise ValueError("alpha_spending weights must be non-negative")
+    total = sum(ws)
+    if total > 1.0 + 1e-9:
+        raise ValueError(f"alpha_spending weights sum to {total:.6f} > 1")
+
+    def _from_seq(s: int) -> float:
+        return ws[s - 1] if 1 <= s <= len(ws) else 0.0
+
+    return _from_seq
+
+
+def pathwise_backward_gate(alpha: float, m: int, s: int,
+                           weight_fn: Callable[[int], float]) -> Tuple[float, float, float]:
+    """Return (g_s, log10 g_s, log10 N_s) for the pathwise backward gate at depth s.
+
+    g_s underflows to 0.0 in float64 for very large s; log10 g_s is exact, so
+    comparisons are made in log space (see _passes_log10).
+    """
+    w_s = weight_fn(s)
+    log10_ns = log10_n_backward_hypotheses(m, s)
+    if w_s <= 0:
+        return 0.0, -np.inf, log10_ns
+    log10_g = log10(alpha) + log10(w_s) - log10_ns
+    g = 10.0 ** log10_g if log10_g > -300 else 0.0
+    return g, log10_g, log10_ns
+
+
+def _passes_log10(p: float, log10_thr: float) -> bool:
+    """p <= 10**log10_thr, evaluated in log space so tiny gates don't underflow."""
+    if p <= 0.0:
+        return True
+    if not np.isfinite(log10_thr):
+        return False
+    return log10(p) <= log10_thr
 
 
 def _residualize_against(D: np.ndarray, V: np.ndarray) -> np.ndarray:
@@ -445,13 +881,20 @@ def nexis(
     rho: Optional[float] = 0.5,
     backward: bool = True,
     adjust: Optional[str] = "FWER",  # None | "FWER" (Bonferroni) | "FDR" (BH)
-    test: str = "linear",            # "linear" | "quadratic" | "GCM"
-    nuisance: str = "poly2",         # gcm only: "poly2" | "lgbm" | "rf"
-    n_splits: int = 5,             # gcm only
-    n_estimators: int = 100,       # gcm only
-    max_depth: Optional[int] = None,  # gcm only
+    test: str = "linear",            # "linear" | "quadratic" | "GCM" | "PCM" variants
+    nuisance: str = "poly2",         # gcm/pcm only: "poly2" | "lgbm" | "rf"
+    n_splits: int = 5,             # gcm/pcm only
+    n_estimators: int = 100,       # gcm/pcm only
+    max_depth: Optional[int] = None,  # gcm/pcm only
+    pcm_projection: str = "poly",    # pcm only: "poly" | "lgbm"
+    pcm_order: int = 2,              # pcm only: polynomial-projection degree
+    pcm_screen_top: int = 32,        # pcm only: candidates refitted with the ML projection
+    pcm_combine: str = "crossfit",   # pcm only: "crossfit" | "bonferroni"
     cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs for Z-phase (linear test)
     hc1: bool = False,                     # HC1 robust SEs for W-phase and Z-phase fallback
+    backward_gate: str = "standard",       # "standard" (alpha/s) | "pathwise" (g_s)
+    alpha_spending: AlphaSpending = None,  # pathwise only; default w_s = 1/(s(s+1))
+    pvalue_fn=None,                        # custom conditional test (see below)
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
@@ -486,6 +929,41 @@ def nexis(
       "gcm"     — GCM-hybrid test (nonparametric φ̂, linear Z^j residualisation).
                   Speed: ~1.2× (poly2), ~3× (lgbm), ~27× (rf) vs linear.
                   controls / main_controls / interaction_only are ignored.
+      "PCM: quadratic" / "PCM: lgbm"
+                — modified Projected Covariance Measure (Lundborg, Kim, Shah &
+                  Samworth, 2024): a one-sided conditional-MEAN-independence test
+                  built on a half-sample-learned projection of the conditional-mean
+                  contrast.  Unlike the GCM it stays consistent against alternatives
+                  whose conditional covariance with Z^j vanishes (U-shapes, symmetric
+                  thresholds), at the cost of splitting the sample.  Tuned via
+                  pcm_projection / pcm_order / pcm_screen_top / pcm_combine.
+
+    backward_gate:
+      "standard" — the published rule: remove j if p(j|S\{j}) > α/|S| (or > α when
+                   adjust=None).  Corrects only over coordinates on the realised path.
+      "pathwise" — Pathwise Bonferroni: remove j if p(j|S\{j}) > g_s, where
+                   g_s = α·w_s / (m·C(m-1, s-1)), s = |S| and m is the number of
+                   candidate coordinates entering NEXIS.  Corrects simultaneously over
+                   every backward hypothesis reachable on ANY data-dependent path, so
+                   the total Type-I budget over that family is ≤ α.  Only the backward
+                   threshold changes; the forward gate is untouched and no separate
+                   certification stage is added.
+
+    alpha_spending (pathwise only):
+      Deterministic depth weights w_s ≥ 0 with Σ_s w_s ≤ 1, fixed before running.
+      None (default) uses w_s = 1/(s(s+1)), which sums to 1 over all positive integers
+      and so needs no pre-specified maximum depth.  May also be a callable s → w_s or
+      a sequence [w_1, w_2, …].  Validated for non-negativity and total mass ≤ 1.
+
+    pvalue_fn:
+      Optional drop-in replacement for the conditional interaction test.  Called as
+      pvalue_fn(y=, t=, z=, S=, candidates=, return_tstats=) and must return the same
+      shapes as conditional_interaction_pvalues: a length-m vector of p-values (ones
+      off `candidates`), or (pvalues, tstats) when return_tstats=True.  Overrides
+      `test`, `cluster` and `hc1`.  NEXIS only ever consumes p-values and t-statistics
+      from the test, so any valid test plugs in here — e.g. a level-aware clustered
+      test on a candidate pool that spans several levels of nesting
+      (src/apps/uganda/multilevel_inference.py).
 
     rho (ρ):
       Relative stopping threshold in (0, 1].  At each forward step the new
@@ -498,17 +976,45 @@ def nexis(
     # "quadratic" → gcm + poly2 nuisance
     # "GCM"       → gcm + lgbm nuisance
     # "linear"    → linear (nuisance unused)
+    # The canonical lowercase keys "gcm" and "pcm" are pass-through: they keep the
+    # caller's `nuisance` / `pcm_projection` rather than re-deriving them.  Only the
+    # user-facing aliases set those.  This matters because the W phase recurses with
+    # the already-normalised `test`, so a remapping alias would silently reset the
+    # variant mid-run (e.g. "GCM: quadratic" turning into lgbm inside the W phase).
     _test_key = test.lower().strip()
     if _test_key in {"gcm: quadratic", "quadratic"}:
         test, nuisance = "gcm", "poly2"
-    elif _test_key in {"gcm: lgbm", "gcm", "lgbm"}:
+    elif _test_key in {"gcm: lgbm", "lgbm"}:
         test, nuisance = "gcm", "lgbm"
+    elif _test_key == "gcm":
+        test = "gcm"
+    elif _test_key == "pcm":
+        test = "pcm"
+    elif _test_key in {"pcm: quadratic", "pcm: poly"}:
+        test, nuisance, pcm_projection = "pcm", "poly2", "poly"
+    elif _test_key == "pcm: lgbm":
+        # LightGBM *projection*, but poly2 nuisances: the PCM half-split leaves n/2
+        # for Ê[φ|Z^S] and Ê[f̂|Z^S], and fully nonparametric nuisances at that size
+        # are not calibrated (measured size 0.080 at α=0.05 on the check design vs
+        # 0.049 with poly2, at identical power).  Pass nuisance="lgbm" explicitly
+        # to override.
+        test, nuisance, pcm_projection = "pcm", "poly2", "lgbm"
     elif _test_key != "linear":
-        raise ValueError("test must be 'linear', 'GCM: quadratic', or 'GCM: lgbm'")
+        raise ValueError("test must be 'linear', 'GCM: quadratic', 'GCM: lgbm', "
+                         "'PCM: quadratic', or 'PCM: lgbm'")
 
     # rho=0 is treated as rho=None (gate 2 disabled).
     if rho is not None and rho == 0:
         rho = None
+
+    # Backward gate selection.  "standard" keeps the published alpha/s rule;
+    # "pathwise" corrects over every backward hypothesis reachable on any path.
+    _bwd = str(backward_gate).lower().strip()
+    if _bwd not in {"standard", "pathwise"}:
+        raise ValueError("backward_gate must be 'standard' or 'pathwise'")
+    _weight_fn = (resolve_alpha_spending(alpha_spending, max_depth=max_rounds)
+                  if _bwd == "pathwise" else None)
+    backward_log: List[Dict[str, float]] = []
 
     y_arr = np.asarray(y, dtype=float).reshape(-1)
     t_arr = np.asarray(t, dtype=float).reshape(-1)
@@ -517,6 +1023,11 @@ def nexis(
 
     if w is not None and w_names is None:
         raise ValueError("w_names is required when w is provided")
+    if w is not None and pvalue_fn is not None:
+        # pvalue_fn is defined against the column layout of Z; the W phase runs on a
+        # different matrix, so silently reusing it there would mislabel candidates.
+        raise ValueError("pvalue_fn is not supported together with w; pass the W "
+                         "columns inside z instead (the w_candidates=True layout)")
 
     # ── Phase 1: W selection ──────────────────────────────────────────────────
     S_w: List[int] = []
@@ -529,6 +1040,8 @@ def nexis(
             y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
             test=test, nuisance=nuisance, n_splits=n_splits,
             n_estimators=n_estimators, max_depth=max_depth,
+            pcm_projection=pcm_projection, pcm_order=pcm_order,
+            pcm_screen_top=pcm_screen_top, pcm_combine=pcm_combine,
             rho=rho, adjust=adjust, cluster=None, hc1=hc1,
             backward=backward, verbose=verbose,
         )
@@ -544,9 +1057,21 @@ def nexis(
 
     gcm_kwargs: dict = (dict(nuisance=nuisance, n_splits=n_splits,
                              n_estimators=n_estimators, max_depth=max_depth)
-                        if test == "gcm" else {})
+                        if test in ("gcm", "pcm") else {})
+    pcm_kwargs: dict = (dict(order=pcm_order, projection=pcm_projection,
+                             screen_top=pcm_screen_top, combine=pcm_combine)
+                        if test == "pcm" else {})
 
     def _pvalues(S_cur, candidates, return_tstats=False):
+        if pvalue_fn is not None:
+            return pvalue_fn(y=y_arr, t=t_arr, z=Z, S=S_cur,
+                             candidates=candidates,
+                             return_tstats=return_tstats)
+        if test == "pcm":
+            return conditional_interaction_pvalues_pcm(
+                y=y_arr, t=t_arr, z=Z, S=S_cur, candidates=candidates,
+                return_tstats=return_tstats, **gcm_kwargs, **pcm_kwargs,
+            )
         if test == "gcm":
             return conditional_interaction_pvalues_gcm(
                 y=y_arr, t=t_arr, z=Z, S=S_cur, candidates=candidates,
@@ -671,16 +1196,40 @@ def nexis(
             for j in list(selected):
                 if not selected:
                     break
+                if j not in selected:
+                    continue
                 S_minus_j = [s for s in selected if s != j]
                 pvals_back = _pvalues(S_minus_j, [j])
                 p_j = float(pvals_back[j])
-                gate_bwd = alpha if _adj is None else alpha / len(selected)
+                s_cur = len(selected)
+
+                if _bwd == "pathwise":
+                    # g_s = alpha * w_s / (m * C(m-1, s-1)); m = candidates entering NEXIS
+                    gate_bwd, log10_gate, log10_ns = pathwise_backward_gate(
+                        alpha, total, s_cur, _weight_fn)
+                    depth_budget = alpha * _weight_fn(s_cur)
+                    retained = _passes_log10(p_j, log10_gate)
+                else:
+                    gate_bwd = alpha if _adj is None else alpha / s_cur
+                    log10_gate = log10(gate_bwd) if gate_bwd > 0 else -np.inf
+                    log10_ns = log10(s_cur) if s_cur > 0 else -np.inf
+                    depth_budget = alpha
+                    retained = p_j <= gate_bwd
+
+                backward_log.append({
+                    "round": float(round_num + 1), "j": float(j), "s": float(s_cur),
+                    "log10_N_s": float(log10_ns), "depth_budget": float(depth_budget),
+                    "gate": float(gate_bwd), "log10_gate": float(log10_gate),
+                    "p": p_j, "retained": bool(retained),
+                })
 
                 if verbose:
-                    print(f"  round {round_num+1:2d} bwd | j={j} p={p_j:.2e} "
-                          f"gate={gate_bwd:.2e}", flush=True)
+                    extra = (f" N_s=1e{log10_ns:.2f} budget={depth_budget:.2e}"
+                             if _bwd == "pathwise" else "")
+                    print(f"  round {round_num+1:2d} bwd | j={j} s={s_cur} p={p_j:.2e} "
+                          f"gate=1e{log10_gate:.2f}{extra}", flush=True)
 
-                if p_j > gate_bwd:
+                if not retained:
                     selected.remove(j)
                     n_rejections += 1
                     if verbose:
@@ -716,6 +1265,8 @@ def nexis(
 
     if test == "gcm":
         test_label = "gcm_quadratic" if nuisance == "poly2" else "gcm_lgbm"
+    elif test == "pcm":
+        test_label = f"pcm_{pcm_projection}"
     else:
         test_label = test
     method_str = f"nexis_{test_label}"
@@ -723,6 +1274,8 @@ def nexis(
         method_str = "w_" + method_str
     if not backward:
         method_str += "_fwd"
+    if _bwd == "pathwise":
+        method_str += "_pwbwd"
     if rho is not None:
         method_str += f"_sg{rho}"
     if _adj is None:
@@ -737,10 +1290,18 @@ def nexis(
         "rounds": float(round_num),
         "test": test,
         "backward": backward,
+        "backward_gate": _bwd,
+        "backward_tests": float(len(backward_log)),
+        "backward_removed": float(sum(1 for r in backward_log if not r["retained"])),
+        "backward_log": backward_log,
     }
-    if test == "gcm":
+    if test in ("gcm", "pcm"):
         meta.update({"nuisance": nuisance, "n_splits": float(n_splits),
                      "n_estimators": float(n_estimators)})
+    if test == "pcm":
+        meta.update({"pcm_projection": pcm_projection, "pcm_order": float(pcm_order),
+                     "pcm_combine": pcm_combine,
+                     "pcm_screen_top": float(pcm_screen_top)})
     if rho is not None:
         meta["rho"] = float(rho)
 

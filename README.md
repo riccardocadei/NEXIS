@@ -78,6 +78,24 @@ python src/apps/celeba/figure_main.py
 python src/apps/celeba/figure_appendix.py
 ```
 
+**Backbone ablation.** Every stage takes an optional backbone (`siglip`, the default
+and the reported setting, or `dinov2`), so the whole benchmark can be repeated on a
+different frozen encoder. Non-default backbones write to tagged files and a nested
+results tree (`results/celeba/experiment/dinov2/…`), leaving the SigLIP artefacts untouched:
+
+```bash
+bash scripts/celeba/submit_embed.sh dinov2
+bash scripts/celeba/submit_sae.sh dinov2
+bash scripts/celeba/submit_experiment.sh --backbone=dinov2
+python src/apps/celeba/figure_main.py \
+    --data-dir results/celeba/experiment/dinov2/k20/sae \
+    --out-path results/celeba/experiment/dinov2/k20/sae/figure_main.pdf
+python src/apps/celeba/figure_appendix.py \
+    --experiment-dir results/celeba/experiment/dinov2 \
+    --out-dir        results/celeba/appendix_dinov2
+python src/apps/celeba/compare_backbones.py   # overlays both, writes comparison.md
+```
+
 See [`notebooks/celeba.ipynb`](notebooks/celeba.ipynb) for interactive exploration.
 
 ### Uganda YOP — real-world application

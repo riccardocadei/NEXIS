@@ -8,13 +8,14 @@
 #SBATCH --time=02:00:00
 #
 # GCM-only worker (lgbm ~3× slower than linear).
-# Usage: sbatch run_experiment_gcm.sh [raw|sae|sae_precode] [k] [effect|n|both]
+# Usage: sbatch run_experiment_gcm.sh [raw|sae|sae_precode] [k] [effect|n|both] [backbone]
 
 set -euo pipefail
 
 FEATURE_TYPE="${1:-sae}"
 SAE_K="${2:-5}"
 SWEEP="${3:-both}"
+BACKBONE="${4:-siglip}"
 
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$PROJECT_ROOT"
@@ -24,6 +25,7 @@ PYTHON="${PYTHON:-/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3}"
 COMMON_ARGS=(
     --data-dir     data/celeba
     --out-dir      results/celeba/experiment
+    --backbone     "$BACKBONE"
     --w1-attr      Wearing_Hat
     --w2-attr      Eyeglasses
     --top-k        1

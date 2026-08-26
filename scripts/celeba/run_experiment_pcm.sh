@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=celeba-exp
-#SBATCH --output=logs/celeba-exp-%j.out
-#SBATCH --error=logs/celeba-exp-%j.err
+#SBATCH --job-name=celeba-pcm
+#SBATCH --output=logs/celeba-pcm-%j.out
+#SBATCH --error=logs/celeba-pcm-%j.err
 #SBATCH --partition=defaultp
 #SBATCH --cpus-per-task=40
-#SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --mem=120G
+#SBATCH --time=08:00:00
 #
-# Single-feature-type experiment worker. Called by submit_experiment.sh.
-# Usage: sbatch run_experiment_single.sh [raw|sae|sae_precode] [k] [effect|n|both] [backbone]
+# PCM-only worker (modified Projected Covariance Measure, Lundborg et al. 2024).
+# ~3-4x the cost of the GCM: the projection is fitted on one half-sample and
+# evaluated on the other, in both directions.
+# Usage: sbatch run_experiment_pcm.sh [raw|sae|sae_precode] [k] [effect|n|both] [backbone]
 
 set -euo pipefail
 
 FEATURE_TYPE="${1:-sae}"
-SAE_K="${2:-5}"
+SAE_K="${2:-20}"
 SWEEP="${3:-both}"
 BACKBONE="${4:-siglip}"
 
@@ -21,6 +23,7 @@ PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." &&
 cd "$PROJECT_ROOT"
 
 PYTHON="${PYTHON:-/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3}"
+export OMP_NUM_THREADS=1
 
 COMMON_ARGS=(
     --data-dir     data/celeba
@@ -36,35 +39,25 @@ COMMON_ARGS=(
     --fixed-effect 2.0 5.0
     --gcm-splits   3
     --sweep        "$SWEEP"
-    --force
-)
-
-FAST_METHODS=(
-    "Marginal Testing"
-    "Marginal Testing (FWER)"
-    "Marginal Testing (FDR)"
-    "NEXIS"
-    "NEXIS (test=GCM: quadratic)"
-    "NEXIS (adjust=None)"
-    "NEXIS (adjust=FDR)"
-    "NEXIS (rho=0)"
-    "NEXIS (rho=0.2)"
-    "NEXIS (rho=0.8)"
-    "NEXIS (backward=False)"
+    --methods      "NEXIS (test=PCM: quadratic)" "NEXIS (test=PCM: lgbm)"
+    --merge
 )
 
 case "$FEATURE_TYPE" in
     raw)
-        $PYTHON src/apps/celeba/run_experiment.py --raw \
-            --methods "${FAST_METHODS[@]}" "${COMMON_ARGS[@]}"
+        $PYTHON src/apps/celeba/run_experiment.py --raw "${COMMON_ARGS[@]}"
         ;;
     sae)
         $PYTHON src/apps/celeba/run_experiment.py \
-            --sae-top-k "${SAE_K}" --methods "${FAST_METHODS[@]}" "${COMMON_ARGS[@]}"
+            --sae-top-k "${SAE_K}" \
+            --gt-json "results/celeba/experiment/k${SAE_K}/sae/ground_truth.json" \
+            "${COMMON_ARGS[@]}"
         ;;
     sae_precode)
         $PYTHON src/apps/celeba/run_experiment.py \
-            --precode --sae-top-k "${SAE_K}" --methods "${FAST_METHODS[@]}" "${COMMON_ARGS[@]}"
+            --precode --sae-top-k "${SAE_K}" \
+            --gt-json "results/celeba/experiment/k${SAE_K}/sae_precode/ground_truth.json" \
+            "${COMMON_ARGS[@]}"
         ;;
     *) echo "Unknown feature type: $FEATURE_TYPE" >&2; exit 1 ;;
 esac

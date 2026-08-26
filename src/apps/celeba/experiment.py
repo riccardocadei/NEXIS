@@ -48,6 +48,8 @@ ALL_METHODS: List[str] = [
     # test ablation
     "NEXIS (test=GCM: quadratic)",
     "NEXIS (test=GCM: lgbm)",
+    "NEXIS (test=PCM: quadratic)",
+    "NEXIS (test=PCM: lgbm)",
     # adjust ablation
     "NEXIS (adjust=None)",
     "NEXIS (adjust=FDR)",
@@ -59,8 +61,11 @@ ALL_METHODS: List[str] = [
     "NEXIS (backward=False)",
 ]
 
-#: Fast-only subset (skips GCM lgbm, ~3× slower) for compute-tight runs.
-FAST_METHODS: List[str] = [m for m in ALL_METHODS if m != "NEXIS (test=GCM: lgbm)"]
+#: Fast-only subset (skips the ML-projection/nuisance variants) for compute-tight runs.
+FAST_METHODS: List[str] = [
+    m for m in ALL_METHODS
+    if m not in ("NEXIS (test=GCM: lgbm)", "NEXIS (test=PCM: lgbm)")
+]
 
 
 def evaluate_methods_on_dataset(
@@ -129,6 +134,12 @@ def evaluate_methods_on_dataset(
     _run("NEXIS (test=GCM: lgbm)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       test="GCM: lgbm", n_splits=gcm_splits))
+    _run("NEXIS (test=PCM: quadratic)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="PCM: quadratic", n_splits=gcm_splits))
+    _run("NEXIS (test=PCM: lgbm)",
+         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+                      test="PCM: lgbm", n_splits=gcm_splits))
     # adjust ablation
     _run("NEXIS (adjust=None)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
@@ -211,6 +222,26 @@ def compute_f1_scores(
     return best_f1
 
 
+def find_ground_truth_neurons_multi(
+    features: np.ndarray,
+    labels_df: pd.DataFrame,
+    w_attrs: Sequence[str],
+    top_k: int = 1,
+) -> Tuple[List[List[int]], List[np.ndarray]]:
+    """Top-k best-threshold-F1 neurons for each of the r modifier attributes.
+
+    Returns (neurons_per_attr, f1_per_attr).  The per-attribute F1 spectra are
+    returned alongside the argmaxes because the *gap* between the best and the
+    runner-up coordinate is what says whether the attribute is carried by a
+    single coordinate — i.e. whether S* is well defined for it — and callers
+    log that gap rather than re-running the sweep.
+    """
+    f1s = [compute_f1_scores(features, labels_df[a].values.astype(float))
+           for a in w_attrs]
+    neurons = [np.argsort(f).tolist()[-top_k:] for f in f1s]
+    return neurons, f1s
+
+
 def find_ground_truth_neurons(
     features: np.ndarray,
     labels_df: pd.DataFrame,
@@ -234,16 +265,9 @@ def find_ground_truth_neurons(
     Returns:
         (w1_neurons, w2_neurons) — index lists into the hidden_dim dimension.
     """
-    W1 = labels_df[w1_attr].values.astype(float)
-    W2 = labels_df[w2_attr].values.astype(float)
-
-    f1_w1 = compute_f1_scores(features, W1)
-    f1_w2 = compute_f1_scores(features, W2)
-
-    w1_neurons: List[int] = np.argsort(f1_w1)[-top_k:].tolist()
-    w2_neurons: List[int] = np.argsort(f1_w2)[-top_k:].tolist()
-
-    return w1_neurons, w2_neurons
+    neurons, _ = find_ground_truth_neurons_multi(
+        features, labels_df, [w1_attr, w2_attr], top_k=top_k)
+    return neurons[0], neurons[1]
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +324,7 @@ def run_sweep(
     fixed_n: Optional[int] = None,
     fixed_effect: Optional[float] = None,
     n_seeds: int = 10,
+    seed_offset: int = 0,
     alpha: float = 0.05,
     max_rounds: int = 5,
     methods: Optional[List[str]] = None,
@@ -316,6 +341,10 @@ def run_sweep(
         fixed_n:       n used when sweep_param == "effect_scale".
         fixed_effect:  effect_scale used when sweep_param == "n".
         n_seeds:       Monte Carlo replications per grid point.
+        seed_offset:   First Monte Carlo seed; seeds are
+                       ``range(seed_offset, seed_offset + n_seeds)``.  Lets one
+                       sweep be sharded over disjoint seed blocks across jobs
+                       without changing the draws (the seed *is* the draw).
         methods:       Subset of ALL_METHODS to run (default: all).
         gcm_splits:    Cross-fit folds for GCM methods.
 
@@ -337,7 +366,8 @@ def run_sweep(
         except ValueError:
             return param_val, seed, None  # bucket exhausted
 
-    tasks = [(pv, s) for pv in param_grid for s in range(n_seeds)]
+    tasks = [(pv, s) for pv in param_grid
+                     for s in range(seed_offset, seed_offset + n_seeds)]
     if verbose:
         print(f"  {len(tasks)} tasks  "
               f"({len(param_grid)} {sweep_param} values × {n_seeds} seeds) …", flush=True)

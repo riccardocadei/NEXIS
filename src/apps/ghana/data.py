@@ -102,7 +102,17 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     All Yes/No covariates are binarised (1/0) and given readable names.
     Continuous covariates are renamed for clarity.
     """
-    df = pd.read_stata(Path(data_dir) / 'LEAP1000 2015-2017 household data++.dta')
+    # The survey extract lives under data/ghana/survey/; older checkouts kept it at
+    # the top of data/ghana/.  Accept either so the pipeline runs from a fresh clone.
+    _stata = 'LEAP1000 2015-2017 household data++.dta'
+    _root = Path(data_dir)
+    for _cand in (_root / 'survey' / _stata, _root / _stata):
+        if _cand.exists():
+            break
+    else:
+        raise FileNotFoundError(
+            f"{_stata!r} not found under {_root} or {_root / 'survey'}")
+    df = pd.read_stata(_cand)
 
     # Core identifiers
     df['T']    = (df['tac'] == 'Treatment').astype(int)

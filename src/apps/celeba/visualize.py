@@ -93,6 +93,8 @@ METHOD_STYLES: dict = {
     # test ablation (purple family)
     'NEXIS (test=GCM: quadratic)': dict(color='#9467bd', lw=1.5, marker='o', ms=3, label='NEXIS (test=GCM: quadratic)'),
     'NEXIS (test=GCM: lgbm)':      dict(color='#5c3493', lw=2.0, marker='o', ms=3, label='NEXIS (test=GCM: lgbm)'),
+    'NEXIS (test=PCM: quadratic)': dict(color='#e6a532', lw=1.5, marker='s', ms=3, label='NEXIS (test=PCM: quadratic)'),
+    'NEXIS (test=PCM: lgbm)':      dict(color='#a86a12', lw=2.0, marker='s', ms=3, label='NEXIS (test=PCM: lgbm)'),
     # adjust ablation (teal family)
     'NEXIS (adjust=None)':     dict(color='#41b6c4', lw=1.5, marker='o', ms=3, label='NEXIS (adjust=None)'),
     'NEXIS (adjust=FDR)':      dict(color='#1d91c0', lw=1.5, marker='o', ms=3, label='NEXIS (adjust=FDR)'),
@@ -122,6 +124,8 @@ ABLATION_GROUPS: dict[str, dict] = {
             'NEXIS':                       'linear (default)',
             'NEXIS (test=GCM: quadratic)': 'GCM: quadratic',
             'NEXIS (test=GCM: lgbm)':      'GCM: lgbm',
+            'NEXIS (test=PCM: quadratic)': 'PCM: quadratic',
+            'NEXIS (test=PCM: lgbm)':      'PCM: lgbm',
         },
     },
     'adjust': {

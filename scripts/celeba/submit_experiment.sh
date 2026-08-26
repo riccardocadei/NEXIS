@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
 # Stage 3: Launch SLURM jobs for all feature-type × SAE-k × sweep combinations.
-# Results are organised as:
+# Results are organised as (SigLIP, the default backbone):
 #   results/celeba/experiment/k5/sae/
 #   results/celeba/experiment/k5/sae_precode/
 #   results/celeba/experiment/k20/sae/
 #   results/celeba/experiment/k20/sae_precode/
+# Any other backbone nests one level deeper, e.g.
+#   results/celeba/experiment/dinov2/k20/sae/
 #
 # Parallelisation strategy:
 #   - 8 "fast" jobs  (effect + n split, 56 CPUs each) — all methods except GCM: lgbm
@@ -13,6 +15,7 @@
 #   = 16 jobs total; all 8 fast jobs run simultaneously.
 #
 # Submit:  bash scripts/celeba/submit_experiment.sh
+#          bash scripts/celeba/submit_experiment.sh --backbone=dinov2
 # Or run sequentially: bash scripts/celeba/submit_experiment.sh --local
 
 set -euo pipefail
@@ -21,7 +24,15 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 mkdir -p "$PROJECT_ROOT/logs"
 
-LOCAL="${1:-}"
+LOCAL=""
+BACKBONE="siglip"
+for arg in "$@"; do
+  case "$arg" in
+    --local)       LOCAL="--local" ;;
+    --backbone=*)  BACKBONE="${arg#--backbone=}" ;;
+    *) echo "Unknown flag: $arg" >&2; exit 1 ;;
+  esac
+done
 
 PYTHON="${PYTHON:-/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3}"
 
@@ -42,6 +53,7 @@ FAST_METHODS=(
 COMMON_ARGS=(
     --data-dir     data/celeba
     --out-dir      results/celeba/experiment
+    --backbone     "$BACKBONE"
     --w1-attr      Wearing_Hat
     --w2-attr      Eyeglasses
     --top-k        1
@@ -69,26 +81,26 @@ if [[ "$LOCAL" == "--local" ]]; then
     done
 else
     # 8 fast jobs — all start immediately, one per (config × sweep)
-    F_EFF_SAE5=$( sbatch --parsable scripts/celeba/run_experiment_single.sh sae         5 effect)
-    F_EFF_PRE5=$( sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 5 effect)
-    F_EFF_SAE20=$(sbatch --parsable scripts/celeba/run_experiment_single.sh sae         20 effect)
-    F_EFF_PRE20=$(sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 20 effect)
-    F_N_SAE5=$(   sbatch --parsable scripts/celeba/run_experiment_single.sh sae         5 n)
-    F_N_PRE5=$(   sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 5 n)
-    F_N_SAE20=$(  sbatch --parsable scripts/celeba/run_experiment_single.sh sae         20 n)
-    F_N_PRE20=$(  sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 20 n)
+    F_EFF_SAE5=$( sbatch --parsable scripts/celeba/run_experiment_single.sh sae         5 effect "$BACKBONE")
+    F_EFF_PRE5=$( sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 5 effect "$BACKBONE")
+    F_EFF_SAE20=$(sbatch --parsable scripts/celeba/run_experiment_single.sh sae         20 effect "$BACKBONE")
+    F_EFF_PRE20=$(sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 20 effect "$BACKBONE")
+    F_N_SAE5=$(   sbatch --parsable scripts/celeba/run_experiment_single.sh sae         5 n "$BACKBONE")
+    F_N_PRE5=$(   sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 5 n "$BACKBONE")
+    F_N_SAE20=$(  sbatch --parsable scripts/celeba/run_experiment_single.sh sae         20 n "$BACKBONE")
+    F_N_PRE20=$(  sbatch --parsable scripts/celeba/run_experiment_single.sh sae_precode 20 n "$BACKBONE")
 
     # 8 GCM jobs — each waits for its paired fast job
-    sbatch --dependency=afterok:$F_EFF_SAE5  scripts/celeba/run_experiment_gcm.sh sae         5 effect
-    sbatch --dependency=afterok:$F_EFF_PRE5  scripts/celeba/run_experiment_gcm.sh sae_precode 5 effect
-    sbatch --dependency=afterok:$F_EFF_SAE20 scripts/celeba/run_experiment_gcm.sh sae         20 effect
-    sbatch --dependency=afterok:$F_EFF_PRE20 scripts/celeba/run_experiment_gcm.sh sae_precode 20 effect
-    sbatch --dependency=afterok:$F_N_SAE5    scripts/celeba/run_experiment_gcm.sh sae         5 n
-    sbatch --dependency=afterok:$F_N_PRE5    scripts/celeba/run_experiment_gcm.sh sae_precode 5 n
-    sbatch --dependency=afterok:$F_N_SAE20   scripts/celeba/run_experiment_gcm.sh sae         20 n
-    sbatch --dependency=afterok:$F_N_PRE20   scripts/celeba/run_experiment_gcm.sh sae_precode 20 n
+    sbatch --dependency=afterok:$F_EFF_SAE5  scripts/celeba/run_experiment_gcm.sh sae         5 effect "$BACKBONE"
+    sbatch --dependency=afterok:$F_EFF_PRE5  scripts/celeba/run_experiment_gcm.sh sae_precode 5 effect "$BACKBONE"
+    sbatch --dependency=afterok:$F_EFF_SAE20 scripts/celeba/run_experiment_gcm.sh sae         20 effect "$BACKBONE"
+    sbatch --dependency=afterok:$F_EFF_PRE20 scripts/celeba/run_experiment_gcm.sh sae_precode 20 effect "$BACKBONE"
+    sbatch --dependency=afterok:$F_N_SAE5    scripts/celeba/run_experiment_gcm.sh sae         5 n "$BACKBONE"
+    sbatch --dependency=afterok:$F_N_PRE5    scripts/celeba/run_experiment_gcm.sh sae_precode 5 n "$BACKBONE"
+    sbatch --dependency=afterok:$F_N_SAE20   scripts/celeba/run_experiment_gcm.sh sae         20 n "$BACKBONE"
+    sbatch --dependency=afterok:$F_N_PRE20   scripts/celeba/run_experiment_gcm.sh sae_precode 20 n "$BACKBONE"
 
-    echo "Submitted 16 jobs:"
+    echo "Submitted 16 jobs (backbone=$BACKBONE):"
     echo "  fast effect: $F_EFF_SAE5 $F_EFF_PRE5 $F_EFF_SAE20 $F_EFF_PRE20"
     echo "  fast n:      $F_N_SAE5 $F_N_PRE5 $F_N_SAE20 $F_N_PRE20"
     echo "  GCM (afterok on paired fast jobs)"
