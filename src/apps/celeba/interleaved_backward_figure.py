@@ -8,8 +8,8 @@ method_backward.pdf (src/apps/celeba/figure_appendix.py): 4 rows x 3 columns,
 
 comparing forward only (f), forward + backward (fb, the default) and forward +
 interleaved backward + backward (fib).  Self-contained (no import of the paper's
-figure code, which is being edited separately); colours follow the NEXIS-v2 styles of
-src/apps/celeba/visualize.py.
+figure code, which is being edited separately); forward only and the default keep the
+colours of src/apps/celeba/visualize.py, the interleaved arm is orange for contrast.
 
 Usage: interleaved_backward_figure.py <tag> [--with-fi]
 Writes results/celeba/interleaved_backward/<tag>/method_interleaved_backward.pdf
@@ -34,10 +34,10 @@ plt.rcParams.update({"font.size": 13, "axes.labelsize": 13, "axes.titlesize": 13
                      "legend.fontsize": 12})
 
 ARMS = {
-    "f":   dict(color="#2ca02c", lw=1.5, marker="o", ms=3, label="forward only"),
+    "f":   dict(color="#2ca02c", lw=1.5, marker="o", ms=3, ls="--", label="forward only"),
     "fb":  dict(color="#08519c", lw=2.5, marker="o", ms=3,
                 label="forward + backward (default)"),
-    "fib": dict(color="#74c476", lw=1.5, marker="^", ms=4,
+    "fib": dict(color="#d95f02", lw=2.0, marker="^", ms=4,
                 label="forward + interleaved backward + backward"),
 }
 if with_fi:
