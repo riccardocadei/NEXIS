@@ -217,7 +217,7 @@ def main():
     md = ["# CelebA figures: published NEXIS vs NEXIS-v2 (terminal backward step)", "",
           "NEXIS-v2 = forward step (Bonferroni gate alpha/|remaining|, rho=0.5), no "
           "interleaved backward step, then the terminal backward step (keep j only if "
-          "p_j(A) <= alpha/m for every A in S~ minus j; m = 13,824 columns). Ablation "
+          "p_j(A) <= alpha/m for every A in S~ minus j; m = 9,216 columns). Ablation "
           "variants deviate from it along one axis; for adjust=None/FDR only the forward "
           "gate changes, the terminal gate stays alpha/m.", "",
           "Macro = mean over the figure's cells of the per-cell mean over 50 seeds "
