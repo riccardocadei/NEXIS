@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 from apps.celeba.visualize import (
     plot_sweep, MAIN_METHODS, METHOD_STYLES, ABLATION_GROUPS, _METRIC_LABEL,
+    MAIN_METHODS_V2, ABLATION_GROUPS_V2,
 )
 
 # ---------------------------------------------------------------------------
@@ -55,6 +56,9 @@ N_MAIN,   N_ALT   = 2000, 500
 # Defaults; overridable from the CLI (see main) to render a different backbone.
 EXPERIMENT_DIR = ROOT / "results/celeba/experiment"
 OUT            = ROOT / "results/celeba/appendix"
+# Method sets; --variant v2 swaps in the terminal-backward-step default (NEXIS-v2).
+MAIN   = MAIN_METHODS
+GROUPS = ABLATION_GROUPS
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +71,7 @@ def make_12panel(
     methods: dict[str, str],  # {method_key: display_label}
     out_path: Path,
     extra_styles: dict | None = None,
+    legend_ncol: int | None = None,
 ) -> None:
     """
     4-row × 3-col figure; rows = DGP settings, cols = Precision | Recall | IoU.
@@ -125,7 +130,7 @@ def make_12panel(
         renderer  = fig.canvas.get_renderer()
         fig_h     = fig.get_window_extent(renderer).height
         tight_ymin = min(ax.get_tightbbox(renderer).y0 / fig_h for ax in axes.flat)
-        n_cols_leg = min(len(handles), 4)
+        n_cols_leg = legend_ncol or min(len(handles), 4)
         fig.legend(handles, labels,
                    loc="upper center", ncol=n_cols_leg,
                    bbox_to_anchor=(0.5, tight_ymin + 0.01),
@@ -160,25 +165,26 @@ def fig_dgp(out: Path | None = None) -> None:
     """Reference figure (k=20/z, MAIN_METHODS).  Also serves as the DGP ablation:
     row 1 = main setting, row 2 = weaker setting — same methods, different DGP."""
     n, e = _load(20, "sae")
-    make_12panel(n, e, MAIN_METHODS, out or OUT / "dgp.pdf")
+    make_12panel(n, e, MAIN, out or OUT / "dgp.pdf")
 
 
 def fig_model_k5(out: Path | None = None) -> None:
     """k=5 SAE ablation: all MAIN_METHODS evaluated on k=5 sparse codes."""
     n, e = _load(5, "sae")
-    make_12panel(n, e, MAIN_METHODS, out or OUT / "model_k5.pdf")
+    make_12panel(n, e, MAIN, out or OUT / "model_k5.pdf")
 
 
 def fig_model_precode(out: Path | None = None) -> None:
     """Feature-type ablation: all MAIN_METHODS on k=20 continuous pre-activations (z_pre)."""
     n, e = _load(20, "sae_precode")
-    make_12panel(n, e, MAIN_METHODS, out or OUT / "model_precode.pdf")
+    make_12panel(n, e, MAIN, out or OUT / "model_precode.pdf")
 
 
 def _method_fig(ablation_key: str, out: Path | None, default_name: str) -> None:
     n, e = _load(20, "sae")
-    grp  = ABLATION_GROUPS[ablation_key]
-    make_12panel(n, e, grp["methods"], out or OUT / default_name)
+    grp  = GROUPS[ablation_key]
+    make_12panel(n, e, grp["methods"], out or OUT / default_name,
+                 legend_ncol=grp.get("legend_ncol"))
 
 
 def fig_method_test(out:     Path | None = None) -> None: _method_fig("test",     out, "method_test.pdf")
@@ -447,12 +453,18 @@ def parse_args():
     p.add_argument("--out-dir",        type=Path, default=OUT,
                    help="Where to write the figures and brief.md "
                         "(default: results/celeba/appendix)")
+    p.add_argument("--variant",        choices=["v1", "v2"], default="v1",
+                   help="v1 (default): published NEXIS.  v2: NEXIS-v2 (terminal "
+                        "backward step) as the default line and ablation base; reads "
+                        "e.g. results/celeba/experiment_v2.  brief.md is v1 only.")
     return p.parse_args()
 
 
 def main():
-    global EXPERIMENT_DIR, OUT
+    global EXPERIMENT_DIR, OUT, MAIN, GROUPS
     args = parse_args()
+    if args.variant == "v2":
+        MAIN, GROUPS = MAIN_METHODS_V2, ABLATION_GROUPS_V2
     EXPERIMENT_DIR = (ROOT / args.experiment_dir
                       if not args.experiment_dir.is_absolute() else args.experiment_dir)
     OUT            = (ROOT / args.out_dir
@@ -466,7 +478,8 @@ def main():
     fig_method_adjust()
     fig_method_rho()
     fig_method_backward()
-    write_brief()
+    if args.variant == "v1":
+        write_brief()
     print(f"\nAll appendix assets saved to {OUT}")
 
 

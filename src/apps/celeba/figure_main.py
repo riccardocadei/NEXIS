@@ -39,6 +39,9 @@ def parse_args():
                    help="Fixed η for the left pair (default: 5.0)")
     p.add_argument("--fixed-n", type=int, default=2000,
                    help="Fixed n for the right pair (default: 2000)")
+    p.add_argument("--nexis-key", default="NEXIS",
+                   help="Method key drawn as 'NEXIS (ours)' (default: NEXIS; "
+                        "NEXIS-v2 for the terminal-backward-step default)")
     return p.parse_args()
 
 
@@ -76,19 +79,22 @@ def main():
     })
     label_size = 15
 
+    methods = {k: v for k, v in MAIN_METHODS_PAPER.items() if k != "NEXIS"}
+    methods[args.nexis_key] = MAIN_METHODS_PAPER["NEXIS"]
+
     fig, axes = plt.subplots(1, 4, figsize=(16, 4.4))
 
     # Left pair — n sweep at fixed η  (precision | recall)
     plot_sweep(df_left,  "n",            "precision", xlabel=r"Sample size $n$",
-               ax=axes[0], methods=MAIN_METHODS_PAPER)
+               ax=axes[0], methods=methods)
     plot_sweep(df_left,  "n",            "recall",    xlabel=r"Sample size $n$",
-               ax=axes[1], methods=MAIN_METHODS_PAPER)
+               ax=axes[1], methods=methods)
 
     # Right pair — effect sweep at fixed n  (precision | recall)
     plot_sweep(df_right, "effect_scale", "precision", xlabel=r"Effect size $\eta$",
-               ax=axes[2], methods=MAIN_METHODS_PAPER)
+               ax=axes[2], methods=methods)
     plot_sweep(df_right, "effect_scale", "recall",    xlabel=r"Effect size $\eta$",
-               ax=axes[3], methods=MAIN_METHODS_PAPER)
+               ax=axes[3], methods=methods)
 
     # Collect legend handles before removing per-panel legends
     handles, labels = axes[0].get_legend_handles_labels()

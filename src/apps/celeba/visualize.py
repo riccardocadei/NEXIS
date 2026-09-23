@@ -154,6 +154,80 @@ ABLATION_GROUPS: dict[str, dict] = {
     },
 }
 
+# ── Terminal-backward-step default ("NEXIS-v2", see experiment.V2_METHODS) ────
+# Each v2 variant reuses the style of its published counterpart, so the v2 figures
+# are drop-in replacements.  The backward-step ablation gets its own green family.
+_V2_STYLE_FROM = {
+    'NEXIS-v2':                       'NEXIS',
+    'NEXIS-v2 (test=GCM: quadratic)': 'NEXIS (test=GCM: quadratic)',
+    'NEXIS-v2 (test=GCM: lgbm)':      'NEXIS (test=GCM: lgbm)',
+    'NEXIS-v2 (test=PCM: quadratic)': 'NEXIS (test=PCM: quadratic)',
+    'NEXIS-v2 (test=PCM: lgbm)':      'NEXIS (test=PCM: lgbm)',
+    'NEXIS-v2 (adjust=None)':         'NEXIS (adjust=None)',
+    'NEXIS-v2 (adjust=FDR)':          'NEXIS (adjust=FDR)',
+    'NEXIS-v2 (rho=0)':               'NEXIS (rho=0)',
+    'NEXIS-v2 (rho=0.2)':             'NEXIS (rho=0.2)',
+    'NEXIS-v2 (rho=0.8)':             'NEXIS (rho=0.8)',
+    'NEXIS-v2 (terminal=False)':      'NEXIS (backward=False)',
+}
+METHOD_STYLES.update({k: {**METHOD_STYLES[v], 'label': k}
+                      for k, v in _V2_STYLE_FROM.items()})
+METHOD_STYLES.update({
+    'NEXIS-v2 (interleaved=True, terminal=False)':
+        dict(color='#00441b', lw=1.5, marker='s', ms=3,
+             label='NEXIS-v2 (interleaved=True, terminal=False)'),
+    'NEXIS-v2 (interleaved=True)':
+        dict(color='#74c476', lw=1.5, marker='^', ms=3,
+             label='NEXIS-v2 (interleaved=True)'),
+})
+
+MAIN_METHODS_V2: dict[str, str] = {
+    **{k: v for k, v in MAIN_METHODS.items() if k != 'NEXIS'},
+    'NEXIS-v2': 'NEXIS',
+}
+
+# Same groups and labels as ABLATION_GROUPS on top of the v2 default.  "backward
+# step" is the terminal step, "interleaved backward step" the published per-round one.
+ABLATION_GROUPS_V2: dict[str, dict] = {
+    'test': {
+        'title': 'Test statistic',
+        'methods': {
+            'NEXIS-v2':                       'linear (default)',
+            'NEXIS-v2 (test=GCM: quadratic)': 'GCM: quadratic',
+            'NEXIS-v2 (test=GCM: lgbm)':      'GCM: lgbm',
+            'NEXIS-v2 (test=PCM: quadratic)': 'PCM: quadratic',
+            'NEXIS-v2 (test=PCM: lgbm)':      'PCM: lgbm',
+        },
+    },
+    'adjust': {
+        'title': 'Adjustment',
+        'methods': {
+            'NEXIS-v2 (adjust=None)': 'None',
+            'NEXIS-v2 (adjust=FDR)':  'FDR',
+            'NEXIS-v2':               'FWER (default)',
+        },
+    },
+    'rho': {
+        'title': 'ρ threshold',
+        'methods': {
+            'NEXIS-v2 (rho=0)':   '0',
+            'NEXIS-v2 (rho=0.2)': '0.2',
+            'NEXIS-v2':           '0.5 (default)',
+            'NEXIS-v2 (rho=0.8)': '0.8',
+        },
+    },
+    'backward': {
+        'title': 'Backward step',
+        'legend_ncol': 2,
+        'methods': {
+            'NEXIS-v2 (terminal=False)':                   'forward only',
+            'NEXIS-v2 (interleaved=True, terminal=False)': 'forward + interleaved backward step',
+            'NEXIS-v2 (interleaved=True)':                 'forward + interleaved + backward step',
+            'NEXIS-v2':                                    'forward + backward step (default)',
+        },
+    },
+}
+
 REPR_STYLES: dict = {
     'Raw SigLIP': dict(color='#d62728', lw=2.0, ls='--', label='Raw SigLIP'),
     'SigLIP+SAE': dict(color='#1f77b4', lw=2.0,           label='SigLIP+SAE'),
