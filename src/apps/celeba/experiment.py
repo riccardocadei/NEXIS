@@ -67,6 +67,36 @@ FAST_METHODS: List[str] = [
     if m not in ("NEXIS (test=GCM: lgbm)", "NEXIS (test=PCM: lgbm)")
 ]
 
+#: Rebuttal default ("v2"): forward step (Bonferroni gate, rho=0.5), no interleaved
+#: backward step, then the terminal backward step (subset-robust terminal filter of
+#: nexis(terminal_filter=True), gate alpha/m).  Kept out of ALL_METHODS so runs that
+#: use the default method list, and hence the published numbers, are unchanged.
+NEXIS_V2_DEFAULT: Dict[str, Any] = dict(rho=0.5, backward=False, terminal_filter=True)
+
+#: v2 variants: name -> overrides of NEXIS_V2_DEFAULT (each deviates along one axis).
+#: "interleaved" is the per-round backward step of the published NEXIS, "terminal"
+#: the terminal backward step.  The terminal gate stays alpha/m whatever `adjust` is.
+V2_METHODS: Dict[str, Dict[str, Any]] = {
+    "NEXIS-v2": {},
+    # test ablation
+    "NEXIS-v2 (test=GCM: quadratic)": dict(test="GCM: quadratic"),
+    "NEXIS-v2 (test=GCM: lgbm)":      dict(test="GCM: lgbm"),
+    "NEXIS-v2 (test=PCM: quadratic)": dict(test="PCM: quadratic"),
+    "NEXIS-v2 (test=PCM: lgbm)":      dict(test="PCM: lgbm"),
+    # adjust ablation (forward gate only)
+    "NEXIS-v2 (adjust=None)": dict(adjust=None),
+    "NEXIS-v2 (adjust=FDR)":  dict(adjust="FDR"),
+    # rho ablation
+    "NEXIS-v2 (rho=0)":   dict(rho=0),
+    "NEXIS-v2 (rho=0.2)": dict(rho=0.2),
+    "NEXIS-v2 (rho=0.8)": dict(rho=0.8),
+    # backward-step ablation
+    "NEXIS-v2 (terminal=False)": dict(terminal_filter=False),         # forward only
+    "NEXIS-v2 (interleaved=True, terminal=False)":                    # published NEXIS
+        dict(backward=True, terminal_filter=False),
+    "NEXIS-v2 (interleaved=True)": dict(backward=True),               # both steps
+}
+
 
 def evaluate_methods_on_dataset(
     y: np.ndarray,
@@ -161,6 +191,14 @@ def evaluate_methods_on_dataset(
     _run("NEXIS (backward=False)",
          lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
                       backward=False))
+
+    # v2 (terminal backward step) default and its one-axis variants
+    for name, overrides in V2_METHODS.items():
+        kw = {**NEXIS_V2_DEFAULT, **overrides}
+        if "test" in kw:
+            kw["n_splits"] = gcm_splits
+        _run(name, lambda kw=kw: nexis(y=y, t=t, z=z, alpha=alpha,
+                                       max_rounds=max_rounds, **kw))
 
     return out
 

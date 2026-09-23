@@ -56,7 +56,7 @@ from apps.celeba.scm import build_buckets
 from apps.celeba.experiment import (
     find_ground_truth_neurons_multi,
     find_ground_truth_neurons, compute_f1_scores, run_sweep,
-    ALL_METHODS,
+    ALL_METHODS, V2_METHODS,
 )
 from apps.celeba.backbones import (
     BACKBONES, DEFAULT_BACKBONE, get_backbone,
@@ -123,7 +123,9 @@ def parse_args():
     p.add_argument("--max-steps",    type=int, default=5,
                    help="Max NEXIS selection steps (default: 5)")
     p.add_argument("--methods",      nargs='+', default=None,
-                   help=f"Methods to run (default: all). Choices: {ALL_METHODS}")
+                   help=f"Methods to run (default: all of ALL_METHODS). Choices: "
+                        f"{ALL_METHODS}, plus the terminal-backward-step (v2) default "
+                        f"and variants, run only on request: {list(V2_METHODS)}")
     p.add_argument("--gcm-splits",   type=int, default=3,
                    help="Cross-fit folds for GCM methods (default: 3, faster than 5)")
     # Fixed values for each sweep (multiple values → one row per value in plots)
