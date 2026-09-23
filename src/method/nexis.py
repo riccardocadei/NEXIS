@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from itertools import combinations
 from math import lgamma, log10
 from typing import Callable, List, Optional, Sequence, Dict, Tuple, Union
 import numpy as np
@@ -895,6 +896,8 @@ def nexis(
     backward_gate: str = "standard",       # "standard" (alpha/s) | "pathwise" (g_s)
     alpha_spending: AlphaSpending = None,  # pathwise only; default w_s = 1/(s(s+1))
     pvalue_fn=None,                        # custom conditional test (see below)
+    terminal_filter: bool = False,         # subset-robust terminal filter at alpha/m
+    terminal_max_size: Optional[int] = None,  # refuse to enumerate beyond this |S~|
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
@@ -971,6 +974,18 @@ def nexis(
       Equivalently, ρ = 1/K where K is the maximum plausible ratio between
       the strongest and weakest true direct-modifier CATE contrasts.
       Recommended range: 0.2 (effects may vary 5×) to 0.5 (effects within 2×).
+
+    terminal_filter:
+      Subset-robust terminal filter (NeurIPS rebuttal fix for post-selection bias).
+      Once the forward-backward search stops at S~, keep j ∈ S~ only if
+      p(j | A) ≤ α/m for EVERY A ⊆ S~ \\ {j} (the empty set included), where m is the
+      number of candidate coordinates entering NEXIS.  Removals are simultaneous.
+      On the recall event S* ⊆ S~ a spurious j must reject the fixed true null
+      H0(j | S*), so precision no longer relies on test validity at a data-dependent
+      conditioning set.  Cost: at most |S~|·2^(|S~|-1) tests; a coordinate is dropped
+      at its first failing subset, largest subsets first.  terminal_max_size raises
+      ValueError instead of enumerating when |S~| exceeds it.
+      Off by default, so the published selections are unchanged.
     """
     # Normalise test aliases and set nuisance accordingly.
     # "quadratic" → gcm + poly2 nuisance
@@ -1237,6 +1252,40 @@ def nexis(
 
         round_num += 1
 
+    # ── Terminal filter ───────────────────────────────────────────────────────
+    terminal_log: List[Dict[str, object]] = []
+    terminal_candidates = list(selected)
+    terminal_tests = 0
+    gate_terminal = alpha / total
+    if terminal_filter and selected:
+        if terminal_max_size is not None and len(selected) > terminal_max_size:
+            raise ValueError(f"terminal filter: |S~|={len(selected)} exceeds "
+                             f"terminal_max_size={terminal_max_size}")
+        keep: List[int] = []
+        for j in terminal_candidates:
+            others = [s for s in terminal_candidates if s != j]
+            worst_p, worst_A = 0.0, []
+            for r in range(len(others), -1, -1):
+                for A in combinations(others, r):
+                    p = float(_pvalues(list(A), [j])[j])
+                    terminal_tests += 1
+                    if p > worst_p:
+                        worst_p, worst_A = p, list(A)
+                    if p > gate_terminal:
+                        break
+                if worst_p > gate_terminal:
+                    break
+            retained = worst_p <= gate_terminal
+            terminal_log.append({"j": int(j), "worst_p": worst_p,
+                                 "worst_A": worst_A, "retained": retained})
+            if retained:
+                keep.append(j)
+            if verbose:
+                print(f"  terminal | j={j} worst p={worst_p:.2e} at A={worst_A} "
+                      f"gate={gate_terminal:.2e} → {'kept' if retained else 'removed'}",
+                      flush=True)
+        selected = keep
+
     # Recompute final conditional p-values: p(j | S \ {j}) for every selected j.
     # This gives meaningful values for W-seeded features (which never pass through
     # the forward step and would otherwise be reported as 1.0).
@@ -1278,6 +1327,8 @@ def nexis(
         method_str += "_pwbwd"
     if rho is not None:
         method_str += f"_sg{rho}"
+    if terminal_filter:
+        method_str += "_tf"
     if _adj is None:
         method_str += "_noadj"
     elif _adj == "FDR":
@@ -1294,7 +1345,14 @@ def nexis(
         "backward_tests": float(len(backward_log)),
         "backward_removed": float(sum(1 for r in backward_log if not r["retained"])),
         "backward_log": backward_log,
+        "terminal_filter": terminal_filter,
     }
+    if terminal_filter:
+        meta.update({"terminal_candidates": terminal_candidates,
+                     "terminal_gate": float(gate_terminal),
+                     "terminal_tests": float(terminal_tests),
+                     "terminal_removed": float(len(terminal_candidates) - len(selected)),
+                     "terminal_log": terminal_log})
     if test in ("gcm", "pcm"):
         meta.update({"nuisance": nuisance, "n_splits": float(n_splits),
                      "n_estimators": float(n_estimators)})
