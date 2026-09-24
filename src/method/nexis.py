@@ -890,7 +890,7 @@ def nexis(
     pcm_projection: str = "poly",    # pcm only: "poly" | "lgbm"
     pcm_order: int = 2,              # pcm only: polynomial-projection degree
     pcm_screen_top: int = 32,        # pcm only: candidates refitted with the ML projection
-    pcm_combine: str = "crossfit",   # pcm only: "crossfit" | "bonferroni"
+    pcm_combine: str = "bonferroni", # pcm only: "bonferroni" (2·min) | "single" | "crossfit" (invalid)
     cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs for Z-phase (linear test)
     hc1: bool = False,                     # HC1 robust SEs for W-phase and Z-phase fallback
     backward_gate: str = "standard",       # "standard" (alpha/s) | "pathwise" (g_s)
