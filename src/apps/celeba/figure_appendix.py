@@ -72,6 +72,7 @@ def make_12panel(
     out_path: Path,
     extra_styles: dict | None = None,
     legend_ncol: int | None = None,
+    styles: dict[str, dict] | None = None,
 ) -> None:
     """
     4-row × 3-col figure; rows = DGP settings, cols = Precision | Recall | IoU.
@@ -104,7 +105,7 @@ def make_12panel(
         for r, (sub, xcol, xlabel, _) in enumerate(row_cfg):
             for c, metric in enumerate(["precision", "recall", "iou"]):
                 plot_sweep(sub, xcol, metric, xlabel=xlabel,
-                           ax=axes[r, c], methods=methods)
+                           ax=axes[r, c], methods=methods, styles=styles)
 
         handles, labels = axes[0, 0].get_legend_handles_labels()
         for ax in axes.flat:
@@ -184,7 +185,7 @@ def _method_fig(ablation_key: str, out: Path | None, default_name: str) -> None:
     n, e = _load(20, "sae")
     grp  = GROUPS[ablation_key]
     make_12panel(n, e, grp["methods"], out or OUT / default_name,
-                 legend_ncol=grp.get("legend_ncol"))
+                 legend_ncol=grp.get("legend_ncol"), styles=grp.get("styles"))
 
 
 def fig_method_test(out:     Path | None = None) -> None: _method_fig("test",     out, "method_test.pdf")

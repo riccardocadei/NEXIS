@@ -155,8 +155,8 @@ ABLATION_GROUPS: dict[str, dict] = {
 }
 
 # ── Terminal-backward-step default ("NEXIS-v2", see experiment.V2_METHODS) ────
-# Each v2 variant reuses the style of its published counterpart, so the v2 figures
-# are drop-in replacements.  The backward-step ablation gets its own green family.
+# The v2 default and baselines reuse the published styles, so the v2 figures are
+# drop-in replacements; the ablation variants are restyled below for legibility.
 _V2_STYLE_FROM = {
     'NEXIS-v2':                       'NEXIS',
     'NEXIS-v2 (test=GCM: quadratic)': 'NEXIS (test=GCM: quadratic)',
@@ -172,14 +172,30 @@ _V2_STYLE_FROM = {
 }
 METHOD_STYLES.update({k: {**METHOD_STYLES[v], 'label': k}
                       for k, v in _V2_STYLE_FROM.items()})
-METHOD_STYLES.update({
+
+# v2 ablation lines: Okabe-Ito colours without its blue, so the default keeps the
+# published blue.  Lines that overlap another one (identical or nearly identical
+# results) are dashed and drawn on top, so the line underneath shows in the gaps.
+_OI_ORANGE, _OI_GREEN, _OI_VERMILLION, _OI_PURPLE = '#E69F00', '#009E73', '#D55E00', '#CC79A7'
+_ON_TOP = dict(ls='--', zorder=3)
+for _k, _s in {
+    'NEXIS-v2 (test=GCM: quadratic)': dict(color=_OI_PURPLE,     lw=1.5, marker='o', ms=3, **_ON_TOP),
+    'NEXIS-v2 (test=GCM: lgbm)':      dict(color=_OI_VERMILLION, lw=2.0, marker='o', ms=3),
+    'NEXIS-v2 (test=PCM: quadratic)': dict(color=_OI_ORANGE,     lw=1.5, marker='s', ms=3, **_ON_TOP),
+    'NEXIS-v2 (test=PCM: lgbm)':      dict(color=_OI_GREEN,      lw=2.0, marker='s', ms=3),
+    'NEXIS-v2 (adjust=None)':         dict(color=_OI_VERMILLION, lw=1.5, marker='o', ms=3),
+    'NEXIS-v2 (adjust=FDR)':          dict(color=_OI_GREEN,      lw=1.5, marker='o', ms=3, **_ON_TOP),
+    'NEXIS-v2 (rho=0)':               dict(color=_OI_ORANGE,     lw=1.5, marker='o', ms=3, **_ON_TOP),
+    'NEXIS-v2 (rho=0.2)':             dict(color=_OI_GREEN,      lw=1.5, marker='o', ms=3),
+    'NEXIS-v2 (rho=0.8)':             dict(color=_OI_VERMILLION, lw=1.5, marker='o', ms=3),
+    # Backward-step ablation: no markers; the interleaved variants are dashed.
+    'NEXIS-v2 (terminal=False)':      dict(color=_OI_ORANGE,     lw=2.0),
     'NEXIS-v2 (interleaved=True, terminal=False)':
-        dict(color='#00441b', lw=1.5, marker='s', ms=3,
-             label='NEXIS-v2 (interleaved=True, terminal=False)'),
-    'NEXIS-v2 (interleaved=True)':
-        dict(color='#74c476', lw=1.5, marker='^', ms=3,
-             label='NEXIS-v2 (interleaved=True)'),
-})
+                                      dict(color=_OI_VERMILLION, lw=2.0, **_ON_TOP),
+    'NEXIS-v2 (interleaved=True)':    dict(color=_OI_GREEN,      lw=2.0, **_ON_TOP),
+}.items():
+    METHOD_STYLES[_k] = {**_s, 'label': _k}
+
 
 MAIN_METHODS_V2: dict[str, str] = {
     **{k: v for k, v in MAIN_METHODS.items() if k != 'NEXIS'},
@@ -191,6 +207,7 @@ MAIN_METHODS_V2: dict[str, str] = {
 ABLATION_GROUPS_V2: dict[str, dict] = {
     'test': {
         'title': 'Test statistic',
+        'legend_ncol': 5,
         'methods': {
             'NEXIS-v2':                       'linear (default)',
             'NEXIS-v2 (test=GCM: quadratic)': 'GCM: quadratic',
@@ -220,11 +237,13 @@ ABLATION_GROUPS_V2: dict[str, dict] = {
         'title': 'Backward step',
         'legend_ncol': 2,
         'methods': {
-            'NEXIS-v2 (terminal=False)':                   'forward only',
-            'NEXIS-v2 (interleaved=True, terminal=False)': 'forward + interleaved backward step',
-            'NEXIS-v2 (interleaved=True)':                 'forward + interleaved + backward step',
-            'NEXIS-v2':                                    'forward + backward step (default)',
+            'NEXIS-v2 (terminal=False)':                   'forward',
+            'NEXIS-v2 (interleaved=True, terminal=False)': 'forward + interleaved backward',
+            'NEXIS-v2':                                    'forward + terminal backward (default)',
+            'NEXIS-v2 (interleaved=True)':                 'forward + interleaved and terminal backward',
         },
+        # per-figure style overrides: the default line without markers
+        'styles': {'NEXIS-v2': dict(marker=None)},
     },
 }
 
@@ -251,11 +270,13 @@ def plot_sweep(
     ax=None,
     methods: dict[str, str] | None = None,
     legend_title: str | None = None,
+    styles: dict[str, dict] | None = None,
 ) -> plt.Axes:
     """Mean ± 1.96 SE curves for each method vs. a sweep parameter.
 
     methods: optional dict {method_key: display_label}. If None, all METHOD_STYLES
              are shown with their default labels.
+    styles:  optional {method_key: style overrides} applied on top of METHOD_STYLES.
     """
     if ax is None:
         _, ax = plt.subplots(figsize=(5, 3.5))
@@ -265,7 +286,7 @@ def plot_sweep(
     for method, label in items:
         if method not in METHOD_STYLES:
             continue
-        style = {**METHOD_STYLES[method], 'label': label}
+        style = {**METHOD_STYLES[method], **(styles or {}).get(method, {}), 'label': label}
         sub = df[df['method'] == method].groupby(xcol)[metric]
         mu, se = sub.mean(), sub.sem()
         if mu.empty:
