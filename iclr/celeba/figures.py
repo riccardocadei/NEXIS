@@ -463,12 +463,19 @@ FIGURES = {
     "dgp_r3":          (["dgp_r3"], lambda r, o: figure_12panel(r["dgp_r3"], o)),
     "dgp_r0":          (["dgp_r0"], lambda r, o: figure_r0(r["dgp_r0"], o)),
     "ushape":          (["ushape"], lambda r, o: figure_ushape(r["ushape"], o)),
+    "violation":       (["main", "violation"],
+                        lambda r, o: _violation().render(r["violation"], r["main"], o)),
     **{f"method_{a}": (["main", "method"],
                        lambda r, o, a=a: figure_12panel(
                            _concat(r["main"], r["method"]), o, ABLATIONS[a]["methods"],
                            ABLATIONS[a].get("legend_ncol"), ABLATIONS[a].get("styles")))
        for a in ABLATIONS},
 }
+
+
+def _violation():
+    from celeba import violation      # imports this module: loaded on first use
+    return violation
 
 
 def render(names: List[str], runs_dir: Path, fig_dir: Path) -> None:
@@ -538,6 +545,7 @@ def write_summary(runs_dir: Path, fig_dir: Path) -> None:
             fig_dir.mkdir(parents=True, exist_ok=True)
             (fig_dir / "test_comparison.tex").write_text("\n".join(tex) + "\n")
             md += ["Test comparison, linear CATE (A) vs U-shape (B): test_comparison.tex", ""]
+    md += _violation().summary_lines(runs_dir, fig_dir)
     fig_dir.mkdir(parents=True, exist_ok=True)
     (fig_dir / "summary.md").write_text("\n".join(md) + "\n")
     print(f"  tables -> {fig_dir / 'summary.md'}")

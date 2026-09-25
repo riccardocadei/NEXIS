@@ -116,6 +116,13 @@ DGP_R0 = {**DGP_MAIN, "gammas": [0.0, 0.0],
 # covariance with Z^j): invisible to the linear test and the GCM, visible to the PCM.
 DGP_USHAPE = {**DGP_MAIN, "effect_form": "ortho_quadratic"}
 
+# Controlled violation of Principal Alignment: the main DGP, with the principal coordinate
+# j1 of `attr` split in two complementary halves.  U ~ Bernoulli(share) is drawn once per
+# pool image (seed `seed`), Z^{j1} <- U Z^{j1}, and a new coordinate Z^{j_new} = (1 - U)
+# Z^{j1} is appended.  Neither half screens the modifier off alone, so S* = {j1, j_new, j2}.
+# W, T, the images and Y are those of the main setting, which is the no-split control.
+DGP_VIOLATION = {**DGP_MAIN, "split": dict(attr="Wearing_Hat", share=0.5, seed=0)}
+
 # ── methods ───────────────────────────────────────────────────────────────────
 BASELINES = ["Marginal Testing", "Marginal Testing (FWER)", "Marginal Testing (FDR)"]
 NEXIS_DEFAULT = dict(test="linear", adjust="FWER", rho=0.5,
@@ -168,6 +175,9 @@ EXPERIMENTS = {
     "ushape":        dict(k=20, replica=False, view="z_pre", dgp=DGP_USHAPE,
                           sweeps={"effect": [2000], "n": [5.0]}, n_seeds=N_SEEDS,
                           methods=["Marginal Testing (FWER)", "NEXIS"] + TEST_VARIANTS),
+    # rho = 0 shows whether the spectral-gap gate stops the search before a half enters
+    "violation":     dict(k=20, replica=False, view="z", dgp=DGP_VIOLATION, **_GRID,
+                          methods=BASELINES + ["NEXIS", "NEXIS (rho=0)"]),
 }
 
 # Blocks of the command line: experiments to run, then figures to draw.
@@ -183,6 +193,7 @@ BLOCKS = {
                              figures=["dgp_r0", "dgp_r1", "dgp_r3"]),
     "ushape":           dict(experiments=["ushape"], figures=["ushape"]),
     "alignment":        dict(experiments=[], figures=[]),     # celeba/alignment.py
+    "violation":        dict(experiments=["main", "violation"], figures=["violation"]),
 }
 
 # Attributes whose principal coordinate is computed by `prepare` for every dictionary.

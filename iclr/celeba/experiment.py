@@ -3,9 +3,10 @@
 The unit of work is (experiment, sweep, method).  Each unit writes one parquet file,
     <runs>/<experiment>/<sweep>_sweep/<method>.parquet,
 with one row per (fixed value, grid value, seed): the selected coordinates and tp, fp,
-precision, recall, IoU, |S_hat| and the method's wall time (for NEXIS also |S~|, the
-selection before the terminal backward step, and the number of terminal tests).  Existing files are skipped
-unless overwrite=True, so interrupted runs resume and units can be spread over jobs.
+precision, recall, IoU, |S_hat| and the method's wall time (for NEXIS also S~, the
+selection before the terminal backward step, its size and the number of terminal tests).
+Existing files are skipped unless overwrite=True, so interrupted runs resume and units can
+be spread over jobs.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from joblib import Parallel, delayed
 
 import config as C
 from nexis import iou_score, marginal_select, nexis
-from celeba.scm import build_buckets, generate_rct
+from celeba.scm import build_buckets, generate_rct, split_principal
 
 SWEEP_PARAM = {"effect": "effect_scale", "n": "n"}
 FIXED_COL = {"effect": "fixed_n", "n": "fixed_effect"}
@@ -92,8 +93,12 @@ def load_context(exp: dict) -> Context:
     truth = sorted({coords[a] for a, g in zip(dgp["attrs"], dgp["gammas"]) if g != 0})
     mod_cols = ([coords[a] for a in dgp["attrs"][:2]]
                 if dgp["effect_form"] == "ortho_quadratic" else None)
-    return Context(_FEATURES[path], labels, build_buckets(labels, dgp["attrs"]), truth, dgp,
-                   mod_cols)
+    features = _FEATURES[path]
+    if dgp.get("split"):     # controlled violation of Principal Alignment: S* gains j_new
+        sp = dgp["split"]
+        features, j_new = split_principal(features, coords[sp["attr"]], sp["share"], sp["seed"])
+        truth = sorted(truth + [j_new])
+    return Context(features, labels, build_buckets(labels, dgp["attrs"]), truth, dgp, mod_cols)
 
 
 def draw(ctx: Context, n: int, eta: float, seed: int):
@@ -122,6 +127,7 @@ def run_cell(ctx: Context, method: str, n: int, eta: float, seed: int) -> Option
            "selected": [int(j) for j in res.selected]}
     if method.startswith("NEXIS"):       # |S~| before the terminal step, and its test count
         out["n_forward"] = float(len(res.forward_path))
+        out["forward"] = [int(j) for j in res.forward_path]
         out["terminal_tests"] = res.metadata["terminal_tests"]
     return out
 

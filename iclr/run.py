@@ -9,6 +9,7 @@
     python run.py dgp-extra               # r = 0, 1, 3 direct modifiers
     python run.py ushape                  # U-shape DGP: test comparison (Table, panel B)
     python run.py alignment               # supervised Principal Alignment check
+    python run.py violation               # controlled violation of Principal Alignment
     python run.py all                     # prepare + every block above
     python run.py figures                 # redraw every figure from the results on disk
 
@@ -26,7 +27,7 @@ import time
 from pathlib import Path
 
 BLOCK_NAMES = ["main", "ablations-model", "ablations-method", "replica", "dgp-extra", "ushape",
-               "alignment"]
+               "alignment", "violation"]
 
 
 def parse_args():

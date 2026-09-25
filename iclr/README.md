@@ -21,6 +21,7 @@ self-contained. `nexis/` implements the method, `celeba/` implements the benchma
 | Appendix C, NEXIS ablations (test, correction, ρ, backward steps) | `method_test.pdf`, `method_adjust.pdf`, `method_rho.pdf`, `method_backward.pdf` | `python run.py ablations-method` |
 | Appendix C, test comparison under a linear and a U-shape CATE (table, panel B) | `test_comparison.tex`, `ushape.pdf` | `python run.py ushape` (after `ablations-method`) |
 | Appendix C, r = 1 and r = 3 direct modifiers; r = 0 table | `dgp_r1.pdf`, `dgp_r3.pdf`, `dgp_r0_table.tex`, `dgp_r0.pdf` | `python run.py dgp-extra` |
+| Appendix C, controlled violation of Principal Alignment (split principal coordinate) | `violation.pdf`, `violation_grid.pdf`, `violation_table.tex`, `summary.md` | `python run.py violation` |
 | Everything above | all of the above | `python run.py all` |
 
 Every sweep figure uses the 4 x 3 layout of Appendix C. The rows are the n sweeps at
@@ -45,7 +46,13 @@ such a node. Peak memory is the largest resident set of the job.
 | `dgp-extra` | 40-core CPU node | 56 | 1.4 h | 160 GB |
 | `ushape` | 40-core CPU node | 132 | 3.3 h | 160 GB |
 | `alignment` | 16-core CPU node | 1.5 | 6 min | 2 GB |
-| `all` | 1 GPU, then one 40-core node | ~375 | ~1.2 h GPU + ~9.5 h CPU | 160 GB |
+| `violation` | 40-core CPU node | 15 (9.5 if `main` exists) | 45 min (31 min if `main` exists) | 150 GB |
+| `all` | 1 GPU, then one 40-core node | ~385 | ~1.2 h GPU + ~10 h CPU | 160 GB |
+
+We measured `violation` with this package, as a job array of its 18 units with one
+40-core node and 40 runs per unit. Its wall time is the sum of the unit wall times, which
+is the time on a single node. It includes the `main` units (the no-split control), which
+are skipped when `main` has already run.
 
 The n sweeps set the peak memory. A run at n = 10,000 holds about 4 GB (the 10,000 x 9,216
 design and its residualised copies), so peak memory is about 4 GB per concurrent run, and
@@ -118,6 +125,7 @@ celeba/
   experiment.py     sweeps: draw, run a method, score against S*, write parquet
   figures.py        every sweep figure and table
   alignment.py      the supervised Principal Alignment check
+  violation.py      the controlled violation of Principal Alignment (figures and tables)
 slurm/              generic job templates
 ```
 
@@ -168,6 +176,14 @@ may want to change, and they are named options there:
   Y = Σ β_k W_k + T (τ₀ + η Σ γ_k W_k) + ε with τ₀ = 0.5, γ = (+1, −1), β = (0.3, −0.2)
   and ε ~ N(0, 1). The seed fixes the whole draw, so all methods, and all DGPs that sample
   the same attributes, see the same units.
+* **Controlled violation of Principal Alignment.** The main DGP, with the Wearing_Hat
+  principal coordinate j1 split in two complementary halves: U ~ Bernoulli(0.5) is drawn
+  once per pool image, Z^{j1} ← U Z^{j1}, and a new coordinate
+  Z^{j_new} = (1 − U) Z^{j1} is appended (`DGP_VIOLATION` in `config.py`). Neither half
+  screens the modifier off alone, so the target becomes S* = {j1, j_new, j2}. W, T, the
+  images and Y are those of the main setting, which serves as the no-split control. The
+  block also runs NEXIS with ρ = 0, to show whether the spectral-gap gate stops the search
+  before a half enters.
 * **Grid.** η ∈ {1, …, 10} at n ∈ {500, 2000}; n ∈ {50, 100, 200, 350, 500, 750, 1000,
   2000, 3500, 5000, 10000} at η ∈ {2, 5}; 50 seeds per cell (200 per n at r = 0).
 * **Methods.** Marginal testing (no correction, FDR, FWER) and NEXIS. The NEXIS default is

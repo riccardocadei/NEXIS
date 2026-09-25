@@ -10,6 +10,10 @@
 
 The seed fixes the whole draw (W, T, images, noise), so datasets are reproducible cell by
 cell and identical across methods, and across DGPs that share the sampled attributes.
+
+The controlled violation of Principal Alignment (split_principal) changes only Z: it splits
+one principal coordinate of the pool in two, so W, T, the images and Y are those of the
+main setting for every seed.
 """
 from __future__ import annotations
 
@@ -73,6 +77,22 @@ def ortho_quadratic_map(col: np.ndarray):
         return (xt ** 2 - a - b * xt) / gsd
 
     return g
+
+
+def split_principal(features: np.ndarray, j: int, share: float = 0.5,
+                    seed: int = 0) -> Tuple[np.ndarray, int]:
+    """Controlled violation of Principal Alignment: split coordinate j in two halves.
+
+    U ~ Bernoulli(share) is drawn once per pool image, Z^j <- U Z^j, and a new coordinate
+    Z^{j_new} = (1 - U) Z^j is appended.  The two sum to the original coordinate, but
+    neither screens the modifier off alone.  Returns the (N, m + 1) pool and j_new = m.
+    The split is a property of the dictionary: the same U for every seed, n and eta.
+    """
+    U = (np.random.default_rng(seed).random(features.shape[0]) < share).astype(features.dtype)
+    col = features[:, j].copy()
+    out = np.concatenate([features, ((1 - U) * col)[:, None]], axis=1)
+    out[:, j] = U * col
+    return out, features.shape[1]
 
 
 def generate_rct(
