@@ -7,16 +7,21 @@ Reads the sweeps of scripts/celeba/submit_dgp_extra_v2.sh and the main NEXIS-v2 
 
   results/celeba/experiment_v2/k20/sae/              main setting (r = 2), reference
   results/celeba/experiment_v2_resample_b1/k20/sae/  replica dictionary
-  results/celeba/experiment_v2_r{0,1,3}/k20/sae/     r = 0, 1, 3
+  results/celeba/experiment_v2_r{1,3}/k20/sae/       r = 1, 3
+  results/celeba/experiment_v2_r0_fixbeta/k20/sae/   r = 0 (n sweep only, 200 seeds)
+  results/celeba/per_modifier/r{1,2,3}.parquet       per-modifier recall of NEXIS-v2
+                                                     (per_modifier_recall.py), optional
 
 and writes to results/celeba/figures_v2/:
 
   replica_k20.pdf  dgp.pdf layout (4 DGP rows x precision | recall | IoU), replica SAE
   dgp_r1.pdf       same layout, r = 1
   dgp_r3.pdf       same layout, r = 3
-  dgp_r0.pdf       4 DGP rows x [FWER | false discoveries]; precision and recall are
-                   undefined when S* is empty
-  dgp_extra.md     tables: macro metrics and first grid value reaching 0.95, FWER at r = 0
+  dgp_r0.pdf       P(any false discovery) = FWER against n, one panel per DGP condition.
+                   At r = 0 (gamma = 0) there is no effect size, so the four dgp.pdf rows
+                   collapse to one condition: varying n at the main prognostic effects.
+  dgp_extra.md     tables: macro metrics and first grid value reaching 0.95, per-modifier
+                   recall, FWER and mean false discoveries per n at r = 0
 
 The 12-panel figures reuse figure_appendix.make_12panel and the v2 method set, so they
 follow whatever styling those modules define.
@@ -41,7 +46,7 @@ RES = ROOT / "results/celeba"
 TREES = {
     "main":    RES / "experiment_v2/k20/sae",
     "replica": RES / "experiment_v2_resample_b1/k20/sae",
-    "r0":      RES / "experiment_v2_r0/k20/sae",
+    "r0":      RES / "experiment_v2_r0_fixbeta/k20/sae",
     "r1":      RES / "experiment_v2_r1/k20/sae",
     "r3":      RES / "experiment_v2_r3/k20/sae",
     # published NEXIS, for context in the reproducibility table
@@ -52,15 +57,21 @@ BASELINES = ["Marginal Testing", "Marginal Testing (FWER)", "Marginal Testing (F
 # The four rows of dgp.pdf: (sweep, column fixed, value fixed, x column)
 ROWS = [("n", "fixed_effect", 5.0, "n"), ("n", "fixed_effect", 2.0, "n"),
         ("effect", "fixed_n", 2000, "effect_scale"), ("effect", "fixed_n", 500, "effect_scale")]
-ROW_NAME = {0: "n @ eta=5", 1: "n @ eta=2", 2: "eta @ n=2000", 3: "eta @ n=500"}
-PUB_STYLE = dict(color="#00441b", lw=1.5, marker="s", ms=3)   # published NEXIS at r=0
-PUB_LABEL = "NEXIS, interleaved backward step (published)"
+# r = 0: the DGP conditions left once gamma = 0 (panel title, sweep, column fixed, value)
+R0_PANELS = [(r"no modifier ($r=0$), $\beta = (0.3, -0.2)$", "n", "fixed_effect", 1.0)]
+PER_MOD = RES / "per_modifier"
+# At r = 0 the first forward step of NEXIS is the Bonferroni marginal test, so the
+# corrected procedures coincide run by run; the baselines are dashed and drawn on top
+# so the NEXIS line shows in the gaps.
+R0_OVERLAP = {"Marginal Testing (FWER)": dict(ls="--", zorder=3),
+              "Marginal Testing (FDR)": dict(ls=":", zorder=4)}
 
 
 def load(key: str) -> dict[str, pd.DataFrame]:
     base = TREES[key]
-    return {"n": pd.read_parquet(base / "n_sweep.parquet"),
-            "effect": pd.read_parquet(base / "effect_sweep.parquet")}
+    return {s: pd.read_parquet(base / f"{f}.parquet")
+            for s, f in (("n", "n_sweep"), ("effect", "effect_sweep"))
+            if (base / f"{f}.parquet").exists()}
 
 
 def row_df(dfs, i, method):
@@ -120,95 +131,112 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return c - h, c + h
 
 
-def fwer_table(dfs, methods: dict[str, str]) -> list[str]:
-    out = ["| method | runs | FWER pooled [95% CI] | worst cell FWER (cell) | cells with FWER > 0.05 "
-           "| mean false discoveries | FWER at eta=0 (n=500 / n=2000) |",
+def r0_table(dfs, methods: dict[str, str], alpha: float = 0.05) -> tuple[list[str], list[str]]:
+    """Compact r = 0 table, one row per n: P(any false discovery) (= FWER) of every
+    method with the Wilson 95% interval for NEXIS, and the mean number of false
+    discoveries of NEXIS (every selection is false when S* is empty).  Returns the
+    Markdown lines and a LaTeX tabular."""
+    d = dfs["n"]
+    labs = list(methods.values())
+    md = [f"alpha = {alpha:g}. P(any FD) = share of runs selecting at least one coordinate.", "",
+          "| n | runs | " + " | ".join(f"P(any FD): {l}" for l in labs)
+          + f" | mean FD: {methods['NEXIS-v2']} |", "|---|---|" + "---|" * (len(labs) + 1)]
+    tex = [r"\begin{tabular}{r" + "c" * (len(labs) + 1) + "}", r"\toprule",
+           r" & \multicolumn{" + str(len(labs)) + r"}{c}{$P(\text{any false discovery})$,"
+           rf" $\alpha = {alpha:g}$}} & mean false \\",
+           "$n$ & " + " & ".join(l.replace("Marginal Testing", "Marginal") for l in labs)
+           + rf" & discoveries ({methods['NEXIS-v2']}) \\", r"\midrule"]
+
+    def cell(g, ci=False):
+        k, runs = int((g.n_selected > 0).sum()), len(g)
+        if not ci:
+            return f"{k / runs:.3f}"
+        lo, hi = wilson(k, runs)
+        return f"{k / runs:.3f} [{lo:.3f}, {hi:.3f}]"
+
+    groups = [("pooled", d)] + list(d.groupby("n"))
+    for n, g in groups[1:] + groups[:1]:
+        by = {m: g[g.method == m] for m in methods}
+        runs = len(by["NEXIS-v2"])
+        vals = [cell(by[m], ci=(m == "NEXIS-v2")) for m in methods]
+        fd = f"{by['NEXIS-v2'].n_selected.mean():.3f}"
+        name = f"{int(n)}" if n != "pooled" else "all n"
+        md.append(f"| {name} | {runs} | " + " | ".join(vals) + f" | {fd} |")
+        texv = [v.replace("[", "{\\scriptsize[").replace("]", "]}") for v in vals]
+        if n == "pooled":
+            tex.append(r"\midrule")
+        tex.append(f"{name.replace(chr(32), '~')} & " + " & ".join(texv) + f" & {fd} \\\\")
+    tex += [r"\bottomrule", r"\end{tabular}"]
+    return md, tex
+
+
+def per_modifier_table() -> list[str]:
+    """Per-modifier recall of NEXIS-v2 at r = 1, 2, 3 (per_modifier_recall.py): macro over
+    the 42 cells and per dgp.pdf row."""
+    out = ["| DGP | modifier | macro | n @ eta=5 | n @ eta=2 | eta @ n=2000 | eta @ n=500 |",
            "|---|---|---|---|---|---|---|"]
-    for m, lab in methods.items():
-        runs, cells = [], []
-        for i in range(4):
-            d = row_df(dfs, i, m)
-            runs.append(d)
-            for x, g in d.groupby(ROWS[i][3]):
-                cells.append((float((g.n_selected > 0).mean()), f"{ROW_NAME[i]}, x={x:g}"))
-        r = pd.concat(runs)
-        k, n = int((r.n_selected > 0).sum()), len(r)
-        lo, hi = wilson(k, n)
-        worst = max(cells)
-        over = sum(c > 0.05 for c, _ in cells)
-        e = dfs["effect"]
-        z = [e[(e.method == m) & (e.effect_scale == 0) & (e.fixed_n == nn)] for nn in (500, 2000)]
-        z = " / ".join(f"{(g.n_selected > 0).mean():.2f}" if len(g) else "-" for g in z)
-        out.append(f"| {lab} | {n} | {k / n:.3f} [{lo:.3f}, {hi:.3f}] | {worst[0]:.2f} ({worst[1]}) "
-                   f"| {over}/{len(cells)} | {r.n_selected.mean():.3g} | {z} |")
+    for r in ("r1", "r2", "r3"):
+        f = PER_MOD / f"{r}.parquet"
+        if not f.exists():
+            return []
+        d = pd.read_parquet(f)
+        cell = d.groupby(["row", "x"])[[c for c in d.columns if c.startswith("hit_")]].mean()
+        for c in cell.columns:
+            per_row = cell[c].groupby(level="row").mean()
+            out.append(f"| r={r[1]} | {c[4:]} | {cell[c].mean():.3f} | "
+                       + " | ".join(f"{per_row[i]:.3f}" for i in range(4)) + " |")
     return out
 
 
 # ── r = 0 figure ─────────────────────────────────────────────────────────────
 
-def fig_r0(dfs, methods: dict[str, str], out_path: Path) -> None:
-    """4 rows (the dgp.pdf DGP conditions) x [FWER | mean false discoveries]."""
-    styles = {**METHOD_STYLES, "NEXIS": {**PUB_STYLE, "label": PUB_LABEL}}
-    fig, axes = plt.subplots(4, 2, figsize=(11, 15))
-    # FWER axis: the corrected procedures live near 0.05; the unadjusted marginal test
-    # sits at 1 and is read off the false-discoveries panel instead.
-    fwer_max = 0.0
-    for i in range(4):
-        _, _, _, xcol = ROWS[i]
+def fig_r0(dfs, methods: dict[str, str], out_path: Path, alpha: float = 0.05) -> None:
+    """One panel per r = 0 DGP condition, in a single row: P(any false discovery)
+    against n.  The uncorrected marginal test sits at 1 and is noted off scale."""
+    npan = len(R0_PANELS)
+    fig, axes = plt.subplots(1, npan, figsize=(5.2 * npan, 3.9), squeeze=False)
+    axes = axes[0]
+    top = 0.10
+    for ax, (title, sweep, fc, fv) in zip(axes, R0_PANELS):
+        d = dfs[sweep]
+        d = d[d[fc] == fv]
+        off = []
         for m, lab in methods.items():
-            d = row_df(dfs, i, m)
-            if d.empty:
+            g = d[d.method == m].groupby("n")["n_selected"]
+            if not len(g):
                 continue
-            st = {**styles[m], "label": lab}
-            g = d.groupby(xcol)
-            k, n = g["n_selected"].apply(lambda s: int((s > 0).sum())), g.size()
-            p = k / n
-            ci = np.array([wilson(int(a), int(b)) for a, b in zip(k, n)])
-            fd = g["n_selected"].mean()
-            fd_se = g["n_selected"].sem()
-            x = p.index.values
-            if m != "Marginal Testing":
-                fwer_max = max(fwer_max, float(ci[:, 1].max()))
-            axes[i, 0].plot(x, p.values, **st)
-            # The Bonferroni-type procedures coincide at r = 0; one Wilson band (NEXIS-v2)
-            # keeps the panel readable instead of stacking four identical fills.
+            k, runs = g.apply(lambda s: int((s > 0).sum())), g.size()
+            p = k / runs
+            if p.min() > top:
+                off.append((m, lab, p.min(), p.max()))
+                continue
+            st = {**METHOD_STYLES[m], "label": lab, **R0_OVERLAP.get(m, {})}
+            ax.plot(p.index.values, p.values, **st)
             if m == "NEXIS-v2":
-                axes[i, 0].fill_between(x, ci[:, 0], ci[:, 1], color=st["color"], alpha=0.15)
-            axes[i, 1].plot(x, fd.values, **st)
-            if m in ("NEXIS-v2", "Marginal Testing"):
-                axes[i, 1].fill_between(x, np.maximum(fd - 1.96 * fd_se, 0),
-                                        fd + 1.96 * fd_se, color=st["color"], alpha=0.15)
-        xlabel = r"Sample size $n$" if xcol == "n" else r"Prognostic scale $\eta$"
-        for c, ax in enumerate(axes[i]):
-            if xcol == "n":
-                ax.set_xscale("log")
-            ax.set_xlabel(xlabel)
-            ax.grid(True, alpha=0.25)
-        axes[i, 0].axhline(0.05, color="k", ls="--", lw=1.0)
-        axes[i, 0].set_ylabel("FWER")
-        axes[i, 1].set_yscale("symlog", linthresh=0.1)
-        axes[i, 1].set_ylim(0, 2000)
-        axes[i, 1].set_ylabel("False discoveries")
-    top = max(0.2, np.ceil(fwer_max * 20) / 20 + 0.05)
-    for ax in axes[:, 0]:
-        ax.set_ylim(-0.005, top)
-
-    handles, labels = axes[0, 1].get_legend_handles_labels()
-    handles.append(plt.Line2D([], [], color="k", ls="--", lw=1.0))
-    labels.append(r"$\alpha = 0.05$")
-    fig.tight_layout(rect=[0, 0.05, 1, 1.0], h_pad=2.5)
-    titles = [r"varying $n$,  $\eta=5$ fixed", r"varying $n$,  $\eta=2$ fixed",
-              r"varying $\eta$,  $n=2000$ fixed", r"varying $\eta$,  $n=500$ fixed"]
-    for i, t in enumerate(titles):
-        xc = (axes[i, 0].get_position().x0 + axes[i, 1].get_position().x1) / 2
-        yt = max(ax.get_position().y1 for ax in axes[i]) + 0.004
-        fig.text(xc, yt, t, ha="center", va="bottom", fontsize=fa.LABEL_SIZE)
-    fig.canvas.draw()
-    rend = fig.canvas.get_renderer()
-    h = fig.get_window_extent(rend).height
-    ymin = min(ax.get_tightbbox(rend).y0 / h for ax in axes.flat)
-    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, fontsize=12,
-               bbox_to_anchor=(0.5, ymin + 0.01))
+                ci = np.array([wilson(int(a), int(b)) for a, b in zip(k, runs)])
+                ax.fill_between(p.index.values, ci[:, 0], ci[:, 1], color=st["color"],
+                                alpha=0.15, lw=0, label="NEXIS, 95% interval")
+        ax.axhline(alpha, color="k", ls="--", lw=1.0, zorder=1)
+        ax.text(d.n.max(), alpha + 0.003, rf"$\alpha = {alpha:g}$", ha="right", va="bottom",
+                fontsize=fa.LABEL_SIZE - 1)
+        # Text stays in ink; the short coloured rule beside it carries the identity.
+        for i, (m, lab, lo, hi) in enumerate(off):
+            val = f"{lo:.3f}" if hi - lo < 5e-4 else f"{lo:.3f} to {hi:.3f}"
+            y = 0.95 - 0.18 * i
+            ax.plot([0.03, 0.08], [y, y], transform=ax.transAxes,
+                    color=METHOD_STYLES[m]["color"], lw=1.5)
+            ax.text(0.10, y + 0.035, f"{lab} (uncorrected): {val}\nat every $n$, off scale",
+                    transform=ax.transAxes, ha="left", va="top", fontsize=10)
+        ax.set_xscale("log")
+        ax.set_ylim(-0.004, top)
+        ax.set_xlabel(r"Sample size $n$")
+        ax.set_title(title, fontsize=fa.LABEL_SIZE)
+        ax.grid(True, alpha=0.25)
+    axes[0].set_ylabel("P(any false discovery)")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.tight_layout()
+    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.0),
+               ncol=2, frameon=False, fontsize=11)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, bbox_inches="tight")
     plt.close(fig)
@@ -268,21 +296,55 @@ def main():
         md += metric_table([(f"{lab} ({r})", d, m) for lab, m in v2]
                            + [("NEXIS-v2 (r=2, main)", main_, "NEXIS-v2")]) + [""]
 
+    pm = per_modifier_table()
+    if pm and ("r1" in a.only or "r3" in a.only):
+        md += ["## Per-modifier recall of NEXIS-v2 (r = 1, 2, 3)", "",
+               "Share of runs whose selection contains each modifier's coordinate, from "
+               "per_modifier_recall.py, which replays NEXIS-v2 on the same draws as the "
+               "sweeps (replayed recall matches the stored sweeps in all 2,100 runs per DGP). "
+               "Macro = mean over the 42 cells; the other columns average over one dgp.pdf row.",
+               ""] + pm + [""]
+        md += ["Why r=1 and r=2 look alike: at r=2 Eyeglasses is found at smaller n or eta "
+               "than Wearing_Hat (macro recall 0.787 vs 0.713), and Hat is the binding "
+               "modifier. Hat's recall drops only slightly from r=1 (0.749) to r=2 (0.713), "
+               "the cost of the glasses heterogeneity left in the residual, and averaging it "
+               "with the easier Eyeglasses gives r=2 macro recall 0.750, the same as r=1. "
+               "At r=3, Sideburns is the binding modifier (0.597) and Hat and Eyeglasses "
+               "also lose recall (0.657, 0.726).", ""]
+    if (out / "third_modifier_candidates.md").exists() and "r3" in a.only:
+        md += ["## Choice of the third modifier at r=3", "",
+               "third_modifier_candidates.md (third_modifier_candidates.py) ranks every "
+               "CelebA attribute by the alignment of its best coordinate (F1 against the "
+               "all-positive floor 2p/(1+p), AUC on the pre-activation and on the sparse "
+               "code NEXIS regresses on, top-100 lift, gap to the runner-up) and by the "
+               "largest n the independent sampler supports. Sideburns (1683) stays: the "
+               "attributes with higher F1 are either high-prevalence labels whose sparse "
+               "code almost never fires (Male: code recall 0.03; No_Beard, Young, "
+               "Wearing_Lipstick, Heavy_Makeup: 0.00) or only weakly separated from the "
+               "runner-up (Smiling: gap 0.069, code AUC 0.60, coordinate shared with "
+               "Mouth_Slightly_Open and High_Cheekbones); the two that are better aligned "
+               "on the code, Blond_Hair (code AUC 0.954 vs 0.805) and Bangs, have ONE "
+               "image with hat and glasses, so the independent sampler fails even at "
+               "n = 50 for some of 50 seeds. Sideburns supports every n up to 10,000.", ""]
+
     if "r0" in a.only:
         d = load("r0")
-        meth0 = {**{m: MAIN_METHODS_V2[m] for m in BASELINES},
-                 "NEXIS": PUB_LABEL, "NEXIS-v2": "NEXIS"}
+        meth0 = {"NEXIS-v2": "NEXIS",
+                 **{m: MAIN_METHODS_V2[m] for m in BASELINES}}
         fig_r0(d, meth0, out / "dgp_r0.pdf")
         md += ["## r=0: no effect modification (dgp_r0.pdf)", "",
-               "tau = tau_0 = 0.5 for every unit, S* = {}. Images, W and T are drawn exactly as "
-               "in the main setting (same seeds give the same units); the x-axis 'eta' scales "
-               "the prognostic main effects, Y = eta (0.3 W_hat - 0.2 W_glasses) + 0.5 T + N(0,1). "
-               "A constant-effect sweep would be degenerate: T is in the nuisance design of the "
-               "linear test, so adding c T to Y leaves every interaction statistic unchanged "
-               "(an exact identity of the OLS fit). The eta grid adds eta=0 "
-               "(pure noise). FWER = share of runs selecting at least one coordinate; false "
-               "discoveries = |S_hat|. Cells: 11 n x 2 + 11 eta x 2 = 44, 50 seeds each.", ""]
-        md += fwer_table(d, meth0) + [""]
+               "tau = tau_0 = 0.5 for every unit, S* = {}; Y = 0.3 W_hat - 0.2 W_glasses "
+               "+ 0.5 T + N(0,1), the main setting's prognostic effects. Images, W and T are "
+               "drawn exactly as in the main setting (seeds 0-49 give the same units). With "
+               "gamma = 0 there is no effect size: eta multiplies nothing, and a larger "
+               "constant effect tau_0 leaves every interaction t-statistic unchanged (T is in "
+               "the nuisance design), so the four dgp.pdf rows collapse to one condition, "
+               "varying n; it runs with 200 seeds per n instead of 50. "
+               "P(any false discovery) = FWER = share of runs selecting at least one "
+               "coordinate; FD = |S_hat|.", ""]
+        tmd, tex = r0_table(d, meth0)
+        md += tmd + ["", "LaTeX version: dgp_r0_table.tex.", ""]
+        (out / "dgp_r0_table.tex").write_text("\n".join(tex) + "\n")
 
     if len(a.only) < 4:   # partial run: do not clobber the full tables
         print("\n".join(md))

@@ -16,15 +16,20 @@
 #        the convention of results/celeba/experiment_r3 (run_experiment_rsweep.sh)
 #   r1   one direct modifier: Wearing_Hat (+1); Eyeglasses sampled as in the main
 #        setting but prognostic only (gamma = 0)
-#   r0   no modifier: tau = tau_0 = 0.5 constant, S* = {}; eta scales the prognostic
-#        main effects 0.3 W_hat - 0.2 W_glasses instead (see run_experiment_dgp.py);
-#        eta grid includes 0.  Also runs the published NEXIS for contrast.
+#   r0   no modifier: tau = tau_0 = 0.5 constant, S* = {}; prognostic effects fixed at
+#        the main setting's 0.3 W_hat - 0.2 W_glasses.  With gamma = 0 there is no
+#        effect size, so the four dgp.pdf rows collapse to one condition: only the
+#        n sweep runs (the eta column is a dummy 1), with 200 seeds instead of 50 so
+#        the per-n FWER interval is tight enough to read against alpha (seeds 0-49
+#        draw the same units, T and images as the main setting).
+#        (The earlier r0 run, where eta scaled the prognostic effects, is in
+#        results/celeba/experiment_v2_r0; it is no longer used.)
 #
-# Same grid, seeds and baselines as the main setting: eta in 1..10 at n in {500, 2000},
-# n in {50..10000} at eta in {2, 5}, 50 seeds, alpha 0.05, 10 steps.
-# Results: results/celeba/experiment_v2_{resample_b1,r3,r1,r0}/k20/sae/.
+# rep, r3, r1: same grid, seeds and baselines as the main setting: eta in 1..10 at
+# n in {500, 2000}, n in {50..10000} at eta in {2, 5}, 50 seeds, alpha 0.05, 10 steps.
+# Results: results/celeba/experiment_v2_{resample_b1,r3,r1,r0_fixbeta}/k20/sae/.
 #
-#   bash   scripts/celeba/submit_dgp_extra_v2.sh [--overwrite]   # submit all 8 jobs
+#   bash   scripts/celeba/submit_dgp_extra_v2.sh [--overwrite]   # submit all 7 jobs
 #   sbatch scripts/celeba/submit_dgp_extra_v2.sh r0 effect        # one job
 #
 # Memory: the n sweep peaks at ~170G with 40 threads (n = 10,000 x 9,216 per task);
@@ -39,6 +44,7 @@ PYTHON=/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3
 out_of() {
   case "$1" in
     rep) echo results/celeba/experiment_v2_resample_b1 ;;
+    r0)  echo results/celeba/experiment_v2_r0_fixbeta ;;
     *)   echo "results/celeba/experiment_v2_$1" ;;
   esac
 }
@@ -52,6 +58,7 @@ if [[ -z "${SLURM_JOB_ID:-}" ]]; then
   SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
   for set in rep r3 r1 r0; do
     for sweep in effect n; do
+      [[ "$set" == r0 && "$sweep" == effect ]] && continue   # no effect axis at r = 0
       if [[ -z "$OVERWRITE" && -f "$(pq "$set" "$sweep")" ]]; then
         echo "skip (exists): $(pq "$set" "$sweep")"; continue
       fi
@@ -91,7 +98,7 @@ case "$SET" in
         --gammas 1 0 "${GRID[@]}" --methods "${BASELINES[@]}" NEXIS-v2 "${FORCE[@]}" ;;
   r0)
     exec "$PYTHON" src/apps/celeba/run_experiment_dgp.py --out-dir "$OUT" \
-        --gammas 0 0 --scale beta --effect-grid 0 1 2 3 4 5 6 7 8 9 10 "${GRID[@]}" \
-        --methods "${BASELINES[@]}" NEXIS-v2 NEXIS "${FORCE[@]}" ;;
+        --gammas 0 0 --n-seeds 200 --alpha 0.05 --max-steps 10 --gcm-splits 3 \
+        --fixed-effect 1 --sweep n --methods "${BASELINES[@]}" NEXIS-v2 "${FORCE[@]}" ;;
   *) echo "unknown set: $SET" >&2; exit 1 ;;
 esac
