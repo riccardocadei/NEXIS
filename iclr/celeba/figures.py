@@ -60,9 +60,9 @@ ABLATIONS: Dict[str, dict] = {
     "test": {"legend_ncol": 5, "methods": {
         "NEXIS": "linear (default)",
         "NEXIS (test=GCM: quadratic)": "GCM: quadratic",
-        "NEXIS (test=GCM: lgbm)": "GCM: lgbm",
+        "NEXIS (test=GCM: lgbm)": "GCM: LightGBM",
         "NEXIS (test=PCM: quadratic)": "PCM: quadratic",
-        "NEXIS (test=PCM: lgbm)": "PCM: lgbm"}},
+        "NEXIS (test=PCM: lgbm)": "PCM: LightGBM"}},
     "adjust": {"methods": {
         "NEXIS (adjust=None)": "None",
         "NEXIS (adjust=FDR)": "FDR",
