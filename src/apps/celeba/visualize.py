@@ -123,9 +123,9 @@ ABLATION_GROUPS: dict[str, dict] = {
         'methods': {
             'NEXIS':                       'linear (default)',
             'NEXIS (test=GCM: quadratic)': 'GCM: quadratic',
-            'NEXIS (test=GCM: lgbm)':      'GCM: lgbm',
+            'NEXIS (test=GCM: lgbm)':      'GCM: LightGBM',
             'NEXIS (test=PCM: quadratic)': 'PCM: quadratic',
-            'NEXIS (test=PCM: lgbm)':      'PCM: lgbm',
+            'NEXIS (test=PCM: lgbm)':      'PCM: LightGBM',
         },
     },
     'adjust': {
@@ -211,9 +211,9 @@ ABLATION_GROUPS_V2: dict[str, dict] = {
         'methods': {
             'NEXIS-v2':                       'linear (default)',
             'NEXIS-v2 (test=GCM: quadratic)': 'GCM: quadratic',
-            'NEXIS-v2 (test=GCM: lgbm)':      'GCM: lgbm',
+            'NEXIS-v2 (test=GCM: lgbm)':      'GCM: LightGBM',
             'NEXIS-v2 (test=PCM: quadratic)': 'PCM: quadratic',
-            'NEXIS-v2 (test=PCM: lgbm)':      'PCM: lgbm',
+            'NEXIS-v2 (test=PCM: lgbm)':      'PCM: LightGBM',
         },
     },
     'adjust': {
