@@ -372,7 +372,7 @@ footer{padding:1.8rem 2rem;text-align:center;
 @media(max-width:860px){
   #sidebar{display:none;}
   #main{margin-left:0;}
-  .two-charts-grid,.fig-row{grid-template-columns:1fr;}
+  .two-charts-grid,.fig-row{grid-template-columns:minmax(0,1fr);}
 }
 
 @media(max-width:520px){
@@ -420,6 +420,14 @@ footer{padding:1.8rem 2rem;text-align:center;
   .thm-box{padding:0.75rem 0.6rem;}
   .thm-eq{font-size:0.9rem;}
 
+  /* Results tables: six columns must fit the phone width, otherwise the whole page
+     overflows and mobile browsers zoom out to fit it */
+  .results-table{font-size:0.62rem;}
+  .results-table th,.results-table td{padding:0.34em 0.22em;}
+  .results-table .sub-indent td:first-child{padding-left:0.5em;}
+  .results-table .sub-panel td{padding-left:0.3em;font-size:0.62rem;}
+  .results-table sup{font-size:0.8em;}
+  .mod-desc{font-size:0.7rem;}
   /* Table caption */
   .results-table caption{font-size:0.62rem;}
 
