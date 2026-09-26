@@ -32,7 +32,7 @@ def _explain(scene, b, which):
         scene.add(_cross_on(b["W2"]))
 
 
-# Snapshot 1 — forward step 1: marginal p-values, Z₁ admitted (0.001 <= 0.05/3)
+# Snapshot 1 — forward step 1: marginal p-values, Z₁ admitted (0.001 <= gate 0.0167)
 class Snapshot1(Scene):
     def construct(self):
         b = _base(self)
@@ -44,7 +44,7 @@ class Snapshot1(Scene):
         self.wait(1)
 
 
-# Snapshot 2 — forward step 2: given Z₁, Z₃ admitted (0.012 <= 0.05/2)
+# Snapshot 2 — forward step 2: given Z₁, Z₃ admitted (0.012 <= gate 0.025)
 class Snapshot2(Scene):
     def construct(self):
         b = _base(self)
@@ -56,7 +56,7 @@ class Snapshot2(Scene):
         self.wait(1)
 
 
-# Snapshot 3 — forward step 3: Z₂ fails 0.05/1, the forward step stops
+# Snapshot 3 — forward step 3: Z₂ fails gate 0.05, the forward step stops
 class Snapshot3(Scene):
     def construct(self):
         b = _base(self)
@@ -70,7 +70,7 @@ class Snapshot3(Scene):
         self.wait(1)
 
 
-# Snapshot 4 — terminal backward step: every p_j(A) <= 0.05/3, Z₁ and Z₃ kept
+# Snapshot 4 — terminal backward step: every p_j(A) <= 0.0167, Z₁ and Z₃ kept
 class Snapshot4(Scene):
     def construct(self):
         b = _base(self)

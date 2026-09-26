@@ -43,7 +43,8 @@ _NODE_R   = 0.30
 _STROKE_W = 2.5
 LABEL_Y   = 2.30      # y-centre of column labels (candidate neurons row)
 FORM_Y     = -3.30     # bottom reference for test block
-TEST_Y     = FORM_Y + 0.60   # line of the test currently performed (-2.70)
+TEST_Y     = FORM_Y + 0.60   # tests of the current step        (-2.70)
+NOTE_Y     = FORM_Y + 0.15   # grey definition / rule line      (-3.15)
 SLBL_Y     = FORM_Y + 1.10   # S = {} label        (-2.20)
 SC_T       = 0.37            # test-block text scale
 
@@ -142,14 +143,25 @@ def s_label(members, suffix=None):
     return mob.move_to([0, SLBL_Y, 0])
 
 
-# Forward step contents: H0 of the round and its gate alpha/|S_bar|.
-FWD_TXT = {
-    1: "H₀(j | ∅) :   E[τ | Zⱼ]  =  E[τ],   j ∈ {1, 2, 3}        gate  α/|S̄|  =  0.05/3",
-    2: "H₀(j | Z₁) :   E[τ | Zⱼ, Z₁]  =  E[τ | Z₁],   j ∈ {2, 3}        gate  α/|S̄|  =  0.05/2",
-    3: "H₀(2 | Z₁, Z₃) :   E[τ | Z₁, Z₂, Z₃]  =  E[τ | Z₁, Z₃]        gate  α/|S̄|  =  0.05/1",
+# Forward step contents: every test H0(j | S), j in S_bar, and the gate
+# alpha/|S_bar| as a number (paper notation, eq. cate_ci_null and Algorithm 1).
+def _h0(j, A):
+    """H_0(j | A) with A an index set, e.g. _h0(2, "{1}") -> H0(2 | {1})."""
+    return f"<i>H</i><sub>0</sub>({j} | {A})"
+
+
+FWD_TESTS = {
+    1: ([_h0(1, "∅"), _h0(2, "∅"), _h0(3, "∅")], "0.0167"),        # 0.05/3
+    2: ([_h0(2, "{1}"), _h0(3, "{1}")],           "0.025"),         # 0.05/2
+    3: ([_h0(2, "{1, 3}")],                       "0.05"),          # 0.05/1
 }
-BWD_MARKUP = ("keep  j ∈ S  only if  <i>p</i><sub>j</sub>(A)  ≤  α/m  =  0.05/3"
-              "   for every  A ⊆ S ∖ {j}")
+FWD_DEF = ("<i>H</i><sub>0</sub>(<i>j</i> | <i>S</i>) :   "
+           "E[τ | <b>Z</b><sup><i>S</i> ∪ {<i>j</i>}</sup>]  =  E[τ | <b>Z</b><sup><i>S</i></sup>]")
+
+# Terminal backward step: all tests H0(j | A), A subset of S minus {j}, at alpha/m.
+BWD_TESTS = ([_h0(1, "∅"), _h0(1, "{3}"), _h0(3, "∅"), _h0(3, "{1}")], "0.0167")  # 0.05/3
+BWD_RULE = ("keep  <i>j</i> ∈ <i>S</i>  only if  <i>p</i><sub><i>j</i></sub>(<i>A</i>)  ≤  0.0167"
+            "   for every  <i>A</i> ⊆ <i>S</i> ∖ {<i>j</i>}")
 
 
 def build_base(scene):
@@ -205,13 +217,23 @@ def build_base(scene):
                 a_T_Y=a_T_Y, bands=bands, static=static)
 
 
-# Only the test currently performed is shown, centred below the graph.
+# Only the tests of the current step are shown, centred below the graph:
+# the listed tests with their threshold, and a grey line defining the rule.
+def _test_block(tests, thr_name, thr, note):
+    head = MarkupText(",   ".join(tests) + f"          {thr_name}  =  {thr}",
+                      color=WHITE_TEXT).scale(SC_T)
+    sub = MarkupText(note, color=GRAY_TEXT).scale(SC_T * 0.9)
+    return VGroup(head.move_to([0, TEST_Y, 0]), sub.move_to([0, NOTE_Y, 0]))
+
+
 def fwd_content(k):
-    return Text(FWD_TXT[k], color=WHITE_TEXT).scale(SC_T).move_to([0, TEST_Y, 0])
+    tests, gate = FWD_TESTS[k]
+    return _test_block(tests, "gate  α/|S̄|", gate, FWD_DEF)
 
 
 def bwd_content():
-    return MarkupText(BWD_MARKUP, color=WHITE_TEXT).scale(SC_T).move_to([0, TEST_Y, 0])
+    tests, thr = BWD_TESTS
+    return _test_block(tests, "level  α/m", thr, BWD_RULE)
 
 
 def select_style(node, color=GREEN_LIGHT, width=3.5):
@@ -259,7 +281,7 @@ class Selection(Scene):
         self.wait(1.0)
 
         # ══════════════════════════════════════════════════════════════════════
-        # FORWARD 1 — S = ∅: marginal tests; argmin Z₁ passes 0.05/3
+        # FORWARD 1 — S = ∅: marginal tests; argmin Z₁ passes 0.0167
         # ══════════════════════════════════════════════════════════════════════
         tag = self._big_step("Forward step  1", fwd_tag(1))
         fwd = fwd_content(1)
@@ -272,7 +294,7 @@ class Selection(Scene):
         self.play(FadeIn(p1), FadeIn(p2), FadeIn(p3), run_time=0.8)
         self.wait(0.9)
 
-        # argmin p = 0.001 <= 0.05/3: Z₁ enters S
+        # argmin p = 0.001 <= 0.0167: Z₁ enters S
         self.play(p1.animate.set_color(GREEN_LIGHT),
                   Z1[0].animate.set_stroke(GREEN_LIGHT, width=3.5),
                   Z1[1].animate.set_color(GREEN_LIGHT), run_time=0.40)
@@ -281,7 +303,7 @@ class Selection(Scene):
         self.wait(0.6)
 
         # ══════════════════════════════════════════════════════════════════════
-        # FORWARD 2 — S = {1}: W₁ is screened off by Z₁; argmin Z₃ passes 0.05/2
+        # FORWARD 2 — S = {1}: W₁ is screened off by Z₁; argmin Z₃ passes 0.025
         # ══════════════════════════════════════════════════════════════════════
         x_W1 = _cross_on(W1)
         tag_old = tag
@@ -308,7 +330,7 @@ class Selection(Scene):
         self.wait(0.6)
 
         # ══════════════════════════════════════════════════════════════════════
-        # FORWARD 3 — S = {1, 3}: W₂ screened off; Z₂ fails 0.05/1 → forward stops
+        # FORWARD 3 — S = {1, 3}: W₂ screened off; Z₂ fails 0.05 → forward stops
         # ══════════════════════════════════════════════════════════════════════
         x_W2 = _cross_on(W2)
         tag_old = tag
@@ -337,7 +359,7 @@ class Selection(Scene):
 
         # ══════════════════════════════════════════════════════════════════════
         # TERMINAL BACKWARD STEP — every subset A of the other selected coordinates,
-        # level α/m = 0.05/3; both Z₁ and Z₃ survive
+        # level α/m = 0.0167; both Z₁ and Z₃ survive
         # ══════════════════════════════════════════════════════════════════════
         tag_old = tag
         tag = self._big_step(BWD_BANNER, BWD_TAG, extra_anims=(
@@ -351,7 +373,7 @@ class Selection(Scene):
         self.play(FadeIn(q1), FadeIn(q3), run_time=0.9)
         self.wait(1.4)
 
-        # all p_j(A) <= 0.05/3: both coordinates are kept
+        # all p_j(A) <= 0.0167: both coordinates are kept
         self.play(q1.animate.set_color(GREEN_LIGHT), q3.animate.set_color(GREEN_LIGHT),
                   run_time=0.5)
         for _ in range(2):
