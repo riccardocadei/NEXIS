@@ -11,7 +11,15 @@ table instead listed communities 311 and 1613, whose activation on that neuron i
 exactly 0.0 under both the post-TopK codes and the dense pre-activations, and
 dropped 395 and 655, which are genuinely active.  Only the three
 cropland-expansion rows were right -- those are the three the source brief
-enumerates; the other three rows had no source to copy from.
+enumerates; the other three rows had no source to copy from.  Row 675 is also
+wrong in its vegetation column: the artifact reads "similarly distributed" (no
+change), not "increased biomass".
+
+Paper item: Table tab:ghana_temporal (paper/ICLR'27/appendix.tex, "Per-community VLM
+temporal analysis for the six waterway-active LEAP communities") and the sentence
+"agricultural land use changed detectably in three communities".
+Inputs: results/ghana/temporal/neuron_3821_temporal.json (interpret_temporal_waterways.py,
+GPU, 6 May 2026); data/ghana/satellite/{sae_activations,prithvi_comm_ids}.npy (--check).
 
 Generating the table removes the transcription step entirely.
 
@@ -20,6 +28,7 @@ Usage
     python src/apps/ghana/table_temporal.py                # markdown + latex to stdout
     python src/apps/ghana/table_temporal.py --write        # also write files next to the artifact
     python src/apps/ghana/table_temporal.py --check        # verify against the activations, exit 1 on drift
+    python src/apps/ghana/table_temporal.py --paper        # write results/ghana/paper_numbers/table_temporal.{md,tex}
 """
 from __future__ import annotations
 
@@ -110,6 +119,8 @@ def main():
                    help="Write table_temporal.{md,tex} beside the artifact.")
     p.add_argument("--check", action="store_true",
                    help="Only verify the artifact against the activations.")
+    p.add_argument("--paper", action="store_true",
+                   help="Write table_temporal.{md,tex} to results/ghana/paper_numbers/.")
     args = p.parse_args()
 
     if not ARTIFACT.exists():
@@ -123,6 +134,12 @@ def main():
     print(md, "\n"); print(tex, "\n"); print(note)
     if args.write:
         out = ARTIFACT.parent
+        (out / "table_temporal.md").write_text(md + "\n\n" + note + "\n")
+        (out / "table_temporal.tex").write_text(tex + "\n")
+        print(f"\nwrote {out/'table_temporal.md'} and {out/'table_temporal.tex'}")
+    if args.paper:
+        out = ROOT / "results" / "ghana" / "paper_numbers"
+        out.mkdir(parents=True, exist_ok=True)
         (out / "table_temporal.md").write_text(md + "\n\n" + note + "\n")
         (out / "table_temporal.tex").write_text(tex + "\n")
         print(f"\nwrote {out/'table_temporal.md'} and {out/'table_temporal.tex'}")
