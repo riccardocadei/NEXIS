@@ -1,5 +1,12 @@
 # CelebA: robustness of every experiment to the SAE training sample
 
+> **Status.** NeurIPS-rebuttal analysis. The replica dictionary built here (steps 1-3 of
+> §7) and its ground truth feed the reproducibility figure `replica_k20.pdf`
+> (`scripts/celeba/submit_dgp_extra_v2.sh`, then `src/apps/celeba/figure_dgp_extra.py`).
+> The agreement analyses (§1, §4-§6: `sae_agreement.py`, `agreement_rates.py`,
+> `concept_agreement.py`, `submit_concept_agreement.sh`) are not in the paper and were
+> removed from the tree; they are at git tag `neurips-rebuttal-final`.
+
 **Question.** The paper's CelebA experiments all rest on two TopK SAEs (k=5, k=20) trained
 on one particular corpus. If those dictionaries had been learned from a *different* sample
 of the same size, would the reported conclusions change?
@@ -209,7 +216,7 @@ sbatch scripts/celeba/submit_resample_sae.sh 20 b1 siglip
 bash scripts/celeba/submit_resample_experiment.sh b1
 python src/apps/celeba/merge_shards.py --tag b1          # validates completeness
 
-# 4. agreement analysis
+# 4. agreement analysis (scripts at git tag neurips-rebuttal-final)
 python src/apps/celeba/sae_agreement.py --tag b1                             # sweeps, all methods
 sbatch scripts/celeba/submit_concept_agreement.sh 20 b1 2000 5.0             # concept + CATE, k=20
 sbatch scripts/celeba/submit_concept_agreement.sh  5 b1 2000 5.0             # concept + CATE, k=5
