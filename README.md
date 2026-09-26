@@ -222,7 +222,8 @@ python src/apps/ghana/figure_maps.py                             # figure_distri
 ```
 
 The download, extraction and training scripts default to paths relative to
-`src/apps/ghana/`; pass explicit paths as above when running from the repo root. The
+`src/apps/ghana/` (`../../data/ghana/...`): run the first three from that folder, or pass
+`--out-dir`/`--tif-dir`, and pass explicit paths to `train_sae.py` as above. The
 SLURM wrappers `scripts/ghana/slurm_train_sae.sh`, `run_temporal_waterways.sh` and
 `slurm_temporal_waterways.sh` call `scripts/ghana/*.py` files that no longer exist (the
 code moved to `src/apps/ghana/`); they will be fixed after the ghana merge. Details and
