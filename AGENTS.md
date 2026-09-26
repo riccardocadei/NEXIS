@@ -25,7 +25,8 @@ Plan, in order:
 `paper/` is a separate git clone of the Overleaf project. It is ignored by this repo and
 has its own history. Follow `paper/AGENTS.md` there. Sync it with `git overleaf pull` and
 `git overleaf push`, and only when the user asks. From the code side, the only thing to
-touch there is `paper/NeurIPS'26/figures/`, and only when the user asks: regenerate a
+touch there is `paper/ICLR'27/figures/` (the active ICLR 2027 version; `paper/NeurIPS'26/` is the rejected
+NeurIPS submission, read-only), and only when the user asks: regenerate a
 figure with its plotting script and commit it in the paper repo.
 
 ## How to work
