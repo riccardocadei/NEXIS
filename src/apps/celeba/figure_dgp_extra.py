@@ -81,7 +81,7 @@ def row_df(dfs, i, method):
 
 
 def macro(dfs, method, metric):
-    """Mean over the figure's cells of the per-cell seed mean (as compare_v2.py)."""
+    """Mean over the figure's cells of the per-cell seed mean."""
     cells = [row_df(dfs, i, method).groupby(ROWS[i][3])[metric].mean() for i in range(4)]
     return float(pd.concat(cells).mean())
 

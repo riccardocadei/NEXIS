@@ -71,4 +71,3 @@ echo "Job ids → logs/resample_${TAG}_shard_ids.txt"
 echo
 echo "When all have finished:"
 echo "  python src/apps/celeba/merge_shards.py --tag ${TAG}"
-echo "  python src/apps/celeba/sae_agreement.py --tag ${TAG}"

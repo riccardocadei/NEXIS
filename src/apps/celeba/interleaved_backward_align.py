@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Attribute-to-coordinate alignment table for the interleaved-backward experiment.
+"""Attribute-to-coordinate F1 matrix of a CelebA dictionary.
 
-For every CelebA attribute and every dictionary, computes the best-threshold F1 of
-each coordinate (experiment.compute_f1_scores, the ground-truth rule of the paper)
-and saves the full (n_attrs, m) F1 matrix.  Used to (i) pick modifier sets whose
-attributes are each carried by one dominant coordinate and (ii) find natural
-"mixing" coordinates, i.e. coordinates with high F1 for two or more modifiers.
+For every CelebA attribute, computes the best-threshold F1 of each coordinate
+(experiment.compute_f1_scores, the ground-truth rule of the paper) and saves the full
+(n_attrs, m) F1 matrix.  third_modifier_candidates.py reads f1_sae_precode_k20.npz to
+rank the candidates for the third direct modifier of the r = 3 DGP.  (Written for the
+interleaved-backward experiment of the NeurIPS rebuttal, hence the output path; that
+experiment is at git tag neurips-rebuttal-final.)
 
-Usage: interleaved_backward_align.py <dict> [<dict> ...]
+Usage: python src/apps/celeba/interleaved_backward_align.py <dict> [<dict> ...]
   dict in {sae_k20, sae_k5, sae_precode_k20, sae_precode_k5, sae_dinov2_k20,
            sae_dinov2_k5, sae_precode_dinov2_k20}
 Writes results/celeba/interleaved_backward/align/f1_<dict>.npz  (f1, attrs)
