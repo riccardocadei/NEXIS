@@ -9,8 +9,8 @@ find the actual difference between high- and low-activation sites.
 
 Usage
 -----
-    python src/interpret.py [options]
-    python src/interpret.py --vlm-model Qwen/Qwen2-VL-7B-Instruct --quantize
+    python src/apps/uganda/interpret.py [options]
+    python src/apps/uganda/interpret.py --vlm-model Qwen/Qwen2-VL-7B-Instruct --quantize
 
 Requires:  pip install transformers accelerate bitsandbytes torch pillow
            (no external API key needed – model runs locally on GPU)

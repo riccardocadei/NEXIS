@@ -419,7 +419,7 @@ def main():
         df_n.to_parquet(n_path, index=False)
         print(f"N sweep:      {len(df_n)} rows  →  {n_path}")
 
-    print(f"\nDone ({feat_label}).  Run notebooks/celeba_semisynthetic.ipynb to visualise.")
+    print(f"\nDone ({feat_label}).  Run notebooks/celeba.ipynb to visualise.")
 
 
 if __name__ == "__main__":

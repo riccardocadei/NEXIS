@@ -12,8 +12,8 @@ Pipeline
 
 Usage
 -----
-    python src/train.py [--model dinov2] [--hidden-dim 3072]
-                        [--l1-coeff 2.0] [--epochs 100] [--overwrite]
+    python src/apps/uganda/train.py [--model dinov2] [--hidden-dim 3072]
+                                   [--l1-coeff 2.0] [--epochs 100] [--overwrite]
 """
 
 import argparse

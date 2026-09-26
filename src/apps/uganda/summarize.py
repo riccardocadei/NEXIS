@@ -13,7 +13,7 @@ Output
 
 Usage
 -----
-    python src/summarize.py [--embed-model dinov2] [--sae-dim 3072]
+    python src/apps/uganda/summarize.py [--embed-model dinov2] [--sae-dim 3072]
 """
 
 import argparse

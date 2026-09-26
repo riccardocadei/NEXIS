@@ -9,15 +9,15 @@ Data roles:
   RCT data         → 331 experimental site embeddings, held out during training
 
 Recommended workflow:
-  1. python scripts/uganda/download_tiles.py --mode rct
-  2. python scripts/uganda/download_tiles.py --mode national
-  3. python scripts/uganda/extract_satellite_features.py \\
+  1. python src/apps/uganda/download_tiles.py --mode rct
+  2. python src/apps/uganda/download_tiles.py --mode national
+  3. python src/apps/uganda/extract_satellite_features.py \\
        --tif-dir data/uganda/satellite/tif_rct \\
        --out-dir data/uganda/satellite/rct
-  4. python scripts/uganda/extract_satellite_features.py \\
+  4. python src/apps/uganda/extract_satellite_features.py \\
        --tif-dir data/uganda/satellite/tif_national \\
        --out-dir data/uganda/satellite/national
-  5. python scripts/uganda/train_sae.py   ← this script
+  5. python src/apps/uganda/train_sae.py   ← this script
 
 Outputs (--out-dir, default results/uganda/prithvi_l5_{d_hidden}/):
   sae_model.pt                — TopK SAE weights
