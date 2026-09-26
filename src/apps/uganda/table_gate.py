@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GATE (s.e.) columns of the Uganda YOP table tab:nexis_appendix (paper item).
 
-Produces, for every coordinate of Table tab:nexis_appendix (paper/ICLR'27/appendix.tex,
+Produces, for every coordinate of Table tab:nexis_appendix (paper/iclr27/appendix.tex,
 "Coordinates selected by NEXIS on YOP"): GATE among active and inactive units with its
 s.e., the contrast Delta = GATE_active - GATE_inactive with s.e. sqrt(se_a^2 + se_i^2),
 and the two p-value columns; plus the full-sample difference in means quoted in the

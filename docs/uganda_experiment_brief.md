@@ -1,7 +1,7 @@
 # Uganda YOP experiment brief
 
 > **Purpose.** The Uganda case study as it stands in the final paper
-> (`paper/ICLR'27/main.tex`, Section "Case study 1", and `appendix.tex`, Appendix D):
+> (`paper/iclr27/main.tex`, Section "Case study 1", and `appendix.tex`, Appendix D):
 > design, the choices behind it, every number the paper quotes, and the file or script
 > each number comes from. Paths are relative to the repo root; `results/` and `data/` are
 > untracked. Top-level commands: `README.md`, section Uganda; run notes in Section 10.

@@ -1,7 +1,7 @@
 # Ghana LEAP 1000 experiment brief
 
 > **Purpose.** The Ghana case study as it stands in the final paper
-> (`paper/ICLR'27/main.tex`, Section "Case study 2", and `appendix.tex`, Appendix E):
+> (`paper/iclr27/main.tex`, Section "Case study 2", and `appendix.tex`, Appendix E):
 > design, the choices behind it, every number the paper quotes, and the file or script
 > each number comes from. Paths are relative to the repo root; `results/` and `data/` are
 > untracked (`data/ghana/survey/` is restricted: do not redistribute). Top-level

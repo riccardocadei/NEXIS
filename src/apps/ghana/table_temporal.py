@@ -15,7 +15,7 @@ enumerates; the other three rows had no source to copy from.  Row 675 is also
 wrong in its vegetation column: the artifact reads "similarly distributed" (no
 change), not "increased biomass".
 
-Paper item: Table tab:ghana_temporal (paper/ICLR'27/appendix.tex, "Per-community VLM
+Paper item: Table tab:ghana_temporal (paper/iclr27/appendix.tex, "Per-community VLM
 temporal analysis for the six waterway-active LEAP communities") and the sentence
 "agricultural land use changed detectably in three communities".
 Inputs: results/ghana/temporal/neuron_3821_temporal.json (interpret_temporal_waterways.py,

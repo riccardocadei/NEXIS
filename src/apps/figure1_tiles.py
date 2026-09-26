@@ -17,7 +17,7 @@ Uganda Landsat 7, SWIR2 for Ghana Landsat 8), every band stretched
 to its 2-98th percentile, drawn at native resolution in a 3x3 inch canvas
 with a "<district>, <country> (<year>)" label at the top right.
 
-This reproduces paper/ICLR'27/figures/{uganda/river.pdf, ghana/waterways.pdf}
+This reproduces paper/iclr27/figures/{uganda/river.pdf, ghana/waterways.pdf}
 (first made on 2026-06-12 by an uncommitted script; the colour composite is the
 one of src/apps/figure_teaser.py, which draws the website teaser).
 

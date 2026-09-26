@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Size of the forward selection |S~| and cost of the terminal backward step (paper item).
 
-Produces the numbers of Appendix B ("Backward steps", paper/ICLR'27/appendix.tex):
+Produces the numbers of Appendix B ("Backward steps", paper/iclr27/appendix.tex):
   "over the 6,300 CelebA runs of the three dictionaries at rho = 0.5, |S~| has median 2
    and maximum 7, and the forward step alone gives the same median and maximum on the
    main setting. [...] the same runs needed a median of 4 and a maximum of 192 tests,

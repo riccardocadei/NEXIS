@@ -21,7 +21,7 @@ For every attribute, on the main k = 20 SigLIP dictionary (19,867-image pool):
             probability >= 0.99 (binomial cell counts); "(1,1,1)" is the number of
             images with hat, glasses and the attribute.
 
-Paper item: appendix (r = 3 paragraph, paper/ICLR'27/appendix.tex) "Sideburns [...]
+Paper item: appendix (r = 3 paragraph, paper/iclr27/appendix.tex) "Sideburns [...]
 its principal coordinate separates it with AUC 0.805 on Z" = column "AUC code" of the
 Sideburns row.  The comparison values "0.969 and 0.956 for the other two" (Wearing_Hat
 5348, Eyeglasses 5537, excluded here) are auc_principal of the alignment spectrum in

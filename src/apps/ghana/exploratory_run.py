@@ -2,7 +2,7 @@
 """Ghana exploratory NEXIS run without multiple-testing correction (paper item).
 
 Produces the numbers of the appendix section "Exploratory analysis"
-(sec:ghana:exploratory, paper/ICLR'27/appendix.tex):
+(sec:ghana:exploratory, paper/iclr27/appendix.tex):
   "an earlier, smaller pool, which keeps the 72 neurons active in at least 10
    communities together with the 24 survey covariates and 6 spectral indices [...]
    excludes the two certified neurons [...] sparse burn scar presence [neuron 1777]

@@ -11,7 +11,7 @@ Correctness is checked by re-running pipelines and comparing against the numbers
 `docs/*_experiment_brief.md`, which document the ICLR'27 paper's numbers and their sources.
 
 The NeurIPS rebuttal branch is merged into `main` and deleted (pre-cleanup state: tag
-`neurips-rebuttal-final`). `paper/ICLR'27` is the final version of the paper and the
+`neurips-rebuttal-final`). `paper/iclr27` is the final version of the paper and the
 ground truth for every number. The method (`src/method/nexis.py`) and the CelebA/Uganda
 applications are **frozen**: touch them only to clean or reproduce, and flag any change
 that moves a published number. Machine-specific notes (backups, local paths) are in the
@@ -30,7 +30,7 @@ Plan, in order:
 `paper/` is a separate git clone of the Overleaf project. It is ignored by this repo and
 has its own history. Follow `paper/AGENTS.md` there. Sync it with `git overleaf pull` and
 `git overleaf push`, and only when the user asks. From the code side, the only thing to
-touch there is `paper/ICLR'27/figures/` (the ICLR 2027 version, the only one left), and
+touch there is `paper/iclr27/figures/` (the ICLR 2027 version, the only one left), and
 only when the user asks: regenerate a figure with its plotting script and commit it in the
 paper repo. `README.md` and the briefs in `docs/` map every figure to its script.
 

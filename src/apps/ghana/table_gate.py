@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GATE (s.e.) columns of tab:ghana_nexis and the Ghana counts quoted in the paper.
 
-Produces (paper/ICLR'27):
+Produces (paper/iclr27):
   appendix, Table tab:ghana_nexis: GATE among active / inactive households with s.e.
       clustered by community, the contrast Delta, and the Marginal / Certification
       p-values, for ephemeral waterways (neuron 3821) and closed-canopy forest (2095);

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Default-NEXIS runs behind the Appendix run statistics (|S~| and terminal-test counts).
 
-Paper item: Appendix B, "Backward steps" (paper/ICLR'27/appendix.tex): "over the 6,300
+Paper item: Appendix B, "Backward steps" (paper/iclr27/appendix.tex): "over the 6,300
 CelebA runs of the three dictionaries at rho = 0.5, |S~| has median 2 and maximum 7 [...]
 a median of 4 and a maximum of 192 tests".  This script writes the per-run CSVs
 results/celeba/ablation_rho_filter/rf_<tree>_<sweep>_<fixed>.csv (12 files: 3 dictionaries

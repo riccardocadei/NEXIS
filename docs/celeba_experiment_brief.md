@@ -1,7 +1,7 @@
 # CelebA semi-synthetic experiment brief
 
 > **Purpose.** The CelebA benchmark as it stands in the final paper
-> (`paper/ICLR'27/main.tex`, Section 3 and Figure 3; `appendix.tex`, Appendix C and the
+> (`paper/iclr27/main.tex`, Section 3 and Figure 3; `appendix.tex`, Appendix C and the
 > run statistics of Appendix B): design, the choices behind it, every number the paper
 > quotes, and the file or script each number comes from. Paths are relative to the repo
 > root; `results/` and `data/` are untracked. Top-level commands: `README.md`, section
@@ -265,7 +265,7 @@ come from the `src/` chain ("NEXIS-v2" = `nexis(rho=0.5, backward=False,
 terminal_filter=True)`), except `violation.pdf`, which comes from `iclr/`. Of `iclr/`,
 only `main` and `violation` are checked against the paper: `main` matches the `src`
 main-setting runs run by run (`results/celeba/paper_numbers/run_statistics.md`). The
-figures are copied under the same name to `paper/ICLR'27/figures/`.
+figures are copied under the same name to `paper/iclr27/figures/`.
 
 | Paper item | File in `results/celeba/` | Made by |
 |---|---|---|
