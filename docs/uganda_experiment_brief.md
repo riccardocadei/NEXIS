@@ -69,12 +69,20 @@ The 24 covariates are `W_age, W_female, W_father_educ, W_mother_educ, W_group_fe
 Karamojong (`W_lang_4`), Pallisa (`W_lang_7`). Pallisa is geographic rather than
 linguistic: all communities of Pallisa district, a mix of Iteso and Bagwere/Banyole.
 *Why clusters and not districts:* ≈47 communities per cluster against ≈24 per district,
-so enough support for an interaction. District-dummy sensitivity: Pallisa survives at the
-single-district level (p ≈ 7.7×10⁻⁵, `W_district_PALLISA` in
-`results/uganda/prithvi_l5_1024/skilled_employed_districts/nexis_result.json`,
-`nexis_fwer`; a June run with the NeurIPS configuration, not rerun with the paper's
-algorithm), while Karamojong and Lugbara span several small districts and lose
-significance, so the cluster representation is load-bearing for those two.
+so enough support for an interaction. District-dummy sensitivity
+(`scripts/realworld_uganda_districts.py` → `results/realworld_final/uganda_districts.json`;
+the 7 language dummies replaced in place by 14 district dummies, m = 177, skilled
+employment): Pallisa survives at the single-district level, while Karamojong and Lugbara
+span several small districts and lose significance, so the cluster representation is
+load-bearing for those two. The paper's p ≈ 7.7×10⁻⁵ is p(Pallisa | rest of the final set)
+from a June run with the NeurIPS configuration
+(`results/uganda/prithvi_l5_1024/skilled_employed_districts/nexis_result.json`,
+`nexis_fwer`; the script reproduces it to 1e-14). With the paper's algorithm S̃ is the same
+{Z_859, Z_551, Z_339, Z_306, Pallisa}; Pallisa is certified with certification p
+7.9×10⁻⁵ (α/m = 2.8×10⁻⁴; the kind of p the main table reports), marginal p 6.3×10⁻⁸,
+p | S̃ 7.7×10⁻⁵. No Karamojong (Kotido, Moroto, Nakapiripirit) or Lugbara (Arua, Yumbe)
+district enters S̃; given the final set their p-values are 2.7×10⁻³ (Arua) to 0.99
+(Moroto). Kotido alone is marginally below α/m (1.2×10⁻⁴).
 
 ---
 
@@ -250,6 +258,7 @@ estimates carried over from the June brief; not re-measured.
 - Paper says SAE batch size 256; the scripted default is 64 and the checkpoint's training
   call is not traceable (Section 3).
 - The 71/170 and 45/170 marginal counts have no committed producer script (Section 5).
-- The district-dummy p ≈ 7.7×10⁻⁵ comes from a June run with the NeurIPS configuration.
+- The district-dummy p ≈ 7.7×10⁻⁵ comes from a June run with the NeurIPS configuration;
+  the paper's algorithm gives certification p 7.9×10⁻⁵ (Section 2).
 - Treated count 825 and sub-region list are consistent with the data but are not written
   by any paper-number script.
