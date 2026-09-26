@@ -58,6 +58,11 @@ def build_transform(spec: BackboneSpec) -> transforms.Compose:
 
 _SIGLIP_TRANSFORM = build_transform(BACKBONES[DEFAULT_BACKBONE])
 
+# Hugging Face dataset and the exact revision behind the paper's embeddings (the only one
+# ever cached locally; iclr/config.py pins the same one).
+HF_DATASET = "flwrlabs/celeba"
+HF_DATASET_REVISION = "2d738f56e0e7f925ea36ae7c808ea925264aacec"
+
 # Known split sizes for tqdm totals (approximate)
 _SPLIT_SIZES = {"train": 162_770, "valid": 19_867, "test": 19_962}
 
@@ -80,10 +85,11 @@ def load_split(split: str, sample_n: int | None = None, sample_seed: int = 0):
     from datasets import load_dataset
 
     if sample_n is None:
-        return load_dataset("flwrlabs/celeba", split=split, streaming=True), \
+        return load_dataset(HF_DATASET, split=split, streaming=True,
+                            revision=HF_DATASET_REVISION), \
                _SPLIT_SIZES.get(split)
 
-    ds = load_dataset("flwrlabs/celeba", split=split)
+    ds = load_dataset(HF_DATASET, split=split, revision=HF_DATASET_REVISION)
     if sample_n > len(ds):
         raise ValueError(f"--sample-n {sample_n} exceeds split size {len(ds)}")
     rng = np.random.default_rng(sample_seed)
@@ -319,8 +325,8 @@ def main():
 
     if args.list_attrs:
         print(f"Loading one example to list attributes…")
-        sample = next(iter(load_dataset("flwrlabs/celeba", split=args.split,
-                                        streaming=True)))
+        sample = next(iter(load_dataset(HF_DATASET, split=args.split,
+                                        streaming=True, revision=HF_DATASET_REVISION)))
         for k, v in sorted(sample.items()):
             if k != "image":
                 print(f"  {k}")
