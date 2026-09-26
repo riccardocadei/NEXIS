@@ -188,8 +188,13 @@ may want to change, and they are named options there:
   2000, 3500, 5000, 10000} at η ∈ {2, 5}; 50 seeds per cell (200 per n at r = 0).
 * **Methods.** Marginal testing (no correction, FDR, FWER) and NEXIS. The NEXIS default is
   α = 0.05, the linear test, a Bonferroni forward gate, spectral gap ρ = 0.5, no
-  interleaved backward step, and the terminal backward step at α/m. NEXIS stops after at
-  most 10 rounds, and the GCM/PCM nuisances are cross-fitted with 3 folds.
+  interleaved backward step, and the terminal backward step at α/m. The GCM/PCM nuisances
+  are cross-fitted with 3 folds. The forward step has no cap on its number of rounds,
+  except in the runs where it would exceed 10 rounds and make the terminal step
+  (|S̃| 2^(|S̃|−1) tests) costly: there it stops after 10 rounds (`max_rounds` in
+  `config.py`). These runs are the ablations with no forward correction, ρ = 0 and
+  ρ = 0.2, the U-shape experiment (all tests except the LightGBM PCM) and the controlled
+  violation of Principal Alignment.
 
 ## Determinism
 

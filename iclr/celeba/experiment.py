@@ -31,8 +31,9 @@ FIXED_COL = {"effect": "fixed_n", "n": "fixed_effect"}
 
 # ── methods ───────────────────────────────────────────────────────────────────
 
-def run_method(name: str, y, t, z):
-    """SelectionResult of one method (a key of config.BASELINES / NEXIS_VARIANTS)."""
+def run_method(name: str, y, t, z, max_rounds: Optional[int] = None):
+    """SelectionResult of one method (a key of config.BASELINES / NEXIS_VARIANTS).
+    max_rounds caps the NEXIS forward rounds (None: no cap)."""
     if name == "Marginal Testing":
         return marginal_select(y, t, z, alpha=C.ALPHA, adjust=None)
     if name == "Marginal Testing (FWER)":
@@ -41,7 +42,7 @@ def run_method(name: str, y, t, z):
         return marginal_select(y, t, z, alpha=C.ALPHA, adjust="FDR")
     if name in C.NEXIS_VARIANTS:
         kw = {**C.NEXIS_DEFAULT, **C.NEXIS_VARIANTS[name]}
-        return nexis(y, t, z, alpha=C.ALPHA, max_rounds=C.MAX_ROUNDS,
+        return nexis(y, t, z, alpha=C.ALPHA, max_rounds=max_rounds,
                      n_splits=C.GCM_SPLITS, **kw)
     raise KeyError(f"unknown method {name!r}")
 
@@ -74,6 +75,7 @@ class Context:
     truth: List[int]
     dgp: dict
     modifier_cols: Optional[List[int]]
+    max_rounds: Dict[str, int]          # method -> cap on the NEXIS forward rounds
 
 
 _FEATURES: Dict[Path, np.ndarray] = {}
@@ -98,7 +100,8 @@ def load_context(exp: dict) -> Context:
         sp = dgp["split"]
         features, j_new = split_principal(features, coords[sp["attr"]], sp["share"], sp["seed"])
         truth = sorted(truth + [j_new])
-    return Context(features, labels, build_buckets(labels, dgp["attrs"]), truth, dgp, mod_cols)
+    return Context(features, labels, build_buckets(labels, dgp["attrs"]), truth, dgp, mod_cols,
+                   exp.get("max_rounds", {}))
 
 
 def draw(ctx: Context, n: int, eta: float, seed: int):
@@ -122,7 +125,7 @@ def run_cell(ctx: Context, method: str, n: int, eta: float, seed: int) -> Option
     except ValueError:
         return None
     t0 = time.perf_counter()
-    res = run_method(method, data.Y, data.T, data.Z)
+    res = run_method(method, data.Y, data.T, data.Z, max_rounds=ctx.max_rounds.get(method))
     out = {**score(res.selected, ctx.truth), "time_s": time.perf_counter() - t0,
            "selected": [int(j) for j in res.selected]}
     if method.startswith("NEXIS"):       # |S~| before the terminal step, and its test count

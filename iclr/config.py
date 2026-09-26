@@ -70,7 +70,6 @@ def ground_truth_path(k: int, replica: bool = False) -> Path:
 
 # ── benchmark design (Appendix C.1) ───────────────────────────────────────────
 ALPHA = 0.05
-MAX_ROUNDS = 10              # cap on NEXIS rounds
 GCM_SPLITS = 3               # cross-fitting folds of the GCM / PCM nuisances
 N_SEEDS = 50                 # Monte Carlo replications per (n, eta) cell; seeds 0..N-1
 EFFECT_GRID = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
@@ -149,7 +148,9 @@ METHOD_VARIANTS = [m for m in NEXIS_VARIANTS if m != "NEXIS"]
 
 # ── experiments ───────────────────────────────────────────────────────────────
 # dictionary: SAE (k, replica); view: "z" or "z_pre"; sweeps: which sweeps run and at
-# which fixed values; methods: evaluated on every draw.
+# which fixed values; methods: evaluated on every draw; max_rounds (optional): {method: cap
+# on the forward rounds} for the methods whose forward step exceeds 10 rounds in that
+# experiment (every other NEXIS run is uncapped, the default of nexis()).
 _GRID = dict(sweeps={"effect": FIXED_N, "n": FIXED_EFFECT}, n_seeds=N_SEEDS)
 EXPERIMENTS = {
     "main":          dict(k=20, replica=False, view="z", dgp=DGP_MAIN, **_GRID,
@@ -159,7 +160,10 @@ EXPERIMENTS = {
     "model_precode": dict(k=20, replica=False, view="z_pre", dgp=DGP_MAIN, **_GRID,
                           methods=BASELINES + ["NEXIS"]),
     "method":        dict(k=20, replica=False, view="z", dgp=DGP_MAIN, **_GRID,
-                          methods=METHOD_VARIANTS),      # the default line comes from "main"
+                          methods=METHOD_VARIANTS,       # the default line comes from "main"
+                          # the cap bounds the terminal step's cost when the forward gate is relaxed
+                          max_rounds={"NEXIS (adjust=None)": 10, "NEXIS (rho=0)": 10,
+                                      "NEXIS (rho=0.2)": 10}),
     # the interleaved-backward arm gives the replica IoU without the terminal step
     "replica":       dict(k=20, replica=True, view="z", dgp=DGP_MAIN, **_GRID,
                           methods=BASELINES + ["NEXIS", "NEXIS (forward + interleaved backward)"]),
@@ -174,10 +178,16 @@ EXPERIMENTS = {
                           methods=BASELINES + ["NEXIS"]),
     "ushape":        dict(k=20, replica=False, view="z_pre", dgp=DGP_USHAPE,
                           sweeps={"effect": [2000], "n": [5.0]}, n_seeds=N_SEEDS,
-                          methods=["Marginal Testing (FWER)", "NEXIS"] + TEST_VARIANTS),
+                          methods=["Marginal Testing (FWER)", "NEXIS"] + TEST_VARIANTS,
+                          # the cap bounds the terminal step's cost: the forward step overruns here
+                          max_rounds={"NEXIS": 10, "NEXIS (test=GCM: quadratic)": 10,
+                                      "NEXIS (test=GCM: lgbm)": 10,
+                                      "NEXIS (test=PCM: quadratic)": 10}),
     # rho = 0 shows whether the spectral-gap gate stops the search before a half enters
     "violation":     dict(k=20, replica=False, view="z", dgp=DGP_VIOLATION, **_GRID,
-                          methods=BASELINES + ["NEXIS", "NEXIS (rho=0)"]),
+                          methods=BASELINES + ["NEXIS", "NEXIS (rho=0)"],
+                          # the cap bounds the terminal step's cost: the forward step overruns here
+                          max_rounds={"NEXIS": 10, "NEXIS (rho=0)": 10}),
 }
 
 # Blocks of the command line: experiments to run, then figures to draw.
