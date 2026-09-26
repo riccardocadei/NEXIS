@@ -20,7 +20,7 @@ echo ""
 
 ROOT=/nfs/scistore19/locatgrp/rcadei/NEXIS
 
-$PYTHON scripts/uganda/train_sae.py \
+$PYTHON src/apps/uganda/train_sae.py \
   --train-embeddings $ROOT/data/uganda/satellite/national/prithvi_embeddings.npy \
   --rct-embeddings   $ROOT/data/uganda/satellite/rct/prithvi_embeddings.npy \
   --rct-keys         $ROOT/data/uganda/satellite/rct/prithvi_site_keys.npy \
