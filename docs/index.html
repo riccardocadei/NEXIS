@@ -485,13 +485,13 @@ footer{padding:1.8rem 2rem;text-align:center;
     <span class="aff-item"><sup>3</sup><a href="https://www.ucla.edu" target="_blank" rel="noopener"><img src="assets/affiliations/ucla.png" alt="UCLA" class="aff-logo"></a></span>
   </div>
 
-  <p class="sat-intro">Satellite imagery reveals environmental drivers of anti-poverty program impact unmeasured in surveys. <em>Click to explore.</em></p>
+  <p class="sat-intro">Satellite imagery surfaces candidate environmental drivers of anti-poverty program impact, unmeasured in surveys. <em>Click to explore.</em></p>
   <div class="sat-strip" id="sat-strip">
     <div class="sat-tile">
       <img src="assets/tiles/tile_uganda_river.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Perennial river presence</span>
-        <span class="sat-country">Uganda · YOP<br>skilled employment</span>
+        <span class="sat-country">Uganda · YOP<br>skilled employment · candidate</span>
       </div>
     </div>
     <div class="sat-tile">
@@ -505,7 +505,7 @@ footer{padding:1.8rem 2rem;text-align:center;
       <img src="assets/tiles/tile_uganda_structured_ag.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Structured agricultural landscape</span>
-        <span class="sat-country">Uganda · YOP<br>business assets</span>
+        <span class="sat-country">Uganda · YOP<br>business assets · candidate</span>
       </div>
     </div>
     <div class="sat-tile">
@@ -533,21 +533,21 @@ footer{padding:1.8rem 2rem;text-align:center;
   </div>
 
   <div class="abstract-box" id="abstract-box" style="display:none">
-    Heterogeneous Treatment Effect (HTE) identification is crucial to explain the impact of
-    an intervention and optimize our policies accordingly. Existing approaches trade
-    expressivity for interpretability, but as long as some active heterogeneity drivers are
-    unmeasured, both ends of this spectrum allow for spurious HTE characterization with no
-    causal reading. We focus on controlled experiments and argue that the oracle causal
-    characterization via the <em>direct effect modifiers</em> is now within reach, thanks
-    to (i) more extensive pre-treatment measurements, e.g., multi-modal, and (ii)
-    representation learning pipelines to scale their analyses. We re-frame HTE
-    identification as a Markov-blanket discovery problem on a sufficient and aligned
-    pre-treatment representation, and introduce
-    <strong>Neural EXposure Interaction Search (NEXIS)</strong>, an iterative procedure
-    with provable and empirically validated consistent selection. We deploy NEXIS on two
-    anti-poverty programs in Africa, augmenting each with satellite imagery capturing
-    previously unmeasured environmental effect modifiers, leading to novel interpretable
-    and prescriptive guidelines to optimize the programs&#8217; next iterations.
+    Heterogeneous Treatment Effect (HTE) identification is essential to explain the impact
+    of an intervention and optimize our policies accordingly. Existing approaches trade
+    expressivity for interpretability, but, if some active heterogeneity drivers are
+    unmeasured, methods at both ends of this spectrum allow for spurious HTE
+    characterization with no causal reading. In this work, we focus on controlled
+    experiments and argue that an oracle HTE causal characterization via the latent
+    interactors is now within reach, thanks to (i) more extensive pre-treatment
+    measurements, i.e., multi-modal and multi-view, and (ii) scalable representations with
+    minimal human supervision. We then re-frame HTE identification as a Markov-blanket
+    discovery problem on a sufficient and aligned pre-treatment representation, and
+    introduce <strong>Neural EXposure Interaction Search (NEXIS)</strong>, an iterative
+    procedure with a provable selection guarantee. We deploy NEXIS on two anti-poverty
+    programs in Africa, augmenting each with satellite imagery capturing previously
+    unmeasured environmental effect modifiers, leading to new <em>candidate</em>
+    prescriptive guidelines to optimize the programs&#8217; next iterations.
   </div>
 </header>
 
@@ -557,7 +557,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h2>Introduction</h2>
     <div class="tldr-box">
       <span class="tldr-label">TL;DR</span>
-      How to identify the causal drivers of treatment-effect heterogeneity entangled in complex measurements (e.g., multi-modal, unstructured), offering prescriptive guidelines for policy adaptation.
+      How to identify the causal drivers of treatment-effect heterogeneity entangled in complex measurements (e.g., multi-modal, unstructured), turning raw measurements into candidate guidelines for policy adaptation.
     </div>
 
     <h3 style="margin-top:0">Contributions</h3>
@@ -568,9 +568,10 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="contrib-body">
             More data doesn't help if we ask the wrong question.
             We distinguish variables <em>correlated</em> with treatment-effect heterogeneity
-            from those that <em>causally drive</em> it, and show <em>when</em> and <em>how</em> finding the latter
-            is achievable end-to-end — from raw multi-modal measurements to interpretable,
-            actionable policy guidelines.
+            from those that <em>causally drive</em> it, and formulate the search for the latter
+            as a Markov-blanket discovery problem over a sufficient and aligned pre-treatment
+            representation. We show <em>when</em> and <em>how</em> it is achievable end-to-end,
+            from raw multi-modal measurements to interpretable policy hypotheses.
           </div>
         </details>
       </li>
@@ -578,19 +579,23 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details>
           <summary>New method</summary>
           <div class="contrib-body">
-            We introduce NEXIS, an iterative forward-backward selection algorithm that conditions on competing
-            candidates to isolate the true heterogeneity drivers (causal) — with
-            provable selection consistency. Extensively tested and ablated on semi-synthetic experiments, providing practical guidelines for different data regimes.
+            We introduce NEXIS, a forward&#8211;backward Markov-blanket procedure based on
+            conditional CATE-equivalence tests: a forward step in the style of IAMB&#8217;s grow
+            phase, followed by one terminal backward step with the MMPC/HITON-PC subset rule.
+            It comes with a selection guarantee, and is extensively tested and ablated on
+            semi-synthetic experiments, providing practical guidelines for different data regimes.
           </div>
         </details>
       </li>
       <li>
         <details>
-          <summary>New discoveries in development economics</summary>
+          <summary>New candidate discoveries in development economics</summary>
           <div class="contrib-body">
-            We deploy our method (NEXIS) to two anti-poverty program evaluations in Sub-Saharan Africa, extending both with
-            satellite imagery to caputure environmental modifiers. In both programs, environmental features <em>invisible
-            to standard survey analyses</em> emerge as the dominant effect drivers, with concrete prescriptions for program redesign.
+            We deploy NEXIS on two anti-poverty program evaluations in Sub-Saharan Africa, extending both with
+            satellite imagery to capture environmental modifiers. In both programs, the selected modifiers are mainly
+            environmental factors, <em>coarsely proxied or absent in survey data</em>, while no individual-level
+            demographic is selected. With no ground truth, these results are hypotheses for field validation,
+            not established causal modifiers or policy prescriptions.
           </div>
         </details>
       </li>
@@ -692,27 +697,41 @@ footer{padding:1.8rem 2rem;text-align:center;
       </div></li>
       <li><div class="step-body">
         <strong>Represent.</strong>
-        Represent such pre-treatment measurements in an interpretable dictionary with minimal or none 
-        human supervision, e.g., training a Sparse Autoencoder (SAE) on  a frozen domain-specific foundation model.
+        Represent such pre-treatment measurements in an interpretable dictionary with minimal or no
+        human supervision, e.g., training a Sparse Autoencoder (SAE) on a frozen domain-specific foundation model.
       </div></li>
       <li><div class="step-body">
         <strong>Identify.</strong>
-        Neural EXposure Interactors Search (NEXIS): retrieve the minimal and sufficient heterogenous effect characterization, by iterative CATE-equivalence 
-        testing on the representation coordinates. Interpret the selected coordinates <em>a-posteriori</em>, e.g., 
-        querying a VLM on the most and activating observations.
+        Neural EXposure Interaction Search (NEXIS) retrieves the minimal and sufficient
+        heterogeneous effect characterization by conditional CATE-equivalence tests on the
+        representation coordinates, adapting forward&#8211;backward Markov-blanket discovery:
+        <ul style="margin:0.4rem 0 0.4rem 1.2rem;padding:0;">
+          <li><em>Forward step</em> (IAMB&#8217;s grow phase): given the current selection
+            <em>S</em>, add the coordinate with the smallest <em>p</em>-value if it passes the
+            gate &alpha;/|<em>S&#772;</em>|, where <em>S&#772;</em> are the coordinates not yet
+            selected; repeat until no coordinate passes.</li>
+          <li><em>Terminal backward step</em> (MMPC/HITON-PC subset rule), run once: keep a
+            selected coordinate <em>j</em> only if its <em>p</em>-value is at most &alpha;/<em>m</em>
+            given every subset of the other selected coordinates, with <em>m</em> the number of
+            candidates.</li>
+        </ul>
+        An optional interleaved backward step and a spectral-gap gate &rho; are practical
+        variants discussed in the paper&#8217;s appendix; neither is part of Algorithm 1, animated below.
+        Interpret the selected coordinates <em>a posteriori</em>, e.g., by querying a VLM on
+        the most and least activating observations.
         <video src="assets/nexis_method.mp4" autoplay loop muted playsinline controls
                style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
         </video>
         <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border);">
         <details class="thm-details">
-          <summary>Theoretical Guarantee</summary>
+          <summary>Theorem (Causal Identification)</summary>
           <div class="thm-box">
-            <p class="thm-context">Given a controlled experiment, faithfulness, and a valid conditional independence test. Assuming:</p>
+            <p class="thm-context">In a randomized experiment, with faithfulness and valid and consistent CATE-equivalence tests. Assuming:</p>
             <div class="thm-block">
               <ul class="thm-ass">
-                <li><em>Principal Alignment</em> in the representation</li>
+                <li><em>Principal Alignment</em> of the representation</li>
               </ul>
-              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS asymptotically retrieves a <strong>minimal and sufficient HTE characterization</strong> with high probability &nbsp;(<em class="thm-conclusion">selection consistency</em>)</span></div>
+              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS&#8217; output <em>S&#770;<sub>n</sub></em> recovers the principal proxies <em>S</em>* of the direct effect modifiers: &nbsp;lim&thinsp;inf<sub><em>n</em></sub> P(<em>S&#770;<sub>n</sub></em> = <em>S</em>*) &ge; 1 &minus; &alpha; &nbsp;(<em class="thm-conclusion">selection guarantee</em>)</span></div>
             </div>
             <hr class="thm-divider">
             <div class="thm-block">
@@ -720,14 +739,16 @@ footer{padding:1.8rem 2rem;text-align:center;
               <ul class="thm-ass">
                 <li><em>Measurement</em> and <em>Representation Sufficiency</em></li>
               </ul>
-              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS characterization is <strong>causal and interpretable by construction</strong> &nbsp;(<em class="thm-conclusion">causal identification</em>)</span></div>
+              <div class="thm-arrow"><span class="arr">&#8594;</span><span>&tau;<sup>do</sup>(<strong>W</strong><sup>dir</sup>) = &tau;(<strong>W</strong><sup>dir</sup>) = E[&tau; | <strong>Z</strong><sup><em>S</em>*</sup>] almost surely: the principal proxies identify the <strong>causal and interpretable</strong> heterogeneity characterization &nbsp;(<em class="thm-conclusion">causal identification</em>)</span></div>
             </div>
           </div>
         </details>
       </div></li>
       <li><div class="step-body">
         <strong>Policy.</strong>
-        Optimize the treatment assignment accordingly.
+        Update the policy accordingly, e.g., the treatment assignment of the next program
+        iteration. Structural assumptions determine the causal reading, so discoveries call
+        for cautious interpretation and experimental validation first.
       </div></li>
     </ol>
 
@@ -1174,14 +1195,17 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="finding" style="border-left-color:#5b8dd9;background:#f0f5ff;margin-bottom:1rem;">
       <strong>Theoretical.</strong>
       <b>Causal and interpretable heterogeneous treatment effect identification is now within reach</b>
-      in controlled experiments — made possible by more extensive pre-treatment measurements
-      and scalable representations.
+      in controlled experiments, by combining more extensive pre-treatment measurements with
+      scalable learned representations. Structural assumptions determine the target and its causal
+      reading; valid and consistent tests determine the selection guarantee.
     </div>
     <div class="finding" style="border-left-color:#4caf7d;background:#f0faf4;">
       <strong>Applied.</strong>
-      Across two anti-poverty programs, satellite-derived <b>environmental
-      features are the dominant direct effect modifiers</b>, explaining treatment heterogeneity
-      not captured by survey covariates.
+      Across two anti-poverty programs, the modifiers NEXIS selects are <b>mainly environmental
+      features from satellite imagery</b>, coarsely proxied or absent in survey data, while no
+      individual-level demographic is selected. They are candidate hypotheses that call for
+      experimental validation, and NEXIS recovers only what the measurements capture: future
+      evaluations should invest in richer, multi-source pre-treatment measurement.
     </div>
   </div>
 </section>
@@ -1217,11 +1241,11 @@ footer{padding:1.8rem 2rem;text-align:center;
   const CREP = '<a href="https://academic.oup.com/qje/article-abstract/128/2/531/1942569" target="_blank" rel="noopener">Cr&eacute;pon et al., 2013</a>';
   const DEMEL= '<a href="https://www.aeaweb.org/articles?id=10.1257/app.1.3.1" target="_blank" rel="noopener">De Mel et al., 2008</a>';
   const DESCS=[
-    'River corridors sustain subsistence fishing and bush-crop farming; where these livelihood alternatives exist, the grant’s pull into skilled trade is weakest — <strong>outside-option effect</strong> ('+ROY+').',
-    'Diverse vegetation patches signal varied subsistence options; communities with mixed land cover can sustain bush and crop livelihoods, dampening the grant’s incentive to enter skilled trade — <strong>outside-option effect</strong> ('+ROY+').',
-    'Incumbent commercial-scale agriculture reduces the grant’s marginal returns on new business formation — <strong>crowding-out effect</strong> ('+CREP+').',
-    'Seasonal water corridors let smallholders direct the transfer into irrigation-season agriculture, amplifying household spending to ~7× the program average — <strong>complementarity effect</strong> ('+DEMEL+').',
-    'Forest-edge households layer the transfer onto existing non-timber livelihoods unavailable elsewhere, driving spending gains of ~8× the program average — <strong>complementarity effect</strong> ('+DEMEL+').',
+    '<em>Candidate</em> (selected by the forward step, not certified by the terminal backward step). River corridors keep fishing and subsistence farming viable; where these alternatives exist, the grant&rsquo;s estimated effect on skilled employment is lower, plausibly an <strong>outside-option effect</strong> ('+ROY+').',
+    '<em>Certified</em> modifier. A mosaic of agricultural patches and bush signals varied subsistence options; in these communities the estimated effect on skilled employment is lower, plausibly an <strong>outside-option effect</strong> ('+ROY+').',
+    '<em>Candidate</em> (selected by the forward step, not certified by the terminal backward step). Where commercial-scale agriculture is already present, the estimated effect on business assets is lower, plausibly a <strong>crowding-out effect</strong> ('+CREP+').',
+    '<em>Certified</em> modifier. In the 6 communities with seasonal water corridors, the estimated spending gain is +42.9 GH&#8373;/month against a local ATT of +7.35; hypothesis: smallholders invest the transfer in irrigation-season agriculture, a <strong>complementarity effect</strong> ('+DEMEL+').',
+    '<em>Certified</em> modifier. In the 5 forest-edge communities, the estimated spending gain is +56.2 GH&#8373;/month against a local ATT of +7.35; hypothesis: households combine the transfer with non-timber livelihoods, a <strong>complementarity effect</strong> ('+DEMEL+').',
   ];
   const desc=document.getElementById('sat-desc');
   const tiles=[...document.querySelectorAll('#sat-strip .sat-tile')];
