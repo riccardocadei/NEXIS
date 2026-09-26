@@ -34,9 +34,11 @@ class BackboneSpec:
 
 BACKBONES = {
     # Matches the ECI paper exactly: timm vit_base_patch16_siglip_224 + forward_features().
-    # No prefix tokens, 14×14 = 196 patches.
+    # No prefix tokens, 14×14 = 196 patches.  The pretrained tag is pinned to v2_webli
+    # (SigLIP 2, as reported in the paper): it is what the untagged name resolves to
+    # in the crl env (timm 1.0.25), and what iclr/config.py uses.
     "siglip": BackboneSpec(
-        key="siglip", timm_model="vit_base_patch16_siglip_224", img_size=224,
+        key="siglip", timm_model="vit_base_patch16_siglip_224.v2_webli", img_size=224,
         mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5),
         embed_dim=768, n_patches=196, label="SigLIP-B/16",
     ),
