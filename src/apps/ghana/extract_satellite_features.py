@@ -1,7 +1,7 @@
 """Extract community-level satellite features for Ghana LEAP 1000.
 
-Uses Prithvi-EO-1.0-100M (IBM/NASA), a ViT-Large MAE pre-trained on HLS
-(Harmonized Landsat Sentinel) data with the exact same 6 spectral bands as
+Uses Prithvi-EO-1.0-100M (IBM/NASA), a ViT-Base (12-layer) MAE pre-trained on HLS
+(Harmonized Landsat Sentinel-2) data of the contiguous US, with the exact same 6 spectral bands as
 our Landsat 8 tiles.
 
 Band order in TIF files (matches download order SR_B4,B3,B2,B5,B6,B7):

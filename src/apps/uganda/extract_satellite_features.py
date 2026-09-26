@@ -1,12 +1,12 @@
-"""Extract Prithvi-EO embeddings from Landsat 5 GeoTIFF tiles.
+"""Extract Prithvi-EO embeddings from Landsat 7 GeoTIFF tiles.
 
 Run once on the RCT tiles and once on the national grid tiles:
 
-  python scripts/uganda/extract_satellite_features.py \\
+  python src/apps/uganda/extract_satellite_features.py \\
     --tif-dir data/uganda/satellite/tif_rct \\
     --out-dir data/uganda/satellite/rct
 
-  python scripts/uganda/extract_satellite_features.py \\
+  python src/apps/uganda/extract_satellite_features.py \\
     --tif-dir data/uganda/satellite/tif_national \\
     --out-dir data/uganda/satellite/national
 
