@@ -4,8 +4,8 @@
 > (`paper/ICLR'27/main.tex`, Section 3 and Figure 3; `appendix.tex`, Appendix C and the
 > run statistics of Appendix B): design, the choices behind it, every number the paper
 > quotes, and the file or script each number comes from. Paths are relative to the repo
-> root; `results/` and `data/` are untracked and archived at
-> `/fs3/group/locatgrp/rcadei/nexis-archived_exp/`. Commands: `README.md`, section CelebA.
+> root; `results/` and `data/` are untracked. Top-level commands: `README.md`, section
+> CelebA; the per-figure map is in Section 7.
 > "NEXIS-v2" in file and method names is the paper's algorithm.
 
 ---
@@ -14,8 +14,8 @@
 
 **Pool.** The 19,867 images of the official CelebA validation split (aligned and
 cropped), streamed from the Hugging Face mirror `flwrlabs/celeba`
-(`src/apps/celeba/embed.py`; `iclr/` pins revision `2d738f56e0e7f925ea36ae7c808ea925264aacec`,
-the revision in the local cache). The same images train the SAE, define the ground truth
+(`src/apps/celeba/embed.py` and `iclr/` both pin revision
+`2d738f56e0e7f925ea36ae7c808ea925264aacec`, the revision behind the paper's embeddings). The same images train the SAE, define the ground truth
 and are the units the benchmark samples from.
 
 **Encoder.** SigLIP 2 ViT-B/16, timm `vit_base_patch16_siglip_224.v2_webli`
@@ -53,8 +53,8 @@ fixed. *Why Z_pre:* continuous scores give a smoother, threshold-free alignment 
 | main, k = 5 | 7044 | 5732 | | `results/celeba/experiment/k5/sae/ground_truth.json` |
 | replica, k = 20 | 197 | 4833 | | `results/celeba/experiment_resample_b1/k20/sae/ground_truth.json` |
 
-These indices exist only for the archived checkpoints: GPU training is not
-bit-reproducible and a retrained SAE has other indices. To run `iclr/` on the archived
+These indices exist only for the original checkpoints (not in the repo): GPU training is
+not bit-reproducible and a retrained SAE has other indices. To run `iclr/` on the original
 artefacts, link them into its layout as `~/.cache/nexis_cap` did:
 `data/celeba/embeddings/{siglip.npy, siglip_patches.npy → siglip_patches.f16, sae*_k*.npy}`,
 `data/celeba_resample_b1/eval/embeddings/sae[_precode]_k20.npy → sae[_precode]_replica_k20.npy`,
@@ -252,7 +252,37 @@ tests minutes on CPU; all sweeps ~400 CPU-h (~10 h on 40 cores). Measured per bl
 
 - The paper describes the forward step without a cap; the src sweeps used 10 rounds
   (Section 3). `iclr/` has no cap by default and applies 10 only in the listed runs.
-- `src/` does not pin the CelebA dataset revision; `iclr/` does.
 - Of `iclr/`, only `main` and `violation` have been checked against the paper; the other
   blocks are expected to match but are unverified.
 - `results/celeba/figures_v2/comparison.md` has stale PCM rows (Section 4.5).
+
+---
+
+## 7. Commands and figure map
+
+The commands are in `README.md` (section CelebA). The paper's CelebA numbers and figures
+come from the `src/` chain ("NEXIS-v2" = `nexis(rho=0.5, backward=False,
+terminal_filter=True)`), except `violation.pdf`, which comes from `iclr/`. Of `iclr/`,
+only `main` and `violation` are checked against the paper: `main` matches the `src`
+main-setting runs run by run (`results/celeba/paper_numbers/run_statistics.md`). The
+figures are copied under the same name to `paper/ICLR'27/figures/`.
+
+| Paper item | File in `results/celeba/` | Made by |
+|---|---|---|
+| Figure 3 | `figures_v2/figure_main.pdf` | `figure_main.py --nexis-key NEXIS-v2` |
+| `dgp`, `model_k5`, `model_precode`, `method_{test,adjust,rho,backward}` | `figures_v2/*.pdf` | `figure_appendix.py --variant v2` |
+| `replica_k20`, `dgp_r1`, `dgp_r3`, r = 0 table | `figures_v2/` (`dgp_r0_table.tex`, `dgp_extra.md`) | `figure_dgp_extra.py` |
+| Test comparison table | `figures_v2/test_story.tex` | `figure_test_story_v2.py` |
+| `pa_spectrum`, `pa_top_images`, screening table | `figures_v2/principal_alignment/` | `alignment_appendix.py` |
+| Choice of the r = 3 modifier | | `interleaved_backward_align.py sae_precode_k20`, then `third_modifier_candidates.py` |
+| Run statistics (Appendix B) | `paper_numbers/run_statistics.md` | `run_statistics.py` |
+| `violation` | `iclr_local_runs/results/figures/violation.pdf` | `python iclr/run.py violation`, run in `iclr/` and its outputs moved there |
+
+**Ground truth.** The sweeps read the principal coordinates from `ground_truth.json` files
+written by earlier runs (`--gt-json results/celeba/experiment{,_r3,_resample_b1,_ushape}/…`,
+untracked). Without them, drop `--gt-json`: `run_experiment.py` then recomputes the same
+rule (argmax best-threshold F1 on Z_pre, Section 1).
+
+**Not in the paper.** The DINOv2 backbone ablation (`backbone=dinov2` in every stage,
+`compare_backbones.py`), the NeurIPS-era sweeps (`submit_experiment.sh`,
+`submit_resample_experiment.sh`, `run_experiment_*.sh`) and `notebooks/celeba.ipynb`.

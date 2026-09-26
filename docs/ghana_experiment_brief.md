@@ -4,8 +4,8 @@
 > (`paper/ICLR'27/main.tex`, Section "Case study 2", and `appendix.tex`, Appendix E):
 > design, the choices behind it, every number the paper quotes, and the file or script
 > each number comes from. Paths are relative to the repo root; `results/` and `data/` are
-> untracked and archived at `/fs3/group/locatgrp/rcadei/nexis-archived_exp/`
-> (`data/ghana/survey/` is restricted: do not redistribute).
+> untracked (`data/ghana/survey/` is restricted: do not redistribute). Top-level
+> commands: `README.md`, section Ghana; run notes in Section 11.
 > Updated 2026-09-26 from the June (NeurIPS) version, which used the interleaved-backward
 > algorithm, a pool of 155 (no spectral indices), stale p-values (2.1×10⁻⁸, 3.7×10⁻⁷, from
 > a 3-neuron run), an "RCT"/"ATE = ITT = ATT" framing, and a "3 discoveries" line that
@@ -93,7 +93,8 @@ takes the last encoder block, while the paper says "layer 5" (see the Uganda bri
 **SAE.** TopK, 768 → 4,096, k = 25, 2,000 epochs, batch 256, lr 2×10⁻⁴, trained on the
 national grid with the 162 LEAP sites held out; whitening fit on the national corpus.
 Outputs `data/ghana/satellite/{sae_model.pt, sae_activations.npy, sae_comm_ids.npy}`
-(archived; GPU training is not bit-reproducible, restore rather than retrain).
+(not in the repo; GPU training is not bit-reproducible, restore the original rather than
+retrain).
 *Why 4,096 atoms (vs 1,024 for Uganda):* a larger and more diverse national corpus.
 The SLURM wrapper `scripts/ghana/slurm_train_sae.sh` calls the removed
 `scripts/ghana/train_sae.py`; run `src/apps/ghana/train_sae.py` directly (see `README.md`)
@@ -243,3 +244,21 @@ brief; not re-measured.
   script (recomputed 2026-09-26, Section 1).
 - The broken SLURM wrappers `scripts/ghana/{slurm_train_sae,run_temporal_waterways,
   slurm_temporal_waterways}.sh` are to be fixed after the ghana merge.
+
+---
+
+## 11. Run notes
+
+- `scripts/realworld_final_runs.py` without `--only` runs both applications and writes
+  `results/realworld_final/report.json`. The paper's Ghana rows are the runs
+  `pool 167 | published test | new default`. The script first checks that the NeurIPS
+  configuration reproduces the published set, read from
+  `results/ghana/codes/nexis_fwer_crve/result.json` (untracked).
+- The download, extraction and training scripts default to paths relative to
+  `src/apps/ghana/` (`../../data/ghana/...`): run `download_satellite_images.py`,
+  `download_national_grid.py` and `extract_satellite_features.py` from that folder, or pass
+  `--out-dir`/`--tif-dir`; pass explicit paths to `train_sae.py` (as in `README.md`).
+- The SLURM wrappers `scripts/ghana/slurm_train_sae.sh`, `run_temporal_waterways.sh` and
+  `slurm_temporal_waterways.sh` call `scripts/ghana/*.py` files that no longer exist (the
+  code moved to `src/apps/ghana/`); they will be fixed after the ghana merge.
+- `notebooks/ghana.ipynb` is exploratory and predates the paper's configuration.

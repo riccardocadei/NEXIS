@@ -4,7 +4,7 @@
 > (`paper/ICLR'27/main.tex`, Section "Case study 1", and `appendix.tex`, Appendix D):
 > design, the choices behind it, every number the paper quotes, and the file or script
 > each number comes from. Paths are relative to the repo root; `results/` and `data/` are
-> untracked and archived at `/fs3/group/locatgrp/rcadei/nexis-archived_exp/`.
+> untracked. Top-level commands: `README.md`, section Uganda; run notes in Section 10.
 > Updated 2026-09-26 from the June (NeurIPS) version, which used the interleaved-backward
 > algorithm and reported 5 + 2 discoveries without the certified/candidate split.
 
@@ -110,10 +110,10 @@ decoder, 2,000 epochs, lr 2×10⁻⁴, 5-fold CV, trained on the national grid w
 RCT sites held out; whitening fit on the national corpus. *Why a national corpus:*
 geographic diversity for the dictionary, and no leakage from the trial sites.
 **Discrepancy:** the paper says batch size 256; the SLURM script does not pass
-`--batch-size`, so `train_sae.py` uses its default 64. The archived checkpoint
+`--batch-size`, so `train_sae.py` uses its default 64. The original checkpoint
 (`sae_model.pt`, 2026-05-05 11:35) stores no config, and the last logged SLURM run
 (`logs/slurm-sae-58521261`) hit its time limit at 08:20, so the call that wrote the
-checkpoint is not traceable. GPU training is not bit-reproducible: restore the archived
+checkpoint is not traceable. GPU training is not bit-reproducible: restore the original
 `results/uganda/prithvi_l5_1024/` rather than retraining.
 
 **Feature filter.** Atoms active (Z_j > 0) in at least 5 of the 331 sites: 146 of 1,024.
@@ -262,3 +262,19 @@ estimates carried over from the June brief; not re-measured.
   the paper's algorithm gives certification p 7.9×10⁻⁵ (Section 2).
 - Treated count 825 and sub-region list are consistent with the data but are not written
   by any paper-number script.
+
+---
+
+## 10. Run notes
+
+- `scripts/realworld_final_runs.py` without `--only` runs both applications and writes
+  `results/realworld_final/report.json`, the file the paper numbers were read from. The
+  paper's Uganda rows are the runs `Wobs | published test | new default`.
+- The script first checks that the NeurIPS configuration reproduces the published sets,
+  read from `results/uganda/prithvi_l5_1024/<outcome>/nexis_result.json` (untracked; comes
+  with the original SAE outputs).
+- VLM labels: `src/apps/uganda/interpret.py` via `scripts/uganda/slurm_interpret.sh`
+  (Section 6); add `--extra-atoms 261` for an atom outside the selected sets.
+- `scripts/uganda/run.sh` and `reanalyze.sh` are the older multi-backbone pipeline that
+  wrote the published sets; they are not needed for the paper numbers.
+- `notebooks/uganda.ipynb` is exploratory and predates the paper's configuration.
