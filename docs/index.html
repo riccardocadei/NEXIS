@@ -171,7 +171,8 @@ section p:last-child{margin-bottom:0;}
   margin-bottom:0.8rem;font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;}
 .two-charts-shared .sh-label{font-weight:700;font-size:0.68rem;
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);}
-.two-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.two-charts-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;}
+.chart-card{min-width:0;}
 .chart-card{background:var(--bg);border:1px solid var(--border);
   border-radius:3px;padding:0.8rem;}
 .chart-card canvas{max-height:400px;}
@@ -250,6 +251,8 @@ section p:last-child{margin-bottom:0;}
   font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.6rem;color:#aaa;}
 @media(max-width:600px){.nexis-interp-body{grid-template-columns:1fr;}}
 
+.sae-ctl{display:inline-flex;align-items:center;gap:0.45rem;white-space:nowrap;}
+
 /* ── Principal Alignment panels (CelebA) ── */
 .align-details{margin:1rem 0 0;}
 .align-details>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.45em;
@@ -262,21 +265,16 @@ section p:last-child{margin-bottom:0;}
 .align-details[open]>summary::before{transform:rotate(90deg);}
 .align-details>summary:hover{color:var(--accent);border-color:var(--accent);}
 .align-details>.align-panel{margin-top:0.5rem;}
-.align-dict{color:var(--muted);font-size:0.74rem;margin-left:auto;}
 .align-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}
 .align-chart-wrap{border-right:1px solid var(--border);background:#fff;position:relative;
-  height:240px;padding:0.4rem 0.5rem 0.2rem;}
+  height:260px;padding:0.4rem 0.5rem 0.2rem;}
 .align-chart-wrap canvas{display:block;width:100%;height:100%;}
-.align-thumb{width:72px;height:72px;border-radius:2px;border:1px solid rgba(0,0,0,0.12);
+.align-thumb{width:var(--thumb,72px);height:var(--thumb,72px);border-radius:2px;border:1px solid rgba(0,0,0,0.12);
   background-repeat:no-repeat;box-sizing:border-box;}
 .align-thumb.has-attr{border:3px solid var(--attr-col,#E69F00);}
-.align-caption{border-top:1px solid var(--border);padding:0.45rem 1rem;
-  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.72rem;color:var(--muted);line-height:1.5;}
 @media(max-width:600px){
   .align-body{grid-template-columns:minmax(0,1fr);}
   .align-chart-wrap{border-right:none;border-bottom:1px solid var(--border);height:210px;}
-  .align-dict{margin-left:0;width:100%;}
-  .align-thumb{width:64px;height:64px;}
 }
 .two-charts-grid.single{grid-template-columns:minmax(0,1fr);}
 
@@ -791,19 +789,28 @@ footer{padding:1.8rem 2rem;text-align:center;
       <button class="outcome-tab" data-view="algorithm">Algorithm</button>
       <button class="outcome-tab" data-view="dgp">DGP</button>
     </div>
-    <div id="abl-repr-panel">
-      <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.6rem;">
-        <span class="mc-label">SAE sparsity:</span>
-        <select id="repr-k" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
-          <option value="k20">k = 20</option>
-          <option value="k5">k = 5</option>
-        </select>
-        <span class="mc-label" style="margin-left:0.6rem;">Activation:</span>
-        <select id="repr-view" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
-          <option value="sae">sparse codes Z</option>
-          <option value="precode">pre-activations Z_pre</option>
-        </select>
-      </div>
+    <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.5rem 1.2rem;">
+      <span class="sae-ctl">
+      <span class="mc-label">SAE sparsity:</span>
+      <select id="repr-k" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="k20">k = 20</option>
+        <option value="k5">k = 5</option>
+      </select>
+      </span>
+      <span class="sae-ctl">
+      <span class="mc-label">Activation:</span>
+      <select id="repr-view" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="sae">sparse codes Z</option>
+        <option value="precode">pre-activations Z_pre</option>
+      </select>
+      </span>
+      <span class="sae-ctl">
+      <span class="mc-label">Seed:</span>
+      <select id="repr-seed" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="orig">original SAE</option>
+        <option value="rep">retrained SAE (replica)</option>
+      </select>
+      </span>
     </div>
     <div id="abl-algo-panel" style="display:none">
       <div class="abl-tabs" id="abl-tabs">
@@ -848,25 +855,32 @@ footer{padding:1.8rem 2rem;text-align:center;
         <canvas id="abl-e-chart"></canvas>
       </div>
     </div>
-    <div id="abl-desc" style="font-size:0.87rem;color:var(--muted);margin-top:0.8rem;font-family:'Helvetica Neue',sans-serif;"></div>
     <details class="align-details" id="align-abl">
       <summary>Check Principal Alignment</summary>
       <div class="nexis-interp align-panel">
         <div class="nexis-interp-head">
           <span class="ni-label">Concept</span>
           <select class="align-concept" aria-label="Select concept"></select>
-          <span class="align-dict"></span>
+          <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
+            <span>top-k</span>
+            <select class="align-n" style="width:3.8em;">
+              <option>4</option><option selected>8</option><option>16</option>
+            </select>
+          </label>
         </div>
         <div class="nexis-interp-body align-body">
           <div class="align-chart-wrap"><canvas></canvas></div>
           <div class="ni-tiles">
             <div class="ni-tile-group">
-              <div class="ni-tile-group-label align-top-label">Most activating images</div>
-              <div class="ni-tile-row align-tiles"></div>
+              <div class="ni-tile-group-label align-top-label">Most activating</div>
+              <div class="ni-tile-row align-tiles-top"></div>
+            </div>
+            <div class="ni-tile-group">
+              <div class="ni-tile-group-label align-bot-label">Least activating</div>
+              <div class="ni-tile-row align-tiles-bot"></div>
             </div>
           </div>
         </div>
-        <div class="align-caption"></div>
       </div>
     </details>
   </div>
@@ -2403,6 +2417,7 @@ function alignSet(id,dict,concepts){
   if(!st.bound){
     st.bound=true;
     sel.addEventListener('change',()=>alignRender(id));
+    root.querySelector('.align-n').addEventListener('change',()=>alignRender(id));
     root.addEventListener('toggle',()=>{if(root.open)alignRender(id);});
   }
   const prev=sel.value;
@@ -2414,6 +2429,24 @@ function alignSet(id,dict,concepts){
   alignRender(id);
 }
 
+function alignTiles(row,I,which,n,col,label){
+  // one sprite per concept: row 0 = most activating, row 1 = least activating
+  row.innerHTML='';
+  const ids=I[which].slice(0,n),attr=I[which+'_attr'],r=which==='top'?0:1;
+  const px=n>8?48:72;
+  ids.forEach((img,k)=>{
+    const d=document.createElement('div');d.className='ni-tile';
+    const t=document.createElement('div');
+    t.className='align-thumb'+(attr[k]?' has-attr':'');
+    t.style.setProperty('--attr-col',col);t.style.setProperty('--thumb',px+'px');
+    t.style.backgroundImage=`url(assets/${I.sprite})`;
+    t.style.backgroundSize=`${I.n*100}% 200%`;
+    t.style.backgroundPosition=`${I.n>1?k/(I.n-1)*100:0}% ${r*100}%`;
+    t.title=(attr[k]?'labelled ':'not labelled ')+label;
+    d.appendChild(t);row.appendChild(d);
+  });
+}
+
 function alignRender(id){
   const st=alignState[id],root=document.getElementById(id);
   if(!alignData||!st||!root||!root.open)return;
@@ -2421,7 +2454,6 @@ function alignRender(id){
   const attr=root.querySelector('.align-concept').value;
   const C=D.concepts[attr];if(!C)return;
   const col=ALIGN_ATTR[attr].c;
-  root.querySelector('.align-dict').textContent=D.label;
 
   // left: alignment spectrum
   const grey=C.spectrum.filter(([r])=>r!==C.rank).map(([x,y])=>({x,y}));
@@ -2429,9 +2461,9 @@ function alignRender(id){
   const ds=[
     {label:'other coordinates',data:grey,pointRadius:1.6,pointHoverRadius:3,
      backgroundColor:'#b5b5b5',borderColor:'#b5b5b5',showLine:false,order:3},
-    {label:'runner-up '+C.runner_up,data:[{x:runnerRank,y:C.auc_runner_up}],pointRadius:4.5,
+    {label:'runner-up',data:[{x:runnerRank,y:C.auc_runner_up}],pointRadius:4.5,
      pointHoverRadius:6,backgroundColor:'#9a9a9a',borderColor:'#333',borderWidth:1,showLine:false,order:2},
-    {label:'principal '+C.principal,data:[{x:C.rank,y:C.auc}],pointStyle:'star',pointRadius:11,
+    {label:'principal coordinate',data:[{x:C.rank,y:C.auc}],pointStyle:'star',pointRadius:11,
      pointHoverRadius:13,backgroundColor:col,borderColor:col,borderWidth:2.2,showLine:false,order:1},
   ];
   if(!st.chart){
@@ -2442,7 +2474,7 @@ function alignRender(id){
           legend:{display:true,position:'top',align:'end',
             labels:{boxWidth:8,font:{size:10},usePointStyle:true,filter:i=>i.datasetIndex>0}},
           tooltip:{callbacks:{label:ctx=>{
-            const p=ctx.raw;const nm=ctx.datasetIndex===0?'rank '+p.x:ctx.dataset.label+' (rank '+p.x+')';
+            const p=ctx.raw;const nm=ctx.datasetIndex===0?'rank '+p.x:ctx.dataset.label;
             return nm+': AUC '+Number(p.y).toFixed(3);}}}
         },
         scales:{
@@ -2460,26 +2492,12 @@ function alignRender(id){
   st.chart.options.scales.x.max=D.m;
   st.chart.update();
 
-  // right: most activating images of the principal coordinate (one JPEG strip)
-  const T=C.top,n=T.idx.length;
-  root.querySelector('.align-top-label').textContent=
-    `Most activating images · coordinate ${C.principal}`;
-  const row=root.querySelector('.align-tiles');row.innerHTML='';
-  T.idx.forEach((img,k)=>{
-    const d=document.createElement('div');d.className='ni-tile';
-    const t=document.createElement('div');
-    t.className='align-thumb'+(T.has_attr[k]?' has-attr':'');
-    t.style.setProperty('--attr-col',col);
-    t.style.backgroundImage=`url(assets/${T.sprite})`;
-    t.style.backgroundSize=`${n*100}% 100%`;
-    t.style.backgroundPosition=`${n>1?k/(n-1)*100:0}% 0`;
-    t.title=(T.has_attr[k]?'labelled ':'not labelled ')+ALIGN_ATTR[attr].label+` (image ${img})`;
-    d.appendChild(t);row.appendChild(d);
-  });
-  root.querySelector('.align-caption').innerHTML=
-    `Left: sign-free AUC of each of the ${D.m.toLocaleString('en-US')} coordinates for `+
-    `<em>${ALIGN_ATTR[attr].label}</em> (principal ${C.auc.toFixed(3)}, runner-up ${C.auc_runner_up.toFixed(3)}). `+
-    `Right: the principal&#8217;s ${n} most activating images; framed ones carry the label.`;
+  // right: most and least activating images of the principal coordinate
+  const n=parseInt(root.querySelector('.align-n').value),I=C.images,lbl=ALIGN_ATTR[attr].label;
+  root.querySelector('.align-top-label').textContent=`Most activating (${n})`;
+  root.querySelector('.align-bot-label').textContent=`Least activating (${n})`;
+  alignTiles(root.querySelector('.align-tiles-top'),I,'top',n,col,lbl);
+  alignTiles(root.querySelector('.align-tiles-bot'),I,'bottom',n,col,lbl);
 }
 
 fetch('assets/celeba_alignment.json').then(r=>r.json()).then(d=>{
@@ -2616,29 +2634,25 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   updParadoxN();updParadoxE();
 
   const ABL={
-    test:{desc:'Linear treatment-interaction test (default) vs. doubly-robust GCM and projected covariance measure (PCM), each with a quadratic or a LightGBM variant. On this linear CATE the linear test is the most sample-efficient (recall 0.95 at n = 750 for η = 5); both GCM variants need n = 2000 and both PCM variants n = 3500, since the PCM splits the sample. Only the PCM recovers the modifiers of a non-monotone (U-shaped) CATE (paper Appendix C).',
-      v:'k20_sae',methods:[
+    test:{v:'k20_sae',methods:[
         {key:'NEXIS',                      label:'linear (default)',  c:'#1a56a0'},
         {key:'NEXIS (test=GCM: quadratic)',label:'GCM: quadratic',   c:'#2d9a60'},
         {key:'NEXIS (test=GCM: lgbm)',     label:'GCM: LightGBM',    c:'#9c27b0'},
         {key:'NEXIS (test=PCM: quadratic)',label:'PCM: quadratic',   c:'#f97316'},
         {key:'NEXIS (test=PCM: lgbm)',     label:'PCM: LightGBM',    c:'#e91e63'},
       ]},
-    correction:{desc:'Multiple-testing gate of the forward step; the terminal backward step keeps its level α/m throughout. FWER and FDR are essentially indistinguishable here, because the Benjamini–Hochberg rejection set at the leading discoveries is effectively a singleton. With no correction, the terminal backward step removes the extra coordinates, so precision is barely affected, but recall comes later (n = 1000 instead of 750 at η = 5).',
-      v:'k20_sae',methods:[
+    correction:{v:'k20_sae',methods:[
         {key:'NEXIS (adjust=None)',label:'none',             c:'#26a69a'},
         {key:'NEXIS (adjust=FDR)', label:'FDR',             c:'#42a5f5'},
         {key:'NEXIS',               label:'FWER (default)', c:'#1a56a0'},
       ]},
-    rho:{desc:'Spectral gap ρ, a practical default that is not part of Algorithm 1 (ρ = 0 disables it). Low ρ (0, 0.2) admits correlated companions of the principal coordinates and erodes precision at large η or n; ρ = 0.8 can block the weaker principal coordinate and only reaches recall 0.95 at η = 7 when n = 2000. ρ = 0.5 attains both.',
-      v:'k20_sae',methods:[
+    rho:{v:'k20_sae',methods:[
         {key:'NEXIS (rho=0)',   label:'ρ = 0',              c:'#8b5cf6'},
         {key:'NEXIS (rho=0.2)',label:'ρ = 0.2',             c:'#f97316'},
         {key:'NEXIS',            label:'ρ = 0.5 (default)', c:'#1a56a0'},
         {key:'NEXIS (rho=0.8)',label:'ρ = 0.8',             c:'#4caf50'},
       ]},
-    backward:{desc:'The terminal backward step removes the residual companions left by the forward step: precision reaches 0.95 at n = 350 instead of n = 2000 (η = 5), for a small delay in recall (n = 750 instead of 500). The interleaved backward step changes no run here: with two well-aligned modifiers on sparse codes, the curves with and without it coincide.',
-      v:'k20_sae',methods:[
+    backward:{v:'k20_sae',methods:[
         {key:'NEXIS (terminal=False)',                   label:'forward',                                    c:'#e91e63'},
         {key:'NEXIS (interleaved=True, terminal=False)', label:'forward + interleaved backward',             c:'#f59e0b'},
         {key:'NEXIS',                                     label:'forward + terminal backward (default)',      c:'#1a56a0'},
@@ -2650,62 +2664,64 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const aEC=mkChart('abl-e-chart','Effect size η','linear');
   let ablView='representation';
   let curAbl='test';
+  let curR='r0';
 
-  function getAblDS(ak,sweep,metric,fval){
-    const abl=ABL[ak];const all=[];
-    abl.methods.forEach(m=>{
-      const vr=m.v||abl.v;
-      all.push(...getDS(vr,sweep,metric,[{key:m.key,label:m.label,c:m.c}],fval));
+  function getAblDS(ak,sweep,metric,fval,v){
+    const all=[];
+    ABL[ak].methods.forEach(m=>{
+      all.push(...getDS(v,sweep,metric,[{key:m.key,label:m.label,c:m.c}],fval));
     });
     return all;
   }
 
-  function reprVariant(){
-    const kSel=document.getElementById('repr-k');
-    const vSel=document.getElementById('repr-view');
-    // the paper reports k = 5 on sparse codes only
-    const pre=vSel.querySelector('option[value=precode]');
-    pre.disabled=kSel.value==='k5';
-    if(pre.disabled&&vSel.value==='precode')vSel.value='sae';
-    return kSel.value+'_'+vSel.value;
+  // Dictionaries with results, per tab (celeba_data.json keys; "_rep" = replica SAE,
+  // paper Figure replica_k20). The Algorithm tab and the r = 0, 1, 3 DGP ablations only
+  // run on the main dictionary; r = 2 is the main setting, i.e. the Representation tab.
+  const ALL_DICTS=['k20_sae','k20_precode','k5_sae','k20_sae_rep'];
+  function availDicts(){
+    if(ablView==='algorithm')return['k20_sae'];
+    if(ablView==='dgp'&&curR!=='r2')return['k20_sae'];
+    return ALL_DICTS;
+  }
+  // SAE selectors: options without results are disabled and a selection is forced
+  function sae(){
+    const av=availDicts();
+    const kS=document.getElementById('repr-k'),vS=document.getElementById('repr-view'),
+          sS=document.getElementById('repr-seed');
+    const key=(k,v,sd)=>k+'_'+v+(sd==='rep'?'_rep':'');
+    const ok=(k,v,sd)=>av.includes(key(k,v,sd));
+    const fix=(sel,test)=>{
+      [...sel.options].forEach(o=>o.disabled=!test(o.value));
+      if(sel.selectedOptions[0].disabled)sel.value=[...sel.options].find(o=>!o.disabled).value;
+    };
+    fix(kS,k=>['sae','precode'].some(v=>['orig','rep'].some(sd=>ok(k,v,sd))));
+    fix(vS,v=>['orig','rep'].some(sd=>ok(kS.value,v,sd)));
+    fix(sS,sd=>ok(kS.value,vS.value,sd));
+    return key(kS.value,vS.value,sS.value);
+  }
+  function dataKey(dict){
+    if(ablView==='dgp'&&curR!=='r2')return'dgp_'+curR;
+    return dict;
   }
 
-  const reprDesc={
-    'k20_sae':    'Main setting (TopK SAE, k = 20, sparse codes Z). NEXIS reaches recall 0.95 at n = 750 (η = 5) and at η = 2 (n = 2000), with precision at or above 0.95 from n = 350 (η = 5). Marginal screening reaches recall comparably early, but its precision never recovers.',
-    'k5_sae':     'Sparser dictionary (k = 5). Recall thresholds are essentially unchanged, but precision needs more power to saturate (n = 5000 instead of 350 at η = 5): with five active features per image, attribute signal spreads across several correlated coordinates.',
-    'k20_precode':'Dense pre-activations Z_pre (k = 20). Recall crosses 0.95 at the same point (n = 750 at η = 5), while precision needs modestly more data (n = 500 instead of 350). Every coordinate inherits marginal heterogeneity, and the FWER baseline selects about 600 coordinates on average.',
-  };
-
-  // DGP ablation (paper Appendix C): r direct modifiers on the main dictionary
-  const DGP={
-    r0:{v:'dgp_r0',desc:'No direct modifier (r = 0): the effect is constant, so any selected coordinate is a false discovery; the chart shows the share of runs with at least one (200 seeds per n). NEXIS makes one in at most 1.5% of the runs at every n (0.3% pooled over 2,200 runs, below α = 0.05), in exactly the same runs as the Bonferroni marginal baseline, since with no modifier its first forward step is that test. Uncorrected marginal testing (off scale) makes one in 99.5% to 100% of the runs.'},
-    r1:{v:'dgp_r1',desc:'One direct modifier (r = 1): only Wearing_Hat modifies the effect, while Eyeglasses keeps its prognostic effect. NEXIS recovers one modifier about as well as two: macro recall and IoU are 0.749 and 0.734, against 0.750 and 0.745 at r = 2, and the IoU at n = 2000, η = 5 is 1.000 in both. The purely prognostic Eyeglasses coordinate 5537 is selected in none of the 2,100 NEXIS runs.'},
-    r2:{v:'k20_sae',desc:'Main setting (r = 2): Wearing_Hat and Eyeglasses modify the effect; the reference for the DGP ablation. NEXIS reaches recall 0.95 at n = 750 (η = 5) and at η = 2 (n = 2000).'},
-    r3:{v:'dgp_r3',desc:'Three direct modifiers (r = 3): Sideburns (principal coordinate 1683) joins Wearing_Hat and Eyeglasses. Recall is delayed, crossing 0.95 at n = 1000 for η = 5 and at n = 3500 for η = 2, against n = 750 and n = 2000 at r = 2; the IoU at n = 2000, η = 5 is 0.953. Sideburns is the least aligned concept (AUC 0.805 on Z, against 0.969 and 0.956) and has the lowest per-modifier macro recall, 0.597.'},
-  };
-  let curR='r0';
   const R0_LBL='Share of runs with any false discovery';
   const R0M=[PM[3],PM[2],PM[1]];   // NEXIS first, then the dashed corrected baselines
   const R0_DASH={'Marginal Testing (FWER)':[6,4],'Marginal Testing (FDR)':[2,3]};
   const alphaLine={label:'α = 0.05',data:[{x:50,y:0.05},{x:10000,y:0.05}],borderColor:'#999',
     borderDash:[5,4],borderWidth:1.2,pointRadius:0,pointHoverRadius:0,fill:false};
 
-  function updAblDesc(){
-    let t='';
-    if(ablView==='representation')t=reprDesc[reprVariant()]||'';
-    else if(ablView==='algorithm')t=ABL[curAbl].desc;
-    else t=DGP[curR].desc;
-    document.getElementById('abl-desc').textContent=t;
-  }
   function isR0(){return ablView==='dgp'&&curR==='r0';}
   function updAblLayout(){
-    const r0=isR0();
+    const r0=isR0(),grid=document.getElementById('abl-grid');
+    if(grid.classList.contains('single')===r0)return;
     document.getElementById('abl-metric-row').style.display=r0?'none':'';
     document.getElementById('abl-n-ctrl').style.display=r0?'none':'';
     document.getElementById('abl-e-card').style.display=r0?'none':'';
-    document.getElementById('abl-grid').classList.toggle('single',r0);
+    grid.classList.toggle('single',r0);
+    // the canvases keep their old pixel size until Chart.js is told the layout changed
+    aNC.resize();if(!r0)aEC.resize();
   }
-  function updAblN(){
+  function updAblN(dict){
     const m=document.querySelector('input[name=am]:checked').value;
     const fe=parseFloat(document.querySelector('input[name=a-feta]:checked').value);
     const y=aNC.options.scales.y;
@@ -2717,39 +2733,34 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
       ds.forEach(d=>{if(d.label in R0_DASH)d.borderDash=R0_DASH[d.label];});
       updChart(aNC,ds.concat([alphaLine]),'anyfd','Sample size n',R0_LBL);
     }
-    else if(ablView==='representation')
-      updChart(aNC,getDS(reprVariant(),'n_sweep',m,PM,fe),m,'Sample size n');
     else if(ablView==='algorithm')
-      updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
+      updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe,dict),m,'Sample size n');
     else
-      updChart(aNC,getDS(DGP[curR].v,'n_sweep',m,PM,fe),m,'Sample size n');
+      updChart(aNC,getDS(dataKey(dict),'n_sweep',m,PM,fe),m,'Sample size n');
   }
-  function updAblE(){
+  function updAblE(dict){
     if(isR0())return;
     const m=document.querySelector('input[name=am]:checked').value;
     const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
-    if(ablView==='representation')
-      updChart(aEC,getDS(reprVariant(),'effect_sweep',m,PM,fn),m,'Effect size η');
-    else if(ablView==='algorithm')
-      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+    if(ablView==='algorithm')
+      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn,dict),m,'Effect size η');
     else
-      updChart(aEC,getDS(DGP[curR].v,'effect_sweep',m,PM,fn),m,'Effect size η');
+      updChart(aEC,getDS(dataKey(dict),'effect_sweep',m,PM,fn),m,'Effect size η');
   }
-  function updAblAlign(){
-    // every experiment of this section runs on one SAE: the Representation tab picks it,
-    // the Algorithm and DGP tabs use the main dictionary (k = 20, Z)
-    const v=ablView==='representation'?reprVariant():'k20_sae';
+  function updAblAlign(dict){
     const cs=['Wearing_Hat','Eyeglasses'];
     if(ablView==='dgp'&&curR==='r3')cs.push('Sideburns');
-    alignSet('align-abl',v,cs);
+    alignSet('align-abl',dict,cs);
   }
-  function updAbl(){updAblLayout();updAblDesc();updAblN();updAblE();updAblAlign();}
+  function updAbl(){
+    const dict=sae();
+    updAblLayout();updAblN(dict);updAblE(dict);updAblAlign(dict);
+  }
 
   document.getElementById('abl-view-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.outcome-tab');if(!btn)return;
     document.querySelectorAll('#abl-view-tabs .outcome-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');ablView=btn.dataset.view;
-    document.getElementById('abl-repr-panel').style.display=ablView==='representation'?'':'none';
     document.getElementById('abl-algo-panel').style.display=ablView==='algorithm'?'':'none';
     document.getElementById('abl-dgp-panel').style.display=ablView==='dgp'?'':'none';
     updAbl();
@@ -2769,11 +2780,11 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   document.querySelectorAll('input[name=am]')
     .forEach(i=>i.addEventListener('change',updAbl));
   document.querySelectorAll('input[name=a-feta]')
-    .forEach(i=>i.addEventListener('change',updAblN));
+    .forEach(i=>i.addEventListener('change',()=>updAblN(sae())));
   document.querySelectorAll('input[name=a-fn]')
-    .forEach(i=>i.addEventListener('change',updAblE));
-  document.getElementById('repr-k').addEventListener('change',updAbl);
-  document.getElementById('repr-view').addEventListener('change',updAbl);
+    .forEach(i=>i.addEventListener('change',()=>updAblE(sae())));
+  ['repr-k','repr-view','repr-seed'].forEach(id=>
+    document.getElementById(id).addEventListener('change',updAbl));
   updAbl();
 });
 </script>
