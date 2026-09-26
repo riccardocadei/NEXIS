@@ -135,8 +135,12 @@ canonical CelebA pipeline, running on the single `src/method/nexis.py`.
 ### Uganda YOP (Youth Opportunities Program)
 
 Data: survey microdata from the public replication release of Jerzak et al. (2023) of the
-Blattman, Fiala & Martinez (2014) trial, as `data/uganda/UgandaDataProcessed.csv`; Landsat 7
-tiles from Google Earth Engine (`earthengine authenticate`). Compute: SAE ~1 h on one GPU,
+Blattman, Fiala & Martinez (2014) trial
+([Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/O8XOSF),
+[Hugging Face](https://huggingface.co/datasets/cjerzak/ImageHeterogeneity)), as
+`data/uganda/UgandaDataProcessed.csv`; we do not redistribute it. Landsat 7 tiles are
+re-extracted from Google Earth Engine (`earthengine authenticate`); its imagery cannot be
+redistributed, so the scripts download it. Compute: SAE ~1 h on one GPU,
 VLM ~30 min on one H100. Details: [`docs/uganda_experiment_brief.md`](docs/uganda_experiment_brief.md).
 
 ```bash
