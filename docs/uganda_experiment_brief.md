@@ -1,237 +1,255 @@
-# Uganda YOP Experiment — Structured Brief for Paper Writing
+# Uganda YOP experiment brief
 
-> **Purpose.** This document is a structured description of the Uganda case study to be used as input for writing the main experiment section and the corresponding appendix of the NeurIPS paper. All numbers are final; all methodological choices have been made.
-
----
-
-## 1. Programme & RCT Design
-
-**Programme.** Uganda Youth Opportunities Programme (YOP), studied in Blattman et al. (2014). The programme offered cash grants (~USD 382 per group member) plus optional vocational training to self-organised youth groups in Northern Uganda, targeting young adults with limited economic opportunity in the aftermath of the Lord's Resistance Army conflict.
-
-**Experimental design.** Randomised controlled trial. Treatment (T) was assigned at the **group level** (unit of randomisation = self-selected youth group of ~15–20 members). Groups were clustered within communities (geographic sites). Baseline data were collected pre-treatment; endline outcomes ~2–4 years later.
-
-**Sample.**
-- 2,082 individuals (endline)
-- 439 groups (treatment randomisation units)
-- ~331 distinct geographic communities (RCT sites, each with a unique satellite footprint)
-- Treatment rate: 39.6% (825 treated individuals)
-
-**Geography.** Northern Uganda; sites span multiple districts including Karamoja, Teso, Lango, and West Nile sub-regions.
+> **Purpose.** The Uganda case study as it stands in the final paper
+> (`paper/ICLR'27/main.tex`, Section "Case study 1", and `appendix.tex`, Appendix D):
+> design, the choices behind it, every number the paper quotes, and the file or script
+> each number comes from. Paths are relative to the repo root; `results/` and `data/` are
+> untracked and archived at `/fs3/group/locatgrp/rcadei/nexis-archived_exp/`.
+> Updated 2026-09-26 from the June (NeurIPS) version, which used the interleaved-backward
+> algorithm and reported 5 + 2 discoveries without the certified/candidate split.
 
 ---
 
-## 2. Outcomes Considered
+## 1. Programme and trial
 
-Two outcomes were selected for the main analysis based on data quality and theoretical interest:
+**Programme.** Youth Opportunities Program (YOP), Blattman, Fiala & Martinez (2014): cash
+grants of about USD 382 per group member, plus optional vocational training, to
+self-organised youth groups in post-conflict Northern Uganda (launched 2008).
 
-| Alias | CSV column | Description | Scale |
-|---|---|---|---|
-| `skilled_employed` | `skilled_dummy_e` | Any skilled trade engagement at endline | Binary |
-| `log_biz_assets` | `bizasset_val_real_ln_e` | Log real business asset value at endline | Continuous |
+**Randomization.** By group (self-selected youth groups of ~15–20 members), within
+district; 535 groups randomized, 439 in our analytic sample. Baseline before treatment,
+endline 2–4 years later.
 
-Both outcomes measure whether the programme succeeded in building productive economic capacity — the first through labour market participation, the second through capital accumulation.
+**Sample.** 2,082 individuals, 439 groups, 327 distinct communities (331 RCT sites), 825
+treated (39.6 %). Sub-regions: Karamoja, Teso, Lango, West Nile.
+Source: `results/realworld_final/report.json` (`uganda/<outcome>` → `n`, `pool`) and
+`scripts/realworld_uganda_groupcluster.py` log (`groups=439 districts=14 communities=327`,
+`results/realworld_uganda_groupcluster/run.log`); treated count and rate recomputed from
+`scripts/realworld_clustered_nexis.py::uganda` (`t.sum() = 825`, mean 0.396).
 
-### Average Treatment Effects and Comparison with Blattman et al. (2014)
+**Treatment.** T = grant received (`Wobs`, as-treated), not the lottery assignment. Of
+the 265 groups assigned to the grant, 29 never received it (21 administrative, 8 theft or
+diversion; Blattman et al. 2014). The paper treats them as untreated and assumes
+non-receipt is as good as random, which may fail (receiving groups were slightly more
+educated and wealthier); it is stated as a limitation. In the data `Wobs != assigned` in
+122 of 2,082 rows (`report.json` → `n_rows_wobs_ne_assigned`).
+*Why:* the published selections were computed with `Wobs`. `realworld_final_runs.py` also
+runs T = assigned (intent-to-treat) for reference; the paper reports `Wobs`.
 
-The original Blattman et al. (2014) paper reports significant positive average treatment effects on both outcomes: increased skilled employment and log business asset value approximately two years post-treatment. Our analysis replicates these positive ATEs in the full sample — the sample-weighted average across NEXIS subgroups also yields positive estimates (skilled employment: ~+0.31; log business assets: ~+0.61). The ATE is the right summary for programme-level policy evaluation (did the programme work on average?). NEXIS asks the complementary question: *for whom* and *under what geographic conditions* does the effect vary?
+**Outcomes.**
 
-Blattman et al. also explore heterogeneity by baseline characteristics (age, sex, baseline wealth). NEXIS extends this by (i) systematically searching over a high-dimensional candidate set including satellite-derived features not available to the original authors, (ii) controlling the sequential selection path to limit false discoveries, and (iii) producing interpretable hypotheses via VLM labelling of SAE neurons.
-
-### Note on p-values reported in Section 7
-
-The marginal p-values in the results table come from **unconditional** T × modifier interaction regressions (no features in the conditioning set S). We report marginal rather than NEXIS conditional p-values for two reasons: (1) marginal tests are simple and directly comparable across features and across papers; (2) NEXIS conditional p-values depend on the current selection path S and become hard to interpret for downstream readers unfamiliar with the sequential procedure. NEXIS selects features; the marginal test is reported to characterise the strength of the raw signal for each discovered modifier.
-
----
-
-## 3. Tracked Variables and Levels of Granularity
-
-Variables operate at three distinct levels of the data hierarchy:
-
-### Individual level
-- Outcomes (Y): `skilled_employed`, `log_biz_assets`
-- Demographics: age, sex (female), father's education, mother's education
-
-### Group level
-- Treatment indicator (T): binary, constant within group
-- Group composition: share female members (`group_female`)
-- Language/ethnicity group (`lang_group`, 7 categories): Alur, Langi, Lugbara, Madi, Teso, Karamojong, Pallisa — constant within group, district-level stratification variable. Note: group 7 (Pallisa) is a geographic rather than ethnolinguistic category; it covers all communities in Pallisa district, which contains a roughly equal mix of Iteso (Ateso) and Bagwere/Banyole (Lugwere/Lunyole) speakers.
-
-### Community / site level
-- Satellite imagery features (Z): one 112×112 pixel Landsat 7 tile per site, centred on the community's geographic centroid
-- Spectral indices derived from imagery: NDVI, NDWI, MNDWI, NDBI, EVI, BSI (mean and std per tile → 12 scalars)
-- All Z features are constant within community; all individuals at the same site inherit the same satellite-derived features
-
----
-
-## 4. Satellite Data: Extension via Google Earth Engine and Comparison with Prior Work
-
-### Comparison with Jerzak et al. (2023)
-
-Jerzak et al. (2023) is the closest prior work using this Uganda YOP dataset for treatment effect modifier discovery with satellite imagery. Their approach differs from ours in three key dimensions:
-
-| Dimension | Jerzak et al. (2023) | This work |
+| Alias | CSV column | Description |
 |---|---|---|
-| Imagery vintage | Static images from ~2000 (pre-treatment by 8–10 years) | 2005–2007 median composite (immediately pre-treatment) |
-| Image format | Pre-computed index scores in CSV format; limited spectral richness | Raw Landsat 7 multispectral tiles (6 bands) |
-| Feature extraction | Hand-crafted spectral indices; no deep features | Prithvi-EO foundation model embeddings → SAE dictionary |
-| Candidate modifiers | Structured tabular covariates | 146 SAE neurons + 24 spectral/demographic covariates (170 total) |
-| Interpretability | Features are human-defined | SAE neurons interpreted post-hoc via VLM image contrast |
-| Selection procedure | Causal forest / CATE-based heterogeneity tests | NEXIS forward–backward stepwise with FWER control |
+| `skilled_employed` | `skilled_dummy_e` | Any skilled trade at endline (binary) |
+| `log_biz_assets` | `bizasset_val_real_ln_e` | Log real business assets at endline |
 
-The older, temporally misaligned images used by Jerzak et al. introduce measurement error that may dilute true heterogeneity signals. By re-extracting imagery closer to baseline and using a foundation model to expand the candidate feature space, NEXIS identifies modifiers (perennial river presence, vegetation heterogeneity, structured agriculture) that were not surfaced by the prior approach.
-
-### New imagery pipeline (GEE)
-We re-extracted satellite imagery for all 331 RCT sites directly from **Google Earth Engine** using **Landsat 7 ETM+** imagery:
-- **Time window**: 2005–2007 (3-year cloud-free median composite)
-- **Rationale**: immediately pre-treatment, maximising relevance to baseline conditions; 2005–2007 is the latest window before the programme launched (~2008) without substantial cloud contamination in the Landsat 7 record for Northern Uganda
-- **Spatial resolution**: 30 m/pixel; tiles cropped to 112×112 pixels (~3.36 km × 3.36 km) centred on each site's GPS centroid
-- **Bands used**: Blue (B1), Green (B2), Red (B3), NIR (B4), SWIR1 (B5), SWIR2 (B6)
-- **Visualisation**: false-colour composites (NIR / Green / SWIR1) for VLM interpretation; 2–98 percentile stretch per band per tile
+Both measure productive capacity (labour market and capital). Difference in means:
++0.32 (skilled employment), +0.61 (log business assets), replicating the positive
+headline effect of Blattman et al. Source: `src/apps/uganda/table_gate.py` →
+`results/uganda/paper_numbers/table_gate.md` (+0.321, +0.610).
 
 ---
 
-## 5. Learning Interpretable Satellite Representations (FM + SAE)
+## 2. Data hierarchy and candidate pool (m = 170)
 
-### Step 1 — Foundation model embeddings (Prithvi-EO)
-We use **Prithvi-EO** (IBM/NASA geospatial foundation model), a Vision Transformer pretrained on global Landsat imagery. For each satellite tile we extract the patch-level embedding from **layer 5** of the encoder (768-dimensional). This gives a rich, pretrained representation of land-cover and landscape structure without any task-specific supervision.
+| Level | Variables |
+|---|---|
+| Individual | outcomes; age, female, father's and mother's education |
+| Group | T; share of female members (`group_female`) |
+| Community / site | language group (7 dummies); 12 spectral indices; 146 SAE atoms |
 
-### Step 2 — Sparse Autoencoder (SAE) training
-A **TopK Sparse Autoencoder** (SAE; Gao et al., 2024) with **1,024 hidden dimensions** and sparsity k = 25 is trained on Prithvi-EO embeddings from a **national Uganda satellite grid** (full-country coverage, same Landsat 7 2005–2007 time window). The 331 RCT sites are held out from SAE training; the national grid corpus provides geographic diversity for learning a rich feature dictionary without data leakage. Whitening statistics (mean and std) are fit on the national corpus and applied to the RCT embeddings at inference time.
+**Pool.** 146 SAE atoms + 24 hand-crafted covariates = 170 candidates, searched in one
+pass in which covariates and atoms compete symmetrically (they are all columns of `z`).
+The 24 covariates are `W_age, W_female, W_father_educ, W_mother_educ, W_group_female`,
+`W_lang_1..7` and `W_{ndvi,ndwi,mndwi,ndbi,evi,bsi}_{mean,std}` (names in `report.json`
+→ `candidates`). Pool built by `scripts/verify_new_default_realworld.py::uganda_data`.
 
-The SAE learns a sparse dictionary of 1,024 "neurons" (basis directions) that reconstruct Prithvi embeddings with high fidelity and high sparsity. Each neuron can be interpreted as a distinct visual concept detectable in satellite imagery.
-
-**Architecture details.** TopK SAE: encoder = linear layer (768 → 1,024, bias), TopK activation (k = 25 active units per sample), decoder = unit-norm column matrix (1,024 → 768, bias). Trained for 2,000 epochs, batch size 256, learning rate 2×10⁻⁴, 5-fold cross-validation on the national corpus.
-
-**Comparison with Ghana SAE.** The Ghana case study uses a structurally identical TopK SAE but with **4,096 hidden dimensions** (k = 25), trained on the Ghana national satellite imagery corpus. The larger dictionary is justified by the larger and more diverse Ghana training set. Both SAEs use the same Prithvi-EO backbone (layer 5, 768-dim input). In the Ghana analysis, 131 of 4,096 neurons are active in at least 5 of the LEAP 1000 evaluation communities (activity threshold Z_j > 0). No NEXIS discoveries are found for Ghana, suggesting either weaker treatment effect heterogeneity in the Ghana data or insufficient power given the Ghana sample size.
-
-### Step 3 — Feature filtering
-For the Uganda RCT analysis, only SAE neurons active in **at least 5 of the 331 RCT sites** are retained (activity threshold Z_j > 0). This yields **146 active neurons** out of 1,024, forming the neural candidate set Z for NEXIS. The threshold prevents highly sparse neurons (active at 1–4 sites) from entering the regression, as they would have insufficient variation to reliably estimate an interaction effect.
-
----
-
-## 6. NEXIS: Treatment Effect Modifier Selection
-
-**Method.** NEXIS (Neural Exposure Interaction Search) is a forward–backward stepwise procedure that selects treatment effect modifiers from a large candidate set. At each step it tests the conditional interaction hypothesis:
-$$H_0(j \mid S): \gamma_j = 0 \text{ in } Y = \beta_0 + \beta_T T + \beta_j Z_j + \gamma_S^\top (T \cdot Z_S) + \gamma_j (T \cdot Z_j) + \varepsilon$$
-using a **continuous linear** interaction t-test (not binarised), conditioning on the already-selected set S.
-
-**Candidate pool.** Z_full = 146 SAE neurons ∪ 24 hand-crafted W covariates (demographics + spectral indices) = **170 candidates total**. W covariates compete symmetrically with neural features.
-
-**Correction.** FWER control via **Bonferroni** correction at each forward step (α = 0.05 / |remaining|); backward pruning enforces the same gate. Additionally a spectral-gap stopping rule (ρ = 0.5) prevents selecting features whose conditional t-statistic is less than half that of the weakest already-selected feature.
-
-**Hyperparameters.** α = 0.05, max\_steps = 20, ρ = 0.5, linear test (no nonparametric nuisance).
-
-**Standard errors.** Standard homoskedastic OLS (no clustering). [Note: cluster-robust SEs at group or community level were explored but found to destabilise the sequential selection path without a clear improvement in validity; see Appendix.]
+**Language groups.** 7 ethnolinguistic clusters inherited from Blattman et al.
+(dominant language of each district): Alur, Langi, Lugbara (`W_lang_2`), Madi, Teso,
+Karamojong (`W_lang_4`), Pallisa (`W_lang_7`). Pallisa is geographic rather than
+linguistic: all communities of Pallisa district, a mix of Iteso and Bagwere/Banyole.
+*Why clusters and not districts:* ≈47 communities per cluster against ≈24 per district,
+so enough support for an interaction. District-dummy sensitivity: Pallisa survives at the
+single-district level (p ≈ 7.7×10⁻⁵, `W_district_PALLISA` in
+`results/uganda/prithvi_l5_1024/skilled_employed_districts/nexis_result.json`,
+`nexis_fwer`; a June run with the NeurIPS configuration, not rerun with the paper's
+algorithm), while Karamojong and Lugbara span several small districts and lose
+significance, so the cluster representation is load-bearing for those two.
 
 ---
 
-## 7. Discovered Modifiers (FWER)
+## 3. Satellite pipeline
 
-### Panel A: Skilled Employment
-| Modifier | Type | GATE (active) | GATE (inactive) | Δ | Marginal p |
-|---|---|---|---|---|---|
-| Karamojong (lang. 4) | W | −0.030 (0.060) | +0.372 (0.022) | −0.403 (0.063) | 7.7×10⁻¹⁰ |
-| Lugbara (lang. 2) | W | +0.092 (0.061) | +0.347 (0.023) | −0.255 (0.065) | 1.6×10⁻⁵ |
-| Pallisa (lang. 7) | W | +0.674 (0.058) | +0.288 (0.022) | +0.386 (0.062) | 6.3×10⁻⁸ |
-| Neuron 339 | Z | +0.089 (0.098) | +0.330 (0.021) | −0.242 (0.100) | 2.1×10⁻⁴ |
-| Neuron 533 | Z | +0.214 (0.038) | +0.373 (0.025) | −0.159 (0.045) | 6.7×10⁻⁵ |
+**Imagery** (`src/apps/uganda/download_tiles.py`): Landsat 7 ETM+ Collection 2 Level 2
+surface reflectance, 2005–2007 cloud-free median composite, 30 m, 5×5 km tiles centred on
+each site (`TILE_KM = 5.0`), bands SR_B1, B2, B3, B4, B5, B7 (blue, green, red, NIR,
+SWIR1, SWIR2). VLM images: false colour NIR/Green/SWIR1, 2–98 percentile stretch.
+*Why 2005–2007:* the latest pre-treatment window (disbursements began 2008) without heavy
+cloud cover; the median also removes the Landsat 7 SLC-off stripes. Landsat 5 has no
+coverage of Uganda in 2003–2007.
+*Why not the prior imagery:* Jerzak et al. (2023) used images ~7 years before the
+programme with 3 bands and a binary clustering of embeddings.
 
-### Panel B: Log Business Assets
-| Modifier | Type | GATE (active) | GATE (inactive) | Δ | Marginal p |
-|---|---|---|---|---|---|
-| NDVI | W | +0.668 (0.061) | +0.552 (0.068) | +0.115 (0.092) | 5.6×10⁻⁵ |
-| Neuron 820 | Z | +0.368 (0.094) | +0.649 (0.051) | −0.282 (0.107) | 1.7×10⁻² |
+**Embeddings** (`src/apps/uganda/extract_satellite_features.py`): Prithvi-EO-1.0-100M,
+mean over the patch tokens, 768-d. **Discrepancy:** the paper says "layer 5 of the
+encoder"; the code takes `forward_features(x)[-1]`, the output of the last (12th) block
+after the final LayerNorm. The `l5` in `prithvi_l5` appears to refer to Landsat (the
+docstrings still say Landsat 5), not to a layer. Not changed; see open issues.
 
-GATEs computed via difference in means within binarised subgroups (neurons: Z > 0; NDVI: above median). Marginal p-values from unconditional continuous linear interaction test T × modifier.
+**SAE** (`src/apps/uganda/train_sae.py` via `scripts/uganda/train_sae_slurm.sh`,
+output `results/uganda/prithvi_l5_1024/`): TopK SAE, 768 → 1,024, k = 25, unit-norm
+decoder, 2,000 epochs, lr 2×10⁻⁴, 5-fold CV, trained on the national grid with the 331
+RCT sites held out; whitening fit on the national corpus. *Why a national corpus:*
+geographic diversity for the dictionary, and no leakage from the trial sites.
+**Discrepancy:** the paper says batch size 256; the SLURM script does not pass
+`--batch-size`, so `train_sae.py` uses its default 64. The archived checkpoint
+(`sae_model.pt`, 2026-05-05 11:35) stores no config, and the last logged SLURM run
+(`logs/slurm-sae-58521261`) hit its time limit at 08:20, so the call that wrote the
+checkpoint is not traceable. GPU training is not bit-reproducible: restore the archived
+`results/uganda/prithvi_l5_1024/` rather than retraining.
+
+**Feature filter.** Atoms active (Z_j > 0) in at least 5 of the 331 sites: 146 of 1,024.
+*Why:* atoms active at 1–4 sites have too little variation to estimate an interaction.
+The filter uses Z only, so the terminal level α/m with m = 170 stays valid (Appendix B).
 
 ---
 
-## 8. Marginal Testing Baseline vs NEXIS
+## 4. NEXIS configuration
 
-To illustrate the value of NEXIS over naive marginal screening, we compare with a pure marginal baseline: for each outcome, test all 170 candidates for T × modifier interactions individually using α = 0.05 (unadjusted, no multiple-testing correction). The number of discoveries is:
+`nexis(backward=False, terminal_filter=True, alpha=0.05, adjust="FWER", rho=0.5,
+max_rounds=20)`, linear T × Z_j test, homoskedastic OLS, no clustering
+(`scripts/realworld_final_runs.py`, `VARIANTS["new default"]`, run
+`Wobs | published test | new default`).
 
-| Outcome | Marginal (α = 0.05, unadjusted) | NEXIS FWER |
+- Forward step admits the best candidate if p_j(S) ≤ α/|S̄| and it passes the spectral
+  gap ρ = 0.5.
+- Terminal backward step keeps j ∈ S̃ only if p_j(A) ≤ α/m for every A ⊆ S̃ \ {j};
+  α/m = 0.05/170 ≈ 2.9×10⁻⁴.
+- *Certified* = survives the terminal step; *candidate* = in S̃ only.
+- *Marginal p* = unconditional T × Z_j test (`p_marginal`); *certification p* = the
+  largest p_j(A) over the tested subsets (`worst_subset_p`).
+- `max_rounds = 20` never binds (|S̃| ≤ 5).
+
+*Why the linear test:* power at n = 2,082 with 170 candidates; GCM and PCM lose power when
+the CATE is close to linear (CelebA ablation). Language dummies and binary covariates make
+linearity exact; sparse SAE atoms make it a reasonable approximation; NDVI and the other
+continuous indices carry the assumption (paper limitation).
+*Why homoskedastic individual-level SEs:* the guarantee is stated for i.i.d. units and the
+individual-level test gives the power to generate hypotheses; the multilevel check is in
+Section 7.
+*Why the terminal step and not the NeurIPS interleaved step:* the interleaved step tests
+at data-dependent conditioning sets; the terminal step tests the fixed null
+H0(j | S*) on the recall event and gives the precision guarantee.
+
+---
+
+## 5. Results (Table `tab:nexis_appendix`)
+
+p-values: `results/realworld_final/report.json` → `uganda/<outcome>` → `runs` →
+`Wobs | published test | new default` → `coords`. GATEs (s.e.): difference in means within
+active/inactive subgroups, HC1 s.e., Δ s.e. = √(se_a² + se_i²); active = Z_j > 0 for atoms,
+dummy = 1 for language groups, above the sample median for NDVI; from
+`src/apps/uganda/table_gate.py` → `results/uganda/paper_numbers/table_gate.{md,tex,json}`.
+
+**Panel A: skilled employment.** S̃ = {Karamojong, Lugbara, Z_339, Z_533, Pallisa}.
+
+| Tier | Modifier | Coord | GATE active | GATE inactive | Δ | Marginal p | Cert. p |
+|---|---|---|---|---|---|---|---|
+| Certified | Karamojong | `W_lang_4` | −0.030 (0.060) | +0.372 (0.022) | −0.403 (0.063) | 7.7×10⁻¹⁰ | 7.6×10⁻⁸ |
+| Certified | Pallisa | `W_lang_7` | +0.674 (0.058) | +0.288 (0.022) | +0.386 (0.062) | 6.3×10⁻⁸ | 1.0×10⁻⁴ |
+| Certified | Vegetation spatial heterogeneity | `Z_533` | +0.214 (0.038) | +0.373 (0.025) | −0.159 (0.045) | 6.7×10⁻⁵ | 2.7×10⁻⁴ |
+| Candidate | Lugbara | `W_lang_2` | +0.092 (0.061) | +0.347 (0.023) | −0.255 (0.065) | 1.6×10⁻⁵ | 3.2×10⁻⁴ |
+| Candidate | Perennial river presence | `Z_339` | +0.089 (0.097) | +0.330 (0.021) | −0.242 (0.100) | 2.1×10⁻⁴ | 4.4×10⁻⁴ |
+
+**Panel B: log business assets.** S̃ = {NDVI, Z_820}.
+
+| Tier | Modifier | Coord | GATE active | GATE inactive | Δ | Marginal p | Cert. p |
+|---|---|---|---|---|---|---|---|
+| Certified | NDVI (`ndvi_mean`) | `W_ndvi_mean` | +0.668 (0.061) | +0.552 (0.068) | +0.115 (0.092) | 5.6×10⁻⁵ | 5.6×10⁻⁵ |
+| Candidate | Structured agricultural landscape | `Z_820` | +0.368 (0.094) | +0.649 (0.051) | −0.282 (0.107) | 1.7×10⁻² | 1.7×10⁻² |
+
+The June brief's s.e. 0.098 for Z_339 was the unpooled Neyman s.e.; the paper's 0.097 is
+HC1 (`table_gate.py` docstring). No individual demographic (age, sex, parental
+education) enters S̃ for either outcome.
+
+**Marginal screening (Table `tab:uganda_marginal`, main text).** Uncorrected marginal
+test at 0.05: 71 of 170 (skilled employment) and 45 of 170 (log business assets), against
+3 certified + 2 candidates and 1 + 1 for NEXIS. Source: no committed script prints these
+counts yet; recomputed on 2026-09-26 with `realworld_clustered_nexis.plain_test()` at
+S = ∅ on the pool of `realworld_clustered_nexis.uganda()` (71 and 45). See open issues.
+*Reading:* ~8–9 false positives are expected under the global null; the excess comes from
+correlated SAE atoms that proxy the same few modifiers, the experimental power paradox.
+
+---
+
+## 6. VLM interpretation
+
+Qwen2.5-VL-72B-Instruct, 4-bit, one H100 (`src/apps/uganda/interpret.py`, wrapper
+`scripts/uganda/slurm_interpret.sh`, pipeline `qwen72b`). Direct contrast: rank the 331
+sites by Z_j, show the top 12 and bottom 12 tiles side by side with the prompt quoted in
+the appendix, post-process into a short label. *Why contrast:* describing top tiles alone
+gave generic descriptions ("~60 % vegetation").
+
+The `feature` field of the per-outcome `interpretations.json` indexes the 146 active atoms
+(50 → 339, 67 → 533, 122 → 820); `extra_atoms` uses raw SAE indices.
+
+| Atom | Label | Source |
 |---|---|---|
-| `skilled_employed` | **71** features | **5** features |
-| `log_biz_assets` | **45** features | **2** features |
+| 339 | perennial river presence | `results/uganda/prithvi_l5_1024/skilled_employed/qwen72b/interpretations.json` |
+| 533 | vegetation spatial heterogeneity | same |
+| 820 | structured agricultural landscape | `results/uganda/prithvi_l5_1024/log_biz_assets/qwen72b/interpretations.json` |
+| 261 | perennial water presence (confidence high) | `results/uganda/prithvi_l5_1024/extra_atoms/qwen72b/interpretations.json` (`--extra-atoms 261`) |
 
-Marginal testing at a nominal α = 0.05 with 170 tests yields approximately 8–9 expected false positives under the null, but in practice produces 45–71 "discoveries" — most of which are driven by confounding between correlated SAE neurons (a dense neuron cluster active in overlapping sites will all be marginally significant). NEXIS addresses this by conditioning each forward step on the features already selected, which eliminates the downstream significance of correlated redundant features. The 5 + 2 NEXIS discoveries are a parsimonious set of genuine, conditionally independent modifiers.
-
----
-
-## 9. VLM Interpretability Procedure
-
-**Goal.** Assign a human-readable semantic label to each discovered SAE neuron by inspecting the satellite images that most strongly activate it.
-
-**Model.** Qwen2.5-VL-72B-Instruct (4-bit quantised, run on a single H100 80GB GPU).
-
-**Protocol (direct contrast).** For each neuron j:
-1. Rank all 331 RCT sites by their activation value Z_j
-2. Collect the **top-k = 12** (highest activation) and **bottom-k = 12** (zero/near-zero) satellite tiles
-3. Present both sets side-by-side to the VLM with the prompt: *"These are pairs of satellite images from Uganda (Landsat 7, 2005–2007). The left column shows sites where a learned visual feature is strongly active; the right column shows sites where it is inactive. Describe in one short phrase what landscape or environmental property distinguishes the active from the inactive sites."*
-4. The VLM response is post-processed into a concise label
-
-**Resulting interpretations:**
-- **Neuron 339** → *perennial river presence* (sites along permanent watercourses)
-- **Neuron 533** → *vegetation spatial heterogeneity* (mosaic of agricultural patches and bush)
-- **Neuron 820** → *structured agricultural landscape* (regular field grid, mechanised-scale agriculture)
+Figures: `src/apps/uganda/figure_neural.py` →
+`results/uganda/figures/figure_neural_{skilled_employed,log_biz_assets}.pdf` (map plus two
+top and two bottom tiles per atom); `figure_maps.py` → `figure_districts.pdf`,
+`figure_languages.pdf`; teaser tile `src/apps/figure1_tiles.py` →
+`results/figures/figure1/river.pdf`.
 
 ---
 
-## 10. Computational Budget
+## 7. Limitations as reported
 
-| Component | Hardware | Runtime |
-|---|---|---|
-| GEE imagery extraction (331 RCT + national tiles) | CPU (cloud) | ~1–2 h |
-| Prithvi-EO embedding extraction (RCT + national) | RTX 2080 Ti | ~30 min |
-| SAE training (Uganda, 1024 hidden, 2000 epochs) | RTX 2080 Ti | ~1 h |
-| NEXIS analysis (both outcomes, 170 candidates) | CPU | < 5 min |
-| VLM interpretation (3 neurons × top/bottom 12 images) | H100 80GB | ~30 min |
+**Multilevel inference** (`scripts/realworld_uganda_groupcluster.py`, run 2, →
+`results/realworld_uganda_groupcluster/{report.json,summary.csv,run.log}`). Same algorithm
+with the test clustered by treatment-assignment group (CR1S, G = 439, t(G−1)) and 14
+district fixed effects, as in Blattman et al., after a support gate that keeps the 128
+candidates with at least 5 active groups per arm (the gate uses Z and T only).
+- Skilled employment certifies Karamojong and Lugbara only.
+- Log business assets certifies one atom, Z_261 (perennial water presence), m = 128.
+- The four environmental modifiers of Section 5 (Z_339, Z_533, NDVI, Z_820), each given the
+  rest of its outcome's S̃, get randomization-inference p-values (group lottery replayed
+  within district, 9,999 permutations) between 1.1×10⁻³ (Z_533) and 1.3×10⁻² (NDVI):
+  Z_339 7.3×10⁻³, Z_820 8.5×10⁻³ (`run.log`, "RI|published").
+- The river atom Z_339 is active in 4 treated groups (and 16 control groups).
+*Reading:* the loss comes from fewer effective units (individuals → groups; community
+atoms active in few groups), not from smaller effects; clustering leaves point estimates
+unchanged. Clustering at the language-group level (7 clusters) would ask a different
+question (generalisation to other regions). The modifiers are therefore presented as
+suggestive hypotheses. (`realworld_final_runs.py` repeats the RI with 1,999 permutations;
+the paper quotes the 9,999-permutation run.)
 
-For comparison, the Ghana SAE (4,096 hidden dimensions, 2,000 epochs) was trained on an H100 80GB GPU with a 2-hour time budget.
+**Community-level exposure.** All individuals of a site share one tile; within-site
+exposure (e.g. distance to the river) is not measured.
 
----
-
-## 11. Interpretation of Results as Hypotheses
-
-### Skilled Employment
-
-**Language group heterogeneity (W).**
-- *Karamojong communities* show the most strongly dampened treatment effect (GATE = −0.030, Δ = −0.403). Karamoja is a semi-arid pastoralist region with a distinct livelihood system centred on cattle; vocational trade grants may translate poorly into this context.
-- *Lugbara communities* (Arua/Yumbe, West Nile) also show dampened effects (GATE = +0.092, Δ = −0.255), possibly reflecting better pre-existing market access through the Arua commercial hub.
-- *Pallisa communities* show the largest positive treatment effect (GATE = +0.674, Δ = +0.386). This is a geographic rather than ethnolinguistic finding: Pallisa district (eastern Uganda, mixed Iteso/Bagwere) may have fewer pre-existing skilled-trade pathways, making the vocational grant particularly impactful. Confirmed as a district-level effect by the district-dummy sensitivity run.
-
-**Neural modifiers (Z).**
-- *Neuron 339 (river presence)*: negative modifier. Hypothesis: proximity to permanent water supports subsistence agriculture and fishing as alternatives to skilled trade, reducing uptake of programme-supported vocational paths.
-- *Neuron 533 (vegetation heterogeneity)*: negative modifier. Hypothesis: agro-ecological diversity (mixed bush/crop mosaic) correlates with more flexible livelihood strategies, making skilled employment a less marginal improvement over the status quo.
-
-### Log Business Assets
-
-**NDVI (W).**
-- Positive modifier: greener, more fertile sites see larger treatment effects on business asset accumulation. Hypothesis: baseline agricultural productivity provides collateral and cash flow that amplifies the productive use of the grant capital.
-
-**Neuron 820 (structured agriculture, Z).**
-- Negative modifier. Hypothesis: areas with already-structured, large-scale agricultural landscapes may be dominated by existing commercial actors, leaving less room for new small-business entrants supported by the programme grants to accumulate assets.
+**Linear test.** See Section 4.
 
 ---
 
-## 12. Suggested Paper Structure
+## 8. Compute (Table `tab:uganda_compute`)
 
-### Main section
-1. Dataset and RCT design (brief)
-2. Satellite data and FM+SAE pipeline (key design choices: GEE imagery, Prithvi, Uganda national corpus SAE)
-3. NEXIS setup (candidates, correction, test)
-4. Results table (FWER discoveries, GATE estimates)
-5. Neural interpretation figures (one per outcome)
-6. Interpretation / hypotheses (qualitative, 1 paragraph per outcome)
+GEE extraction ~1–2 h (cloud CPU); Prithvi embeddings ~30 min (RTX 2080 Ti); SAE ~1 h
+(RTX 2080 Ti); NEXIS < 5 min (CPU); VLM (4 atoms, top/bottom 12) ~30 min (H100). Source:
+estimates carried over from the June brief; not re-measured.
 
-### Appendix
-- Full RCT variable definitions and summary statistics
-- GEE imagery extraction details (bands, time window, cloud masking)
-- SAE training details (architecture, loss, TopK, Uganda national corpus)
-- NEXIS algorithm pseudocode / full hyperparameter table
-- VLM prompt templates (verbatim)
-- Activation maps for all discovered neurons (full top/bottom image grids)
-- Robustness: CRVE discussion (why dropped), FDR vs FWER comparison
-- Marginal testing baseline vs NEXIS comparison (Section 8 numbers)
-- Comparison with Jerzak et al. (2023): imagery vintage, feature extraction pipeline, selection method
+---
+
+## 9. Open issues
+
+- Paper says Prithvi "layer 5"; the code uses the last block (Section 3).
+- Paper says SAE batch size 256; the scripted default is 64 and the checkpoint's training
+  call is not traceable (Section 3).
+- The 71/170 and 45/170 marginal counts have no committed producer script (Section 5).
+- The district-dummy p ≈ 7.7×10⁻⁵ comes from a June run with the NeurIPS configuration.
+- Treated count 825 and sub-region list are consistent with the data but are not written
+  by any paper-number script.
