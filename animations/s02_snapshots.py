@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from s02_method import (
     GREEN_LIGHT, DIM_GRAY,
     build_base, fwd_content, bwd_content, pval, subset_pvals,
-    step_tag, s_label, select_style, explained_style, _cross_on,
+    step_tag, fwd_tag, BWD_TAG, s_label, select_style, explained_style, _cross_on,
 )
 
 
@@ -37,7 +37,7 @@ class Snapshot1(Scene):
     def construct(self):
         b = _base(self)
         select_style(b["Z1"])
-        self.add(step_tag("Forward  1"), s_label(["1"]), fwd_content(1, b["ctt_x"]))
+        self.add(step_tag(fwd_tag(1)), s_label(["1"]), fwd_content(1))
         self.add(pval("0.001", color=GREEN_LIGHT).next_to(b["Z1"], LEFT, buff=0.45))
         self.add(pval("0.011").next_to(b["Z2"], LEFT, buff=0.45))
         self.add(pval("0.008").next_to(b["Z3"], LEFT, buff=0.45))
@@ -50,7 +50,7 @@ class Snapshot2(Scene):
         b = _base(self)
         _explain(self, b, {1})
         select_style(b["Z1"]); select_style(b["Z3"])
-        self.add(step_tag("Forward  2"), s_label(["1", "3"]), fwd_content(2, b["ctt_x"]))
+        self.add(step_tag(fwd_tag(2)), s_label(["1", "3"]), fwd_content(2))
         self.add(pval("0.038", sc=0.32).next_to(b["Z2"], LEFT, buff=0.45))
         self.add(pval("0.012", color=GREEN_LIGHT, sc=0.32).next_to(b["Z3"], LEFT, buff=0.45))
         self.wait(1)
@@ -63,9 +63,9 @@ class Snapshot3(Scene):
         _explain(self, b, {1, 3})
         select_style(b["Z1"]); select_style(b["Z3"])
         select_style(b["Z2"], color=DIM_GRAY, width=2.0)
-        self.add(step_tag("Forward  3"),
+        self.add(step_tag(fwd_tag(3)),
                  s_label(["1", "3"], suffix="forward step stops"),
-                 fwd_content(3, b["ctt_x"]))
+                 fwd_content(3))
         self.add(pval("0.214", color=DIM_GRAY, sc=0.30).next_to(b["Z2"], LEFT, buff=0.45))
         self.wait(1)
 
@@ -77,9 +77,9 @@ class Snapshot4(Scene):
         _explain(self, b, {1, 3})
         select_style(b["Z1"]); select_style(b["Z3"])
         select_style(b["Z2"], color=DIM_GRAY, width=2.0)
-        self.add(step_tag("Backward"),
+        self.add(step_tag(BWD_TAG),
                  s_label(["1", "3"], suffix="forward step stops"),
-                 bwd_content(b["ctt_x"]))
+                 bwd_content())
         self.add(subset_pvals(1, [("∅", "0.001"), ("{3}", "0.004")], color=GREEN_LIGHT)
                  .next_to(b["Z1"], LEFT, buff=0.45))
         self.add(subset_pvals(3, [("∅", "0.008"), ("{1}", "0.012")], color=GREEN_LIGHT)

@@ -5,7 +5,7 @@
 # p_j(A) <= alpha/m for every subset A of the other selected coordinates.
 #
 # Render (preview):  cd animations && conda run -n manim manim -pql s02_method.py Selection
-# Render (website):  cd animations && conda run -n manim manim -qh  s02_method.py Selection
+# Render (website):  cd animations && conda run -n manim manim -qh --fps 30 s02_method.py Selection
 #                    cp media/videos/s02_method/1080p30/Selection.mp4 ../docs/assets/nexis_method.mp4
 # Duration: ~35s
 
@@ -43,8 +43,7 @@ _NODE_R   = 0.30
 _STROKE_W = 2.5
 LABEL_Y   = 2.30      # y-centre of column labels (candidate neurons row)
 FORM_Y     = -3.30     # bottom reference for test block
-FWD_TEST_Y = FORM_Y + 0.70   # forward step line   (-2.60)
-BWD_TEST_Y = FORM_Y + 0.28   # backward step line  (-3.02)
+TEST_Y     = FORM_Y + 0.60   # line of the test currently performed (-2.70)
 SLBL_Y     = FORM_Y + 1.10   # S = {} label        (-2.20)
 SC_T       = 0.37            # test-block text scale
 
@@ -113,11 +112,24 @@ def subset_pvals(j, rows, color=WHITE_TEXT, sc=0.30):
 
 
 def step_tag(txt):
-    """Step indicator at top-left, vertically aligned with column labels."""
-    return (Text(txt, color=GRAY_TEXT, weight="BOLD")
-            .scale(SMALL_SCALE)
+    """Phase label at top-left, vertically centred on the column labels.
+
+    `txt` may contain "\n" to break the label over left-aligned lines.
+    """
+    lines = [Text(t, color=GRAY_TEXT, weight="BOLD").scale(SMALL_SCALE)
+             for t in txt.split("\n")]
+    return (VGroup(*lines).arrange(DOWN, buff=0.08, aligned_edge=LEFT)
             .to_corner(UL, buff=0.55)
             .set_y(LABEL_Y))
+
+
+# Phase labels (top-left) and the matching full-screen banners.
+def fwd_tag(k):
+    return f"Forward step {k}"
+
+
+BWD_TAG    = "Terminal backward\ncertification"
+BWD_BANNER = "Terminal backward certification"
 
 
 def s_label(members, suffix=None):
@@ -187,32 +199,19 @@ def build_base(scene):
     lbl_Y = Text("outcome",   color=GRAY_TEXT).scale(lbl_sc).move_to([col_Y, LABEL_Y, 0])
     lbl_T = Text("treatment", color=GRAY_TEXT).scale(lbl_sc).next_to(T, LEFT, buff=0.20)
 
-    # Test block: labels left-aligned, contents left-aligned at ctt_x, block centred.
-    fwd_lbl = Text("a.  Forward step:", color=GRAY_TEXT).scale(SC_T)
-    bwd_lbl = Text("b.  Terminal backward step:", color=GRAY_TEXT).scale(SC_T)
-    max_lbl_w = max(fwd_lbl.width, bwd_lbl.width)
-    widest = max([Text(t).scale(SC_T).width for t in FWD_TXT.values()]
-                 + [MarkupText(BWD_MARKUP).scale(SC_T).width])
-    buff_lc = 0.22
-    lbl_left = -(max_lbl_w + buff_lc + widest) / 2
-    fwd_lbl.move_to([lbl_left + fwd_lbl.width / 2, FWD_TEST_Y, 0])
-    bwd_lbl.move_to([lbl_left + bwd_lbl.width / 2, BWD_TEST_Y, 0])
-    ctt_x = lbl_left + max_lbl_w + buff_lc
-
     static = [title, T, lbl_T, Y, lbl_Y, a_T_Y, a_W1_Y, a_W2_Y,
-              W1, W2, lbl_W, Z1, Z2, Z3, lbl_Z, *bands.values(), fwd_lbl, bwd_lbl]
+              W1, W2, lbl_W, Z1, Z2, Z3, lbl_Z, *bands.values()]
     return dict(title=title, Z1=Z1, Z2=Z2, Z3=Z3, W1=W1, W2=W2, T=T, Y=Y,
-                a_T_Y=a_T_Y, bands=bands, ctt_x=ctt_x, static=static)
+                a_T_Y=a_T_Y, bands=bands, static=static)
 
 
-def fwd_content(k, ctt_x):
-    m = Text(FWD_TXT[k], color=WHITE_TEXT).scale(SC_T)
-    return m.move_to([ctt_x + m.width / 2, FWD_TEST_Y, 0])
+# Only the test currently performed is shown, centred below the graph.
+def fwd_content(k):
+    return Text(FWD_TXT[k], color=WHITE_TEXT).scale(SC_T).move_to([0, TEST_Y, 0])
 
 
-def bwd_content(ctt_x):
-    m = MarkupText(BWD_MARKUP, color=WHITE_TEXT).scale(SC_T)
-    return m.move_to([ctt_x + m.width / 2, BWD_TEST_Y, 0])
+def bwd_content():
+    return MarkupText(BWD_MARKUP, color=WHITE_TEXT).scale(SC_T).move_to([0, TEST_Y, 0])
 
 
 def select_style(node, color=GREEN_LIGHT, width=3.5):
@@ -253,7 +252,7 @@ class Selection(Scene):
     def construct(self):
         b = build_base(self)
         Z1, Z2, Z3, W1, W2 = b["Z1"], b["Z2"], b["Z3"], b["W1"], b["W2"]
-        bands, ctt_x = b["bands"], b["ctt_x"]
+        bands = b["bands"]
 
         s_lbl = s_label([])
         self.play(*[FadeIn(m) for m in b["static"]], FadeIn(s_lbl), run_time=1.8)
@@ -262,8 +261,8 @@ class Selection(Scene):
         # ══════════════════════════════════════════════════════════════════════
         # FORWARD 1 — S = ∅: marginal tests; argmin Z₁ passes 0.05/3
         # ══════════════════════════════════════════════════════════════════════
-        tag = self._big_step("Forward step  1", "Forward  1")
-        fwd = fwd_content(1, ctt_x)
+        tag = self._big_step("Forward step  1", fwd_tag(1))
+        fwd = fwd_content(1)
         self.play(FadeIn(fwd), run_time=0.55)
         self.wait(0.45)
 
@@ -286,14 +285,14 @@ class Selection(Scene):
         # ══════════════════════════════════════════════════════════════════════
         x_W1 = _cross_on(W1)
         tag_old = tag
-        tag = self._big_step("Forward step  2", "Forward  2", extra_anims=(
-            FadeOut(p1), FadeOut(p2), FadeOut(p3), FadeOut(fwd), FadeOut(tag_old),
+        tag = self._big_step("Forward step  2", fwd_tag(2), extra_anims=(
+            FadeOut(p1), FadeOut(p2), FadeOut(p3), FadeOut(tag_old),
             W1[0].animate.set_stroke(opacity=0.20), W1[1].animate.set_opacity(0.20),
             bands["Z1_W1"].animate.set_fill(opacity=0.08).set_stroke(opacity=0.06),
             bands["Z1_W2"].animate.set_fill(opacity=0.05).set_stroke(opacity=0.03),
             FadeIn(x_W1)))
-        fwd = fwd_content(2, ctt_x)
-        self.play(FadeIn(fwd), run_time=0.5)
+        fwd_old, fwd = fwd, fwd_content(2)
+        self.play(FadeTransform(fwd_old, fwd), run_time=0.5)
         self.wait(0.45)
 
         p2 = pval("0.038", sc=0.32).next_to(Z2, LEFT, buff=0.45)
@@ -313,14 +312,14 @@ class Selection(Scene):
         # ══════════════════════════════════════════════════════════════════════
         x_W2 = _cross_on(W2)
         tag_old = tag
-        tag = self._big_step("Forward step  3", "Forward  3", extra_anims=(
-            FadeOut(p2), FadeOut(p3), FadeOut(fwd), FadeOut(tag_old),
+        tag = self._big_step("Forward step  3", fwd_tag(3), extra_anims=(
+            FadeOut(p2), FadeOut(p3), FadeOut(tag_old),
             W2[0].animate.set_stroke(opacity=0.20), W2[1].animate.set_opacity(0.20),
             bands["Z3_W2"].animate.set_fill(opacity=0.08).set_stroke(opacity=0.06),
             bands["Z3_W1"].animate.set_fill(opacity=0.05).set_stroke(opacity=0.03),
             FadeIn(x_W2)))
-        fwd = fwd_content(3, ctt_x)
-        self.play(FadeIn(fwd), run_time=0.5)
+        fwd_old, fwd = fwd, fwd_content(3)
+        self.play(FadeTransform(fwd_old, fwd), run_time=0.5)
         self.wait(0.45)
 
         p2 = pval("0.214", sc=0.30).next_to(Z2, LEFT, buff=0.45)
@@ -341,10 +340,10 @@ class Selection(Scene):
         # level α/m = 0.05/3; both Z₁ and Z₃ survive
         # ══════════════════════════════════════════════════════════════════════
         tag_old = tag
-        tag = self._big_step("Terminal backward step", "Backward", extra_anims=(
-            FadeOut(p2), FadeOut(fwd), FadeOut(tag_old)))
-        bwd = bwd_content(ctt_x)
-        self.play(FadeIn(bwd), run_time=0.55)
+        tag = self._big_step(BWD_BANNER, BWD_TAG, extra_anims=(
+            FadeOut(p2), FadeOut(tag_old)))
+        bwd = bwd_content()
+        self.play(FadeTransform(fwd, bwd), run_time=0.55)
         self.wait(0.9)
 
         q1 = subset_pvals(1, [("∅", "0.001"), ("{3}", "0.004")]).next_to(Z1, LEFT, buff=0.45)
