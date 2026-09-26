@@ -250,6 +250,36 @@ section p:last-child{margin-bottom:0;}
   font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.6rem;color:#aaa;}
 @media(max-width:600px){.nexis-interp-body{grid-template-columns:1fr;}}
 
+/* ── Principal Alignment panels (CelebA) ── */
+.align-details{margin:1rem 0 0;}
+.align-details>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.45em;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;font-weight:700;
+  letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);padding:0.45rem 0.9rem;
+  background:var(--bg);border:1px solid var(--border);border-radius:3px;user-select:none;}
+.align-details>summary::-webkit-details-marker{display:none;}
+.align-details>summary::before{content:"\25B6\FE0E";font-size:0.85em;color:var(--accent);
+  transition:transform 0.18s;}
+.align-details[open]>summary::before{transform:rotate(90deg);}
+.align-details>summary:hover{color:var(--accent);border-color:var(--accent);}
+.align-details>.align-panel{margin-top:0.5rem;}
+.align-dict{color:var(--muted);font-size:0.74rem;margin-left:auto;}
+.align-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}
+.align-chart-wrap{border-right:1px solid var(--border);background:#fff;position:relative;
+  height:240px;padding:0.4rem 0.5rem 0.2rem;}
+.align-chart-wrap canvas{display:block;width:100%;height:100%;}
+.align-thumb{width:72px;height:72px;border-radius:2px;border:1px solid rgba(0,0,0,0.12);
+  background-repeat:no-repeat;box-sizing:border-box;}
+.align-thumb.has-attr{border:3px solid var(--attr-col,#E69F00);}
+.align-caption{border-top:1px solid var(--border);padding:0.45rem 1rem;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.72rem;color:var(--muted);line-height:1.5;}
+@media(max-width:600px){
+  .align-body{grid-template-columns:minmax(0,1fr);}
+  .align-chart-wrap{border-right:none;border-bottom:1px solid var(--border);height:210px;}
+  .align-dict{margin-left:0;width:100%;}
+  .align-thumb{width:64px;height:64px;}
+}
+.two-charts-grid.single{grid-template-columns:minmax(0,1fr);}
+
 /* ── GATE chart ── */
 .gate-chart-wrap{background:var(--bg);border:1px solid var(--border);
   border-radius:3px;padding:0.9rem;margin:1rem 0;}
@@ -684,6 +714,26 @@ footer{padding:1.8rem 2rem;text-align:center;
       effect magnitude &eta; grows, marginal screening accumulates non-direct modifiers and its
       precision collapses, while NEXIS recovers the target. Means over 50 seeds, &plusmn;1.96&nbsp;s.e.
     </p>
+    <details class="align-details" id="align-paradox">
+      <summary>Check Principal Alignment</summary>
+      <div class="nexis-interp align-panel">
+        <div class="nexis-interp-head">
+          <span class="ni-label">Concept</span>
+          <select class="align-concept" aria-label="Select concept"></select>
+          <span class="align-dict"></span>
+        </div>
+        <div class="nexis-interp-body align-body">
+          <div class="align-chart-wrap"><canvas></canvas></div>
+          <div class="ni-tiles">
+            <div class="ni-tile-group">
+              <div class="ni-tile-group-label align-top-label">Most activating images</div>
+              <div class="ni-tile-row align-tiles"></div>
+            </div>
+          </div>
+        </div>
+        <div class="align-caption"></div>
+      </div>
+    </details>
   </div>
 </section>
 
@@ -764,20 +814,10 @@ footer{padding:1.8rem 2rem;text-align:center;
 <section id="ablation">
   <div class="wrap">
     <h2>Controlled Experiments &#8212; CelebA Benchmark</h2>
-    <p>
-      We validate NEXIS on a semi-synthetic benchmark where the direct modifiers are known by
-      construction: CelebA face images are the pre-treatment measurements, a randomized treatment
-      interacts with the latent attributes <em>wearing a hat</em> (effect +&eta;) and
-      <em>wearing eyeglasses</em> (effect &minus;&eta;), and the target is the principal
-      coordinate of each attribute in the sparse-autoencoder dictionary. NEXIS runs with its
-      default configuration: &alpha; = 0.05, linear treatment-interaction test, Bonferroni (FWER)
-      gate in the forward step, spectral gap &rho; = 0.5, and the terminal backward step.
-      The tabs vary one design choice at a time (paper Appendix C); curves are means over 50
-      seeds, &plusmn;1.96&nbsp;s.e.
-    </p>
     <div class="outcome-tabs" id="abl-view-tabs">
       <button class="outcome-tab active" data-view="representation">Representation</button>
       <button class="outcome-tab" data-view="algorithm">Algorithm</button>
+      <button class="outcome-tab" data-view="dgp">DGP</button>
     </div>
     <div id="abl-repr-panel">
       <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.6rem;">
@@ -801,23 +841,32 @@ footer{padding:1.8rem 2rem;text-align:center;
         <button class="abl-tab" data-abl="backward">Backward steps</button>
       </div>
     </div>
-    <div class="two-charts-shared">
+    <div id="abl-dgp-panel" style="display:none">
+      <div class="abl-tabs" id="dgp-tabs">
+        <span class="abl-group-label">Direct modifiers</span>
+        <button class="abl-tab active" data-r="r0">r = 0</button>
+        <button class="abl-tab" data-r="r1">r = 1</button>
+        <button class="abl-tab" data-r="r2">r = 2 (main)</button>
+        <button class="abl-tab" data-r="r3">r = 3</button>
+      </div>
+    </div>
+    <div class="two-charts-shared" id="abl-metric-row">
       <span class="sh-label">Metric</span>
       <label class="chart-controls"><input type="radio" name="am" value="precision" checked> Precision</label>
       <label class="chart-controls"><input type="radio" name="am" value="recall"> Recall</label>
       <label class="chart-controls"><input type="radio" name="am" value="iou"> IoU</label>
     </div>
-    <div class="two-charts-grid">
+    <div class="two-charts-grid" id="abl-grid">
       <div class="chart-card">
         <div class="chart-title">Sample size sweep</div>
-        <div class="chart-controls">
+        <div class="chart-controls" id="abl-n-ctrl">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
           <label><input type="radio" name="a-feta" value="2"> 2</label>
           <label><input type="radio" name="a-feta" value="5" checked> 5</label>
         </div>
         <canvas id="abl-n-chart"></canvas>
       </div>
-      <div class="chart-card">
+      <div class="chart-card" id="abl-e-card">
         <div class="chart-title">Effect size sweep</div>
         <div class="chart-controls">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
@@ -828,6 +877,26 @@ footer{padding:1.8rem 2rem;text-align:center;
       </div>
     </div>
     <div id="abl-desc" style="font-size:0.87rem;color:var(--muted);margin-top:0.8rem;font-family:'Helvetica Neue',sans-serif;"></div>
+    <details class="align-details" id="align-abl">
+      <summary>Check Principal Alignment</summary>
+      <div class="nexis-interp align-panel">
+        <div class="nexis-interp-head">
+          <span class="ni-label">Concept</span>
+          <select class="align-concept" aria-label="Select concept"></select>
+          <span class="align-dict"></span>
+        </div>
+        <div class="nexis-interp-body align-body">
+          <div class="align-chart-wrap"><canvas></canvas></div>
+          <div class="ni-tiles">
+            <div class="ni-tile-group">
+              <div class="ni-tile-group-label align-top-label">Most activating images</div>
+              <div class="ni-tile-row align-tiles"></div>
+            </div>
+          </div>
+        </div>
+        <div class="align-caption"></div>
+      </div>
+    </details>
   </div>
 </section>
 
@@ -2341,6 +2410,111 @@ document.getElementById('ug-outcome-tabs').addEventListener('click',e=>{
 /* ══════════════════════════════════════════════
    CELEBA CHARTS (Paradox + Ablation)
    ══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════
+   PRINCIPAL ALIGNMENT PANELS (CelebA)
+   assets/celeba_alignment.json, written by
+   src/apps/celeba/export_website_alignment.py
+   ══════════════════════════════════════════════ */
+const ALIGN_ATTR={
+  Wearing_Hat:{label:'Wearing Hat',c:'#E69F00'},
+  Eyeglasses:{label:'Eyeglasses',c:'#009E73'},
+  Sideburns:{label:'Sideburns',c:'#CC79A7'},
+};
+const alignState={};   // panel id -> {dict, concepts, chart}
+let alignData=null;
+
+function alignSet(id,dict,concepts){
+  const st=alignState[id]||(alignState[id]={});
+  st.dict=dict;st.concepts=concepts;
+  const root=document.getElementById(id);if(!root)return;
+  const sel=root.querySelector('.align-concept');
+  if(!st.bound){
+    st.bound=true;
+    sel.addEventListener('change',()=>alignRender(id));
+    root.addEventListener('toggle',()=>{if(root.open)alignRender(id);});
+  }
+  const prev=sel.value;
+  sel.innerHTML='';
+  concepts.forEach(a=>{
+    const o=document.createElement('option');o.value=a;o.textContent=ALIGN_ATTR[a].label;sel.appendChild(o);
+  });
+  if(concepts.includes(prev))sel.value=prev;
+  alignRender(id);
+}
+
+function alignRender(id){
+  const st=alignState[id],root=document.getElementById(id);
+  if(!alignData||!st||!root||!root.open)return;
+  const D=alignData[st.dict];if(!D)return;
+  const attr=root.querySelector('.align-concept').value;
+  const C=D.concepts[attr];if(!C)return;
+  const col=ALIGN_ATTR[attr].c;
+  root.querySelector('.align-dict').textContent=D.label;
+
+  // left: alignment spectrum
+  const grey=C.spectrum.filter(([r])=>r!==C.rank).map(([x,y])=>({x,y}));
+  const runnerRank=C.rank===1?2:1;
+  const ds=[
+    {label:'other coordinates',data:grey,pointRadius:1.6,pointHoverRadius:3,
+     backgroundColor:'#b5b5b5',borderColor:'#b5b5b5',showLine:false,order:3},
+    {label:'runner-up '+C.runner_up,data:[{x:runnerRank,y:C.auc_runner_up}],pointRadius:4.5,
+     pointHoverRadius:6,backgroundColor:'#9a9a9a',borderColor:'#333',borderWidth:1,showLine:false,order:2},
+    {label:'principal '+C.principal,data:[{x:C.rank,y:C.auc}],pointStyle:'star',pointRadius:11,
+     pointHoverRadius:13,backgroundColor:col,borderColor:col,borderWidth:2.2,showLine:false,order:1},
+  ];
+  if(!st.chart){
+    st.chart=new Chart(root.querySelector('canvas'),{
+      type:'scatter',data:{datasets:ds},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,clip:false,
+        plugins:{
+          legend:{display:true,position:'top',align:'end',
+            labels:{boxWidth:8,font:{size:10},usePointStyle:true,filter:i=>i.datasetIndex>0}},
+          tooltip:{callbacks:{label:ctx=>{
+            const p=ctx.raw;const nm=ctx.datasetIndex===0?'rank '+p.x:ctx.dataset.label+' (rank '+p.x+')';
+            return nm+': AUC '+Number(p.y).toFixed(3);}}}
+        },
+        scales:{
+          x:{type:'linear',title:{display:true,text:'coordinate rank (sorted by AUC)',font:{size:10}},
+             ticks:{font:{size:9},callback:v=>Number(v).toLocaleString('en-US')},
+             afterBuildTicks:ax=>{const m=ax.max;
+               ax.ticks=[0,2000,4000,6000,8000].filter(v=>v<m-900).concat([m]).map(value=>({value}));},
+             grid:{color:'#eee'}},
+          y:{min:0.4,max:1,title:{display:true,text:'AUC (sign-free)',font:{size:10}},
+             ticks:{font:{size:9},stepSize:0.1},grid:{color:'#eee'}}
+        }}
+    });
+  } else st.chart.data.datasets=ds;
+  st.chart.options.scales.x.min=-Math.round(0.03*D.m);   // room for the star at rank 1
+  st.chart.options.scales.x.max=D.m;
+  st.chart.update();
+
+  // right: most activating images of the principal coordinate (one JPEG strip)
+  const T=C.top,n=T.idx.length;
+  root.querySelector('.align-top-label').textContent=
+    `Most activating images · coordinate ${C.principal}`;
+  const row=root.querySelector('.align-tiles');row.innerHTML='';
+  T.idx.forEach((img,k)=>{
+    const d=document.createElement('div');d.className='ni-tile';
+    const t=document.createElement('div');
+    t.className='align-thumb'+(T.has_attr[k]?' has-attr':'');
+    t.style.setProperty('--attr-col',col);
+    t.style.backgroundImage=`url(assets/${T.sprite})`;
+    t.style.backgroundSize=`${n*100}% 100%`;
+    t.style.backgroundPosition=`${n>1?k/(n-1)*100:0}% 0`;
+    t.title=(T.has_attr[k]?'labelled ':'not labelled ')+ALIGN_ATTR[attr].label+` (image ${img})`;
+    d.appendChild(t);row.appendChild(d);
+  });
+  root.querySelector('.align-caption').innerHTML=
+    `Left: sign-free AUC of each of the ${D.m.toLocaleString('en-US')} coordinates for `+
+    `<em>${ALIGN_ATTR[attr].label}</em> (principal ${C.auc.toFixed(3)}, runner-up ${C.auc_runner_up.toFixed(3)}). `+
+    `Right: the principal&#8217;s ${n} most activating images; framed ones carry the label.`;
+}
+
+fetch('assets/celeba_alignment.json').then(r=>r.json()).then(d=>{
+  alignData=d;
+  Object.keys(alignState).forEach(alignRender);
+});
+
 fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const PALETTE={
     'NEXIS':                        {c:'#1a56a0'},
@@ -2432,10 +2606,10 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     });
   }
 
-  function updChart(chart,ds,metric,xLbl){
+  function updChart(chart,ds,metric,xLbl,yLbl){
     chart.data.datasets=ds;
     chart.options.scales.x.title.text=xLbl;
-    chart.options.scales.y.title.text=metric.charAt(0).toUpperCase()+metric.slice(1);
+    chart.options.scales.y.title.text=yLbl||(metric.charAt(0).toUpperCase()+metric.slice(1));
     chart.update();
   }
 
@@ -2468,6 +2642,7 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   document.querySelectorAll('input[name=p-fn]')
     .forEach(i=>i.addEventListener('change',updParadoxE));
   updParadoxN();updParadoxE();
+  alignSet('align-paradox','k20_sae',['Wearing_Hat','Eyeglasses']);
 
   const ABL={
     test:{desc:'Linear treatment-interaction test (default) vs. doubly-robust GCM and projected covariance measure (PCM), each with a quadratic or a LightGBM variant. On this linear CATE the linear test is the most sample-efficient (recall 0.95 at n = 750 for η = 5); both GCM variants need n = 2000 and both PCM variants n = 3500, since the PCM splits the sample. Only the PCM recovers the modifiers of a non-monotone (U-shaped) CATE (paper Appendix C).',
@@ -2530,29 +2705,74 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     'k20_precode':'Dense pre-activations Z_pre (k = 20). Recall crosses 0.95 at the same point (n = 750 at η = 5), while precision needs modestly more data (n = 500 instead of 350). Every coordinate inherits marginal heterogeneity, and the FWER baseline selects about 600 coordinates on average.',
   };
 
+  // DGP ablation (paper Appendix C): r direct modifiers on the main dictionary
+  const DGP={
+    r0:{v:'dgp_r0',desc:'No direct modifier (r = 0): the effect is constant, so any selected coordinate is a false discovery; the chart shows the share of runs with at least one (200 seeds per n). NEXIS makes one in at most 1.5% of the runs at every n (0.3% pooled over 2,200 runs, below α = 0.05), in exactly the same runs as the Bonferroni marginal baseline, since with no modifier its first forward step is that test. Uncorrected marginal testing (off scale) makes one in 99.5% to 100% of the runs.'},
+    r1:{v:'dgp_r1',desc:'One direct modifier (r = 1): only Wearing_Hat modifies the effect, while Eyeglasses keeps its prognostic effect. NEXIS recovers one modifier about as well as two: macro recall and IoU are 0.749 and 0.734, against 0.750 and 0.745 at r = 2, and the IoU at n = 2000, η = 5 is 1.000 in both. The purely prognostic Eyeglasses coordinate 5537 is selected in none of the 2,100 NEXIS runs.'},
+    r2:{v:'k20_sae',desc:'Main setting (r = 2): Wearing_Hat and Eyeglasses modify the effect; the reference for the DGP ablation. NEXIS reaches recall 0.95 at n = 750 (η = 5) and at η = 2 (n = 2000).'},
+    r3:{v:'dgp_r3',desc:'Three direct modifiers (r = 3): Sideburns (principal coordinate 1683) joins Wearing_Hat and Eyeglasses. Recall is delayed, crossing 0.95 at n = 1000 for η = 5 and at n = 3500 for η = 2, against n = 750 and n = 2000 at r = 2; the IoU at n = 2000, η = 5 is 0.953. Sideburns is the least aligned concept (AUC 0.805 on Z, against 0.969 and 0.956) and has the lowest per-modifier macro recall, 0.597.'},
+  };
+  let curR='r0';
+  const R0_LBL='Share of runs with any false discovery';
+  const R0M=[PM[3],PM[2],PM[1]];   // NEXIS first, then the dashed corrected baselines
+  const R0_DASH={'Marginal Testing (FWER)':[6,4],'Marginal Testing (FDR)':[2,3]};
+  const alphaLine={label:'α = 0.05',data:[{x:50,y:0.05},{x:10000,y:0.05}],borderColor:'#999',
+    borderDash:[5,4],borderWidth:1.2,pointRadius:0,pointHoverRadius:0,fill:false};
+
   function updAblDesc(){
-    if(ablView==='representation')
-      document.getElementById('abl-desc').textContent=reprDesc[reprVariant()]||'';
-    else
-      document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
+    let t='';
+    if(ablView==='representation')t=reprDesc[reprVariant()]||'';
+    else if(ablView==='algorithm')t=ABL[curAbl].desc;
+    else t=DGP[curR].desc;
+    document.getElementById('abl-desc').textContent=t;
+  }
+  function isR0(){return ablView==='dgp'&&curR==='r0';}
+  function updAblLayout(){
+    const r0=isR0();
+    document.getElementById('abl-metric-row').style.display=r0?'none':'';
+    document.getElementById('abl-n-ctrl').style.display=r0?'none':'';
+    document.getElementById('abl-e-card').style.display=r0?'none':'';
+    document.getElementById('abl-grid').classList.toggle('single',r0);
   }
   function updAblN(){
     const m=document.querySelector('input[name=am]:checked').value;
     const fe=parseFloat(document.querySelector('input[name=a-feta]:checked').value);
-    if(ablView==='representation')
+    const y=aNC.options.scales.y;
+    y.max=isR0()?0.1:1;y.ticks.stepSize=isR0()?0.02:0.2;
+    if(isR0()){
+      // as paper Figure dgp_r0: uncorrected marginal testing is off scale; the corrected
+      // baselines coincide with NEXIS run by run, so they are dashed and drawn on top
+      const ds=getDS('dgp_r0','n_sweep','anyfd',R0M,1);
+      ds.forEach(d=>{if(d.label in R0_DASH)d.borderDash=R0_DASH[d.label];});
+      updChart(aNC,ds.concat([alphaLine]),'anyfd','Sample size n',R0_LBL);
+    }
+    else if(ablView==='representation')
       updChart(aNC,getDS(reprVariant(),'n_sweep',m,PM,fe),m,'Sample size n');
-    else
+    else if(ablView==='algorithm')
       updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
+    else
+      updChart(aNC,getDS(DGP[curR].v,'n_sweep',m,PM,fe),m,'Sample size n');
   }
   function updAblE(){
+    if(isR0())return;
     const m=document.querySelector('input[name=am]:checked').value;
     const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
     if(ablView==='representation')
       updChart(aEC,getDS(reprVariant(),'effect_sweep',m,PM,fn),m,'Effect size η');
-    else
+    else if(ablView==='algorithm')
       updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+    else
+      updChart(aEC,getDS(DGP[curR].v,'effect_sweep',m,PM,fn),m,'Effect size η');
   }
-  function updAbl(){updAblDesc();updAblN();updAblE();}
+  function updAblAlign(){
+    // every experiment of this section runs on one SAE: the Representation tab picks it,
+    // the Algorithm and DGP tabs use the main dictionary (k = 20, Z)
+    const v=ablView==='representation'?reprVariant():'k20_sae';
+    const cs=['Wearing_Hat','Eyeglasses'];
+    if(ablView==='dgp'&&curR==='r3')cs.push('Sideburns');
+    alignSet('align-abl',v,cs);
+  }
+  function updAbl(){updAblLayout();updAblDesc();updAblN();updAblE();updAblAlign();}
 
   document.getElementById('abl-view-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.outcome-tab');if(!btn)return;
@@ -2560,12 +2780,19 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     btn.classList.add('active');ablView=btn.dataset.view;
     document.getElementById('abl-repr-panel').style.display=ablView==='representation'?'':'none';
     document.getElementById('abl-algo-panel').style.display=ablView==='algorithm'?'':'none';
+    document.getElementById('abl-dgp-panel').style.display=ablView==='dgp'?'':'none';
     updAbl();
   });
   document.getElementById('abl-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.abl-tab');if(!btn)return;
-    document.querySelectorAll('.abl-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('#abl-tabs .abl-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');curAbl=btn.dataset.abl;
+    updAbl();
+  });
+  document.getElementById('dgp-tabs').addEventListener('click',e=>{
+    const btn=e.target.closest('.abl-tab');if(!btn)return;
+    document.querySelectorAll('#dgp-tabs .abl-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');curR=btn.dataset.r;
     updAbl();
   });
   document.querySelectorAll('input[name=am]')
