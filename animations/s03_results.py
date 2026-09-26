@@ -82,7 +82,7 @@ class Results(Scene):
                    .scale(0.52).move_to([LX, 3.65, 0]))
         col_gha = (Text("Ghana LEAP 1000",  color=GHA_COL, weight=BOLD)
                    .scale(0.52).move_to([RX, 3.65, 0]))
-        sub_uga = (Text("N=2,082  ·  331 communities  ·  2008", color=GRAY_TEXT)
+        sub_uga = (Text("N=2,082  ·  327 communities  ·  2008", color=GRAY_TEXT)
                    .scale(0.27).next_to(col_uga, DOWN, buff=0.10))
         sub_gha = (Text("N=2,331  ·  162 communities  ·  2015–17", color=GRAY_TEXT)
                    .scale(0.27).next_to(col_gha, DOWN, buff=0.10))
@@ -135,16 +135,16 @@ class Results(Scene):
         # Uganda section 1
         rule_u1  = _hrule(sec_top + 0.12, -6.5, -0.1)
         hdr_u1   = _section_header("Skilled Employment", UGA_COL, LX, sec_top - 0.10)
-        ate_u1   = _row("ATE",        "+0.31 pp",                     LX, sec_top - 0.40)
-        sel_u1   = _row("candidates", "170  →  5 selected",           LX, sec_top - 0.68, SEL_COL)
-        fac_u1   = _row("factors",    "language  ·  river  ·  vegetation", LX, sec_top - 0.96)
+        ate_u1   = _row("diff. in means", "+0.32",                    LX, sec_top - 0.40)
+        sel_u1   = _row("candidates", "170  →  3 certified + 2 candidates", LX, sec_top - 0.68, SEL_COL)
+        fac_u1   = _row("certified",  "2 language groups  ·  vegetation", LX, sec_top - 0.96)
 
         # Ghana outcome
         rule_g1  = _hrule(sec_top + 0.12, 0.1, 6.5)
         hdr_g1   = _section_header("Household Consumption", GHA_COL, RX, sec_top - 0.10)
-        ate_g1   = _row("ATE",        "+7.4 GH₵/mo",                  RX, sec_top - 0.40)
-        sel_g1   = _row("candidates", "155  →  2 selected",           RX, sec_top - 0.68, SEL_COL)
-        fac_g1   = _row("factors",    "ephemeral waterways  ·  forest", RX, sec_top - 0.96)
+        ate_g1   = _row("local ATT",  "+7.35 GH₵/mo",                 RX, sec_top - 0.40)
+        sel_g1   = _row("candidates", "167  →  2 certified",          RX, sec_top - 0.68, SEL_COL)
+        fac_g1   = _row("certified",  "ephemeral waterways  ·  forest", RX, sec_top - 0.96)
 
         self.play(Create(rule_u1), Create(rule_g1), run_time=0.35)
         self.play(FadeIn(hdr_u1), FadeIn(hdr_g1), run_time=0.40)
@@ -166,9 +166,9 @@ class Results(Scene):
 
         rule_u2  = _hrule(sec2_top + 0.06, -6.5, -0.1)
         hdr_u2   = _section_header("Business Assets", UGA_COL, LX, sec2_top - 0.16)
-        ate_u2   = _row("ATE",        "+0.61 log USD",                LX, sec2_top - 0.45)
-        sel_u2   = _row("candidates", "170  →  2 selected",           LX, sec2_top - 0.73, SEL_COL)
-        fac_u2   = _row("factors",    "NDVI  ·  structured agriculture", LX, sec2_top - 1.01)
+        ate_u2   = _row("diff. in means", "+0.61 log",                LX, sec2_top - 0.45)
+        sel_u2   = _row("candidates", "170  →  1 certified + 1 candidate", LX, sec2_top - 0.73, SEL_COL)
+        fac_u2   = _row("certified",  "NDVI",                         LX, sec2_top - 1.01)
 
         self.play(Create(rule_u2), run_time=0.30)
         self.play(FadeIn(hdr_u2), run_time=0.35)
@@ -184,7 +184,7 @@ class Results(Scene):
                         color=DIM_GRAY, stroke_width=0.8)
         takeaway = (
             Text(
-                "Environmental context—invisible to surveys—determines who benefits most.",
+                "Environmental context, invisible to surveys, emerges as a candidate driver of who benefits most.",
                 color=WHITE_TEXT,
             )
             .scale(0.37)

@@ -1,6 +1,10 @@
 # Render (preview):  cd animations && conda run -n manim manim -pql s01_pipeline.py Pipeline
-# Render (Twitter):  cd animations && conda run -n manim manim -qh  s01_pipeline.py Pipeline
-# Duration: ~65s
+# Render (website):  cd animations && conda run -n manim manim -qh  s01_pipeline.py Pipeline
+#                    cp media/videos/s01_pipeline/1080p30/Pipeline.mp4 ../docs/assets/s01_pipeline.mp4
+# Duration: ~30s
+#
+# The selected set mirrors the certified YOP skilled-employment modifiers of the paper
+# (one satellite atom, vegetation spatial heterogeneity, and two language groups).
 
 from manim import *
 import numpy as np
@@ -133,8 +137,8 @@ class Pipeline(Scene):
         Y_pos = np.array([5.20, -0.30, 0.0])
         TY_R  = 0.28
 
-        SEL_Z = {1, 4}   # Z₂, Z₅  (2 SAE neurons)
-        SEL_X = {1}      # Z₁₀     (1 survey neuron)
+        SEL_Z = {1}      # Z₂       (1 SAE neuron)
+        SEL_X = {1, 2}   # Z₁₀, Z₁₁ (2 survey features: language-group dummies)
 
         # ══════════════════════════════════════════════════════════════════
         # ACT 1 — Pipeline: tile → Prithvi-EO → SAE (14) → 8 activate
@@ -268,7 +272,8 @@ class Pipeline(Scene):
         self.wait(0.35)
 
         # ══════════════════════════════════════════════════════════════════
-        # ACT 4 — NEXIS: scan arrows, saturate to select (2 SAE + 1 survey)
+        # ACT 4 — NEXIS: forward steps select 1 SAE + 2 survey, then the terminal
+        #          backward step checks every selected coordinate
         # ══════════════════════════════════════════════════════════════════
         self.play(
             *[n.animate.set_opacity(0.28) for n in Z_nodes + X_nodes],
@@ -279,8 +284,8 @@ class Pipeline(Scene):
         # (target_src, target_idx, [scan_z_idxs])
         scan_rounds = [
             ("z", 1, [0, 3]),    # scan Z₁,Z₄  →  select Z₂  (SAE)
-            ("z", 4, [2, 5]),    # scan Z₃,Z₆  →  select Z₅  (SAE)
-            ("x", 1, [6, 7]),    # scan Z₇,Z₈  →  select Z₁₀ (survey)
+            ("x", 1, [2, 5]),    # scan Z₃,Z₆  →  select Z₁₀ (survey)
+            ("x", 2, [6, 7]),    # scan Z₇,Z₈  →  select Z₁₁ (survey)
         ]
 
         sel_z_idxs = []
@@ -317,7 +322,7 @@ class Pipeline(Scene):
                 sel_x_idxs.append(target_idx)
             self.wait(0.32)
 
-        # Backward check: pulse selected nodes
+        # Terminal backward step: pulse selected nodes
         for idx in sorted(sel_z_idxs):
             self.play(Z_nodes[idx].animate.scale(1.16), run_time=0.20)
             self.play(Z_nodes[idx].animate.scale(1/1.16), run_time=0.20)
@@ -351,26 +356,25 @@ class Pipeline(Scene):
         # ══════════════════════════════════════════════════════════════════
         # ACT 6 — VLM interpretation pills + tagline
         # ══════════════════════════════════════════════════════════════════
-        lbl_river = Text("perennial river presence", color=GRAY_TEXT).scale(0.28)
-        lbl_veg   = Text("vegetation heterogeneity", color=GRAY_TEXT).scale(0.28)
-        lbl_lang  = Text("language",                 color=GRAY_TEXT).scale(0.28)
+        lbl_veg  = Text("vegetation spatial heterogeneity", color=GRAY_TEXT).scale(0.28)
+        lbl_kar  = Text("language: Karamojong",             color=GRAY_TEXT).scale(0.28)
+        lbl_pal  = Text("language: Pallisa",                color=GRAY_TEXT).scale(0.28)
 
-        lbl_river.next_to(sel_nodes[0], RIGHT, buff=0.20)
-        lbl_veg.next_to(sel_nodes[1],   RIGHT, buff=0.20)
-        lbl_lang.next_to(sel_nodes[2],  RIGHT, buff=0.20)
-        # center "language" under the two longer labels
-        col_x = VGroup(lbl_river, lbl_veg).get_center()[0]
-        lbl_lang.set_x(col_x)
+        lbl_veg.next_to(sel_nodes[0], RIGHT, buff=0.20)
+        lbl_kar.next_to(sel_nodes[1], RIGHT, buff=0.20)
+        lbl_pal.next_to(sel_nodes[2], RIGHT, buff=0.20)
+        # left-align the two survey labels
+        lbl_pal.align_to(lbl_kar, LEFT)
 
         col_title = Text("Interpretations", color=GRAY_TEXT, weight=BOLD).scale(0.26)
-        col_title.next_to(lbl_river, UP, buff=0.18)
-        col_title.set_x(col_x)
+        col_title.next_to(lbl_veg, UP, buff=0.18)
+        col_title.set_x(lbl_veg.get_center()[0])
 
         self.play(LaggedStart(
             FadeIn(col_title,  shift=RIGHT * 0.08),
-            FadeIn(lbl_river,  shift=RIGHT * 0.08),
             FadeIn(lbl_veg,    shift=RIGHT * 0.08),
-            FadeIn(lbl_lang,   shift=RIGHT * 0.08),
+            FadeIn(lbl_kar,    shift=RIGHT * 0.08),
+            FadeIn(lbl_pal,    shift=RIGHT * 0.08),
             lag_ratio=0.25, run_time=1.80,
         ))
         self.wait(4.0)
