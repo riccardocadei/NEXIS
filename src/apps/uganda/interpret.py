@@ -994,6 +994,134 @@ def interpret_outcome(
     return True
 
 
+# ── Ad-hoc atom interpretation (bypasses NEXIS selection) ──────────────────────
+
+def interpret_extra_atoms(
+    atoms: list,
+    model_dir: Path,
+    site_feats: "np.ndarray",
+    site_keys: "np.ndarray",
+    pipeline: str,
+    vlm_model=None,        vlm_processor=None,
+    k: int = 10,
+    min_activation: float = 0.001,
+    vlm_model_name: str = "",
+    out_subdir: str = "extra_atoms",
+) -> bool:
+    """Interpret explicitly-named raw SAE dimensions with the identical
+    direct-contrast VLM protocol as `interpret_outcome`, bypassing the
+    NEXIS-selection lookup in nexis_result.json entirely.
+
+    For ad-hoc atoms of interest (e.g. answering a reviewer about a specific
+    dimension) that are not part of a published NEXIS discovery run. `atoms`
+    are raw SAE column indices into site_feats — no sae_active_idx remapping,
+    since these did not come from a compressed NEXIS candidate list.
+    Writes to model_dir/out_subdir/pipeline/interpretations.json, never
+    touching any outcome's published interpretations.json.
+    """
+    if pipeline not in ("qwen7b", "qwen72b", "points"):
+        print(f"  [extra-atoms] SKIP — pipeline '{pipeline}' not supported for ad-hoc atoms "
+              f"(only qwen7b/qwen72b/points, which take a loaded VLM directly).")
+        return False
+
+    out_dir = model_dir / out_subdir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"  [extra-atoms] {len(atoms)} feature(s) to interpret: {atoms}")
+
+    all_max_acts = site_feats.max(axis=0)
+    n_total_sites = site_feats.shape[0]
+
+    feature_groups = []
+    for feat_idx in atoms:
+        acts = site_feats[:, feat_idx]
+        sorted_idxs = np.argsort(acts)
+        top_idxs    = sorted_idxs[::-1][:k]
+        bottom_idxs = sorted_idxs[:k]
+        feature_groups.append({
+            "feat_idx":    feat_idx,
+            "top_keys":    site_keys[top_idxs].tolist(),
+            "top_acts":    acts[top_idxs].tolist(),
+            "bottom_keys": site_keys[bottom_idxs].tolist(),
+            "bottom_acts": acts[bottom_idxs].tolist(),
+        })
+
+    interpretations = []
+    for fg in feature_groups:
+        feat_idx = fg["feat_idx"]
+        print(f"    Feature {feat_idx:4d}  "
+              f"top={fg['top_acts'][0]:.3f}..{fg['top_acts'][-1]:.3f}  "
+              f"bottom={fg['bottom_acts'][0]:.3f}..{fg['bottom_acts'][-1]:.3f}")
+
+        top_imgs, top_keys, top_acts       = load_group(fg["top_keys"],   fg["top_acts"])
+        bottom_imgs, bottom_keys, bot_acts = load_group(fg["bottom_keys"], fg["bottom_acts"])
+        if not top_imgs or not bottom_imgs:
+            print("      (skipped: could not load images)")
+            continue
+
+        max_act     = fg["top_acts"][0]
+        feat_acts   = site_feats[:, feat_idx]
+        n_nonzero   = int(np.sum(feat_acts > 0))
+        max_act_pct = int(np.mean(all_max_acts <= max_act) * 100)
+
+        if max_act < min_activation:
+            print(f"      (skipped: max activation {max_act:.4f} < threshold {min_activation})")
+            interpretations.append({
+                "feature": feat_idx,
+                "label": "low activation — uninterpretable",
+                "activated_concept": f"Max activation {max_act:.4f} below threshold.",
+                "not_activated_concept": "",
+                "confidence": "low",
+                "vlm_model": vlm_model_name,
+                "pipeline": pipeline,
+                "raw": "",
+                "top_keys": fg["top_keys"], "bottom_keys": fg["bottom_keys"],
+                "top_acts": fg["top_acts"], "bottom_acts": fg["bottom_acts"],
+            })
+            continue
+
+        result = contrast_groups_vlm(
+            vlm_model, vlm_processor,
+            feat_idx,
+            top_imgs, top_keys, top_acts,
+            bottom_imgs, bottom_keys, bot_acts,
+            prior_concepts=interpretations,
+            max_act=max_act,
+            n_total_sites=n_total_sites,
+            n_nonzero=n_nonzero,
+            max_act_percentile=max_act_pct,
+        )
+        result["vlm_model"] = vlm_model_name
+        result["pipeline"]  = pipeline
+
+        dup = _label_is_duplicate(result.get("label", ""), interpretations)
+        if dup:
+            print(f"      [!] Label matches feature {dup['feature']} — marking indistinguishable")
+            result["label"]             = f"indistinguishable from feature {dup['feature']}"
+            result["activated_concept"] = f"Could not distinguish from: {dup.get('label', '')}"
+            result["confidence"]        = "low"
+
+        interpretations.append(result)
+        print(f"      [{result.get('confidence','?')}] {result.get('label','?')}:\n"
+              f"        Fires on: {result.get('activated_concept', result.get('raw',''))[:140]}"
+              + (f"\n        Absent:   {result['not_activated_concept'][:120]}"
+                 if result.get('not_activated_concept') else "")
+              + "\n")
+
+    pipeline_dir = out_dir / pipeline
+    pipeline_dir.mkdir(parents=True, exist_ok=True)
+    out_path = pipeline_dir / "interpretations.json"
+    with open(out_path, "w") as f:
+        json.dump(interpretations, f, indent=2)
+    print(f"  [extra-atoms] Saved -> {out_path}")
+
+    print(f"  {'Feature':>8}  {'Label':<35}  {'Confidence':>10}")
+    print("  " + "-" * 58)
+    for r in interpretations:
+        print(f"  {r['feature']:>8}  {r.get('label','?'):<35}  {r.get('confidence','?'):>10}")
+    print()
+    return True
+
+
 # ── Argument parsing ───────────────────────────────────────────────────────────
 
 def parse_args():
@@ -1035,6 +1163,14 @@ def parse_args():
                    help="Which selection block to read from nexis_result.json "
                         "(e.g. nexis_fdr, nexis_fwer, nexis_exploratory, nexis, nems). "
                         "Falls back through legacy keys automatically.")
+    p.add_argument("--extra-atoms",  default=None,
+                   help="Comma-separated raw SAE dimension indices to interpret directly "
+                        "with the same VLM protocol, bypassing NEXIS selection entirely "
+                        "(e.g. an atom certified by a different test than nexis_result.json "
+                        "was written for). Written to "
+                        "<embed-model>_<sae-dim>/extra_atoms/<pipeline>/interpretations.json "
+                        "— never overwrites a published outcome's interpretations.json. "
+                        "--outcomes/--outcome is not required when this is set.")
     return p.parse_args()
 
 
@@ -1051,8 +1187,10 @@ def main():
         outcomes = [o.strip() for o in args.outcomes.split(",") if o.strip()]
     elif args.outcome:
         outcomes = [args.outcome]
+    elif args.extra_atoms:
+        outcomes = []  # ad-hoc atom(s) only — no outcome-scoped NEXIS run needed
     else:
-        print("ERROR: specify --outcomes=o1,o2,... or --outcome=o"); sys.exit(1)
+        print("ERROR: specify --outcomes=o1,o2,... or --outcome=o or --extra-atoms=..."); sys.exit(1)
     # Keep alias names — directories are named after aliases, not CSV column names
 
     # Skip outcomes whose output already exists unless --overwrite
@@ -1065,7 +1203,15 @@ def main():
         else:
             to_run.append(outcome)
 
-    if not to_run:
+    extra_atoms = None
+    if args.extra_atoms:
+        extra_atoms = [int(x.strip()) for x in args.extra_atoms.split(",") if x.strip()]
+        extra_out_path = MODEL_DIR / "extra_atoms" / args.pipeline / "interpretations.json"
+        if not args.overwrite and extra_out_path.exists():
+            print(f"  [extra-atoms] Skipping ({extra_out_path} exists; use --overwrite to redo)")
+            extra_atoms = None
+
+    if not to_run and not extra_atoms:
         print("All outcomes already interpreted.")
         return
 
@@ -1104,6 +1250,17 @@ def main():
         text_model, text_tokenizer = load_text_model(args.text_model, quantize=args.quantize)
         vlm_model = vlm_processor = None
     print()
+
+    if extra_atoms:
+        print(f"── extra-atoms {'─' * 45}")
+        interpret_extra_atoms(
+            extra_atoms, MODEL_DIR, site_feats, site_keys,
+            pipeline=args.pipeline,
+            vlm_model=vlm_model, vlm_processor=vlm_processor,
+            k=args.k, min_activation=args.min_activation,
+            vlm_model_name=(args.points_model if args.pipeline == "points"
+                             else args.vlm_model),
+        )
 
     for outcome in to_run:
         print(f"── {outcome} {'─' * max(0, 55 - len(outcome))}")
