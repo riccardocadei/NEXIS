@@ -189,24 +189,27 @@ def figure_spectrum(aucs: dict, reps: dict, out: Path) -> None:
         for ax, (attr, auc) in zip(axes, aucs.items()):
             r, col = reps[attr], ATTR_COLOR[attr]
             s = np.sort(auc)[::-1]
-            ax.plot(np.arange(1, len(s) + 1), s, color=GREY, lw=1.6, zorder=1)
+            rank = np.arange(1, len(s) + 1)
+            ax.scatter(rank[2:], s[2:], s=4, color=GREY, lw=0, zorder=1)
             ax.axhline(0.5, color=GREY, ls=":", lw=1)
             ax.scatter([1], [r["auc_principal"]], marker="*", s=240, color=col, ec="k", lw=0.6,
                        zorder=4, label=f"principal $j_k$ = {r['principal']}")
             ax.scatter([2], [r["auc_runner_up"]], marker="o", s=40, color=GREY, ec="k", lw=0.6,
                        zorder=4, label=f"runner-up = {r['runner_up_auc']}")
-            ax.annotate("", xy=(1.55, r["auc_runner_up"]), xytext=(1.55, r["auc_principal"]),
+            x_gap = 0.06 * len(s)                    # the two points sit at ranks 1 and 2
+            for y in (r["auc_principal"], r["auc_runner_up"]):
+                ax.plot([1, x_gap], [y, y], color="k", ls=":", lw=0.8, zorder=2)
+            ax.annotate("", xy=(x_gap, r["auc_runner_up"]), xytext=(x_gap, r["auc_principal"]),
                         arrowprops=dict(arrowstyle="<->", color="k", lw=1))
-            ax.text(1.75, (r["auc_principal"] + r["auc_runner_up"]) / 2,
+            ax.text(x_gap + 0.02 * len(s), (r["auc_principal"] + r["auc_runner_up"]) / 2,
                     f"gap {r['auc_gap']:.2f}", va="center", fontsize=11)
-            ax.set_xscale("log")
-            ax.set_xlim(0.8, len(s) * 1.3)
-            ax.set_ylim(0.35, 1.0)
+            ax.set_xlim(-0.03 * len(s), 1.03 * len(s))
+            ax.set_ylim(0.35, 1.02)
             ax.set_title(ATTR_LABEL[attr])
             ax.set_xlabel("coordinate rank (sorted by AUC)")
             ax.grid(alpha=0.3)
             ax.legend(loc="upper right", frameon=False, fontsize=10, handletextpad=0.3)
-        axes[0].set_ylabel("AUC of $Z^j$ for $W^k$\n(sign-free)")
+        axes[0].set_ylabel("AUC of $W^k \\sim Z^j$\n(sign-free)")
         fig.tight_layout()
         out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, bbox_inches="tight", dpi=200)
