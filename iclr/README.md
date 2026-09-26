@@ -206,6 +206,16 @@ level of floating-point rounding across hardware:
 * Encoding with a trained SAE, and the F1 spectra, can differ in the last float32 digits
   on a different CPU. The principal coordinates did not change in our checks.
 
+`prepare` therefore cannot reproduce the paper's dictionaries bit for bit: a retrained SAE
+has other coordinate indices (the paper's 5348, 5537, 1683, ...) and slightly different
+numbers. To reproduce the paper exactly, start from the original artefacts instead: put
+(or symlink) the original pool files `celeba/labels.parquet`, `celeba/images.npy`,
+`celeba/embeddings/siglip.npy`, `siglip_patches.f16` and `sae[_precode][_replica]_k*.npy`,
+the replica corpus files in `celeba_train_sample/`, and the checkpoints
+`models/sae_{main,replica}_k*.pt` at the paths of the Layout above. Every step whose output
+exists is skipped, so `python run.py prepare` then only computes the ground-truth files
+(on CPU). The checkpoints use the format written by `celeba/sae.py`.
+
 ## Real-world applications
 
 The paper also applies NEXIS to two anti-poverty programs: a youth cash-transfer program
@@ -213,7 +223,11 @@ in Uganda and the LEAP 1000 program in Ghana. Both analyses use household microd
 are sensitive or held under data-use agreements. They also use satellite features
 geolocated to the program communities. Neither the data nor the derived features can be
 released, so this package contains no data or code for these applications. The analyses
-call the same `nexis` entry point shown in the quick start.
+did not use this package: they ran the same algorithm (forward step, terminal backward
+step, α = 0.05, ρ = 0.5, linear test) with the research implementation of NEXIS in the
+parent repository (`src/method/nexis.py`, called by `scripts/realworld_final_runs.py`),
+which adds what the applications need and `nexis/` lacks: cluster-robust (CR1S) standard
+errors and a hook for a custom conditional test (`cluster`, `pvalue_fn`).
 
 ## Assets
 
