@@ -836,26 +836,33 @@ footer{padding:1.8rem 2rem;text-align:center;
     <p id="uganda-program">
       <strong>Program.</strong>
       The <a href="https://chrisblattman.com/documents/research/2014.GeneratingSkilledEmployment.QJE.pdf" class="ref" target="_blank">Youth Opportunities Program (YOP)</a>
-      was a randomised cash-grant experiment conducted in post-conflict Northern Uganda in 2008.
-      The government awarded one-time grants (~$7,500 USD) to randomly selected groups of young adults,
-      enabling them to pursue skilled artisan or business activity. The program targeted communities
-      in five linguistic sub-regions severely affected by the LRA conflict.
+      is an anti-poverty program launched in 2008 in post-conflict Northern Uganda, awarding cash
+      grants (approximately $382 per group member, plus optional vocational training) to
+      self-organised youth groups, randomized across 535 groups. The original evaluation reports a
+      positive average effect on productive economic capacity, captured through skilled employment
+      and business asset accumulation. We ask <em>why</em> and <em>how</em> the impact varies.
     </p>
 
     <p>
       <strong>Experiment.</strong>
-      The trial enrolled 439 groups across 331 communities (422 geo-coded sites),
-      with individual-level baseline and endline surveys covering labour-market outcomes
-      (skilled employment, business assets) and pre-treatment demographic covariates
-      (age, education, household composition, linguistic group).
+      Our analytic sample has 2,082 individuals in 439 groups and 327 distinct communities
+      (331 RCT sites) across four sub-regions (Karamoja, Teso, Lango and West Nile), 825 of them
+      treated. Outcomes are skilled employment and log business assets at endline; pre-treatment
+      covariates include age, sex, parental education, the group share of women and the
+      community language group (7 ethnolinguistic clusters). We define the treatment <em>T</em>
+      as grant receipt: 29 of the 265 groups assigned to the grant never received it and count as
+      untreated. This exploratory as-treated analysis assumes non-receipt is as good as random.
     </p>
 
     <p id="uganda-map"><strong>Data fusion (ours).</strong>
-      We extend the trial with Landsat-7 imagery (2005&#8211;2007), embedded via
+      We extend the trial with Landsat-7 multispectral imagery (2005&#8211;2007 composite,
+      immediately before the program), embedded via
       <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
-      and summarised by a 1,024-atom SAE, adding 146 active SAE atoms and spectral indices
-      to the demographic covariates — 170 total NEXIS candidates.
-      The map below shows trial communities colored by linguistic group or treatment assignment.
+      and summarised by a 1,024-atom TopK SAE trained on a held-out Uganda national grid.
+      The 146 atoms active in at least 5 sites, 12 spectral-index summaries (NDVI, NDWI, MNDWI,
+      NDBI, EVI, BSI; mean and standard deviation per tile) and the trial covariates form
+      170 NEXIS candidates. The map below shows the trial communities by treatment, outcome
+      or covariate.
     </p>
     <div class="map-controls" style="margin-bottom:0.4rem;flex-wrap:wrap;gap:0.5rem;">
       <span class="mc-label">View:</span>
@@ -917,61 +924,74 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div id="ug-ctx-skilled">
       <div class="finding">
         <strong>Skilled Employment &#8212; Key finding</strong>
-        NEXIS selects 5 direct modifiers: 3 ethnolinguistic-group interactions (Karamojong, Lugbara,
-        Pallisa) pointing to post-conflict market connectivity, and 2 satellite-derived environmental
-        features following an <em>outside-option logic</em>: program impact on skilled employment is
-        strongest where subsistence alternatives are scarcest. Marginal screening returns 71 features
-        from the same 170 candidates.
+        NEXIS certifies 3 modifiers: the Karamojong and Pallisa language groups and
+        <em>vegetation spatial heterogeneity</em>. Two more coordinates, the Lugbara language group
+        and <em>perennial river presence</em>, enter in the forward step but fail the terminal
+        backward step: we report them as candidates. The language groups point to post-conflict
+        market connectivity; the environmental features follow an <em>outside-option logic</em>,
+        picking out landscapes where fishing or bush subsistence remains viable. No individual-level
+        demographic is selected, while 71 of the 170 candidates pass an uncorrected marginal test.
       </div>
     </div>
     <div id="ug-ctx-biz" style="display:none">
       <div class="finding">
         <strong>Log Business Assets &#8212; Key finding</strong>
-        NEXIS selects 2 satellite-derived direct modifiers. Vegetation greenness (NDVI) amplifies
-        asset accumulation where baseline agricultural productivity is higher; structured agricultural
-        landscapes dampen it through crowding-out by incumbent commercial farming. No demographic or
-        linguistic modifier survives. Marginal screening returns 45 features from the same 170 candidates.
+        NEXIS certifies NDVI: regions with greater vegetation greenness show a higher program impact,
+        as more productive baseline land compounds whatever inputs the grant funds.
+        <em>Structured agricultural landscape</em> is a candidate that dampens returns, plausibly
+        through crowding-out by incumbent commercial-scale agriculture. No demographic or language
+        group is selected, while 45 of the 170 candidates pass an uncorrected marginal test.
       </div>
     </div>
 
     <div id="ug-table-skilled">
       <table class="results-table">
-        <caption>GATE and &#916; in probability points (s.e. in parentheses)</caption>
+        <caption>GATE and &#916; in probability points (s.e. in parentheses). Certification <em>p</em>-value: largest <em>p</em>-value over the subsets tested by the terminal backward step, compared with &alpha;/<em>m</em> = 0.05/170 &asymp; 2.9&#215;10<sup>&#8722;4</sup>.</caption>
         <thead><tr>
-          <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-          <th>&#916;</th><th><em>p</em>-value</th>
+          <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+          <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
         </tr></thead>
         <tbody>
-          <tr class="sub-panel"><td colspan="5">Linguistic group</td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Karamojong</summary><p class="mod-desc">Under an active government disarmament campaign through 2011 and isolated from post-LRA reconstruction flows, Karamoja had the weakest market recovery of all subgroups. Without functioning markets to channel the grant into skilled trade, the program had no positive effect on skilled employment in these communities — the sharpest dampening across all discovered modifiers.</p></details></td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
-            <td class="lo">&#8722;0.403 (0.063)</td><td>7.7&#215;10<sup>&#8722;10</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Lugbara</summary><p class="mod-desc">West Nile's geographic isolation at the DRC–South Sudan border, historical underservice by national infrastructure, and constrained cross-border trade reduced how much of the grant translated into skilled employment. The program remained positive but well below the baseline rate, reflecting barriers to market participation that skill grants alone cannot overcome.</p></details></td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
-            <td class="lo">&#8722;0.255 (0.065)</td><td>1.6&#215;10<sup>&#8722;5</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Pallisa</summary><p class="mod-desc">Located outside the northern conflict core in eastern Uganda, Pallisa's mixed Iteso–Bagwere farming economy and shorter supply chains to central markets provided conditions for skill-grant success. Where markets had recovered, the grant compounded into durable employment gains — the strongest amplifying effect among all discovered modifiers.</p></details></td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
-            <td class="hi">+0.386 (0.062)</td><td>6.3&#215;10<sup>&#8722;8</sup></td></tr>
-          <tr class="sub-panel"><td colspan="5">Satellite atoms</td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Perennial river presence</summary><p class="mod-desc">River corridors sustain subsistence fishing and bush-crop farming — persistent outside options that reduce the marginal utility of entering skilled trade. In communities along permanent watercourses the program effect on skilled employment is markedly dampened (outside-option mechanism).</p></details></td><td>+0.089 (0.098)</td><td>+0.330 (0.021)</td>
-            <td class="lo">&#8722;0.242 (0.100)</td><td>2.1&#215;10<sup>&#8722;4</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Vegetation spatial heterogeneity</summary><p class="mod-desc">A mosaic of agricultural patches and bush signals diverse subsistence livelihoods. Where land cover is varied, households can sustain mixed farming strategies without the grant, dampening its incentive to enter skilled trade (outside-option mechanism).</p></details></td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td>
-            <td class="lo">&#8722;0.159 (0.045)</td><td>6.7&#215;10<sup>&#8722;5</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Certified</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Karamojong</summary><p class="mod-desc">Language group. Karamoja was conflict-affected at trial time, under a government disarmament campaign through 2011, with weak supply-chain integration. The estimated effect on skilled employment is null in these communities. Hypothesis: without functioning markets, the grant does not compound into skilled trade.</p></details></td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
+            <td class="lo">&#8722;0.403 (0.063)</td><td>7.7&#215;10<sup>&#8722;10</sup></td><td>7.6&#215;10<sup>&#8722;8</sup></td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Pallisa</summary><p class="mod-desc">Language group covering Pallisa district, outside the northern conflict core in eastern Uganda, with a mixed Iteso&#8211;Bagwere farming economy and shorter supply chains to central markets. The estimated effect is the largest among the selected modifiers. Hypothesis: where markets had recovered, the grant compounds into durable skilled employment.</p></details></td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
+            <td class="hi">+0.386 (0.062)</td><td>6.3&#215;10<sup>&#8722;8</sup></td><td>1.0&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Vegetation spatial heterogeneity</summary><p class="mod-desc">Satellite atom (neuron 533): a mosaic of agricultural patches and bush. Hypothesis: where land cover is varied, households can sustain mixed subsistence livelihoods, reducing the pull of a new skilled trade (outside-option logic).</p></details></td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td>
+            <td class="lo">&#8722;0.159 (0.045)</td><td>6.7&#215;10<sup>&#8722;5</sup></td><td>2.7&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Candidates (forward step only)</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Lugbara</summary><p class="mod-desc">Language group of West Nile, historically isolated from national infrastructure, underserved by post-LRA reconstruction flows and constrained by its position at the DRC and South Sudan border. The estimated effect stays positive but well below the rest of the sample. A candidate: its certification <em>p</em>-value exceeds &alpha;/<em>m</em>.</p></details></td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
+            <td class="lo">&#8722;0.255 (0.065)</td><td>1.6&#215;10<sup>&#8722;5</sup></td><td>3.2&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Perennial river presence</summary><p class="mod-desc">Satellite atom (neuron 339): sites along permanent watercourses. Hypothesis: river corridors keep fishing and subsistence farming viable, reducing the pull of a new skilled trade (outside-option logic). A candidate: its certification <em>p</em>-value exceeds &alpha;/<em>m</em>.</p></details></td><td>+0.089 (0.097)</td><td>+0.330 (0.021)</td>
+            <td class="lo">&#8722;0.242 (0.100)</td><td>2.1&#215;10<sup>&#8722;4</sup></td><td>4.4&#215;10<sup>&#8722;4</sup></td></tr>
         </tbody>
       </table>
     </div>
     <div id="ug-table-biz" style="display:none">
       <table class="results-table">
-        <caption>GATE and &#916; in log points (s.e. in parentheses)</caption>
+        <caption>GATE and &#916; in log points (s.e. in parentheses); NDVI binarized at the sample median. Certification <em>p</em>-value compared with &alpha;/<em>m</em> = 0.05/170 &asymp; 2.9&#215;10<sup>&#8722;4</sup>.</caption>
         <thead><tr>
-          <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-          <th>&#916;</th><th><em>p</em>-value</th>
+          <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+          <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
         </tr></thead>
         <tbody>
-          <tr><td><details class="mod-detail"><summary>NDVI (vegetation greenness)</summary><p class="mod-desc">Higher greenness indexes more productive agricultural land and stronger pre-program economic activity. The grant amplifies business-asset accumulation where baseline agricultural productivity is already higher — a complementarity between land endowment and the cash transfer.</p></details></td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
-            <td class="hi">+0.115 (0.092)</td><td>5.6&#215;10<sup>&#8722;5</sup></td></tr>
-          <tr><td><details class="mod-detail"><summary>Structured agricultural landscape</summary><p class="mod-desc">Regular field grids and mechanised-scale agriculture signal incumbent commercial farming. Pre-existing large-scale agriculture reduces marginal returns on new business formation from the grant — a crowding-out effect on asset accumulation.</p></details></td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td>
-            <td class="lo">&#8722;0.282 (0.107)</td><td>1.7&#215;10<sup>&#8722;2</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Certified</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>NDVI</summary><p class="mod-desc">Spectral index of vegetation greenness. Higher greenness goes with a larger effect on business assets. Hypothesis: more productive baseline land compounds whatever inputs the grant funds.</p></details></td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
+            <td class="hi">+0.115 (0.092)</td><td>5.6&#215;10<sup>&#8722;5</sup></td><td>5.6&#215;10<sup>&#8722;5</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Candidates (forward step only)</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Structured agricultural landscape</summary><p class="mod-desc">Satellite atom (neuron 820): regular field grid, mechanised-scale agriculture. Hypothesis: incumbent commercial-scale agriculture crowds out the returns to new business assets. A candidate: its certification <em>p</em>-value exceeds &alpha;/<em>m</em>.</p></details></td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td>
+            <td class="lo">&#8722;0.282 (0.107)</td><td>1.7&#215;10<sup>&#8722;2</sup></td><td>1.7&#215;10<sup>&#8722;2</sup></td></tr>
         </tbody>
       </table>
     </div>
+    <p style="font-size:0.87rem;color:var(--muted);font-family:'Helvetica Neue',sans-serif;">
+      With no ground truth, certified modifiers and candidates alike are hypotheses for field
+      validation, not established causal modifiers or policy prescriptions. The tests treat
+      individuals as independent; with standard errors clustered by treatment group and district
+      fixed effects, NEXIS certifies only the Karamojong and Lugbara language groups for skilled
+      employment and one satellite atom (<em>perennial water presence</em>) for business assets
+      (paper Appendix D).
+    </p>
 
     <div id="ug-figs-skilled" style="display:none"></div>
     <div id="ug-figs-biz" style="display:none"></div>
@@ -979,7 +999,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <!-- NEXIS Interpretation — Skilled Employment -->
     <div id="ug-interp-skilled" class="nexis-interp">
       <div class="nexis-interp-head">
-        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <span class="ni-label">Modifier Explorer</span>
         <select id="ug-mod-skilled" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
           <span>top-k</span>
@@ -1007,7 +1027,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <!-- NEXIS Interpretation — Log Business Assets -->
     <div id="ug-interp-biz" class="nexis-interp" style="display:none">
       <div class="nexis-interp-head">
-        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <span class="ni-label">Modifier Explorer</span>
         <select id="ug-mod-biz" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
           <span>top-k</span>
@@ -1044,28 +1064,30 @@ footer{padding:1.8rem 2rem;text-align:center;
     <p id="ghana-program">
       <strong>Program.</strong>
       The <a href="https://www.unicef.org/innocenti/reports/ghana-leap-1000-programme" class="ref" target="_blank">Livelihood Empowerment Against Poverty 1000 (LEAP 1000)</a>
-      is Ghana's national unconditional cash transfer program, targeting pregnant women and
-      mothers of children under one year of age in the country's poorest districts.
-      A quasi-experimental evaluation using a regression discontinuity design was conducted
-      in Northern Ghana between 2015 and 2017, measuring the program's impact on household
-      consumption and welfare.
+      programme was launched in Ghana in 2015 to target early-childhood poverty and stunted
+      nutrition, providing bimonthly cash transfers to extremely poor households with newborns.
+      Its evaluation uses a regression discontinuity design on a proxy means test score, with
+      difference-in-differences estimation between the 2015 baseline and the 2017 endline.
     </p>
 
     <p>
       <strong>Experiment.</strong>
-      The evaluation enrolled 2,331 households in 162 communities across the North East, Northern,
-      Savannah, and Upper East regions. Baseline (2015) and endline (2017) surveys provide
-      household-level consumption outcomes and 24 pre-treatment covariates (demographics,
-      asset ownership, household composition). The overall difference-in-differences
-      ATE is <strong>+7.35 GH&#8353;/month</strong>.
+      The evaluation covers 2,331 households (1,185 treated) in 162 communities across five
+      districts in two regions, Northern and Upper East (region boundaries as of 2015; the map
+      shows today&#8217;s regions). The outcome is monthly adult-equivalent household consumption
+      expenditure, and 24 pre-treatment survey covariates describe household composition, the
+      household head, housing, water and sanitation, and livelihoods. The difference-in-differences
+      estimate of the local average treatment effect on the treated (local ATT), for households
+      near the eligibility cutoff, is <strong>+7.35 GH&#8373;/month</strong>.
     </p>
 
     <p id="ghana-map"><strong>Data fusion (ours).</strong>
-      We extend the trial with Landsat-8 2015 imagery, embedded via
+      We extend the evaluation with Landsat-8 2015 imagery, embedded via
       <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
-      and summarised by a 4,096-atom SAE, combined with the 24 survey covariates
-      — 155 total NEXIS candidates.
-      The map below shows GPS centroids of the 162 trial communities, colored by study region.
+      and summarised by a 4,096-atom TopK SAE trained on a held-out Ghana national grid.
+      The 131 atoms active in at least 5 communities, 12 spectral-index summaries and the
+      24 survey covariates form 167 NEXIS candidates. Standard errors are clustered by
+      community. The map below shows the GPS centroids of the 162 communities.
     </p>
     <div class="map-controls" style="flex-wrap:wrap;gap:0.5rem;">
       <span class="mc-label">View:</span>
@@ -1127,40 +1149,50 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h3 id="ghana-results">Results</h3>
     <div class="finding">
       <strong>Key finding</strong>
-      NEXIS selects 2 satellite-derived direct modifiers: <em>ephemeral waterways</em> and
-      <em>closed-canopy forest</em>, rare endowments in this predominantly arid savannah landscape
-      that let households direct the transfer into productive investment. No survey covariate
-      survives. Active communities show 6&#8211;8&#215; the average program effect.
-      Marginal screening returns 50+ features from the same 155 candidates.
+      NEXIS certifies 2 satellite-derived modifiers, <em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em>, with no candidates and no survey covariate; 18 of the
+      167 candidates pass an uncorrected marginal test. In the few communities where these
+      features are present, the estimated effect is 6&#8211;8&#215; the local ATT. We hypothesize
+      <em>complementarity</em>: water-adjacent smallholders can invest transfers in
+      irrigation-season agriculture, while forest-edge households can combine cash with
+      non-timber livelihoods. No demographic modifier is detected at this threshold, which
+      does not establish invariance.
     </div>
 
     <table class="results-table">
-      <caption>GATE and &#916; in GH&#8373;/month, deflated to constant Greater Accra Aug-2017 prices (s.e. in parentheses)</caption>
+      <caption>GATE and &#916; in GH&#8373;/month, deflated to constant Greater Accra Aug-2017 prices (s.e. clustered by community in parentheses). Certification <em>p</em>-value compared with &alpha;/<em>m</em> = 0.05/167 &asymp; 3.0&#215;10<sup>&#8722;4</sup>.</caption>
       <thead><tr>
-        <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-        <th>&#916;</th><th><em>p</em>-value</th>
+        <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+        <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
       </tr></thead>
       <tbody>
-        <tr>
-          <td><details class="mod-detail"><summary>Ephemeral waterways</summary><p class="mod-desc">Narrow seasonal streams and wetland corridors enable micro-irrigation of adjacent plots during the agricultural season. In Northern Ghana's rainfed smallholder system, the transfer can be invested in seeds, fertiliser, or tools that water-adjacent households productively deploy — driving far larger consumption gains than in waterless communities. Active in 6 communities (83 households); temporal satellite analysis confirms cropland expansion and denser riparian vegetation by 2017 in three of them.</p></details></td>
-          <td>+42.9 (14.9)</td><td>+6.0 (1.0)</td>
-          <td class="hi">+36.9 (14.9)</td>
-          <td>2.1&#215;10<sup>&#8722;8</sup></td>
+        <tr class="sub-panel"><td colspan="6">Certified</td></tr>
+        <tr class="sub-indent">
+          <td><details class="mod-detail"><summary>Ephemeral waterways</summary><p class="mod-desc">Satellite atom: narrow seasonal streams and wetland corridors with adjacent riparian vegetation. Active in 6 communities (83 households). Hypothesis: in Northern Ghana&#8217;s rainfed smallholder system, seasonal water allows micro-irrigation of adjacent plots, and the transfer can be invested in seeds, fertiliser or tools that water-adjacent households can put to productive use. Paired 2015/2017 imagery shows unchanged waterways and cropland expansion with denser riparian vegetation in three of the six communities.</p></details></td>
+          <td>+42.9 (15.8)</td><td>+6.0 (3.9)</td>
+          <td class="hi">+36.9</td>
+          <td>3.2&#215;10<sup>&#8722;8</sup></td><td>3.2&#215;10<sup>&#8722;8</sup></td>
         </tr>
-        <tr>
-          <td><details class="mod-detail"><summary>Closed-canopy forest</summary><p class="mod-desc">Dense, continuous forest canopy is a rare endowment in this predominantly savannah landscape. Forest-adjacent households access non-timber forest products, fuelwood, and forest-edge cultivation. Because these resources buffer basic consumption needs, the transfer can be redirected from emergency food purchases toward productive assets or dietary diversity — driving substantially larger welfare gains than in open-savannah communities. Active in 5 communities (42 households).</p></details></td>
-          <td>+56.2 (20.8)</td><td>+6.4 (1.0)</td>
-          <td class="hi">+49.8 (20.8)</td>
-          <td>3.7&#215;10<sup>&#8722;7</sup></td>
+        <tr class="sub-indent">
+          <td><details class="mod-detail"><summary>Closed-canopy forest</summary><p class="mod-desc">Satellite atom: dense, continuous forest canopy, a rare endowment in this predominantly savannah landscape. Active in 5 communities (42 households). Hypothesis: forest-adjacent households access non-timber forest products, fuelwood and forest-edge cultivation, so the transfer can go beyond emergency food purchases toward dietary diversity or productive assets. The large estimate may also reflect selection of forest-proximate communities.</p></details></td>
+          <td>+56.2 (19.7)</td><td>+6.4 (3.9)</td>
+          <td class="hi">+49.8</td>
+          <td>2.0&#215;10<sup>&#8722;5</sup></td><td>2.0&#215;10<sup>&#8722;5</sup></td>
         </tr>
       </tbody>
     </table>
+    <p style="font-size:0.87rem;color:var(--muted);font-family:'Helvetica Neue',sans-serif;">
+      Both features are active in few communities, and clustered inference with so few active
+      clusters can overstate precision: a wild cluster bootstrap by community gives
+      <em>p</em> = 0.015 and <em>p</em> = 0.056, far above &alpha;/<em>m</em>. The magnitudes
+      are candidate hypotheses to be checked in larger evaluations (paper Appendix E).
+    </p>
 
 
     <!-- NEXIS Interpretation — LEAP Ghana -->
     <div id="gh-interp" class="nexis-interp">
       <div class="nexis-interp-head">
-        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <span class="ni-label">Modifier Explorer</span>
         <select id="gh-mod" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
           <span>top-k</span>
@@ -1811,7 +1843,7 @@ function drawUganda(){
     drawLegendGrad(ctx,'Treatment (%)',gradColor(0,LO,HI),gradColor(1,LO,HI),'0%','100%');
   } else if(ugView==='outcome'){
     const field=ugOutSub==='biz'?'mean_biz':'mean_skilled';
-    const label=ugOutSub==='biz'?'Business assets (log UGX)':'Skilled employment (hrs)';
+    const label=ugOutSub==='biz'?'Business assets (log UGX)':'Skilled trade (hrs, last 7 days)';
     const[lo,hi]=ugOutSub==='biz'?[4,10]:[0,90];
     const[loLbl,hiLbl]=ugOutSub==='biz'?['4','10']:['0','90'];
     const LO=[237,248,251],HI=[110,1,107];
@@ -2206,32 +2238,21 @@ function updateGhInterp(){
   renderTiles('gh-bot-tiles',bot,'gh',actDict,Object.values(actDict).reduce((a,b)=>Math.max(a,b),0));
 }
 
-// Discovered modifiers only — keys and display names must match the results tables exactly
+// Selected modifiers, in table order; display names and certified/candidate status
+// come from assets/nexis_activations.json and match the results tables.
 const DISC={
-  ghana:{
-    '3821':'Ephemeral waterways',
-    '2095':'Closed-canopy forest',
-  },
-  uganda_skilled:{
-    'lang_4':'Karamojong',
-    'lang_2':'Lugbara',
-    'lang_7':'Iteso (Pallisa)',
-    '339':  'Perennial river presence',
-    '533':  'Vegetation spatial heterogeneity',
-  },
-  uganda_biz:{
-    'ndvi':'NDVI (vegetation greenness)',
-    '820': 'Structured agricultural landscape',
-  },
+  ghana:['3821','2095'],
+  uganda_skilled:['lang_4','lang_7','533','lang_2','339'],
+  uganda_biz:['ndvi','820'],
 };
 
-function populateModifierDropdown(selectId, mods, labels){
+function populateModifierDropdown(selectId, mods, keys){
   const sel=document.getElementById(selectId);if(!sel)return;
   sel.innerHTML='';
-  Object.entries(labels).forEach(([key,name])=>{
-    if(!mods[key])return;
+  keys.forEach(key=>{
+    const m=mods[key];if(!m)return;
     const opt=document.createElement('option');
-    opt.value=key;opt.textContent=name;
+    opt.value=key;opt.textContent=m.label+(m.status==='candidate'?' (candidate)':'');
     sel.appendChild(opt);
   });
 }
