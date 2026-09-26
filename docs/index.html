@@ -149,13 +149,9 @@ section p:last-child{margin-bottom:0;}
 .thm-box .thm-label{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.64rem;
   font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3a4aaa;
   display:block;margin-bottom:0.8rem;}
-.thm-context{color:#555;margin-bottom:0.7rem;}
 .thm-block{margin:0.55rem 0;}
-.thm-ass{margin:0.18rem 0 0.18rem 1.1rem;padding:0;list-style:none;}
-.thm-ass li{display:flex;gap:0.45rem;margin-bottom:0.1rem;color:#444;}
-.thm-ass li::before{content:"·";color:#3a4aaa;font-weight:700;flex-shrink:0;}
-.thm-arrow{display:flex;align-items:baseline;gap:0.45rem;margin-top:0.35rem;font-size:0.95rem;}
-.thm-arrow .arr{color:#3a4aaa;font-size:1.05rem;flex-shrink:0;}
+.thm-text{color:#444;margin:0;}
+.thm-eq{text-align:center;margin:0.55rem 0 0.2rem;font-size:0.98rem;}
 .thm-conclusion{font-style:italic;}
 .thm-divider{border:none;border-top:1px solid #c0caf0;margin:0.7rem 0;}
 /* ── Collapsible theorem ── */
@@ -421,8 +417,8 @@ footer{padding:1.8rem 2rem;text-align:center;
   .sat-desc.visible{max-height:14em;}
 
   /* Theorem box — near-zero horizontal padding to fit assumptions on one line */
-  .thm-box{padding:0.75rem 0.25rem;}
-  .thm-ass{margin-left:0.2rem;}
+  .thm-box{padding:0.75rem 0.6rem;}
+  .thm-eq{font-size:0.9rem;}
 
   /* Table caption */
   .results-table caption{font-size:0.62rem;}
@@ -728,20 +724,19 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details class="thm-details">
           <summary>Theorem (Causal Identification)</summary>
           <div class="thm-box">
-            <p class="thm-context">In a randomized experiment, with faithfulness and valid and consistent CATE-equivalence tests. Assuming:</p>
             <div class="thm-block">
-              <ul class="thm-ass">
-                <li><em>Principal Alignment</em> of the representation</li>
-              </ul>
-              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS&#8217; output <em>S&#770;<sub>n</sub></em> recovers the principal proxies <em>S</em>* of the direct effect modifiers: &nbsp;lim&thinsp;inf<sub><em>n</em></sub> P(<em>S&#770;<sub>n</sub></em> = <em>S</em>*) &ge; 1 &minus; &alpha; &nbsp;(<em class="thm-conclusion">selection guarantee</em>)</span></div>
+              <p class="thm-text">In a randomized experiment, with faithfulness and valid and consistent
+                CATE-equivalence tests, assuming <em>Principal Alignment</em> of the representation,
+                NEXIS&#8217; output <em>S&#770;<sub>n</sub></em> recovers the principal proxies
+                <em>S</em>* of the direct effect modifiers (<em class="thm-conclusion">selection guarantee</em>):</p>
+              <div class="thm-eq">lim&thinsp;inf<sub><em>n</em></sub> P(<em>S&#770;<sub>n</sub></em> = <em>S</em>*) &ge; 1 &minus; &alpha;</div>
             </div>
             <hr class="thm-divider">
             <div class="thm-block">
-              <p style="margin:0 0 0.15rem 0;color:#555;">If we further assume:</p>
-              <ul class="thm-ass">
-                <li><em>Measurement</em> and <em>Representation Sufficiency</em></li>
-              </ul>
-              <div class="thm-arrow"><span class="arr">&#8594;</span><span>&tau;<sup>do</sup>(<strong>W</strong><sup>dir</sup>) = &tau;(<strong>W</strong><sup>dir</sup>) = E[&tau; | <strong>Z</strong><sup><em>S</em>*</sup>] almost surely: the principal proxies identify the <strong>causal and interpretable</strong> heterogeneity characterization &nbsp;(<em class="thm-conclusion">causal identification</em>)</span></div>
+              <p class="thm-text">If we further assume <em>Measurement</em> and <em>Representation
+                Sufficiency</em>, the principal proxies identify the <strong>causal and interpretable</strong>
+                heterogeneity characterization (<em class="thm-conclusion">causal identification</em>):</p>
+              <div class="thm-eq">&tau;<sup>do</sup>(<strong>W</strong><sup>dir</sup>) = &tau;(<strong>W</strong><sup>dir</sup>) = E[&tau; | <strong>Z</strong><sup><em>S</em>*</sup>] &nbsp;almost surely</div>
             </div>
           </div>
         </details>
