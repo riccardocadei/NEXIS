@@ -609,8 +609,10 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <div class="def-box">
       <div class="def-label">Direct Effect Modifier <em>(Interactor)</em></div>
-      <p style="margin:0">It is an effect modifier that causally drives the heterogeneity by directly 
-        interacting with the treatment. Crucial for policy optimization, as intervening on it or targeting it amplifies the policy impact.</p>
+      <p style="margin:0">It is an effect modifier that causally drives the heterogeneity by directly
+        interacting with the treatment. The complete set of direct modifiers is the minimal and sufficient
+        summary of the effect heterogeneity, and has a causal reading: it identifies how the effect
+        would change under an intervention on the modifiers.</p>
     </div>
     <p>
       <strong>Example:</strong> <em>Consider a cash transfer program targeting
@@ -626,12 +628,13 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="paradox-callout">
       <span class="plabel">Experimental Power Paradox</span>
       <p style="margin:0">
-        Marginal screening tests each variable independently and cannot distinguish
-        <em>effect modifiers</em> from <em>interactors</em>: as experimental power grows,
-        it flags <em>every</em> variable correlated with the treatment effect &#8212;
-        including non-causal proxies like road density.
-        <strong>More data makes spurious discoveries more significant, not fewer</strong>,
-        especially in learned representations which are intrinsically entangled.
+        Marginal screening tests each variable on its own and cannot distinguish
+        <em>effect modifiers</em> from <em>interactors</em>: as experimental power grows
+        (larger samples, stronger effects, more sensitive tests), it flags every variable
+        that carries heterogeneity signal, including non-causal proxies like road density.
+        <strong>It is consistent for the wrong target: more power widens the gap from the
+        direct modifiers</strong>, especially in learned representations, which are intrinsically
+        entangled. Recovering the direct modifiers requires conditional tests.
       </p>
     </div>
     <div class="two-charts-wrap">
@@ -646,8 +649,8 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="chart-title">Sample size sweep</div>
           <div class="chart-controls">
             <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-            <label><input type="radio" name="p-feta" value="2" checked> 2</label>
-            <label><input type="radio" name="p-feta" value="5"> 5</label>
+            <label><input type="radio" name="p-feta" value="2"> 2</label>
+            <label><input type="radio" name="p-feta" value="5" checked> 5</label>
           </div>
           <canvas id="paradox-n-chart"></canvas>
         </div>
@@ -655,13 +658,21 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="chart-title">Effect size sweep</div>
           <div class="chart-controls">
             <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-            <label><input type="radio" name="p-fn" value="500" checked> 500</label>
-            <label><input type="radio" name="p-fn" value="2000"> 2000</label>
+            <label><input type="radio" name="p-fn" value="500"> 500</label>
+            <label><input type="radio" name="p-fn" value="2000" checked> 2000</label>
           </div>
           <canvas id="paradox-e-chart"></canvas>
         </div>
       </div>
     </div>
+    <p style="font-size:0.87rem;color:var(--muted);margin-top:0.8rem;font-family:'Helvetica Neue',sans-serif;">
+      Semi-synthetic CelebA benchmark (paper Figure 3): face images are the pre-treatment
+      measurements, represented by a TopK sparse autoencoder (9,216 codes) on SigLIP&nbsp;2 patch
+      embeddings; <em>wearing a hat</em> and <em>wearing eyeglasses</em> are the two latent direct
+      modifiers, whose principal coordinates are the target. As the sample size <em>n</em> or the
+      effect magnitude &eta; grows, marginal screening accumulates non-direct modifiers and its
+      precision collapses, while NEXIS recovers the target. Means over 50 seeds, &plusmn;1.96&nbsp;s.e.
+    </p>
   </div>
 </section>
 
@@ -727,21 +738,32 @@ footer{padding:1.8rem 2rem;text-align:center;
 <section id="ablation">
   <div class="wrap">
     <h2>Controlled Experiments &#8212; CelebA Benchmark</h2>
+    <p>
+      We validate NEXIS on a semi-synthetic benchmark where the direct modifiers are known by
+      construction: CelebA face images are the pre-treatment measurements, a randomized treatment
+      interacts with the latent attributes <em>wearing a hat</em> (effect +&eta;) and
+      <em>wearing eyeglasses</em> (effect &minus;&eta;), and the target is the principal
+      coordinate of each attribute in the sparse-autoencoder dictionary. NEXIS runs with its
+      default configuration: &alpha; = 0.05, linear treatment-interaction test, Bonferroni (FWER)
+      gate in the forward step, spectral gap &rho; = 0.5, and the terminal backward step.
+      The tabs vary one design choice at a time (paper Appendix C); curves are means over 50
+      seeds, &plusmn;1.96&nbsp;s.e.
+    </p>
     <div class="outcome-tabs" id="abl-view-tabs">
       <button class="outcome-tab active" data-view="representation">Representation</button>
       <button class="outcome-tab" data-view="algorithm">Algorithm</button>
     </div>
     <div id="abl-repr-panel">
       <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.6rem;">
-        <span class="mc-label">TopK:</span>
+        <span class="mc-label">SAE sparsity:</span>
         <select id="repr-k" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
           <option value="k20">k = 20</option>
           <option value="k5">k = 5</option>
         </select>
         <span class="mc-label" style="margin-left:0.6rem;">Activation:</span>
         <select id="repr-view" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
-          <option value="sae">code</option>
-          <option value="precode">precode</option>
+          <option value="sae">sparse codes Z</option>
+          <option value="precode">pre-activations Z_pre</option>
         </select>
       </div>
     </div>
@@ -750,7 +772,7 @@ footer{padding:1.8rem 2rem;text-align:center;
         <button class="abl-tab active" data-abl="test">Statistical test</button>
         <button class="abl-tab" data-abl="correction">Multiple-testing correction</button>
         <button class="abl-tab" data-abl="rho">Spectral gap &rho;</button>
-        <button class="abl-tab" data-abl="backward">Backward elimination</button>
+        <button class="abl-tab" data-abl="backward">Backward steps</button>
       </div>
     </div>
     <div class="two-charts-shared">
@@ -764,8 +786,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <div class="chart-title">Sample size sweep</div>
         <div class="chart-controls">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-          <label><input type="radio" name="a-feta" value="2" checked> 2</label>
-          <label><input type="radio" name="a-feta" value="5"> 5</label>
+          <label><input type="radio" name="a-feta" value="2"> 2</label>
+          <label><input type="radio" name="a-feta" value="5" checked> 5</label>
         </div>
         <canvas id="abl-n-chart"></canvas>
       </div>
@@ -773,8 +795,8 @@ footer{padding:1.8rem 2rem;text-align:center;
         <div class="chart-title">Effect size sweep</div>
         <div class="chart-controls">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-          <label><input type="radio" name="a-fn" value="500" checked> 500</label>
-          <label><input type="radio" name="a-fn" value="2000"> 2000</label>
+          <label><input type="radio" name="a-fn" value="500"> 500</label>
+          <label><input type="radio" name="a-fn" value="2000" checked> 2000</label>
         </div>
         <canvas id="abl-e-chart"></canvas>
       </div>
@@ -2271,18 +2293,16 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     'Marginal Testing (FDR)':       {c:'#f59e0b'},
     'NEXIS (adjust=FDR)':           {c:'#42a5f5'},
     'NEXIS (adjust=None)':          {c:'#26a69a'},
-    'NEXIS (backward=False)':       {c:'#e91e63'},
+    'NEXIS (terminal=False)':       {c:'#e91e63'},
+    'NEXIS (interleaved=True, terminal=False)': {c:'#f59e0b'},
+    'NEXIS (interleaved=True)':     {c:'#8b5cf6'},
     'NEXIS (rho=0)':                {c:'#8b5cf6'},
     'NEXIS (rho=0.2)':              {c:'#f97316'},
     'NEXIS (rho=0.8)':              {c:'#4caf50'},
     'NEXIS (test=GCM: quadratic)':  {c:'#2d9a60'},
     'NEXIS (test=GCM: lgbm)':       {c:'#9c27b0'},
-    'NEXIS [k=20]':                 {c:'#1a56a0'},
-    'NEXIS [k=5]':                  {c:'#4db6ac'},
-    'Marginal [k=20]':              {c:'#e05c1a'},
-    'Marginal [k=5]':               {c:'#ef9a9a'},
-    'NEXIS [Z]':                    {c:'#1a56a0'},
-    'NEXIS [Z_pre]':                {c:'#00bcd4'},
+    'NEXIS (test=PCM: quadratic)':  {c:'#f97316'},
+    'NEXIS (test=PCM: lgbm)':       {c:'#e91e63'},
   };
   function colOf(k){return PALETTE[k]||{c:'#888'};}
   function hexToRgba(hex,a){
@@ -2363,8 +2383,12 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     chart.update();
   }
 
+  // Same methods as paper Figure 3; 'NEXIS' is the default configuration
+  // (forward step + terminal backward step), exported by
+  // src/apps/celeba/export_website_data.py
   const PM=[
     {key:'Marginal Testing',        label:'Marginal Testing',        c:'#e05c1a'},
+    {key:'Marginal Testing (FDR)',  label:'Marginal Testing (FDR)',  c:'#f59e0b'},
     {key:'Marginal Testing (FWER)', label:'Marginal Testing (FWER)', c:'#c0392b'},
     {key:'NEXIS',                   label:'NEXIS (ours)',            c:'#1a56a0'},
   ];
@@ -2390,29 +2414,33 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   updParadoxN();updParadoxE();
 
   const ABL={
-    test:{desc:'Linear and GCM tests all converge to the same target; GCM variants need roughly twice the sample size to reach the same precision as the correctly-specified linear test.',
+    test:{desc:'Linear treatment-interaction test (default) vs. doubly-robust GCM and projected covariance measure (PCM), each with a quadratic or a LightGBM variant. On this linear CATE the linear test is the most sample-efficient (recall 0.95 at n = 750 for η = 5); both GCM variants need n = 2000 and both PCM variants n = 3500, since the PCM splits the sample. Only the PCM recovers the modifiers of a non-monotone (U-shaped) CATE (paper Appendix C).',
       v:'k20_sae',methods:[
         {key:'NEXIS',                      label:'linear (default)',  c:'#1a56a0'},
         {key:'NEXIS (test=GCM: quadratic)',label:'GCM: quadratic',   c:'#2d9a60'},
-        {key:'NEXIS (test=GCM: lgbm)',     label:'GCM: lgbm',        c:'#9c27b0'},
+        {key:'NEXIS (test=GCM: lgbm)',     label:'GCM: LightGBM',    c:'#9c27b0'},
+        {key:'NEXIS (test=PCM: quadratic)',label:'PCM: quadratic',   c:'#f97316'},
+        {key:'NEXIS (test=PCM: lgbm)',     label:'PCM: LightGBM',    c:'#e91e63'},
       ]},
-    correction:{desc:'FWER and FDR are indistinguishable at |S*|=2. Omitting correction is harmless at low power but false positives accumulate steadily once n or η grows.',
+    correction:{desc:'Multiple-testing gate of the forward step; the terminal backward step keeps its level α/m throughout. FWER and FDR are essentially indistinguishable here, because the Benjamini–Hochberg rejection set at the leading discoveries is effectively a singleton. With no correction, the terminal backward step removes the extra coordinates, so precision is barely affected, but recall comes later (n = 1000 instead of 750 at η = 5).',
       v:'k20_sae',methods:[
         {key:'NEXIS (adjust=None)',label:'none',             c:'#26a69a'},
         {key:'NEXIS (adjust=FDR)', label:'FDR',             c:'#42a5f5'},
         {key:'NEXIS',               label:'FWER (default)', c:'#1a56a0'},
       ]},
-    rho:{desc:'ρ=0 admits correlated proxies and precision collapses; ρ=0.8 can drop a weaker principal at low power. The default ρ=0.5 keeps both dimensions stable across the power range.',
+    rho:{desc:'Spectral gap ρ, a practical default that is not part of Algorithm 1 (ρ = 0 disables it). Low ρ (0, 0.2) admits correlated companions of the principal coordinates and erodes precision at large η or n; ρ = 0.8 can block the weaker principal coordinate and only reaches recall 0.95 at η = 7 when n = 2000. ρ = 0.5 attains both.',
       v:'k20_sae',methods:[
         {key:'NEXIS (rho=0)',   label:'ρ = 0',              c:'#8b5cf6'},
         {key:'NEXIS (rho=0.2)',label:'ρ = 0.2',             c:'#f97316'},
         {key:'NEXIS',            label:'ρ = 0.5 (default)', c:'#1a56a0'},
         {key:'NEXIS (rho=0.8)',label:'ρ = 0.8',             c:'#4caf50'},
       ]},
-    backward:{desc:'Forward-only and full backward are empirically indistinguishable here. Backward elimination is a theoretical safety net that matters for larger or more entangled truth sets.',
+    backward:{desc:'The terminal backward step removes the residual companions left by the forward step: precision reaches 0.95 at n = 350 instead of n = 2000 (η = 5), for a small delay in recall (n = 750 instead of 500). The interleaved backward step changes no run here: with two well-aligned modifiers on sparse codes, the curves with and without it coincide.',
       v:'k20_sae',methods:[
-        {key:'NEXIS (backward=False)', label:'forward-only',             c:'#e91e63'},
-        {key:'NEXIS',                   label:'with backward (default)', c:'#1a56a0'},
+        {key:'NEXIS (terminal=False)',                   label:'forward',                                    c:'#e91e63'},
+        {key:'NEXIS (interleaved=True, terminal=False)', label:'forward + interleaved backward',             c:'#f59e0b'},
+        {key:'NEXIS',                                     label:'forward + terminal backward (default)',      c:'#1a56a0'},
+        {key:'NEXIS (interleaved=True)',                 label:'forward + interleaved and terminal backward',c:'#8b5cf6'},
       ]},
   };
 
@@ -2431,16 +2459,19 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   }
 
   function reprVariant(){
-    const k=document.getElementById('repr-k').value;
-    const view=document.getElementById('repr-view').value;
-    return k+'_'+view;
+    const kSel=document.getElementById('repr-k');
+    const vSel=document.getElementById('repr-view');
+    // the paper reports k = 5 on sparse codes only
+    const pre=vSel.querySelector('option[value=precode]');
+    pre.disabled=kSel.value==='k5';
+    if(pre.disabled&&vSel.value==='precode')vSel.value='sae';
+    return kSel.value+'_'+vSel.value;
   }
 
   const reprDesc={
-    'k20_sae':    'Default configuration — NEXIS isolates the two direct modifiers as power grows; marginal screening steadily accumulates proxies.',
-    'k5_sae':     'Sparser codes reduce entanglement; NEXIS performance is nearly identical to k=20, confirming robustness to sparsity level.',
-    'k20_precode':'Continuous pre-TopK activations are richer but noisier; NEXIS still converges cleanly while marginal screening worsens faster.',
-    'k5_precode': 'Sparsest pre-TopK setting; NEXIS remains robust throughout, while marginal screening accumulates false positives earlier.',
+    'k20_sae':    'Main setting (TopK SAE, k = 20, sparse codes Z). NEXIS reaches recall 0.95 at n = 750 (η = 5) and at η = 2 (n = 2000), with precision at or above 0.95 from n = 350 (η = 5). Marginal screening reaches recall comparably early, but its precision never recovers.',
+    'k5_sae':     'Sparser dictionary (k = 5). Recall thresholds are essentially unchanged, but precision needs more power to saturate (n = 5000 instead of 350 at η = 5): with five active features per image, attribute signal spreads across several correlated coordinates.',
+    'k20_precode':'Dense pre-activations Z_pre (k = 20). Recall crosses 0.95 at the same point (n = 750 at η = 5), while precision needs modestly more data (n = 500 instead of 350). Every coordinate inherits marginal heterogeneity, and the FWER baseline selects about 600 coordinates on average.',
   };
 
   function updAblDesc(){
