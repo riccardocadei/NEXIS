@@ -15,10 +15,14 @@ Definitions:
          (filter_tests).
 
 Inputs (untracked outputs, backed up under /fs3/group/locatgrp/rcadei/nexis-archived_exp/):
-  results/celeba/ablation_rho_filter/rf_*.csv  variant "rho05_filter" = default NEXIS on
-      the 3 dictionaries (k20/sae, k20/sae_precode, k5/sae) x 2,100 runs (n sweep at
-      eta in {2, 5}, effect sweep at n in {500, 2000}, 50 seeds). Produced by
-      src/apps/celeba/ablation_rho_filter.py (at git tag neurips-rebuttal-final).
+  results/celeba/ablation_rho_filter/rf_*.csv  variant "rho05_filter" on the 3
+      dictionaries (k20/sae, k20/sae_precode, k5/sae) x 2,100 runs (n sweep at eta in
+      {2, 5}, effect sweep at n in {500, 2000}, 50 seeds). Produced by
+      src/apps/celeba/ablation_rho_filter.py (scripts/celeba/submit_rho_filter.sh).
+      rho05_filter = nexis(rho=0.5, backward=True, terminal_filter=True): the default
+      NEXIS-v2 (backward=False) plus the interleaved backward step. Its selections equal
+      experiment_v2's NEXIS-v2 on 6,299 of 6,300 runs; |S~| and test counts of the pure
+      default are stored only for the 2,100 main-setting runs (cross-check below).
   results/celeba/iclr_local_runs/results/runs/main/*/NEXIS.parquet (optional
       cross-check: the ICLR re-implementation's main-setting runs, n_forward and
       terminal_tests; these agree run by run with the k20/sae rows).
