@@ -1,5 +1,7 @@
 """
-Teaser figure (Figure 1): satellite tiles for the two key discoveries.
+Website teaser: satellite tiles for the two key discoveries.
+
+Not the paper's Figure 1, which is drawn by src/apps/figure1_tiles.py.
 
 Layout: 2 rows (Ghana / Uganda) × 2 columns (feature active / inactive).
 Each cell: one satellite tile with a GATE badge (top-right) and a tiny
