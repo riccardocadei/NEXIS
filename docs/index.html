@@ -706,34 +706,6 @@ footer{padding:1.8rem 2rem;text-align:center;
         </div>
       </div>
     </div>
-    <p style="font-size:0.87rem;color:var(--muted);margin-top:0.8rem;font-family:'Helvetica Neue',sans-serif;">
-      Semi-synthetic CelebA benchmark (paper Figure 3): face images are the pre-treatment
-      measurements, represented by a TopK sparse autoencoder (9,216 codes) on SigLIP&nbsp;2 patch
-      embeddings; <em>wearing a hat</em> and <em>wearing eyeglasses</em> are the two latent direct
-      modifiers, whose principal coordinates are the target. As the sample size <em>n</em> or the
-      effect magnitude &eta; grows, marginal screening accumulates non-direct modifiers and its
-      precision collapses, while NEXIS recovers the target. Means over 50 seeds, &plusmn;1.96&nbsp;s.e.
-    </p>
-    <details class="align-details" id="align-paradox">
-      <summary>Check Principal Alignment</summary>
-      <div class="nexis-interp align-panel">
-        <div class="nexis-interp-head">
-          <span class="ni-label">Concept</span>
-          <select class="align-concept" aria-label="Select concept"></select>
-          <span class="align-dict"></span>
-        </div>
-        <div class="nexis-interp-body align-body">
-          <div class="align-chart-wrap"><canvas></canvas></div>
-          <div class="ni-tiles">
-            <div class="ni-tile-group">
-              <div class="ni-tile-group-label align-top-label">Most activating images</div>
-              <div class="ni-tile-row align-tiles"></div>
-            </div>
-          </div>
-        </div>
-        <div class="align-caption"></div>
-      </div>
-    </details>
   </div>
 </section>
 
@@ -1027,7 +999,7 @@ footer{padding:1.8rem 2rem;text-align:center;
 
     <div id="ug-table-skilled">
       <table class="results-table">
-        <caption>GATE and &#916; in probability points (s.e. in parentheses). Certification <em>p</em>-value: largest <em>p</em>-value over the subsets tested by the terminal backward step, compared with &alpha;/<em>m</em> = 0.05/170 &asymp; 2.9&#215;10<sup>&#8722;4</sup>.</caption>
+        <caption>GATE and &#916; in probability points (s.e. in parentheses).</caption>
         <thead><tr>
           <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
           <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
@@ -1050,7 +1022,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <div id="ug-table-biz" style="display:none">
       <table class="results-table">
-        <caption>GATE and &#916; in log points (s.e. in parentheses); NDVI binarized at the sample median. Certification <em>p</em>-value compared with &alpha;/<em>m</em> = 0.05/170 &asymp; 2.9&#215;10<sup>&#8722;4</sup>.</caption>
+        <caption>GATE and &#916; in log points (s.e. in parentheses); NDVI binarized at the sample median.</caption>
         <thead><tr>
           <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
           <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
@@ -1240,7 +1212,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     </p>
 
     <table class="results-table">
-      <caption>GATE and &#916; in GH&#8373;/month, deflated to constant Greater Accra Aug-2017 prices (s.e. clustered by community in parentheses). Certification <em>p</em>-value compared with &alpha;/<em>m</em> = 0.05/167 &asymp; 3.0&#215;10<sup>&#8722;4</sup>.</caption>
+      <caption>GATE and &#916; in GH&#8373;/month, deflated to constant Greater Accra Aug-2017 prices (s.e. clustered by community in parentheses).</caption>
       <thead><tr>
         <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
         <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
@@ -2642,7 +2614,6 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   document.querySelectorAll('input[name=p-fn]')
     .forEach(i=>i.addEventListener('change',updParadoxE));
   updParadoxN();updParadoxE();
-  alignSet('align-paradox','k20_sae',['Wearing_Hat','Eyeglasses']);
 
   const ABL={
     test:{desc:'Linear treatment-interaction test (default) vs. doubly-robust GCM and projected covariance measure (PCM), each with a quadratic or a LightGBM variant. On this linear CATE the linear test is the most sample-efficient (recall 0.95 at n = 750 for η = 5); both GCM variants need n = 2000 and both PCM variants n = 3500, since the PCM splits the sample. Only the PCM recovers the modifiers of a non-monotone (U-shaped) CATE (paper Appendix C).',
