@@ -14,9 +14,8 @@ The NeurIPS rebuttal branch is merged into `main` and deleted (pre-cleanup state
 `neurips-rebuttal-final`). `paper/ICLR'27` is the final version of the paper and the
 ground truth for every number. The method (`src/method/nexis.py`) and the CelebA/Uganda
 applications are **frozen**: touch them only to clean or reproduce, and flag any change
-that moves a published number. Untracked `data/`, `results/` and `logs/` are backed up at
-`/fs3/group/locatgrp/rcadei/nexis-archived_exp/` (see its `README.md`), including the SAE
-checkpoints behind the published coordinate indices (GPU training is not bit-reproducible).
+that moves a published number. Machine-specific notes (backups, local paths) are in the
+untracked `LOCAL.md`.
 
 Plan, in order:
 
@@ -33,7 +32,7 @@ has its own history. Follow `paper/AGENTS.md` there. Sync it with `git overleaf 
 `git overleaf push`, and only when the user asks. From the code side, the only thing to
 touch there is `paper/ICLR'27/figures/` (the ICLR 2027 version, the only one left), and
 only when the user asks: regenerate a figure with its plotting script and commit it in the
-paper repo. `README.md` maps every figure to its script.
+paper repo. `README.md` and the briefs in `docs/` map every figure to its script.
 
 ## How to work
 
@@ -63,7 +62,7 @@ the repo root, and logs go to `logs/`. See `README.md` for the per-app commands.
 skipped when their output exists unless `--overwrite` is passed (see
 `scripts/uganda/run.sh`). Keep that idempotence, because the GPU steps are expensive.
 `results/` and `data/` are regenerable outputs, not sources, except the SAE checkpoints
-and codes behind published coordinate indices (restore them from the archive).
+and codes behind published coordinate indices (restore them from the backup, see `LOCAL.md`).
 
 ## Code map
 

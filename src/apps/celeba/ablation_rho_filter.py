@@ -14,9 +14,8 @@ counts equal those of the ICLR re-implementation's default NEXIS on all 2,100 ma
 runs (the only ones where the latter are stored).
 
 It was written as an ablation of the spectral-gap gate rho against the terminal filter,
-on the CelebA grid of the NeurIPS'26 rebuttal (archived code:
-/fs3/group/locatgrp/rcadei/nexis-archived_exp/cache/nexis_cert/run_all6.py; its CSVs are
-results/celeba/terminal_filter_rebuttal/all6_*.csv): same SCM, grid, seeds, ground truth,
+on the CelebA grid of the NeurIPS'26 rebuttal (rebuttal code run_all6.py, not in the
+repo; its CSVs are results/celeba/terminal_filter_rebuttal/all6_*.csv): same SCM, grid, seeds, ground truth,
 support screen and scoring.  For every (tree, sweep, param, seed) it computes on the same
 simulated data
 

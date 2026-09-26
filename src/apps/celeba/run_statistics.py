@@ -14,7 +14,7 @@ Definitions:
          subsets tried largest first, a coordinate dropped at its first failing subset
          (filter_tests).
 
-Inputs (untracked outputs, backed up under /fs3/group/locatgrp/rcadei/nexis-archived_exp/):
+Inputs (untracked outputs):
   results/celeba/ablation_rho_filter/rf_*.csv  variant "rho05_filter" on the 3
       dictionaries (k20/sae, k20/sae_precode, k5/sae) x 2,100 runs (n sweep at eta in
       {2, 5}, effect sweep at n in {500, 2000}, 50 seeds). Produced by
