@@ -3,20 +3,25 @@
 Export the "Check Principal Alignment" panels of the project website (docs/index.html).
 
 For every dictionary the CelebA section shows (TopK SAE with k = 20 on sparse codes Z,
-k = 20 on dense pre-activations Z_pre, k = 5 on Z) and every concept that is a direct
-modifier in one of its experiments (Wearing_Hat, Eyeglasses, and Sideburns for the
-r = 3 DGP ablation on the main dictionary), this writes
+k = 20 on dense pre-activations Z_pre, k = 5 on Z, and the independently retrained k = 20
+replica SAE of paper Figure replica_k20, all encoding the same 19,867 pool images) and
+every concept that is a direct modifier in one of its experiments (Wearing_Hat,
+Eyeglasses, and Sideburns for the r = 3 DGP ablation on the main dictionary), this writes
 
   * the alignment spectrum: the sign-free AUC, max(AUC, 1 - AUC), of every coordinate's
     activation as a score for the concept label over the 19,867 pool images, sorted
     (as paper Figure pa_spectrum, alignment_appendix.py); the top ranks and the
     principal coordinate are exact, the tail is decimated;
-  * the most activating images of the principal coordinate (as pa_top_images), as one
-    downscaled JPEG strip, and whether each image carries the label.
+  * the N_IMG most and N_IMG least activating images of the principal coordinate (the
+    top row as pa_top_images), as one downscaled JPEG sprite (row 0: most activating,
+    row 1: least activating), and whether each image carries the label. Ties at the
+    bottom (sparse codes are zero on most images) are broken by a fixed random
+    permutation, so the least activating row is a random draw among the lowest.
 
 The principal coordinates are read from the ground_truth.json of the experiments behind
 the site's curves (results/celeba/experiment_v2/<k>/<view>/ and, for Sideburns,
-experiment_v2_r3/k20/sae/); on the main dictionary they are 5348, 5537 and 1683.
+experiment_v2_r3/k20/sae/, experiment_v2_resample_b1/k20/sae/ for the replica); on the
+main dictionary they are 5348, 5537 and 1683.
 
 Outputs (docs/assets/):
   celeba_alignment.json
@@ -24,13 +29,14 @@ Outputs (docs/assets/):
                   "concepts": {"<attr>": {"principal", "rank", "auc", "runner_up",
                                "auc_runner_up", "gap", "prevalence", "top100_purity",
                                "spectrum": [[rank, auc], ...],
-                               "top": {"sprite", "size", "idx", "has_attr"}}}}}
-  celeba_alignment/<dict>_<attr>.jpg   top-activating images, one horizontal strip
+                               "images": {"sprite", "size", "n", "top", "bottom",
+                                          "top_attr", "bottom_attr"}}}}}
+  celeba_alignment/<dict>_<attr>.jpg   2 x N_IMG sprite: most / least activating images
 
 Usage (CPU, a few minutes):
     PYTHONPATH=src python src/apps/celeba/export_website_alignment.py
     PYTHONPATH=src python src/apps/celeba/export_website_alignment.py \
-        --data-dir /path/to/data/celeba --results-dir /path/to/results/celeba
+        --data-root /path/to/data --results-dir /path/to/results/celeba
 """
 from __future__ import annotations
 
@@ -46,21 +52,26 @@ from apps.celeba.alignment_appendix import TOP_M, column_auc, top_purity
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
-# website key -> (label, codes file under data/celeba/embeddings, experiment dir)
+# website key -> (label, codes file under data/, experiment dir under results/celeba)
 DICTS = {
-    "k20_sae":     ("TopK SAE, k = 20, sparse codes Z", "sae_k20.npy", "experiment_v2/k20/sae"),
-    "k20_precode": ("TopK SAE, k = 20, pre-activations Z_pre", "sae_precode_k20.npy",
-                    "experiment_v2/k20/sae_precode"),
-    "k5_sae":      ("TopK SAE, k = 5, sparse codes Z", "sae_k5.npy", "experiment_v2/k5/sae"),
+    "k20_sae":     ("TopK SAE, k = 20, sparse codes Z", "celeba/embeddings/sae_k20.npy",
+                    "experiment_v2/k20/sae"),
+    "k20_precode": ("TopK SAE, k = 20, pre-activations Z_pre",
+                    "celeba/embeddings/sae_precode_k20.npy", "experiment_v2/k20/sae_precode"),
+    "k5_sae":      ("TopK SAE, k = 5, sparse codes Z", "celeba/embeddings/sae_k5.npy",
+                    "experiment_v2/k5/sae"),
+    "k20_sae_rep": ("Replica TopK SAE, k = 20, sparse codes Z",
+                    "celeba_resample_b1/eval/embeddings/sae_k20.npy",
+                    "experiment_v2_resample_b1/k20/sae"),
 }
 R3_GT = "experiment_v2_r3/k20/sae/ground_truth.json"   # adds Sideburns on the main dictionary
 PAPER_MAIN = {"Wearing_Hat": 5348, "Eyeglasses": 5537, "Sideburns": 1683}
 
 N_EXACT = 100        # spectrum ranks kept exactly
 STRIDE = 25          # then one rank in STRIDE
-N_IMG = 8            # top-activating images per principal
-THUMB = 96           # thumbnail side (px); the source thumbnails are 128 x 128
-JPEG_Q = 80
+N_IMG = 16           # most / least activating images per principal (site shows 4, 8, 16)
+THUMB = 72           # thumbnail side (px); the source thumbnails are 128 x 128
+JPEG_Q = 72
 
 
 def principals(res: Path, sub: str, with_sideburns: bool) -> dict[str, int]:
@@ -83,23 +94,32 @@ def decimated_spectrum(auc: np.ndarray, principal: int) -> tuple[list, int]:
     return [[r, round(float(s[r - 1]), 3)] for r in sorted(keep)], rank_p
 
 
-def sprite(imgs: np.ndarray, idx: np.ndarray, path: Path) -> None:
-    strip = Image.new("RGB", (THUMB * len(idx), THUMB))
-    for k, i in enumerate(idx):
-        im = Image.fromarray(np.asarray(imgs[i])).resize((THUMB, THUMB), Image.LANCZOS)
-        strip.paste(im, (k * THUMB, 0))
-    strip.save(path, "JPEG", quality=JPEG_Q, optimize=True, progressive=True)
+def extremes(z: np.ndarray, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """Most and least activating images; ties broken by one fixed random permutation."""
+    perm = np.random.default_rng(seed).permutation(len(z))
+    order = perm[np.argsort(-z[perm], kind="stable")]
+    return order[:N_IMG], order[::-1][:N_IMG]
+
+
+def sprite(imgs: np.ndarray, rows: list[np.ndarray], path: Path) -> None:
+    sheet = Image.new("RGB", (THUMB * N_IMG, THUMB * len(rows)))
+    for r, idx in enumerate(rows):
+        for k, i in enumerate(idx):
+            im = Image.fromarray(np.asarray(imgs[i])).resize((THUMB, THUMB), Image.LANCZOS)
+            sheet.paste(im, (k * THUMB, r * THUMB))
+    sheet.save(path, "JPEG", quality=JPEG_Q, optimize=True, progressive=True)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data-dir", type=Path, default=Path("data/celeba"))
+    ap.add_argument("--data-root", type=Path, default=Path("data"))
     ap.add_argument("--results-dir", type=Path, default=Path("results/celeba"))
     ap.add_argument("--out-dir", type=Path, default=Path("docs/assets"))
     args = ap.parse_args()
-    data, res, out = (p if p.is_absolute() else ROOT / p
-                      for p in (args.data_dir, args.results_dir, args.out_dir))
+    root, res, out = (p if p.is_absolute() else ROOT / p
+                      for p in (args.data_root, args.results_dir, args.out_dir))
+    data = root / "celeba"
     (out / "celeba_alignment").mkdir(parents=True, exist_ok=True)
 
     labels = pd.read_parquet(data / "labels.parquet")
@@ -111,10 +131,9 @@ def main():
         pr = principals(res, sub, with_sideburns=(key == "k20_sae"))
         if key == "k20_sae":
             assert pr == PAPER_MAIN, (pr, PAPER_MAIN)
-        Z = np.ascontiguousarray(np.load(data / "embeddings" / codes, mmap_mode="r"),
-                                 dtype=np.float32)
+        Z = np.ascontiguousarray(np.load(root / codes, mmap_mode="r"), dtype=np.float32)
         assert len(Z) == len(labels)
-        entry = {"label": label, "codes": f"data/celeba/embeddings/{codes}",
+        entry = {"label": label, "codes": f"data/{codes}",
                  "m": int(Z.shape[1]), "concepts": {}}
         for attr, j in pr.items():
             w = labels[attr].values.astype(np.float64)
@@ -123,9 +142,9 @@ def main():
             others = np.arange(Z.shape[1]) != j
             runner = int(np.flatnonzero(others)[np.argmax(auc[others])])
             spec, rank_p = decimated_spectrum(auc, j)
-            idx = np.argsort(-Z[:, j], kind="stable")[:N_IMG]
+            top, bot = extremes(Z[:, j])
             fname = f"celeba_alignment/{key}_{attr}.jpg"
-            sprite(imgs, idx, out / fname)
+            sprite(imgs, [top, bot], out / fname)
             entry["concepts"][attr] = {
                 "principal": j, "rank": rank_p, "auc": round(float(auc[j]), 3),
                 "runner_up": runner, "auc_runner_up": round(float(auc[runner]), 3),
@@ -133,13 +152,16 @@ def main():
                 "prevalence": round(float(w.mean()), 4),
                 "top100_purity": round(top_purity(Z[:, j], w)["purity"], 2),
                 "spectrum": spec,
-                "top": {"sprite": fname, "size": THUMB, "idx": [int(i) for i in idx],
-                        "has_attr": [int(w[i]) for i in idx]},
+                "images": {"sprite": fname, "size": THUMB, "n": N_IMG,
+                           "top": [int(i) for i in top], "bottom": [int(i) for i in bot],
+                           "top_attr": [int(w[i]) for i in top],
+                           "bottom_attr": [int(w[i]) for i in bot]},
             }
             print(f"{key:12s} {attr:12s} j={j:5d} rank {rank_p:4d} AUC {auc[j]:.3f} | "
                   f"runner-up {runner} {auc[runner]:.3f} (gap {auc[j] - auc[runner]:+.3f}) | "
                   f"top-{TOP_M} purity {entry['concepts'][attr]['top100_purity']:.2f} | "
-                  f"top-{N_IMG} labelled {int(w[idx].sum())}", flush=True)
+                  f"top-{N_IMG} labelled {int(w[top].sum())}, bottom-{N_IMG} labelled "
+                  f"{int(w[bot].sum())}", flush=True)
         result[key] = entry
         del Z
 
