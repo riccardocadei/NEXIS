@@ -1,6 +1,13 @@
+# NEXIS (Algorithm 1 of the paper) on a toy dictionary of three candidate neurons.
+#
+# Forward steps admit the argmin p-value while it passes the gate alpha/|S_bar|;
+# once the forward step stops, one terminal backward step keeps j only if
+# p_j(A) <= alpha/m for every subset A of the other selected coordinates.
+#
 # Render (preview):  cd animations && conda run -n manim manim -pql s02_method.py Selection
-# Render (Twitter):  cd animations && conda run -n manim manim -qh  s02_method.py Selection
-# Duration: ~70s
+# Render (website):  cd animations && conda run -n manim manim -qh  s02_method.py Selection
+#                    cp media/videos/s02_method/1080p30/Selection.mp4 ../docs/assets/nexis_method.mp4
+# Duration: ~35s
 
 from manim import *
 import numpy as np
@@ -22,15 +29,24 @@ DIM_GRAY   = "#BBBBBB"
 GREEN_LIGHT = "#2d8a4e"
 RED_LIGHT   = "#c0392b"
 
+# ── Toy numbers (alpha = 0.05, m = 3 candidates) ──────────────────────────────
+# Forward step k tests j in S_bar given S and admits argmin p if p <= alpha/|S_bar|.
+# Terminal backward step keeps j if max_{A subset S\{j}} p_j(A) <= alpha/m = 0.05/3.
+# p_j(A) is one test per (j, A): the forward and backward tables below agree
+# (p_1(∅)=0.001, p_3(∅)=0.008, p_3({1})=0.012).
+ALPHA = 0.05
+M     = 3
+
 # ── Layout constants ──────────────────────────────────────────────────────────
 
 _NODE_R   = 0.30
 _STROKE_W = 2.5
 LABEL_Y   = 2.30      # y-centre of column labels (candidate neurons row)
 FORM_Y     = -3.30     # bottom reference for test block
-FWD_TEST_Y = FORM_Y + 0.70   # forward test line  (-2.60)
-BWD_TEST_Y = FORM_Y + 0.28   # backward test line (-3.02)
-SLBL_Y     = FORM_Y + 1.10   # S = {} label       (-2.20)
+FWD_TEST_Y = FORM_Y + 0.70   # forward step line   (-2.60)
+BWD_TEST_Y = FORM_Y + 0.28   # backward step line  (-3.02)
+SLBL_Y     = FORM_Y + 1.10   # S = {} label        (-2.20)
+SC_T       = 0.37            # test-block text scale
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -85,381 +101,279 @@ def _cross_on(mob, color=RED_LIGHT, size=0.22):
     return VGroup(l1, l2)
 
 
-def _pval(val, color=WHITE_TEXT, sc=0.34):
+def pval(val, color=WHITE_TEXT, sc=0.34):
     return MarkupText(f"<i>p</i>-value = {val}", color=color).scale(sc)
 
 
-def _step_num(n):
-    """Step counter at top-left, vertically aligned with column labels."""
-    return (Text(f"Step  {n}", color=GRAY_TEXT, weight="BOLD")
+def subset_pvals(j, rows, color=WHITE_TEXT, sc=0.30):
+    """Stack of p_j(A) lines for the terminal backward step, rows = [(A, p)]."""
+    lines = [MarkupText(f"<i>p</i><sub>{j}</sub>({a}) = {p}", color=color).scale(sc)
+             for a, p in rows]
+    return VGroup(*lines).arrange(DOWN, buff=0.10, aligned_edge=LEFT)
+
+
+def step_tag(txt):
+    """Step indicator at top-left, vertically aligned with column labels."""
+    return (Text(txt, color=GRAY_TEXT, weight="BOLD")
             .scale(SMALL_SCALE)
             .to_corner(UL, buff=0.55)
             .set_y(LABEL_Y))
 
 
-def _s_label(members):
-    """S set indicator, centred above the test block."""
+def s_label(members, suffix=None):
+    """Selection indicator, centred above the test block."""
     txt = "S  =  ∅" if not members else "S  =  {" + ",  ".join(members) + "}"
-    return (Text(txt, color=WHITE_TEXT)
-            .scale(SMALL_SCALE)
-            .move_to([0, SLBL_Y, 0]))
+    mob = Text(txt, color=WHITE_TEXT).scale(SMALL_SCALE)
+    if suffix:
+        mob = VGroup(mob, Text(suffix, color=GRAY_TEXT).scale(SMALL_SCALE * 0.9)
+                     ).arrange(RIGHT, buff=0.35)
+    return mob.move_to([0, SLBL_Y, 0])
 
 
-def _fwd_test_line(s_display=None):
-    sc = 0.37
-    if s_display is None:
-        return Text("a.  Forward test:   None", color=DIM_GRAY).scale(sc).move_to([0, FWD_TEST_Y, 0])
-    if s_display == "∅":
-        txt = "a.  Forward test:   H₀(j) :   E[τ | Zⱼ]  =  E[τ]"
-    else:
-        txt = (f"a.  Forward test:   H₀(j | {s_display}) :"
-               f"   E[τ | Zⱼ, {s_display}]  =  E[τ | {s_display}]")
-    return Text(txt, color=WHITE_TEXT).scale(sc).move_to([0, FWD_TEST_Y, 0])
+# Forward step contents: H0 of the round and its gate alpha/|S_bar|.
+FWD_TXT = {
+    1: "H₀(j | ∅) :   E[τ | Zⱼ]  =  E[τ],   j ∈ {1, 2, 3}        gate  α/|S̄|  =  0.05/3",
+    2: "H₀(j | Z₁) :   E[τ | Zⱼ, Z₁]  =  E[τ | Z₁],   j ∈ {2, 3}        gate  α/|S̄|  =  0.05/2",
+    3: "H₀(2 | Z₁, Z₃) :   E[τ | Z₁, Z₂, Z₃]  =  E[τ | Z₁, Z₃]        gate  α/|S̄|  =  0.05/1",
+}
+BWD_MARKUP = ("keep  j ∈ S  only if  <i>p</i><sub>j</sub>(A)  ≤  α/m  =  0.05/3"
+              "   for every  A ⊆ S ∖ {j}")
 
 
-def _bwd_test_line(active=False):
-    sc = 0.37
-    if active:
-        mob = MarkupText(
-            "b.  Backward test:   H₀(j | Z<sub>S∖j</sub>) :"
-            "   E[τ | Z<sub>S</sub>]  =  E[τ | Z<sub>S∖j</sub>]",
-            color=WHITE_TEXT).scale(sc)
-    else:
-        mob = Text("b.  Backward test:   None", color=DIM_GRAY).scale(sc)
-    return mob.move_to([0, BWD_TEST_Y, 0])
+def build_base(scene):
+    """Add the static DAG and test-block labels to `scene`; return the mobjects."""
+    scene.camera.background_color = BG
+
+    title = Text("Neural EXposure Interaction Search",
+                 color=WHITE_TEXT).scale(TITLE_SCALE).to_edge(UP, buff=0.35)
+
+    Z1 = _node("Z₁");  Z2 = _node("Z₂");  Z3 = _node("Z₃")
+    W1 = _node("W₁");  W2 = _node("W₂")
+    T  = _node("T");   Y  = _node("Y")
+
+    col_Z = -2.8;  col_W = -0.1;  col_Y = 2.8
+
+    Z1.move_to([col_Z,  1.55, 0])
+    Z2.move_to([col_Z,  0.00, 0])
+    Z3.move_to([col_Z, -1.55, 0])
+    W1.move_to([col_W,  0.95, 0])
+    W2.move_to([col_W, -0.55, 0])
+    T.move_to([(col_W + col_Y) / 2, -1.55, 0])
+    Y.move_to([col_Y,   0.20, 0])
+
+    a_T_Y  = _causal_arrow(T,  Y)
+    a_W1_Y = _causal_arrow(W1, Y)
+    a_W2_Y = _causal_arrow(W2, Y)
+
+    # Z₁ and Z₃ are the principal proxies of W₁ and W₂; Z₂ is entangled with both.
+    bands = dict(
+        Z1_W1=_sankey_band(Z1, W1, BLUE_LIGHT,   width=0.14, opacity=0.40),
+        Z1_W2=_sankey_band(Z1, W2, BLUE_LIGHT,   width=0.06, opacity=0.18),
+        Z3_W2=_sankey_band(Z3, W2, PURPLE_LIGHT, width=0.14, opacity=0.40),
+        Z3_W1=_sankey_band(Z3, W1, PURPLE_LIGHT, width=0.06, opacity=0.18),
+        Z2_W1=_sankey_band(Z2, W1, GRAY_TEXT,    width=0.06, opacity=0.18),
+        Z2_W2=_sankey_band(Z2, W2, GRAY_TEXT,    width=0.06, opacity=0.18),
+    )
+
+    lbl_sc = LABEL_SCALE * 0.85
+    lbl_Z = VGroup(
+        Text("candidate neurons",        color=GRAY_TEXT).scale(lbl_sc),
+        Text("(learned representation)", color=GRAY_TEXT).scale(lbl_sc * 0.9),
+    ).arrange(DOWN, buff=0.04).move_to([col_Z, LABEL_Y, 0])
+    lbl_W = VGroup(
+        Text("direct effect modifiers", color=GRAY_TEXT).scale(lbl_sc),
+        Text("(unobserved)",            color=GRAY_TEXT).scale(lbl_sc * 0.9),
+    ).arrange(DOWN, buff=0.04).move_to([col_W, LABEL_Y, 0])
+    lbl_Y = Text("outcome",   color=GRAY_TEXT).scale(lbl_sc).move_to([col_Y, LABEL_Y, 0])
+    lbl_T = Text("treatment", color=GRAY_TEXT).scale(lbl_sc).next_to(T, LEFT, buff=0.20)
+
+    # Test block: labels left-aligned, contents left-aligned at ctt_x, block centred.
+    fwd_lbl = Text("a.  Forward step:", color=GRAY_TEXT).scale(SC_T)
+    bwd_lbl = Text("b.  Terminal backward step:", color=GRAY_TEXT).scale(SC_T)
+    max_lbl_w = max(fwd_lbl.width, bwd_lbl.width)
+    widest = max([Text(t).scale(SC_T).width for t in FWD_TXT.values()]
+                 + [MarkupText(BWD_MARKUP).scale(SC_T).width])
+    buff_lc = 0.22
+    lbl_left = -(max_lbl_w + buff_lc + widest) / 2
+    fwd_lbl.move_to([lbl_left + fwd_lbl.width / 2, FWD_TEST_Y, 0])
+    bwd_lbl.move_to([lbl_left + bwd_lbl.width / 2, BWD_TEST_Y, 0])
+    ctt_x = lbl_left + max_lbl_w + buff_lc
+
+    static = [title, T, lbl_T, Y, lbl_Y, a_T_Y, a_W1_Y, a_W2_Y,
+              W1, W2, lbl_W, Z1, Z2, Z3, lbl_Z, *bands.values(), fwd_lbl, bwd_lbl]
+    return dict(title=title, Z1=Z1, Z2=Z2, Z3=Z3, W1=W1, W2=W2, T=T, Y=Y,
+                a_T_Y=a_T_Y, bands=bands, ctt_x=ctt_x, static=static)
+
+
+def fwd_content(k, ctt_x):
+    m = Text(FWD_TXT[k], color=WHITE_TEXT).scale(SC_T)
+    return m.move_to([ctt_x + m.width / 2, FWD_TEST_Y, 0])
+
+
+def bwd_content(ctt_x):
+    m = MarkupText(BWD_MARKUP, color=WHITE_TEXT).scale(SC_T)
+    return m.move_to([ctt_x + m.width / 2, BWD_TEST_Y, 0])
+
+
+def select_style(node, color=GREEN_LIGHT, width=3.5):
+    """(stroke, label) targets for colouring a node; used with .animate or directly."""
+    node[0].set_stroke(color, width=width)
+    node[1].set_color(color)
+    return node
+
+
+def explained_style(W, bands):
+    """Dim a direct modifier once its principal proxy is in S."""
+    W[0].set_stroke(opacity=0.20)
+    W[1].set_opacity(0.20)
+    bands[0].set_fill(opacity=0.08).set_stroke(opacity=0.06)
+    bands[1].set_fill(opacity=0.05).set_stroke(opacity=0.03)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 class Selection(Scene):
+    def _big_step(self, big_txt, tag_txt, extra_anims=()):
+        """Full-screen step banner that shrinks into the top-left step tag."""
+        big = Text(big_txt, color=WHITE_TEXT, weight="BOLD").scale(1.0).move_to(ORIGIN)
+        overlay = Rectangle(width=16, height=9, fill_color=BG, fill_opacity=0.82,
+                            stroke_width=0).move_to(ORIGIN)
+        self.play(FadeIn(overlay), FadeIn(big), *extra_anims, run_time=0.8)
+        self.wait(0.40)
+        self.play(Transform(big, step_tag(tag_txt)), FadeOut(overlay), run_time=0.60)
+        return big
+
+    def _append_to_S(self, node, new_lbl, old_lbl):
+        ghost = node[1].copy()
+        self.add(ghost)
+        self.play(ghost.animate.move_to(new_lbl.get_center()), FadeOut(old_lbl),
+                  run_time=0.5)
+        self.play(ReplacementTransform(ghost, new_lbl), run_time=0.35)
+        return new_lbl
+
     def construct(self):
-        self.camera.background_color = BG
+        b = build_base(self)
+        Z1, Z2, Z3, W1, W2 = b["Z1"], b["Z2"], b["Z3"], b["W1"], b["W2"]
+        bands, ctt_x = b["bands"], b["ctt_x"]
 
-        # ── Title ─────────────────────────────────────────────────────────────
-        title = Text("Neural EXposure Interaction Search",
-                     color=WHITE_TEXT).scale(TITLE_SCALE).to_edge(UP, buff=0.35)
-
-        # ── DAG nodes ────────────────────────────────────────────────────────
-        Z1 = _node("Z₁");  Z2 = _node("Z₂");  Z3 = _node("Z₃")
-        W1 = _node("W₁");  W2 = _node("W₂")
-        T  = _node("T");        Y  = _node("Y")
-
-        col_Z = -2.8;  col_W = -0.1;  col_Y = 2.8
-        dy = 0.0
-
-        Z1.move_to([col_Z,  1.55 + dy, 0])
-        Z2.move_to([col_Z,  0.00 + dy, 0])
-        Z3.move_to([col_Z, -1.55 + dy, 0])
-        W1.move_to([col_W,  0.95 + dy, 0])
-        W2.move_to([col_W, -0.55 + dy, 0])
-        T.move_to([(col_W + col_Y) / 2, -1.55 + dy, 0])
-        Y.move_to([col_Y,   0.20 + dy, 0])
-
-        a_T_Y  = _causal_arrow(T,  Y)
-        a_W1_Y = _causal_arrow(W1, Y)
-        a_W2_Y = _causal_arrow(W2, Y)
-
-        bnd_Z1_W1 = _sankey_band(Z1, W1, BLUE_LIGHT,   width=0.14, opacity=0.40)
-        bnd_Z1_W2 = _sankey_band(Z1, W2, BLUE_LIGHT,   width=0.06, opacity=0.18)
-        bnd_Z3_W2 = _sankey_band(Z3, W2, PURPLE_LIGHT, width=0.14, opacity=0.40)
-        bnd_Z3_W1 = _sankey_band(Z3, W1, PURPLE_LIGHT, width=0.06, opacity=0.18)
-        bnd_Z2_W1 = _sankey_band(Z2, W1, GRAY_TEXT,    width=0.06, opacity=0.18)
-        bnd_Z2_W2 = _sankey_band(Z2, W2, GRAY_TEXT,    width=0.06, opacity=0.18)
-
-        lbl_sc = LABEL_SCALE * 0.85
-        top_y  = LABEL_Y
-
-        lbl_Z = VGroup(
-            Text("candidate neurons",       color=GRAY_TEXT).scale(lbl_sc),
-            Text("(learned representation)", color=GRAY_TEXT).scale(lbl_sc * 0.9),
-        ).arrange(DOWN, buff=0.04).move_to([col_Z, top_y, 0])
-
-        lbl_W = VGroup(
-            Text("exposure interactions", color=GRAY_TEXT).scale(lbl_sc),
-            Text("(unobserved)",          color=GRAY_TEXT).scale(lbl_sc * 0.9),
-        ).arrange(DOWN, buff=0.04).move_to([col_W, top_y, 0])
-
-        lbl_Y = Text("outcome",   color=GRAY_TEXT).scale(lbl_sc).move_to([col_Y, top_y, 0])
-        lbl_T = Text("treatment", color=GRAY_TEXT).scale(lbl_sc).next_to(T, LEFT, buff=0.20)
-
-        # ── Title + DAG appear together ───────────────────────────────────────
-        # ── Test block layout (computed before first frame) ───────────────────
-        sc_t     = 0.37
-        buff_lc  = 0.22
-
-        fwd_lbl = Text("a.  Forward test:", color=GRAY_TEXT).scale(sc_t)
-        bwd_lbl = Text("b.  Backward test:", color=GRAY_TEXT).scale(sc_t)
-        max_lbl_w = max(fwd_lbl.width, bwd_lbl.width)
-
-        _ref = Text(
-            "H₀(j | Z₁, Z₃) :   E[τ | Zⱼ, Z₁, Z₃]  =  E[τ | Z₁, Z₃]",
-            color=WHITE_TEXT).scale(sc_t)
-        lbl_left = -(max_lbl_w + buff_lc + _ref.width) / 2
-
-        fwd_lbl.move_to([lbl_left + fwd_lbl.width / 2, FWD_TEST_Y, 0])
-        bwd_lbl.move_to([lbl_left + bwd_lbl.width / 2, BWD_TEST_Y, 0])
-        ctt_x = lbl_left + max_lbl_w + buff_lc
-
-        s_lbl = _s_label([])
-
-        self.play(
-            FadeIn(title),
-            FadeIn(T), FadeIn(lbl_T), FadeIn(Y), FadeIn(lbl_Y),
-            FadeIn(a_T_Y), FadeIn(a_W1_Y), FadeIn(a_W2_Y),
-            FadeIn(W1), FadeIn(W2), FadeIn(lbl_W),
-            FadeIn(Z1), FadeIn(Z2), FadeIn(Z3), FadeIn(lbl_Z),
-            FadeIn(bnd_Z1_W1), FadeIn(bnd_Z1_W2),
-            FadeIn(bnd_Z3_W2), FadeIn(bnd_Z3_W1),
-            FadeIn(bnd_Z2_W1), FadeIn(bnd_Z2_W2),
-            FadeIn(s_lbl),
-            FadeIn(fwd_lbl), FadeIn(bwd_lbl),
-            run_time=1.8,
-        )
+        s_lbl = s_label([])
+        self.play(*[FadeIn(m) for m in b["static"]], FadeIn(s_lbl), run_time=1.8)
         self.wait(1.0)
 
-        def _mk_fwd(s=None):
-            if s is None:
-                m = Text("", color=DIM_GRAY).scale(sc_t)
-            elif s == "∅":
-                m = Text("H₀ :   E[τ | Zⱼ]  =  E[τ]   ∀ j ∈ {1,2,3}", color=WHITE_TEXT).scale(sc_t)
-            elif s == "Z₁":
-                m = Text("H₀ :   E[τ | Zⱼ, Z₁]  =  E[τ | Z₁]   ∀ j ∈ {2,3}", color=WHITE_TEXT).scale(sc_t)
-            else:  # s == "Z₁, Z₃" — only j=2 remains
-                m = Text("H₀ :   E[τ | Z₁, Z₂, Z₃]  =  E[τ | Z₁, Z₃]", color=WHITE_TEXT).scale(sc_t)
-            m.move_to([ctt_x + m.width / 2, FWD_TEST_Y, 0])
-            return m
-
-        def _mk_bwd(active=False, step1=False):
-            if active and step1:
-                m = Text("H₀ :   E[τ | Z₁]  =  E[τ]", color=WHITE_TEXT).scale(sc_t)
-            elif active:
-                m = MarkupText(
-                    "H₀ :   E[τ | Z<sub>S</sub>]"
-                    "  =  E[τ | Z<sub>S∖j</sub>]   ∀ j ∈ {1,3}",
-                    color=WHITE_TEXT).scale(sc_t)
-            else:
-                m = Text("", color=DIM_GRAY).scale(sc_t)
-            m.move_to([ctt_x + m.width / 2, BWD_TEST_Y, 0])
-            return m
-
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 1 — S = ∅ : test each neuron unconditionally; select Z₁
+        # FORWARD 1 — S = ∅: marginal tests; argmin Z₁ passes 0.05/3
         # ══════════════════════════════════════════════════════════════════════
-        step_num_tgt = _step_num(1)
-        step_big = (Text("Step  1", color=WHITE_TEXT, weight="BOLD")
-                    .scale(1.0).move_to(ORIGIN))
-        overlay1 = Rectangle(width=16, height=9,
-                              fill_color=BG, fill_opacity=0.82,
-                              stroke_width=0).move_to(ORIGIN)
-
-        self.play(FadeIn(overlay1), FadeIn(step_big), run_time=0.45)
-        self.wait(0.40)
-        self.play(Transform(step_big, step_num_tgt), FadeOut(overlay1), run_time=0.60)
-        step_num = step_big
-        self.wait(0.2)
-
-        # empty content slots (labels already visible)
-        fwd_ctt = _mk_fwd(None)
-        bwd_ctt = _mk_bwd(False)
-        self.add(fwd_ctt, bwd_ctt)
-        self.wait(0.3)
-
-        # a. forward fills in
-        new_fwd = _mk_fwd("∅")
-        self.play(FadeOut(fwd_ctt), FadeIn(new_fwd), run_time=0.55)
-        fwd_ctt = new_fwd
+        tag = self._big_step("Forward step  1", "Forward  1")
+        fwd = fwd_content(1, ctt_x)
+        self.play(FadeIn(fwd), run_time=0.55)
         self.wait(0.45)
 
-        # forward p-vals appear all at once
-        val_z1 = _pval("0.001").next_to(Z1, LEFT, buff=0.45)
-        val_z2 = _pval("0.011").next_to(Z2, LEFT, buff=0.45)
-        val_z3 = _pval("0.008").next_to(Z3, LEFT, buff=0.45)
-        self.play(FadeIn(val_z1), FadeIn(val_z2), FadeIn(val_z3), run_time=0.8)
-        self.wait(0.7)
+        p1 = pval("0.001").next_to(Z1, LEFT, buff=0.45)
+        p2 = pval("0.011").next_to(Z2, LEFT, buff=0.45)
+        p3 = pval("0.008").next_to(Z3, LEFT, buff=0.45)
+        self.play(FadeIn(p1), FadeIn(p2), FadeIn(p3), run_time=0.8)
+        self.wait(0.9)
 
-        # Z₁ selected (lowest p-val)
-        self.play(
-            val_z1.animate.set_color(GREEN_LIGHT),
-            Z1[0].animate.set_stroke(GREEN_LIGHT, width=3.5),
-            Z1[1].animate.set_color(GREEN_LIGHT),
-            run_time=0.40,
-        )
+        # argmin p = 0.001 <= 0.05/3: Z₁ enters S
+        self.play(p1.animate.set_color(GREEN_LIGHT),
+                  Z1[0].animate.set_stroke(GREEN_LIGHT, width=3.5),
+                  Z1[1].animate.set_color(GREEN_LIGHT), run_time=0.40)
         self.wait(0.20)
+        s_lbl = self._append_to_S(Z1, s_label(["1"]), s_lbl)
+        self.wait(0.6)
 
-        # append Z₁ to S
-        s_lbl_1 = _s_label(["1"])
-        ghost1 = Z1[1].copy()
-        self.add(ghost1)
-        self.play(
-            ghost1.animate.move_to(s_lbl_1.get_center()),
-            FadeOut(s_lbl),
-            run_time=0.5,
-        )
-        self.play(ReplacementTransform(ghost1, s_lbl_1), run_time=0.35)
-        s_lbl = s_lbl_1
-        self.wait(0.3)
-
-        # b. backward: clear fwd p-vals, fill in H₀(Z₁) (S∖Z₁ = ∅)
-        new_bwd = _mk_bwd(active=True, step1=True)
-        self.play(
-            FadeOut(val_z1), FadeOut(val_z2), FadeOut(val_z3),
-            FadeOut(bwd_ctt), FadeIn(new_bwd),
-            run_time=0.55,
-        )
-        bwd_ctt = new_bwd
+        # ══════════════════════════════════════════════════════════════════════
+        # FORWARD 2 — S = {1}: W₁ is screened off by Z₁; argmin Z₃ passes 0.05/2
+        # ══════════════════════════════════════════════════════════════════════
+        x_W1 = _cross_on(W1)
+        tag_old = tag
+        tag = self._big_step("Forward step  2", "Forward  2", extra_anims=(
+            FadeOut(p1), FadeOut(p2), FadeOut(p3), FadeOut(fwd), FadeOut(tag_old),
+            W1[0].animate.set_stroke(opacity=0.20), W1[1].animate.set_opacity(0.20),
+            bands["Z1_W1"].animate.set_fill(opacity=0.08).set_stroke(opacity=0.06),
+            bands["Z1_W2"].animate.set_fill(opacity=0.05).set_stroke(opacity=0.03),
+            FadeIn(x_W1)))
+        fwd = fwd_content(2, ctt_x)
+        self.play(FadeIn(fwd), run_time=0.5)
         self.wait(0.45)
 
-        # p-val on Z₁ only (the selected node) — appears already green
-        bwd1_z1 = _pval("0.001", color=GREEN_LIGHT, sc=0.32).next_to(Z1, LEFT, buff=0.45)
-        self.play(FadeIn(bwd1_z1), run_time=0.7)
-        self.wait(0.7)
+        p2 = pval("0.038", sc=0.32).next_to(Z2, LEFT, buff=0.45)
+        p3 = pval("0.012", sc=0.32).next_to(Z3, LEFT, buff=0.45)
+        self.play(FadeIn(p2), FadeIn(p3), run_time=0.8)
+        self.wait(0.9)
 
-        # ══════════════════════════════════════════════════════════════════════
-        # STEP 2 — beat 1: clear + step num + graph dim; beat 2: fill fwd def
-        # ══════════════════════════════════════════════════════════════════════
-        x_W1          = _cross_on(W1)
-        step_num_tgt2 = _step_num(2)
-        step_big_2    = (Text("Step  2", color=WHITE_TEXT, weight="BOLD")
-                         .scale(1.0).move_to(ORIGIN))
-        overlay2 = Rectangle(width=16, height=9,
-                              fill_color=BG, fill_opacity=0.82,
-                              stroke_width=0).move_to(ORIGIN)
-
-        self.play(
-            FadeOut(bwd1_z1), FadeOut(bwd_ctt),
-            FadeOut(step_num), FadeOut(fwd_ctt),
-            W1[0].animate.set_stroke(opacity=0.20),
-            W1[1].animate.set_opacity(0.20),
-            bnd_Z1_W1.animate.set_fill(opacity=0.08).set_stroke(opacity=0.06),
-            bnd_Z1_W2.animate.set_fill(opacity=0.05).set_stroke(opacity=0.03),
-            FadeIn(x_W1),
-            FadeIn(overlay2), FadeIn(step_big_2),
-            run_time=0.9,
-        )
-        self.wait(0.40)
-        self.play(Transform(step_big_2, step_num_tgt2), FadeOut(overlay2), run_time=0.60)
-        step_num = step_big_2
-        bwd_ctt  = _mk_bwd(False)
-        self.add(bwd_ctt)
-        self.wait(0.25)
-
-        new_fwd_2 = _mk_fwd("Z₁")
-        self.play(FadeIn(new_fwd_2), run_time=0.5)
-        fwd_ctt = new_fwd_2
-        self.wait(0.35)
-
-        # forward p-vals appear all at once
-        val2_z2 = _pval("0.038", sc=0.32).next_to(Z2, LEFT, buff=0.45)
-        val2_z3 = _pval("0.012", sc=0.32).next_to(Z3, LEFT, buff=0.45)
-        self.play(FadeIn(val2_z2), FadeIn(val2_z3), run_time=0.8)
-        self.wait(0.7)
-
-        # Z₃ selected
-        self.play(
-            val2_z3.animate.set_color(GREEN_LIGHT),
-            Z3[0].animate.set_stroke(GREEN_LIGHT, width=3.5),
-            Z3[1].animate.set_color(GREEN_LIGHT),
-            run_time=0.40,
-        )
+        self.play(p3.animate.set_color(GREEN_LIGHT),
+                  Z3[0].animate.set_stroke(GREEN_LIGHT, width=3.5),
+                  Z3[1].animate.set_color(GREEN_LIGHT), run_time=0.40)
         self.wait(0.20)
+        s_lbl = self._append_to_S(Z3, s_label(["1", "3"]), s_lbl)
+        self.wait(0.6)
 
-        # append Z₃ to S
-        s_lbl_2 = _s_label(["1", "3"])
-        ghost2 = Z3[1].copy()
-        self.add(ghost2)
-        self.play(
-            ghost2.animate.move_to(s_lbl_2.get_center()),
-            FadeOut(s_lbl),
-            run_time=0.5,
-        )
-        self.play(ReplacementTransform(ghost2, s_lbl_2), run_time=0.35)
-        s_lbl = s_lbl_2
-        self.wait(0.3)
-
-        # b. backward: clear fwd p-vals, fill in active backward def
-        new_bwd = _mk_bwd(True)
-        self.play(
-            FadeOut(val2_z2), FadeOut(val2_z3),
-            FadeOut(bwd_ctt), FadeIn(new_bwd),
-            run_time=0.55,
-        )
-        bwd_ctt = new_bwd
+        # ══════════════════════════════════════════════════════════════════════
+        # FORWARD 3 — S = {1, 3}: W₂ screened off; Z₂ fails 0.05/1 → forward stops
+        # ══════════════════════════════════════════════════════════════════════
+        x_W2 = _cross_on(W2)
+        tag_old = tag
+        tag = self._big_step("Forward step  3", "Forward  3", extra_anims=(
+            FadeOut(p2), FadeOut(p3), FadeOut(fwd), FadeOut(tag_old),
+            W2[0].animate.set_stroke(opacity=0.20), W2[1].animate.set_opacity(0.20),
+            bands["Z3_W2"].animate.set_fill(opacity=0.08).set_stroke(opacity=0.06),
+            bands["Z3_W1"].animate.set_fill(opacity=0.05).set_stroke(opacity=0.03),
+            FadeIn(x_W2)))
+        fwd = fwd_content(3, ctt_x)
+        self.play(FadeIn(fwd), run_time=0.5)
         self.wait(0.45)
 
-        # p-vals on Z₁ and Z₃ (both selected) — appear already green
-        bwd_z1 = _pval("0.004", color=GREEN_LIGHT, sc=0.32).next_to(Z1, LEFT, buff=0.45)
-        bwd_z3 = _pval("0.011", color=GREEN_LIGHT, sc=0.32).next_to(Z3, LEFT, buff=0.45)
-        self.play(FadeIn(bwd_z1), FadeIn(bwd_z3), run_time=0.8)
-        self.wait(0.7)
+        p2 = pval("0.214", sc=0.30).next_to(Z2, LEFT, buff=0.45)
+        self.play(FadeIn(p2), run_time=0.8)
+        self.wait(0.9)
+
+        # 0.214 > 0.05: nothing enters, the forward step stops at S = {1, 3}
+        stop_lbl = s_label(["1", "3"], suffix="forward step stops")
+        self.play(p2.animate.set_color(DIM_GRAY),
+                  Z2[0].animate.set_stroke(DIM_GRAY, width=2.0),
+                  Z2[1].animate.set_color(DIM_GRAY),
+                  FadeOut(s_lbl), FadeIn(stop_lbl), run_time=0.75)
+        s_lbl = stop_lbl
+        self.wait(1.2)
 
         # ══════════════════════════════════════════════════════════════════════
-        # STEP 3 — beat 1: clear + step num + graph dim; beat 2: fill fwd def
+        # TERMINAL BACKWARD STEP — every subset A of the other selected coordinates,
+        # level α/m = 0.05/3; both Z₁ and Z₃ survive
         # ══════════════════════════════════════════════════════════════════════
-        x_W2          = _cross_on(W2)
-        step_num_tgt3 = _step_num(3)
-        step_big_3    = (Text("Step  3", color=WHITE_TEXT, weight="BOLD")
-                         .scale(1.0).move_to(ORIGIN))
-        overlay3 = Rectangle(width=16, height=9,
-                              fill_color=BG, fill_opacity=0.82,
-                              stroke_width=0).move_to(ORIGIN)
+        tag_old = tag
+        tag = self._big_step("Terminal backward step", "Backward", extra_anims=(
+            FadeOut(p2), FadeOut(fwd), FadeOut(tag_old)))
+        bwd = bwd_content(ctt_x)
+        self.play(FadeIn(bwd), run_time=0.55)
+        self.wait(0.9)
 
-        self.play(
-            FadeOut(bwd_z1), FadeOut(bwd_z3), FadeOut(bwd_ctt),
-            FadeOut(step_num), FadeOut(fwd_ctt),
-            W2[0].animate.set_stroke(opacity=0.20),
-            W2[1].animate.set_opacity(0.20),
-            bnd_Z3_W2.animate.set_fill(opacity=0.08).set_stroke(opacity=0.06),
-            bnd_Z3_W1.animate.set_fill(opacity=0.05).set_stroke(opacity=0.03),
-            FadeIn(x_W2),
-            FadeIn(overlay3), FadeIn(step_big_3),
-            run_time=0.9,
-        )
-        self.wait(0.40)
-        self.play(Transform(step_big_3, step_num_tgt3), FadeOut(overlay3), run_time=0.60)
-        step_num = step_big_3
-        bwd_ctt  = _mk_bwd(False)
-        self.add(bwd_ctt)
-        self.wait(0.25)
+        q1 = subset_pvals(1, [("∅", "0.001"), ("{3}", "0.004")]).next_to(Z1, LEFT, buff=0.45)
+        q3 = subset_pvals(3, [("∅", "0.008"), ("{1}", "0.012")]).next_to(Z3, LEFT, buff=0.45)
+        self.play(FadeIn(q1), FadeIn(q3), run_time=0.9)
+        self.wait(1.4)
 
-        new_fwd_3 = _mk_fwd("Z₁, Z₃")
-        self.play(FadeIn(new_fwd_3), run_time=0.5)
-        fwd_ctt = new_fwd_3
-        self.wait(0.35)
-
-        # single forward p-val for Z₂
-        val3_z2 = _pval("0.214", sc=0.30).next_to(Z2, LEFT, buff=0.45)
-        self.play(FadeIn(val3_z2), run_time=0.8)
-        self.wait(0.85)
-
-        # Z₂ fails — p-val > α/k
-        self.play(
-            val3_z2.animate.set_color(DIM_GRAY),
-            Z2[0].animate.set_stroke(DIM_GRAY, width=2.0),
-            Z2[1].animate.set_color(DIM_GRAY),
-            run_time=0.75,
-        )
-        self.wait(0.5)
-        self.play(FadeOut(val3_z2), run_time=0.5)
-        self.wait(0.5)
+        # all p_j(A) <= 0.05/3: both coordinates are kept
+        self.play(q1.animate.set_color(GREEN_LIGHT), q3.animate.set_color(GREEN_LIGHT),
+                  run_time=0.5)
+        for _ in range(2):
+            self.play(Z1.animate.scale(1.18), Z3.animate.scale(1.18), run_time=0.25)
+            self.play(Z1.animate.scale(1 / 1.18), Z3.animate.scale(1 / 1.18), run_time=0.25)
+        self.wait(1.0)
 
         # ─── FINALE ─────────────────────────────────────────────────────────────
-        # Proxy subgraph — Z₁, Z₃ replace W₁, W₂; arrows to Y
+        # Principal proxies Z₁, Z₃ stand in for the latent W₁, W₂; arrows to Y
+        T, Y, a_T_Y = b["T"], b["Y"], b["a_T_Y"]
         proxy1 = _causal_arrow(Z1, Y)
         proxy3 = _causal_arrow(Z3, Y)
 
-        keep = {title, Z1, Z3, T, Y, a_T_Y}
+        keep = {b["title"], Z1, Z3, T, Y, a_T_Y}
         fade_group = Group(*[m for m in self.mobjects if m not in keep])
-
         self.play(
             FadeOut(fade_group),
             Z1[0].animate.set_stroke(WHITE_TEXT, width=2.5),
             Z1[1].animate.set_color(WHITE_TEXT),
             Z3[0].animate.set_stroke(WHITE_TEXT, width=2.5),
             Z3[1].animate.set_color(WHITE_TEXT),
-            T[0].animate.set_stroke(WHITE_TEXT, width=2.5),
-            T[1].animate.set_color(WHITE_TEXT),
-            Y[0].animate.set_stroke(WHITE_TEXT, width=2.5),
-            Y[1].animate.set_color(WHITE_TEXT),
-            a_T_Y.animate.set_color(WHITE_TEXT),
             run_time=1.0,
         )
         self.play(FadeIn(proxy1), FadeIn(proxy3), run_time=0.7)
