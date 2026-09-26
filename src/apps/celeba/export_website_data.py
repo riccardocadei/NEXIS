@@ -14,6 +14,9 @@ site draws the +-1.96 SE band).
                                                   modifiers (scripts/celeba/submit_dgp_extra_v2.sh)
   results/celeba/experiment_v2_r0_fixbeta/k20/sae/  DGP ablation, r = 0 (n sweep only,
                                                   200 seeds); as in figure_dgp_extra.py
+  results/celeba/experiment_v2_resample_b1/k20/sae/  main setting on the independently
+                                                  retrained k = 20 replica SAE (paper
+                                                  Figure replica_k20)
 
 At r = 0 there is no target, so precision and recall are undefined; the site shows the
 share of runs with at least one false discovery (paper Table "DGP ablation: no effect
@@ -25,7 +28,7 @@ are "NEXIS (test=...)", "NEXIS (adjust=...)", "NEXIS (rho=...)",
 "NEXIS (terminal=False)", "NEXIS (interleaved=True)", ...
 
 Output: docs/assets/celeba_data.json
-  {"k20_sae" | "k20_precode" | "k5_sae" | "dgp_r1" | "dgp_r3":
+  {"k20_sae" | "k20_precode" | "k5_sae" | "k20_sae_rep" | "dgp_r1" | "dgp_r3":
       {"n_sweep":      [{method, n, fixed_effect, <metric>_mean, <metric>_se}, ...],
        "effect_sweep": [{method, effect_scale, fixed_n, <metric>_mean, <metric>_se}, ...]},
    "dgp_r0":
@@ -53,6 +56,7 @@ VARIANTS = {
     "k20_sae":     "experiment_v2/k20/sae",           # main setting: k = 20, sparse codes Z
     "k20_precode": "experiment_v2/k20/sae_precode",   # k = 20, dense pre-activations Z_pre
     "k5_sae":      "experiment_v2/k5/sae",            # k = 5, sparse codes Z
+    "k20_sae_rep": "experiment_v2_resample_b1/k20/sae",  # replica SAE, k = 20, Z
     "dgp_r1":      "experiment_v2_r1/k20/sae",        # one direct modifier (Wearing_Hat)
     "dgp_r3":      "experiment_v2_r3/k20/sae",        # three (+ Sideburns)
 }
