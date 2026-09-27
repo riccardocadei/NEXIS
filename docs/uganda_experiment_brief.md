@@ -103,8 +103,7 @@ programme with 3 bands and a binary clustering of embeddings.
 mean over the patch tokens, 768-d. **Fixed:** the appendix now says the embedding
 averages the patch tokens of the last (12th) encoder layer, matching
 `forward_features(x)[-1]` in the code. The `l5` in `prithvi_l5` refers to Landsat, not to
-a layer; the extractor's module docstring now says Landsat 7 (fixed), though two internal
-comments in the same file still say Landsat 5.
+a layer; the extractor's docstring and comments now say Landsat 7.
 
 **SAE** (`src/apps/uganda/train_sae.py` via `scripts/uganda/train_sae_slurm.sh`,
 output `results/uganda/prithvi_l5_1024/`): TopK SAE, 768 → 1,024, k = 25, unit-norm

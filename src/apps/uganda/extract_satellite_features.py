@@ -10,7 +10,7 @@ Run once on the RCT tiles and once on the national grid tiles:
     --tif-dir data/uganda/satellite/tif_national \\
     --out-dir data/uganda/satellite/national
 
-Band order in our Landsat 5 TIF files (download order SR_B1…B7):
+Band order in our Landsat 7 TIF files (download order SR_B1…B7):
   0: Blue  (SR_B1)    1: Green (SR_B2)    2: Red   (SR_B3)
   3: NIR   (SR_B4)    4: SWIR-1 (SR_B5)   5: SWIR-2 (SR_B7)
 
@@ -41,7 +41,7 @@ from tqdm import tqdm
 # ── Band indices (TIF file order: SR_B1→B7 = Blue…SWIR2) ─────────────────────
 BLUE, GREEN, RED, NIR, SWIR1, SWIR2 = 0, 1, 2, 3, 4, 5
 
-# Landsat 5 TIF order is already Blue→SWIR2 = Prithvi's expected order.
+# Landsat 7 TIF order is already Blue→SWIR2 = Prithvi's expected order.
 PRITHVI_BAND_ORDER = [BLUE, GREEN, RED, NIR, SWIR1, SWIR2]
 
 # Prithvi training statistics (HLS global, ×10000 reflectance scale).
