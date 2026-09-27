@@ -74,13 +74,14 @@ so enough support for an interaction. District-dummy sensitivity
 the 7 language dummies replaced in place by 14 district dummies, m = 177, skilled
 employment): Pallisa survives at the single-district level, while Karamojong and Lugbara
 span several small districts and lose significance, so the cluster representation is
-load-bearing for those two. The paper's p ≈ 7.7×10⁻⁵ is p(Pallisa | rest of the final set)
-from a June run with the NeurIPS configuration
-(`results/uganda/prithvi_l5_1024/skilled_employed_districts/nexis_result.json`,
-`nexis_fwer`; the script reproduces it to 1e-14). With the paper's algorithm S̃ is the same
-{Z_859, Z_551, Z_339, Z_306, Pallisa}; Pallisa is certified with certification p
-7.9×10⁻⁵ (α/m = 2.8×10⁻⁴; the kind of p the main table reports), marginal p 6.3×10⁻⁸,
-p | S̃ 7.7×10⁻⁵. No Karamojong (Kotido, Moroto, Nakapiripirit) or Lugbara (Arua, Yumbe)
+load-bearing for those two. **Fixed:** the paper now quotes the certification p under the
+final configuration, p ≈ 7.9×10⁻⁵ (α/m = 2.8×10⁻⁴; the kind of p the main table reports).
+With the paper's algorithm S̃ is {Z_859, Z_551, Z_339, Z_306, Pallisa}; Pallisa's marginal
+p is 6.3×10⁻⁸, p | S̃ 7.7×10⁻⁵ (a June run with the NeurIPS configuration gave
+p(Pallisa | rest of the final set) ≈ 7.7×10⁻⁵ from
+`results/uganda/prithvi_l5_1024/skilled_employed_districts/nexis_result.json`,
+`nexis_fwer`; the script reproduces it to 1e-14 — kept here as provenance, not what the
+paper cites). No Karamojong (Kotido, Moroto, Nakapiripirit) or Lugbara (Arua, Yumbe)
 district enters S̃; given the final set their p-values are 2.7×10⁻³ (Arua) to 0.99
 (Moroto). Kotido alone is marginally below α/m (1.2×10⁻⁴).
 
@@ -99,22 +100,27 @@ coverage of Uganda in 2003–2007.
 programme with 3 bands and a binary clustering of embeddings.
 
 **Embeddings** (`src/apps/uganda/extract_satellite_features.py`): Prithvi-EO-1.0-100M,
-mean over the patch tokens, 768-d. **Discrepancy:** the paper says "layer 5 of the
-encoder"; the code takes `forward_features(x)[-1]`, the output of the last (12th) block
-after the final LayerNorm. The `l5` in `prithvi_l5` appears to refer to Landsat (the
-docstrings still say Landsat 5), not to a layer. Not changed; see open issues.
+mean over the patch tokens, 768-d. **Fixed:** the appendix now says the embedding
+averages the patch tokens of the last (12th) encoder layer, matching
+`forward_features(x)[-1]` in the code. The `l5` in `prithvi_l5` refers to Landsat, not to
+a layer; the extractor's module docstring now says Landsat 7 (fixed), though two internal
+comments in the same file still say Landsat 5.
 
 **SAE** (`src/apps/uganda/train_sae.py` via `scripts/uganda/train_sae_slurm.sh`,
 output `results/uganda/prithvi_l5_1024/`): TopK SAE, 768 → 1,024, k = 25, unit-norm
 decoder, 2,000 epochs, lr 2×10⁻⁴, 5-fold CV, trained on the national grid with the 331
 RCT sites held out; whitening fit on the national corpus. *Why a national corpus:*
 geographic diversity for the dictionary, and no leakage from the trial sites.
-**Discrepancy:** the paper says batch size 256; the SLURM script does not pass
-`--batch-size`, so `train_sae.py` uses its default 64. The original checkpoint
-(`sae_model.pt`, 2026-05-05 11:35) stores no config, and the last logged SLURM run
-(`logs/slurm-sae-58521261`) hit its time limit at 08:20, so the call that wrote the
-checkpoint is not traceable. GPU training is not bit-reproducible: restore the original
-`results/uganda/prithvi_l5_1024/` rather than retraining.
+**Discrepancy, still open:** the paper says batch size 256; the SLURM script does not pass
+`--batch-size`, so `train_sae.py` uses its default 64. Forensics (2026-09-27): the
+checkpoint (`sae_model.pt`, 2026-05-05 11:35) was trained outside SLURM that day, and no
+record of the command survives; the SLURM script's own run (`logs/slurm-sae-58521261`)
+used the default 64 and hit its time limit at 08:20, so it is not the source. The paper's
+256 is unsupported and likely copied from the Ghana SAE, whose script passes 256. A CPU
+re-run cannot distinguish batch size 64/128/256 at epoch 200. GPU training is not
+bit-reproducible: restore the original `results/uganda/prithvi_l5_1024/` rather than
+retraining. Pending the author's decision (drop the value from the paper, or a GPU
+retraining test).
 
 **Feature filter.** Atoms active (Z_j > 0) in at least 5 of the 331 sites: 146 of 1,024.
 *Why:* atoms active at 1–4 sites have too little variation to estimate an interaction.
@@ -254,12 +260,10 @@ estimates carried over from the June brief; not re-measured.
 
 ## 9. Open issues
 
-- Paper says Prithvi "layer 5"; the code uses the last block (Section 3).
-- Paper says SAE batch size 256; the scripted default is 64 and the checkpoint's training
-  call is not traceable (Section 3).
+- Paper says SAE batch size 256; the scripted default is 64, the checkpoint was trained
+  outside SLURM on 2026-05-05 with no recorded command, and the paper's 256 is unsupported
+  (likely copied from the Ghana SAE script); pending the author's decision (Section 3).
 - The 71/170 and 45/170 marginal counts have no committed producer script (Section 5).
-- The district-dummy p ≈ 7.7×10⁻⁵ comes from a June run with the NeurIPS configuration;
-  the paper's algorithm gives certification p 7.9×10⁻⁵ (Section 2).
 - Treated count 825 and sub-region list are consistent with the data but are not written
   by any paper-number script.
 

@@ -250,11 +250,11 @@ tests minutes on CPU; all sweeps ~400 CPU-h (~10 h on 40 cores). Measured per bl
 
 ## 6. Open issues
 
-- The paper describes the forward step without a cap; the src sweeps used 10 rounds
-  (Section 3). `iclr/` has no cap by default and applies 10 only in the listed runs.
 - Of `iclr/`, only `main` and `violation` have been checked against the paper; the other
   blocks are expected to match but are unverified.
-- `results/celeba/figures_v2/comparison.md` has stale PCM rows (Section 4.5).
+- `results/celeba/figures_v2/comparison.md` is a stale rebuttal note outside the paper
+  chain (its PCM rows predate the calibrated 2·min PCM rule, Section 4.5); to be deleted
+  locally.
 
 ---
 

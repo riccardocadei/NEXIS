@@ -87,8 +87,9 @@ B3, B2, B5, B6, B7. VLM images: false colour NIR/Green/SWIR2, 2–98 percentile 
 
 **Embeddings.** Prithvi-EO-1.0-100M, 768-d mean of patch tokens
 (`src/apps/ghana/extract_satellite_features.py`, which reorders the bands to Prithvi's
-blue-to-SWIR2 order and repeats the tile over the 3 time steps). As for Uganda, the code
-takes the last encoder block, while the paper says "layer 5" (see the Uganda brief).
+blue-to-SWIR2 order and repeats the tile over the 3 time steps). As for Uganda, the
+appendix now says the embedding averages the patch tokens of the last (12th) encoder
+layer, matching the code (fixed; see the Uganda brief).
 
 **SAE.** TopK, 768 → 4,096, k = 25, 2,000 epochs, batch 256, lr 2×10⁻⁴, trained on the
 national grid with the 162 LEAP sites held out; whitening fit on the national corpus.
@@ -170,10 +171,14 @@ waterway-active communities shown to the VLM (`src/apps/ghana/interpret_temporal
 table from `src/apps/ghana/table_temporal.py --paper` →
 `results/ghana/paper_numbers/table_temporal.{md,tex}`): waterway structure unchanged in 6
 of 6, cropland expansion with denser vegetation next to the waterway in 3 of 6 (951,
-1265, 624). **Discrepancy, being fixed (see open issues):** neuron 3821 is active in
-communities 951, 675, 395, 1265, 655 and 624; the paper's table lists 311 and 1613 (activation
-0) instead of 395 and 655, and gives 675 "increased biomass" where the VLM artifact says no
-change. Figure: `bash scripts/ghana/run_figure_neural.sh` (VLM temporal labels for the
+1265, 624). **Fixed:** `tab:ghana_temporal` now lists all six communities active for
+neuron 3821 — 951, 1265, 624, 675, 395, 655 — with 675, 395 and 655 "no change / no
+change", as produced by `table_temporal.py --paper`. A forensic check found the analysis
+always used the correct six communities; 311 and 1613, which the June brief's table
+showed instead of 395 and 655, appear only as tile labels in paper figures (1613 as an
+inactive example for neuron 3821, 311 for the burn-scar neuron), and the June brief listed
+only three communities, so the two rows were most likely filled in when the appendix was
+drafted. Figure: `bash scripts/ghana/run_figure_neural.sh` (VLM temporal labels for the
 4 most-activated communities, `interpret_temporal_changes.py`, then
 `figure_neural_combined.py` → `results/ghana/figures/figure_neural_ghana_combined.pdf`);
 teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
@@ -212,16 +217,21 @@ p = 0.0085; GATE contrast +20.7 (s.e. 19.9), p = 0.30. Figure:
 `src/apps/ghana/figure_neural_1777.py` → `results/ghana/figures/figure_neural_1777.pdf`.
 Hypothesis: transfers act as insurance after fire shocks; too local to generalise.
 
-**External anchor: citation concern, unresolved.** The June brief supported the burn-scar
-reading with "the Ghana Statistical Service's 2015 District and Regional Social
-Development Profile, Chapter 4, Section 4.4.10 ('Natural Disasters, Risks and
-Vulnerability'): 151 MMDAs affected by natural disasters in 2015, especially flooding and
-bush fire, bulk of incidents in the Eastern and Northern Regions". Two independent searches
-(2026-07-23) could not find that document, and the real GSS district reports have no such
-section. The paper now attributes the same statement to a different source, the National
-Development Planning Commission's *2015 Annual Progress Report* on the GSGDA II
-(`NDPC2016GSGDA2015APR` in `refs.bib`, Section 4.4.10). Neither attribution has been
-verified against the document here. Check the NDPC report before relying on it.
+**External anchor: citation verified.** The June brief supported the burn-scar reading
+with "the Ghana Statistical Service's 2015 District and Regional Social Development
+Profile, Chapter 4, Section 4.4.10 ('Natural Disasters, Risks and Vulnerability'): 151
+MMDAs affected by natural disasters in 2015, especially flooding and bush fire, bulk of
+incidents in the Eastern and Northern Regions". Two independent searches (2026-07-23)
+could not find that document, and the real GSS district reports have no such section. The
+paper now cites NDPC, *Implementation of the GSGDA II 2014–2017: 2015 Annual Progress
+Report* (Dec 2016), https://ndpc.gov.gh/media/National_Annual_Progress_Report_2015.pdf,
+Section 4.4.10 "Natural Disasters, Risks and Vulnerability", printed p. 101: "The total
+number of MMDAs affected by natural disaster in 2015, especially flooding and bush fire
+was estimated at 151 (Figure 4.20). The bulk of these incidents occurred in the Eastern
+and Northern Regions." (also Table 4.28, p. 102). This has been checked against the
+document (2026-09-26) and the bib entry (`NDPC2016GSGDA2015APR` in `refs.bib`) is correct.
+The older GSS "District and Regional Social Development Profile" attribution remains
+unverifiable and should not be used.
 
 ---
 
@@ -236,10 +246,6 @@ brief; not re-measured.
 
 ## 10. Open issues
 
-- `tab:ghana_temporal` rows 311/1613 should be 395/655 and row 675 should read no change
-  (Section 6); the corrected rows are in `results/ghana/paper_numbers/table_temporal.tex`.
-- The burn-scar citation (Section 8) is unverified.
-- Paper says Prithvi "layer 5"; the code uses the last block (Section 3).
 - Treated count, baseline means and within-community shares have no committed producer
   script (recomputed 2026-09-26, Section 1).
 - The broken SLURM wrappers `scripts/ghana/{slurm_train_sae,run_temporal_waterways,
