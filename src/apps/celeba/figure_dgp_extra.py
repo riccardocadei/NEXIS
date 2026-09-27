@@ -276,7 +276,7 @@ def main():
                 for lab, m in v2[:3]]
         md += ["## Reproducibility: independently trained SAE (replica_k20.pdf)", "",
                "Replica = TopK SAE, same architecture and schedule, trained on 19,867 "
-               "train-split images instead of the valid split (docs/celeba_sae_resampling.md); "
+               "train-split images instead of the valid split (src/apps/celeba/README.md, Section 8); "
                "same encoded data, DGP, grid and seeds. S* is the F1-argmax coordinate per "
                "attribute in each dictionary (main: 5348, 5537; replica: 197, 4833).", ""]
         md += metric_table(ent) + [""]

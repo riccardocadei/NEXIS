@@ -1,7 +1,7 @@
 """
 Robustness of the Uganda NEXIS results to the variance estimator.
 
-The published results (docs/uganda_experiment_brief.md §6) use homoskedastic
+The published results (src/apps/uganda/README.md, Section 4) use homoskedastic
 OLS standard errors with no clustering.  The Uganda design is hierarchical:
 
     individual  ⊂  group (randomisation unit)  ⊂  community (satellite site)

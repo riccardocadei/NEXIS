@@ -10,7 +10,7 @@
 # Appendix C extras for the NEXIS-v2 default (CPU only, existing SAE features only):
 #
 #   rep  reproducibility: the main experiment on the independently trained k=20 SAE
-#        (data/celeba_resample_b1/eval, docs/celeba_sae_resampling.md), ground truth
+#        (data/celeba_resample_b1/eval; src/apps/celeba/README.md, Section 8), ground truth
 #        from results/celeba/experiment_resample_b1/k20/sae/ground_truth.json
 #   r3   three direct modifiers: Wearing_Hat (+1), Eyeglasses (-1), Sideburns (+1),
 #        the convention of results/celeba/experiment_r3 (run_experiment_rsweep.sh)

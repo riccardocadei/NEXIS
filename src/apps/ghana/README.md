@@ -1,12 +1,11 @@
-# Ghana LEAP 1000 experiment brief
+# Ghana LEAP 1000: case study 2
 
-> **Purpose.** The Ghana case study as it stands in the final paper
-> (`paper/iclr27/main.tex`, Section "Case study 2", and `appendix.tex`, Appendix E):
-> design, the choices behind it, every number the paper quotes, and the file or script
+> **Purpose.** The Ghana case study as it stands in the paper (Section "Case study 2" and
+> Appendix E): design, the choices behind it, every number the paper quotes, and the file or script
 > each number comes from. Paths are relative to the repo root; `results/` and `data/` are
 > untracked (`data/ghana/survey/` is restricted: do not redistribute). Top-level
 > commands: `README.md`, section Ghana; run notes in Section 11.
-> Updated 2026-09-26 from the June (NeurIPS) version, which used the interleaved-backward
+> Updated 2026-09-26 from the June version, which used the interleaved-backward
 > algorithm, a pool of 155 (no spectral indices), stale p-values (2.1×10⁻⁸, 3.7×10⁻⁷, from
 > a 3-neuron run), an "RCT"/"ATE = ITT = ATT" framing, and a "3 discoveries" line that
 > contradicted its own 2-row table. The unverifiable citation of that version is kept
@@ -34,8 +33,7 @@ communities with GPS centroids, 5 districts (East Mamprusi, Karaga, Yendi, Bongo
 Garu-Tempane), Northern and Upper East regions; 1,185 treated (50.8 %), 1,146 comparison.
 Baseline adult-equivalent expenditure 120.9 GH₵/month (treated 117.8, comparison 124.0).
 Source: `src/apps/ghana/table_gate.py` (n, communities); treated count, shares and
-baseline means recomputed 2026-09-26 from `load_data("data/ghana")` on the balanced panel
-(no committed script writes them).
+baseline means recomputed 2026-09-26 from `load_data("data/ghana")` on the balanced panel.
 
 **Outcome.** Adult-equivalent household consumption expenditure per month (`aeexp_r`),
 constant Greater Accra August-2017 prices; NEXIS uses the first difference
@@ -89,7 +87,7 @@ B3, B2, B5, B6, B7. VLM images: false colour NIR/Green/SWIR2, 2–98 percentile 
 (`src/apps/ghana/extract_satellite_features.py`, which reorders the bands to Prithvi's
 blue-to-SWIR2 order and repeats the tile over the 3 time steps). As for Uganda, the
 appendix now says the embedding averages the patch tokens of the last (12th) encoder
-layer, matching the code (fixed; see the Uganda brief).
+layer, matching the code (fixed; see `src/apps/uganda/README.md`, Section 3).
 
 **SAE.** TopK, 768 → 4,096, k = 25, 2,000 epochs, batch 256, lr 2×10⁻⁴, trained on the
 national grid with the 162 LEAP sites held out; whitening fit on the national corpus.
@@ -116,7 +114,7 @@ community (G = 162) and a t(G−1) reference (`scripts/realworld_final_runs.py`,
 households as independent would understate their variance. Community is a geographic
 grouping, not the assignment unit (households are assigned by their own PMT score), so
 the clustered p-values are not design-based (Section 7). Under HC1 without clustering, the
-June NeurIPS-configuration run selected nothing (`results/ghana/codes/nexis_fwer_hc1/
+June run with the earlier configuration selected nothing (`results/ghana/codes/nexis_fwer_hc1/
 result.json`); not rerun with the paper's algorithm.
 *Why the linear test:* power with 162 clusters; binary survey covariates make linearity
 exact and sparse atoms make it a reasonable approximation; counts, ratios, head age and the
@@ -205,7 +203,7 @@ districts map `src/apps/ghana/figure_maps.py`.
 NEXIS without multiple-testing correction on an earlier, smaller pool (72 atoms active in
 ≥ 10 communities, 24 survey covariates through `nexis(w=...)`, 6 spectral `*_mean`
 indices; the two certified atoms are not in it), in the configuration of 6 May 2026
-(NeurIPS defaults: interleaved backward step, `adjust=None`, CR1S by community). Source:
+(the earlier defaults: interleaved backward step, `adjust=None`, CR1S by community). Source:
 `src/apps/ghana/exploratory_run.py` → `results/ghana/paper_numbers/exploratory_run.md`,
 which reproduces `results/ghana/mact10/codes/nexis_no_adj/result.json` exactly.
 
@@ -229,7 +227,7 @@ Section 4.4.10 "Natural Disasters, Risks and Vulnerability", printed p. 101: "Th
 number of MMDAs affected by natural disaster in 2015, especially flooding and bush fire
 was estimated at 151 (Figure 4.20). The bulk of these incidents occurred in the Eastern
 and Northern Regions." (also Table 4.28, p. 102). This has been checked against the
-document (2026-09-26) and the bib entry (`NDPC2016GSGDA2015APR` in `refs.bib`) is correct.
+document (2026-09-26) and the paper's bibliography entry (`NDPC2016GSGDA2015APR`) is correct.
 The older GSS "District and Regional Social Development Profile" attribution remains
 unverifiable and should not be used.
 
@@ -246,8 +244,6 @@ brief; not re-measured.
 
 ## 10. Open issues
 
-- Treated count, baseline means and within-community shares have no committed producer
-  script (recomputed 2026-09-26, Section 1).
 - The broken SLURM wrappers `scripts/ghana/{slurm_train_sae,run_temporal_waterways,
   slurm_temporal_waterways}.sh` are to be fixed after the ghana merge.
 
@@ -257,8 +253,8 @@ brief; not re-measured.
 
 - `scripts/realworld_final_runs.py` without `--only` runs both applications and writes
   `results/realworld_final/report.json`. The paper's Ghana rows are the runs
-  `pool 167 | published test | new default`. The script first checks that the NeurIPS
-  configuration reproduces the published set, read from
+  `pool 167 | published test | new default`. The script first checks that the earlier
+  configuration (interleaved backward step) reproduces the published set, read from
   `results/ghana/codes/nexis_fwer_crve/result.json` (untracked).
 - The download, extraction and training scripts default to paths relative to
   `src/apps/ghana/` (`../../data/ghana/...`): run `download_satellite_images.py`,
@@ -267,4 +263,3 @@ brief; not re-measured.
 - The SLURM wrappers `scripts/ghana/slurm_train_sae.sh`, `run_temporal_waterways.sh` and
   `slurm_temporal_waterways.sh` call `scripts/ghana/*.py` files that no longer exist (the
   code moved to `src/apps/ghana/`); they will be fixed after the ghana merge.
-- `notebooks/ghana.ipynb` is exploratory and predates the paper's configuration.

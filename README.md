@@ -82,7 +82,7 @@ src/apps/celeba/benchmark/
                    self-contained CelebA benchmark package, one command per block
 scripts/           SLURM entry points per app, and realworld_*.py (the application runs)
 animations/        Manim scenes for the website videos
-docs/              project website (index.html, assets/) and the experiment briefs
+docs/              project website (GitHub Pages: index.html, assets/)
 ```
 
 Library code (`src/method`, `src/causality`) stays minimal, app-agnostic and free of
@@ -94,14 +94,14 @@ Scripts target SLURM but also run with `bash` from the repo root; logs go to `lo
 outputs to the untracked `data/` and `results/`. GPUs are needed for embeddings, SAE
 training and VLM interpretation; NEXIS itself runs on CPU in minutes. GPU training is not
 bit-reproducible, so a retrained SAE gives other coordinate indices than the ones quoted in
-the paper. Each application has a brief in `docs/` with every number the paper quotes, its
-source file and script, and the design choices behind it.
+the paper. Each application has a `README.md` in its folder (`src/apps/<app>/`) with every
+number the paper quotes, its source file and script, and the design choices behind it.
 
 ### CelebA (semi-synthetic benchmark)
 
 Data: the 19,867 validation images of CelebA, streamed from the Hugging Face mirror
 `flwrlabs/celeba` at a pinned revision (no manual download). Compute: embeddings and SAEs
-~1 h on one GPU, sweeps ~400 CPU-hours. Figure map: [`docs/celeba_experiment_brief.md`](docs/celeba_experiment_brief.md) (Section 7).
+~1 h on one GPU, sweeps ~400 CPU-hours. Figure map: [`src/apps/celeba/README.md`](src/apps/celeba/README.md) (Section 7).
 
 ```bash
 # GPU: SigLIP 2 embeddings and TopK SAEs (m = 9,216, k = 5 and 20), plus the replica SAE
@@ -142,7 +142,7 @@ Blattman, Fiala & Martinez (2014) trial
 `data/uganda/UgandaDataProcessed.csv`; we do not redistribute it. Landsat 7 tiles are
 re-extracted from Google Earth Engine (`earthengine authenticate`); its imagery cannot be
 redistributed, so the scripts download it. Compute: SAE ~1 h on one GPU,
-VLM ~30 min on one H100. Details: [`docs/uganda_experiment_brief.md`](docs/uganda_experiment_brief.md).
+VLM ~30 min on one H100. Details: [`src/apps/uganda/README.md`](src/apps/uganda/README.md).
 
 ```bash
 python src/apps/uganda/download_tiles.py --mode rct        # 331 trial sites
@@ -164,7 +164,7 @@ python src/apps/figure1_tiles.py                           # Figure 1 tiles
 
 Data: the LEAP 1000 household panel (2015–2017) is restricted (contact UNICEF Ghana) and
 must not be redistributed; Landsat 8 tiles from Google Earth Engine. Compute: SAE ~2 h and
-VLM ~45 min on one H100. Details: [`docs/ghana_experiment_brief.md`](docs/ghana_experiment_brief.md)
+VLM ~45 min on one H100. Details: [`src/apps/ghana/README.md`](src/apps/ghana/README.md)
 (Section 11 for path conventions and known broken wrappers).
 
 ```bash
