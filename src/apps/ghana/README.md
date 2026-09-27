@@ -95,9 +95,9 @@ Outputs `data/ghana/satellite/{sae_model.pt, sae_activations.npy, sae_comm_ids.n
 (not in the repo; GPU training is not bit-reproducible, restore the original rather than
 retrain).
 *Why 4,096 atoms (vs 1,024 for Uganda):* a larger and more diverse national corpus.
-The SLURM wrapper `scripts/ghana/slurm_train_sae.sh` calls the removed
-`scripts/ghana/train_sae.py`; run `src/apps/ghana/train_sae.py` directly (see `README.md`)
-until it is fixed after the ghana merge.
+The SLURM wrapper `scripts/ghana/slurm_train_sae.sh` runs `src/apps/ghana/train_sae.py`
+with these settings; it refuses to overwrite the original SAE unless `OVERWRITE=1` (or pass
+another `OUT_DIR`).
 
 ---
 
@@ -244,8 +244,7 @@ brief; not re-measured.
 
 ## 10. Open issues
 
-- The broken SLURM wrappers `scripts/ghana/{slurm_train_sae,run_temporal_waterways,
-  slurm_temporal_waterways}.sh` are to be fixed after the ghana merge.
+- None open.
 
 ---
 
@@ -259,7 +258,5 @@ brief; not re-measured.
 - The download, extraction and training scripts default to paths relative to
   `src/apps/ghana/` (`../../data/ghana/...`): run `download_satellite_images.py`,
   `download_national_grid.py` and `extract_satellite_features.py` from that folder, or pass
-  `--out-dir`/`--tif-dir`; pass explicit paths to `train_sae.py` (as in `README.md`).
-- The SLURM wrappers `scripts/ghana/slurm_train_sae.sh`, `run_temporal_waterways.sh` and
-  `slurm_temporal_waterways.sh` call `scripts/ghana/*.py` files that no longer exist (the
-  code moved to `src/apps/ghana/`); they will be fixed after the ghana merge.
+  `--out-dir`/`--tif-dir`; pass explicit paths to `train_sae.py` (as in `README.md` and
+  `scripts/ghana/slurm_train_sae.sh`).

@@ -165,7 +165,7 @@ python src/apps/figure1_tiles.py                           # Figure 1 tiles
 Data: the LEAP 1000 household panel (2015–2017) is restricted (contact UNICEF Ghana) and
 must not be redistributed; Landsat 8 tiles from Google Earth Engine. Compute: SAE ~2 h and
 VLM ~45 min on one H100. Details: [`src/apps/ghana/README.md`](src/apps/ghana/README.md)
-(Section 11 for path conventions and known broken wrappers).
+(Section 11 for path conventions).
 
 ```bash
 python src/apps/ghana/download_satellite_images.py --year 2015   # 162 communities
