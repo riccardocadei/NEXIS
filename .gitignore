@@ -21,9 +21,6 @@ outputs/
 models/
 neuralscience-main/
 
-# Notebooks (local only; only specific notebooks are tracked via git add -f)
-notebooks/old/
-
 # Local LaTeX paper source
 paper/
 
