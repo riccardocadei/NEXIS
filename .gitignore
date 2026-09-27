@@ -37,5 +37,6 @@ animations/__pycache__/
 # Social media drafts (images/clips staged for tweets, not repo content)
 tweet/
 
-# Machine-specific notes (backups, local paths)
+# Agent guidance and machine-specific notes (backups, local paths): local only
+AGENTS.md
 LOCAL.md
