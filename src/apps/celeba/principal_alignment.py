@@ -1,7 +1,7 @@
 """
 Empirical diagnostics for Principal Alignment (Assumption 3) on CelebA.
 
-Rebuttal analysis: Principal Alignment is *not* monosemanticity.  This script
+Analysis: Principal Alignment is *not* monosemanticity.  This script
 quantifies, on the very dictionary used in the paper, (i) how far the principal
 coordinates are from a one-to-one concept mapping, and (ii) the only quantity
 that actually matters for Theorem 4.1.1, namely the residual conditional

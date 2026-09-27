@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """GATE (s.e.) columns of tab:ghana_nexis and the Ghana counts quoted in the paper.
 
-Produces (paper/iclr27):
+Produces (paper items):
   appendix, Table tab:ghana_nexis: GATE among active / inactive households with s.e.
       clustered by community, the contrast Delta, and the Marginal / Certification
       p-values, for ephemeral waterways (neuron 3821) and closed-canopy forest (2095);
   appendix, Sec. "Discovered effect modifiers": the local ATT (+7.35 GH cedi/month) and
       the number of active communities / households of each discovery (6 / 83, 5 / 42);
-  main.tex, Ghana results: "18 of 167 coordinates pass an uncorrected marginal test".
+  main text, Ghana results: "18 of 167 coordinates pass an uncorrected marginal test".
 
 Estimators. Outcome: first-differenced monthly consumption (2017 - 2015), T = LEAP
 household. GATE = OLS of dY on (1, T) within the subgroup (active: Z_j > 0), with CR1S

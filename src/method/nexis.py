@@ -976,7 +976,7 @@ def nexis(
       Recommended range: 0.2 (effects may vary 5×) to 0.5 (effects within 2×).
 
     terminal_filter:
-      Subset-robust terminal filter (NeurIPS rebuttal fix for post-selection bias).
+      Subset-robust terminal filter (fix for post-selection bias).
       Once the forward-backward search stops at S~, keep j ∈ S~ only if
       p(j | A) ≤ α/m for EVERY A ⊆ S~ \\ {j} (the empty set included), where m is the
       number of candidate coordinates entering NEXIS.  Removals are simultaneous.

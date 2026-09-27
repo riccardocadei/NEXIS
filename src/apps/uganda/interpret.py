@@ -1012,7 +1012,7 @@ def interpret_extra_atoms(
     direct-contrast VLM protocol as `interpret_outcome`, bypassing the
     NEXIS-selection lookup in nexis_result.json entirely.
 
-    For ad-hoc atoms of interest (e.g. answering a reviewer about a specific
+    For ad-hoc atoms of interest (e.g. a question about a specific
     dimension) that are not part of a published NEXIS discovery run. `atoms`
     are raw SAE column indices into site_feats — no sae_active_idx remapping,
     since these did not come from a compressed NEXIS candidate list.

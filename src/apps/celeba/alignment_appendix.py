@@ -24,7 +24,7 @@ Outputs (results/celeba/figures_v2/principal_alignment/):
                             likelihood-ratio test of the K extra coordinates
   pa_summary.json           every number above
 
-The probe is the rebuttal probe (principal_alignment.ci_probe: quantile-bin expansion of
+The probe is the original probe (principal_alignment.ci_probe: quantile-bin expansion of
 the principal, companions selected on the training half by partial correlation with W
 given the principal, L2-logistic with C = 1); ``probe_path`` runs it for several K from
 one selection and reproduces ci_probe exactly at K = 200 (checked in ``main``).
@@ -349,7 +349,7 @@ def main():
             w = labels[attr].values.astype(np.float64)
             for s in range(args.n_splits):
                 rows += [{"attr": attr, **r} for r in probe_path(Z, w, j, seed=s)]
-                if s == 0:                # reproduces the rebuttal probe exactly
+                if s == 0:                # reproduces the original probe exactly
                     ref = ci_probe(Z, w, j, n_extra=200, seed=0)
                     mine = rows[-1]
                     assert abs(ref["auc_principal+rest"] - mine["auc_augmented"]) < 1e-9, (ref, mine)

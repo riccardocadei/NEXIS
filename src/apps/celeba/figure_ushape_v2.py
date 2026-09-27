@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-GCM-blind U-shape DGP (rebuttal panel B) under NEXIS-v2 and the calibrated PCM.
+GCM-blind U-shape DGP (test comparison, panel B) under NEXIS-v2 and the calibrated PCM.
 
 Reads results/celeba/experiment_v2_ushape/k20/sae_precode/{n,effect}_sweep.parquet
-(scripts/celeba/submit_experiment_v2_ushape.sh) and, for comparison, the rebuttal run
+(scripts/celeba/submit_experiment_v2_ushape.sh) and, for comparison, the earlier run
 results/celeba/experiment_ushape/ (published NEXIS, invalid "crossfit" PCM rule), and
 writes to results/celeba/figures_v2/:
 
@@ -12,7 +12,7 @@ writes to results/celeba/figures_v2/:
               visualize.py, layout as figure_appendix.make_12panel
   ushape.md   per test (and marginal testing, FWER): n* and eta* (first grid value with seed-mean IoU >= 0.95),
               precision / recall / IoU / false discoveries at n=2000, eta=5, the share
-              of runs with at least one false discovery, and the rebuttal-run n*
+              of runs with at least one false discovery, and the earlier-run n*
 
     python src/apps/celeba/figure_ushape_v2.py
 """
@@ -38,7 +38,7 @@ METHODS = {"Marginal Testing (FWER)": MAIN_METHODS_V2["Marginal Testing (FWER)"]
 # the figure shows the test-ablation lines only (marginal testing makes thousands of
 # false discoveries here and would flatten the false-discovery panel); the table has all
 FIG_METHODS = ABLATION_GROUPS_V2["test"]["methods"]
-# rebuttal-run method with the same test (published NEXIS, crossfit PCM)
+# earlier-run method with the same test (published NEXIS, crossfit PCM)
 PUB_OF = {"Marginal Testing (FWER)": "Marginal Testing (FWER)", "NEXIS-v2": "NEXIS",
           **{f"NEXIS-v2 (test={t})": f"NEXIS (test={t})"
              for t in ("GCM: quadratic", "GCM: lgbm", "PCM: quadratic", "PCM: lgbm")}}
@@ -91,7 +91,7 @@ def figure(dn: pd.DataFrame, de: pd.DataFrame, out: Path) -> None:
 def table(dn, de, pub) -> list[str]:
     at = de[de.effect_scale == ETA]
     out = ["| test | n* (eta=5) | eta* (n=2000) | precision | recall | IoU | false disc. "
-           "| runs with >=1 false disc. | s/run | rebuttal n* (eta=5) |",
+           "| runs with >=1 false disc. | s/run | earlier-run n* (eta=5) |",
            "|---|---|---|---|---|---|---|---|---|---|"]
     for m, lab in METHODS.items():
         g = at[at.method == m]
@@ -129,7 +129,7 @@ def main():
           "50 seeds per cell. NEXIS-v2 = nexis(rho=0.5, backward=False, "
           "terminal_filter=True); PCM combines the two split directions by 2·min(p1, p2). "
           "n* / eta*: first grid value where the seed-mean IoU reaches 0.95. Metrics at "
-          "n=2000, eta=5 (mean ± SE). The last column is the rebuttal run (published NEXIS, "
+          "n=2000, eta=5 (mean ± SE). The last column is the earlier run (published NEXIS, "
           "invalid crossfit PCM rule, results/celeba/experiment_ushape/).", ""]
     md += table(dn, de, pub) + [""] + fp_grid(dn, de)
     (out / "ushape.md").write_text("\n".join(md) + "\n")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Default-NEXIS runs behind the Appendix run statistics (|S~| and terminal-test counts).
 
-Paper item: Appendix B, "Backward steps" (paper/iclr27/appendix.tex): "over the 6,300
+Paper item: paper Appendix B, "Backward steps": "over the 6,300
 CelebA runs of the three dictionaries at rho = 0.5, |S~| has median 2 and maximum 7 [...]
 a median of 4 and a maximum of 192 tests".  This script writes the per-run CSVs
 results/celeba/ablation_rho_filter/rf_<tree>_<sweep>_<fixed>.csv (12 files: 3 dictionaries
@@ -10,12 +10,12 @@ variant "rho05_filter" into the paper numbers.  That variant is
 nexis(rho=0.5, backward=True, terminal_filter=True), i.e. the default NEXIS-v2
 (backward=False) plus the interleaved backward step; its selections equal the NEXIS-v2
 runs of results/celeba/experiment_v2 on 6,299 of the 6,300 runs, and its |S~| and test
-counts equal those of the ICLR re-implementation's default NEXIS on all 2,100 main-setting
+counts equal those of the benchmark package's default NEXIS on all 2,100 main-setting
 runs (the only ones where the latter are stored).
 
 It was written as an ablation of the spectral-gap gate rho against the terminal filter,
-on the CelebA grid of the NeurIPS'26 rebuttal (rebuttal code run_all6.py, not in the
-repo; its CSVs are results/celeba/terminal_filter_rebuttal/all6_*.csv): same SCM, grid, seeds, ground truth,
+on the CelebA grid of an earlier terminal-filter ablation (code run_all6.py and its CSVs
+all6_*.csv, not in the repository): same SCM, grid, seeds, ground truth,
 support screen and scoring.  For every (tree, sweep, param, seed) it computes on the same
 simulated data
 

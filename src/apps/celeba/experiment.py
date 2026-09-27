@@ -67,7 +67,7 @@ FAST_METHODS: List[str] = [
     if m not in ("NEXIS (test=GCM: lgbm)", "NEXIS (test=PCM: lgbm)")
 ]
 
-#: Rebuttal default ("v2"): forward step (Bonferroni gate, rho=0.5), no interleaved
+#: Paper default ("v2"): forward step (Bonferroni gate, rho=0.5), no interleaved
 #: backward step, then the terminal backward step (subset-robust terminal filter of
 #: nexis(terminal_filter=True), gate alpha/m).  Kept out of ALL_METHODS so runs that
 #: use the default method list, and hence the published numbers, are unchanged.

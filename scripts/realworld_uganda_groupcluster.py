@@ -12,8 +12,8 @@ Runs, for each outcome (skilled employment, log business assets):
 
   0a  sanity: published variant, published test (homoskedastic OLS); must reproduce
       the published set
-  0b  sanity: new default, published test; must certify the sets stated in the
-      rebuttal
+  0b  sanity: new default, published test; must certify the sets stated
+      previously
   1   new default nexis(backward=False, terminal_filter=True), group-clustered test,
       all m = 170 candidates
   2   as 1, after a support gate that drops, before the search and without Y, every
@@ -59,7 +59,7 @@ import realworld_final_runs as F  # noqa: E402  (patches R._cr_last: singular RI
 K = 5
 OUT = ROOT / "results" / "realworld_uganda_groupcluster"
 OUTCOMES = ["skilled_employed", "log_biz_assets"]
-# sets stated for the rebuttal (new default, published homoskedastic test)
+# sets stated previously (new default, published homoskedastic test)
 NEW_DEFAULT_EXPECTED = {"skilled_employed": ["W_lang_4", "W_lang_7", "Z_533"],
                         "log_biz_assets": ["W_ndvi_mean"]}
 LABELS = {"W_lang_2": "Lugbara", "W_lang_4": "Karamojong", "W_lang_7": "Pallisa",

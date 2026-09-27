@@ -7,10 +7,10 @@
 #SBATCH --mem=200G
 #SBATCH --time=03:00:00
 #
-# GCM-blind U-shape DGP (rebuttal panel B, --effect-form ortho_quadratic) rerun under the
+# GCM-blind U-shape DGP (test comparison, panel B; --effect-form ortho_quadratic) rerun under the
 # NEXIS-v2 default (rho=0.5, no interleaved backward step, terminal filter) and the
 # calibrated PCM combination rule (2·min over the two split directions, the nexis()
-# default since dd18f32).  The rebuttal run (results/celeba/experiment_ushape/,
+# default since dd18f32).  The earlier run (results/celeba/experiment_ushape/,
 # scripts/celeba/run_experiment_ushape.sh) used the published NEXIS and the invalid
 # "crossfit" PCM rule.  Same DGP, ground truth, grids and 50 seeds: eta in 1..10 at
 # n = 2000, n in 50..10000 at eta = 5, continuous k=20 SAE pre-activations.

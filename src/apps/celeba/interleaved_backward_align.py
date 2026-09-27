@@ -4,9 +4,9 @@
 For every CelebA attribute, computes the best-threshold F1 of each coordinate
 (experiment.compute_f1_scores, the ground-truth rule of the paper) and saves the full
 (n_attrs, m) F1 matrix.  third_modifier_candidates.py reads f1_sae_precode_k20.npz to
-rank the candidates for the third direct modifier of the r = 3 DGP.  (Written for the
-interleaved-backward experiment of the NeurIPS rebuttal, hence the output path; that
-experiment is at git tag neurips-rebuttal-final.)
+rank the candidates for the third direct modifier of the r = 3 DGP.  (Written for an
+earlier interleaved-backward experiment, hence the output path; that experiment is at git
+tag pre-cleanup-2026-09.)
 
 Usage: python src/apps/celeba/interleaved_backward_align.py <dict> [<dict> ...]
   dict in {sae_k20, sae_k5, sae_precode_k20, sae_precode_k5, sae_dinov2_k20,

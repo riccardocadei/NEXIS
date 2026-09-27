@@ -10,7 +10,7 @@ homoskedastic OLS SEs, no clustering, no support gate (the paper's
 
 It runs both NEXIS variants, rho = 0.5, alpha = 0.05, FWER forward gate:
 
-  published   nexis(backward=True,  terminal_filter=False)   (NeurIPS, June run)
+  published   nexis(backward=True,  terminal_filter=False)   (the earlier, June run)
   new default nexis(backward=False, terminal_filter=True)    (the paper's algorithm)
 
 The published variant must reproduce the June run behind the brief's p ~ 7.7e-5,
