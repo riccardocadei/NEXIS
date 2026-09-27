@@ -92,7 +92,7 @@ a coordinate carrying only prognostic signal satisfies the null; r = 1 and r = 0
 *Why r = 0 with fixed β and only an n sweep:* with γ = 0, η multiplies nothing and a larger
 τ₀ leaves the interaction statistics unchanged, so the four DGP rows collapse to one; 200
 seeds make the per-n false-discovery share readable against α (seeds 0–49 draw the main
-setting's units). The earlier variant where η scales β is `experiment_v2_r0`, unused.
+setting's units). An earlier variant where η scales β is not used.
 *Why Sideburns as the third modifier:* `src/apps/celeba/third_modifier_candidates.py` →
 `results/celeba/figures_v2/third_modifier_candidates.md`. Attributes with a higher F1 are
 high-prevalence labels whose sparse code almost never fires (e.g. Male, code recall 0.03)
@@ -184,8 +184,7 @@ against n = 750 without the split.
 ### 4.5 Ablations (Appendix C.4–C.5)
 
 Thresholds recomputed 2026-09-26 from `results/celeba/experiment_v2/<tree>/{n,effect}_sweep.parquet`;
-they match the paper. (The PCM rows of `results/celeba/figures_v2/comparison.md` predate
-the calibrated 2·min PCM rule and are stale; the other rows agree.)
+they match the paper.
 
 | Ablation | Paper statement |
 |---|---|
@@ -251,11 +250,8 @@ tests minutes on CPU; all sweeps ~400 CPU-h (~10 h on 40 cores). Measured per bl
 
 ## 6. Open issues
 
-- Of the `benchmark/` blocks, only `main` and `violation` have been checked against the paper; the other
-  blocks are expected to match but are unverified.
-- `results/celeba/figures_v2/comparison.md` is a stale note outside the paper
-  chain (its PCM rows predate the calibrated 2·min PCM rule, Section 4.5); to be deleted
-  locally.
+- Of the `benchmark/` blocks, only `main` and `violation` have been checked against the
+  paper; the other blocks are expected to match but are unverified.
 
 ---
 
@@ -449,10 +445,9 @@ level that config is identical across arms (0.991 vs 0.991 precision, 0.987 vs 0
 Seed-averaged (curve-level, 42 cells) the ordering reverses, as it must: averaging 50 seeds
 removes the Monte Carlo noise that dominates single runs and leaves the systematic dictionary
 difference, so 0.69 (k=20, z) / 1.00 (k=20, z_pre) of cells agree within 0.1 IoU against
-references of 0.98 / 0.93. Both levels are in
-`results/celeba/agreement_b1/agreement_rates_iou.md`; regenerate with
-`python src/apps/celeba/agreement_rates.py --tag b1` (`--metric precision|recall` for the
-other metrics).
+references of 0.98 / 0.93. Both levels were written to `agreement_rates_iou.md` by
+`agreement_rates.py --tag b1` (`--metric precision|recall` for the other metrics; the script
+is at git tag `pre-cleanup-2026-09`).
 
 Conclusion-level agreement (NEXIS vs the FWER baseline, the paper's headline claim):
 
@@ -466,8 +461,8 @@ Conclusion-level agreement (NEXIS vs the FWER baseline, the paper's headline cla
   0.29–0.49), i.e. resampling helped there.
 * Every qualitative ablation finding is reproduced on arm B: k=5 gives the same recall with
   lower precision; z_pre needs more data; linear dominates GCM; FDR ≡ FWER; ρ=0.5 jointly
-  optimal; the backward step is neutral. Regenerated figures:
-  `results/celeba/appendix_resample_b1/{dgp,model_k5,model_precode,method_test,method_adjust,method_rho,method_backward}.pdf`.
+  optimal; the backward step is neutral (the appendix figures regenerated on arm B, step 5
+  of §8.7).
 
 ### 8.6 Why index-level precision drops — and why it is predictable
 
@@ -524,12 +519,12 @@ sbatch --cpus-per-task=40 --mem=100G \
     scripts/celeba/run_resample_shard.sh a0 sae 20 effect 2000 g1 0 50
 ```
 
-Artifacts: `results/celeba/agreement_b1/` (REPORT.md, per-cell CSVs, `agreement_curves.png`,
-`concept_k20/`, `concept_k5/` with `headline_table.md`, `matches.csv`, `selections.csv` and
-top-activating contact sheets, `pa_arm{A,B}_k{5,20}` leakage diagnostics),
-`results/celeba/appendix_resample_b1/` (regenerated paper figures — note `brief.md` in that
-directory contains hard-coded prose from the figure template, not arm-B facts),
-`results/celeba/resample_b1/sae_siglip_k{5,20}.pt` (the new checkpoints).
+Artifacts: the new checkpoints `results/celeba/resample_b1/sae_siglip_k{5,20}.pt`. The
+agreement outputs (REPORT.md, per-cell CSVs, `agreement_curves.png`, concept-agreement
+tables, `matches.csv`, `selections.csv`, top-activating contact sheets and the arm A/B
+leakage diagnostics) and the regenerated appendix figures of step 5 are not kept in the
+working tree; rerun steps 4-5 to recreate them (the `brief.md` that `figure_appendix.py`
+writes there is hard-coded prose from the figure template, not arm-B facts).
 
 ### 8.8 Caveats
 
