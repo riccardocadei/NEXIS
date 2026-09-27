@@ -149,13 +149,9 @@ section p:last-child{margin-bottom:0;}
 .thm-box .thm-label{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.64rem;
   font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#3a4aaa;
   display:block;margin-bottom:0.8rem;}
-.thm-context{color:#555;margin-bottom:0.7rem;}
 .thm-block{margin:0.55rem 0;}
-.thm-ass{margin:0.18rem 0 0.18rem 1.1rem;padding:0;list-style:none;}
-.thm-ass li{display:flex;gap:0.45rem;margin-bottom:0.1rem;color:#444;}
-.thm-ass li::before{content:"·";color:#3a4aaa;font-weight:700;flex-shrink:0;}
-.thm-arrow{display:flex;align-items:baseline;gap:0.45rem;margin-top:0.35rem;font-size:0.95rem;}
-.thm-arrow .arr{color:#3a4aaa;font-size:1.05rem;flex-shrink:0;}
+.thm-text{color:#444;margin:0;}
+.thm-eq{text-align:center;margin:0.55rem 0 0.2rem;font-size:0.98rem;}
 .thm-conclusion{font-style:italic;}
 .thm-divider{border:none;border-top:1px solid #c0caf0;margin:0.7rem 0;}
 /* ── Collapsible theorem ── */
@@ -175,7 +171,8 @@ section p:last-child{margin-bottom:0;}
   margin-bottom:0.8rem;font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.78rem;}
 .two-charts-shared .sh-label{font-weight:700;font-size:0.68rem;
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);}
-.two-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.two-charts-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;}
+.chart-card{min-width:0;}
 .chart-card{background:var(--bg);border:1px solid var(--border);
   border-radius:3px;padding:0.8rem;}
 .chart-card canvas{max-height:400px;}
@@ -254,6 +251,33 @@ section p:last-child{margin-bottom:0;}
   font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.6rem;color:#aaa;}
 @media(max-width:600px){.nexis-interp-body{grid-template-columns:1fr;}}
 
+.sae-ctl{display:inline-flex;align-items:center;gap:0.45rem;white-space:nowrap;}
+
+/* ── Principal Alignment panels (CelebA) ── */
+.align-details{margin:1rem 0 0;}
+.align-details>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.45em;
+  font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.66rem;font-weight:700;
+  letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);padding:0.45rem 0.9rem;
+  background:var(--bg);border:1px solid var(--border);border-radius:3px;user-select:none;}
+.align-details>summary::-webkit-details-marker{display:none;}
+.align-details>summary::before{content:"\25B6\FE0E";font-size:0.85em;color:var(--accent);
+  transition:transform 0.18s;}
+.align-details[open]>summary::before{transform:rotate(90deg);}
+.align-details>summary:hover{color:var(--accent);border-color:var(--accent);}
+.align-details>.align-panel{margin-top:0.5rem;}
+.align-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}
+.align-chart-wrap{border-right:1px solid var(--border);background:#fff;position:relative;
+  height:260px;padding:0.4rem 0.5rem 0.2rem;}
+.align-chart-wrap canvas{display:block;width:100%;height:100%;}
+.align-thumb{width:var(--thumb,72px);height:var(--thumb,72px);border-radius:2px;border:1px solid rgba(0,0,0,0.12);
+  background-repeat:no-repeat;box-sizing:border-box;}
+.align-thumb.has-attr{border:3px solid var(--attr-col,#E69F00);}
+@media(max-width:600px){
+  .align-body{grid-template-columns:minmax(0,1fr);}
+  .align-chart-wrap{border-right:none;border-bottom:1px solid var(--border);height:210px;}
+}
+.two-charts-grid.single{grid-template-columns:minmax(0,1fr);}
+
 /* ── GATE chart ── */
 .gate-chart-wrap{background:var(--bg);border:1px solid var(--border);
   border-radius:3px;padding:0.9rem;margin:1rem 0;}
@@ -292,6 +316,9 @@ section p:last-child{margin-bottom:0;}
 .results-table .sub-indent td:first-child{padding-left:1.6em;}
 .hi{color:var(--green);font-weight:700;}
 .lo{color:var(--red);font-weight:700;}
+.status-note{font-family:"Helvetica Neue",Arial,sans-serif;font-size:0.8rem;color:var(--muted);
+  line-height:1.55;border-left:3px solid var(--border);padding:0.2rem 0 0.2rem 0.8rem;margin:0.9rem 0 0;}
+.status-note strong{color:var(--text);font-weight:600;}
 
 /* ── Modifier detail expand ── */
 .mod-detail{display:block;}
@@ -373,7 +400,7 @@ footer{padding:1.8rem 2rem;text-align:center;
 @media(max-width:860px){
   #sidebar{display:none;}
   #main{margin-left:0;}
-  .two-charts-grid,.fig-row{grid-template-columns:1fr;}
+  .two-charts-grid,.fig-row{grid-template-columns:minmax(0,1fr);}
 }
 
 @media(max-width:520px){
@@ -418,9 +445,17 @@ footer{padding:1.8rem 2rem;text-align:center;
   .sat-desc.visible{max-height:14em;}
 
   /* Theorem box — near-zero horizontal padding to fit assumptions on one line */
-  .thm-box{padding:0.75rem 0.25rem;}
-  .thm-ass{margin-left:0.2rem;}
+  .thm-box{padding:0.75rem 0.6rem;}
+  .thm-eq{font-size:0.9rem;}
 
+  /* Results tables: six columns must fit the phone width, otherwise the whole page
+     overflows and mobile browsers zoom out to fit it */
+  .results-table{font-size:0.62rem;}
+  .results-table th,.results-table td{padding:0.34em 0.22em;}
+  .results-table .sub-indent td:first-child{padding-left:0.5em;}
+  .results-table .sub-panel td{padding-left:0.3em;font-size:0.62rem;}
+  .results-table sup{font-size:0.8em;}
+  .mod-desc{font-size:0.7rem;}
   /* Table caption */
   .results-table caption{font-size:0.62rem;}
 
@@ -447,13 +482,13 @@ footer{padding:1.8rem 2rem;text-align:center;
     <li><a href="#paradox" data-s="paradox">Experimental Power Paradox</a></li>
     <li><a href="#method" data-s="method">Method</a></li>
     <li><a href="#ablation" data-s="ablation">Controlled Experiments</a></li>
-    <li><a href="#uganda" data-s="uganda">Application 1: YOP (Uganda)</a>
+    <li><a href="#uganda" data-s="uganda">Case Study 1: YOP (Uganda)</a>
       <ul>
         <li class="sub"><a href="#uganda-map">Overview</a></li>
         <li class="sub"><a href="#uganda-results">Discoveries</a></li>
       </ul>
     </li>
-    <li><a href="#ghana" data-s="ghana">Application 2: LEAP 1000 (Ghana)</a>
+    <li><a href="#ghana" data-s="ghana">Case Study 2: LEAP 1000 (Ghana)</a>
       <ul>
         <li class="sub"><a href="#ghana-map">Overview</a></li>
         <li class="sub"><a href="#ghana-results">Discoveries</a></li>
@@ -485,41 +520,41 @@ footer{padding:1.8rem 2rem;text-align:center;
     <span class="aff-item"><sup>3</sup><a href="https://www.ucla.edu" target="_blank" rel="noopener"><img src="assets/affiliations/ucla.png" alt="UCLA" class="aff-logo"></a></span>
   </div>
 
-  <p class="sat-intro">Satellite imagery reveals environmental drivers of anti-poverty program impact unmeasured in surveys. <em>Click to explore.</em></p>
+  <p class="sat-intro">Satellite imagery surfaces candidate environmental drivers of anti-poverty program impact, unmeasured in surveys. <em>Click to explore.</em></p>
   <div class="sat-strip" id="sat-strip">
     <div class="sat-tile">
       <img src="assets/tiles/tile_uganda_river.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Perennial river presence</span>
-        <span class="sat-country">Uganda · YOP<br>skilled employment</span>
+        <span class="sat-country">Uganda · YOP<br>skilled employment<br>candidate modifier</span>
       </div>
     </div>
     <div class="sat-tile">
       <img src="assets/tiles/tile_uganda_veg_heterogeneity.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Vegetation spatial heterogeneity</span>
-        <span class="sat-country">Uganda · YOP<br>skilled employment</span>
+        <span class="sat-country">Uganda · YOP<br>skilled employment<br>certified modifier</span>
       </div>
     </div>
     <div class="sat-tile">
       <img src="assets/tiles/tile_uganda_structured_ag.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Structured agricultural landscape</span>
-        <span class="sat-country">Uganda · YOP<br>business assets</span>
+        <span class="sat-country">Uganda · YOP<br>business assets<br>candidate modifier</span>
       </div>
     </div>
     <div class="sat-tile">
       <img src="assets/tiles/tile_ghana_waterways.png" alt="Bongo, Ghana (2015)">
       <div class="sat-overlay">
         <span class="sat-feature">Ephemeral waterways</span>
-        <span class="sat-country">Ghana · LEAP 1000<br>expenditure</span>
+        <span class="sat-country">Ghana · LEAP 1000<br>expenditure<br>certified modifier</span>
       </div>
     </div>
     <div class="sat-tile">
       <img src="assets/tiles/tile_ghana_forest.png" alt="Karaga, Ghana (2015)">
       <div class="sat-overlay">
         <span class="sat-feature">Closed-canopy forest</span>
-        <span class="sat-country">Ghana · LEAP 1000<br>expenditure</span>
+        <span class="sat-country">Ghana · LEAP 1000<br>expenditure<br>certified modifier</span>
       </div>
     </div>
   </div>
@@ -533,21 +568,21 @@ footer{padding:1.8rem 2rem;text-align:center;
   </div>
 
   <div class="abstract-box" id="abstract-box" style="display:none">
-    Heterogeneous Treatment Effect (HTE) identification is crucial to explain the impact of
-    an intervention and optimize our policies accordingly. Existing approaches trade
-    expressivity for interpretability, but as long as some active heterogeneity drivers are
-    unmeasured, both ends of this spectrum allow for spurious HTE characterization with no
-    causal reading. We focus on controlled experiments and argue that the oracle causal
-    characterization via the <em>direct effect modifiers</em> is now within reach, thanks
-    to (i) more extensive pre-treatment measurements, e.g., multi-modal, and (ii)
-    representation learning pipelines to scale their analyses. We re-frame HTE
-    identification as a Markov-blanket discovery problem on a sufficient and aligned
-    pre-treatment representation, and introduce
-    <strong>Neural EXposure Interaction Search (NEXIS)</strong>, an iterative procedure
-    with provable and empirically validated consistent selection. We deploy NEXIS on two
-    anti-poverty programs in Africa, augmenting each with satellite imagery capturing
-    previously unmeasured environmental effect modifiers, leading to novel interpretable
-    and prescriptive guidelines to optimize the programs&#8217; next iterations.
+    Heterogeneous Treatment Effect (HTE) identification is essential to explain the impact
+    of an intervention and optimize our policies accordingly. Existing approaches trade
+    expressivity for interpretability, but, if some active heterogeneity drivers are
+    unmeasured, methods at both ends of this spectrum allow for spurious HTE
+    characterization with no causal reading. In this work, we focus on controlled
+    experiments and argue that an oracle HTE causal characterization via the latent
+    interactors is now within reach, thanks to (i) more extensive pre-treatment
+    measurements, i.e., multi-modal and multi-view, and (ii) scalable representations with
+    minimal human supervision. We then re-frame HTE identification as a Markov-blanket
+    discovery problem on a sufficient and aligned pre-treatment representation, and
+    introduce <strong>Neural EXposure Interaction Search (NEXIS)</strong>, an iterative
+    procedure with a provable selection guarantee. We deploy NEXIS on two anti-poverty
+    programs in Africa, augmenting each with satellite imagery capturing previously
+    unmeasured environmental effect modifiers, leading to new <em>candidate</em>
+    prescriptive guidelines to optimize the programs&#8217; next iterations.
   </div>
 </header>
 
@@ -557,7 +592,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h2>Introduction</h2>
     <div class="tldr-box">
       <span class="tldr-label">TL;DR</span>
-      How to identify the causal drivers of treatment-effect heterogeneity entangled in complex measurements (e.g., multi-modal, unstructured), offering prescriptive guidelines for policy adaptation.
+      On the identification of the latent causal drivers of treatment-effect heterogeneity from complex measurements, leading to novel prescriptive hypotheses for policy design.
     </div>
 
     <h3 style="margin-top:0">Contributions</h3>
@@ -568,9 +603,10 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="contrib-body">
             More data doesn't help if we ask the wrong question.
             We distinguish variables <em>correlated</em> with treatment-effect heterogeneity
-            from those that <em>causally drive</em> it, and show <em>when</em> and <em>how</em> finding the latter
-            is achievable end-to-end — from raw multi-modal measurements to interpretable,
-            actionable policy guidelines.
+            from those that <em>causally drive</em> it, and formulate the search for the latter
+            as a Markov-blanket discovery problem over a sufficient and aligned pre-treatment
+            representation. We show <em>when</em> and <em>how</em> it is achievable end-to-end,
+            from raw multi-modal measurements to interpretable policy hypotheses.
           </div>
         </details>
       </li>
@@ -578,19 +614,22 @@ footer{padding:1.8rem 2rem;text-align:center;
         <details>
           <summary>New method</summary>
           <div class="contrib-body">
-            We introduce NEXIS, an iterative forward-backward selection algorithm that conditions on competing
-            candidates to isolate the true heterogeneity drivers (causal) — with
-            provable selection consistency. Extensively tested and ablated on semi-synthetic experiments, providing practical guidelines for different data regimes.
+            We introduce NEXIS, a forward&#8211;backward Markov-blanket procedure based on
+            conditional CATE-equivalence tests: a forward step followed by one terminal
+            backward step. It comes with a selection guarantee, and is extensively tested and ablated on
+            semi-synthetic experiments, providing practical guidelines for different data regimes.
           </div>
         </details>
       </li>
       <li>
         <details>
-          <summary>New discoveries in development economics</summary>
+          <summary>New candidate discoveries in development economics</summary>
           <div class="contrib-body">
-            We deploy our method (NEXIS) to two anti-poverty program evaluations in Sub-Saharan Africa, extending both with
-            satellite imagery to caputure environmental modifiers. In both programs, environmental features <em>invisible
-            to standard survey analyses</em> emerge as the dominant effect drivers, with concrete prescriptions for program redesign.
+            We deploy NEXIS on two anti-poverty program evaluations in Sub-Saharan Africa, extending both with
+            satellite imagery to capture environmental modifiers. In both programs, the selected modifiers are mainly
+            environmental factors, <em>coarsely proxied or absent in survey data</em>, while no individual-level
+            demographic is selected. With no ground truth, these results are hypotheses for field validation,
+            not established causal modifiers or policy prescriptions.
           </div>
         </details>
       </li>
@@ -609,8 +648,10 @@ footer{padding:1.8rem 2rem;text-align:center;
     </div>
     <div class="def-box">
       <div class="def-label">Direct Effect Modifier <em>(Interactor)</em></div>
-      <p style="margin:0">It is an effect modifier that causally drives the heterogeneity by directly 
-        interacting with the treatment. Crucial for policy optimization, as intervening on it or targeting it amplifies the policy impact.</p>
+      <p style="margin:0">It is an effect modifier that causally drives the heterogeneity by directly
+        interacting with the treatment. The complete set of direct modifiers is the minimal and sufficient
+        summary of the effect heterogeneity, and has a causal reading: it identifies how the effect
+        would change under an intervention on the modifiers.</p>
     </div>
     <p>
       <strong>Example:</strong> <em>Consider a cash transfer program targeting
@@ -626,12 +667,13 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="paradox-callout">
       <span class="plabel">Experimental Power Paradox</span>
       <p style="margin:0">
-        Marginal screening tests each variable independently and cannot distinguish
-        <em>effect modifiers</em> from <em>interactors</em>: as experimental power grows,
-        it flags <em>every</em> variable correlated with the treatment effect &#8212;
-        including non-causal proxies like road density.
-        <strong>More data makes spurious discoveries more significant, not fewer</strong>,
-        especially in learned representations which are intrinsically entangled.
+        Marginal screening tests each variable on its own and cannot distinguish
+        <em>effect modifiers</em> from <em>interactors</em>: as experimental power grows
+        (larger samples, stronger effects, more sensitive tests), it flags every variable
+        that carries heterogeneity signal, including non-causal proxies like road density.
+        <strong>It is consistent for the wrong target: more power widens the gap from the
+        direct modifiers</strong>, especially in learned representations, which are intrinsically
+        entangled. Recovering the direct modifiers requires conditional tests.
       </p>
     </div>
     <div class="two-charts-wrap">
@@ -646,8 +688,8 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="chart-title">Sample size sweep</div>
           <div class="chart-controls">
             <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-            <label><input type="radio" name="p-feta" value="2" checked> 2</label>
-            <label><input type="radio" name="p-feta" value="5"> 5</label>
+            <label><input type="radio" name="p-feta" value="2"> 2</label>
+            <label><input type="radio" name="p-feta" value="5" checked> 5</label>
           </div>
           <canvas id="paradox-n-chart"></canvas>
         </div>
@@ -655,8 +697,8 @@ footer{padding:1.8rem 2rem;text-align:center;
           <div class="chart-title">Effect size sweep</div>
           <div class="chart-controls">
             <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-            <label><input type="radio" name="p-fn" value="500" checked> 500</label>
-            <label><input type="radio" name="p-fn" value="2000"> 2000</label>
+            <label><input type="radio" name="p-fn" value="500"> 500</label>
+            <label><input type="radio" name="p-fn" value="2000" checked> 2000</label>
           </div>
           <canvas id="paradox-e-chart"></canvas>
         </div>
@@ -681,42 +723,57 @@ footer{padding:1.8rem 2rem;text-align:center;
       </div></li>
       <li><div class="step-body">
         <strong>Represent.</strong>
-        Represent such pre-treatment measurements in an interpretable dictionary with minimal or none 
-        human supervision, e.g., training a Sparse Autoencoder (SAE) on  a frozen domain-specific foundation model.
+        Represent such pre-treatment measurements in an interpretable dictionary with minimal or no
+        human supervision, e.g., training a Sparse Autoencoder (SAE) on a frozen domain-specific foundation model.
       </div></li>
       <li><div class="step-body">
         <strong>Identify.</strong>
-        Neural EXposure Interactors Search (NEXIS): retrieve the minimal and sufficient heterogenous effect characterization, by iterative CATE-equivalence 
-        testing on the representation coordinates. Interpret the selected coordinates <em>a-posteriori</em>, e.g., 
-        querying a VLM on the most and activating observations.
+        Neural EXposure Interaction Search (NEXIS) retrieves the minimal and sufficient
+        heterogeneous effect characterization by conditional CATE-equivalence tests on the
+        representation coordinates, adapting forward&#8211;backward Markov-blanket discovery:
+        <ul style="margin:0.4rem 0 0.4rem 1.2rem;padding:0;">
+          <li><em>Forward step</em> (IAMB&#8217;s grow phase): given the current selection
+            <em>S</em>, add the coordinate with the smallest <em>p</em>-value if it passes the
+            gate &alpha;/|<em>S&#772;</em>|, where <em>S&#772;</em> are the coordinates not yet
+            selected; repeat until no coordinate passes.</li>
+          <li><em>Terminal backward step</em> (MMPC/HITON-PC subset rule), run once: keep a
+            selected coordinate <em>j</em> only if its <em>p</em>-value is at most &alpha;/<em>m</em>
+            given every subset of the other selected coordinates, with <em>m</em> the number of
+            candidates.</li>
+        </ul>
+        An optional interleaved backward step and a spectral-gap gate &rho; are practical
+        variants discussed in the paper&#8217;s appendix; neither is part of Algorithm 1, animated below.
+        Interpret the selected coordinates <em>a posteriori</em>, e.g., by querying a VLM on
+        the most and least activating observations.
         <video src="assets/nexis_method.mp4" autoplay loop muted playsinline controls
                style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
         </video>
         <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border);">
         <details class="thm-details">
-          <summary>Theoretical Guarantee</summary>
+          <summary>Theorem (Causal Identification)</summary>
           <div class="thm-box">
-            <p class="thm-context">Given a controlled experiment, faithfulness, and a valid conditional independence test. Assuming:</p>
             <div class="thm-block">
-              <ul class="thm-ass">
-                <li><em>Principal Alignment</em> in the representation</li>
-              </ul>
-              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS asymptotically retrieves a <strong>minimal and sufficient HTE characterization</strong> with high probability &nbsp;(<em class="thm-conclusion">selection consistency</em>)</span></div>
+              <p class="thm-text">In a randomized experiment, with faithfulness and valid and consistent
+                CATE-equivalence tests, assuming <em>Principal Alignment</em> of the representation,
+                NEXIS&#8217; output <em>S&#770;<sub>n</sub></em> recovers the principal proxies
+                <em>S</em>* of the direct effect modifiers (<em class="thm-conclusion">selection guarantee</em>):</p>
+              <div class="thm-eq">lim&thinsp;inf<sub><em>n</em></sub> P(<em>S&#770;<sub>n</sub></em> = <em>S</em>*) &ge; 1 &minus; &alpha;</div>
             </div>
             <hr class="thm-divider">
             <div class="thm-block">
-              <p style="margin:0 0 0.15rem 0;color:#555;">If we further assume:</p>
-              <ul class="thm-ass">
-                <li><em>Measurement</em> and <em>Representation Sufficiency</em></li>
-              </ul>
-              <div class="thm-arrow"><span class="arr">&#8594;</span><span>NEXIS characterization is <strong>causal and interpretable by construction</strong> &nbsp;(<em class="thm-conclusion">causal identification</em>)</span></div>
+              <p class="thm-text">If we further assume <em>Measurement</em> and <em>Representation
+                Sufficiency</em>, the principal proxies identify the <strong>causal and interpretable</strong>
+                heterogeneity characterization (<em class="thm-conclusion">causal identification</em>):</p>
+              <div class="thm-eq">&tau;<sup>do</sup>(<strong>W</strong><sup>dir</sup>) = &tau;(<strong>W</strong><sup>dir</sup>) = E[&tau; | <strong>Z</strong><sup><em>S</em>*</sup>] &nbsp;almost surely</div>
             </div>
           </div>
         </details>
       </div></li>
       <li><div class="step-body">
         <strong>Policy.</strong>
-        Optimize the treatment assignment accordingly.
+        Update the policy accordingly, e.g., the treatment assignment of the next program
+        iteration. Structural assumptions determine the causal reading, so discoveries call
+        for cautious interpretation and experimental validation first.
       </div></li>
     </ol>
 
@@ -730,89 +787,142 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="outcome-tabs" id="abl-view-tabs">
       <button class="outcome-tab active" data-view="representation">Representation</button>
       <button class="outcome-tab" data-view="algorithm">Algorithm</button>
+      <button class="outcome-tab" data-view="dgp">DGP</button>
     </div>
-    <div id="abl-repr-panel">
-      <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.6rem;">
-        <span class="mc-label">TopK:</span>
-        <select id="repr-k" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
-          <option value="k20">k = 20</option>
-          <option value="k5">k = 5</option>
-        </select>
-        <span class="mc-label" style="margin-left:0.6rem;">Activation:</span>
-        <select id="repr-view" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
-          <option value="sae">code</option>
-          <option value="precode">precode</option>
-        </select>
-      </div>
+    <div id="repr-controls" class="map-controls" style="margin:0.2rem 0 0.5rem;gap:0.5rem 1.2rem;">
+      <span class="sae-ctl">
+      <span class="mc-label">SAE sparsity:</span>
+      <select id="repr-k" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="k20">k = 20</option>
+        <option value="k5">k = 5</option>
+      </select>
+      </span>
+      <span class="sae-ctl">
+      <span class="mc-label">Activation:</span>
+      <select id="repr-view" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="sae">sparse codes Z</option>
+        <option value="precode">pre-activations Z_pre</option>
+      </select>
+      </span>
+      <span class="sae-ctl">
+      <span class="mc-label">Seed:</span>
+      <select id="repr-seed" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:0.77rem;border:1px solid var(--border);border-radius:4px;padding:0.2em 0.5em;background:#fff;cursor:pointer;">
+        <option value="orig">original SAE</option>
+        <option value="rep">retrained SAE (replica)</option>
+      </select>
+      </span>
     </div>
     <div id="abl-algo-panel" style="display:none">
       <div class="abl-tabs" id="abl-tabs">
         <button class="abl-tab active" data-abl="test">Statistical test</button>
         <button class="abl-tab" data-abl="correction">Multiple-testing correction</button>
         <button class="abl-tab" data-abl="rho">Spectral gap &rho;</button>
-        <button class="abl-tab" data-abl="backward">Backward elimination</button>
+        <button class="abl-tab" data-abl="backward">Backward steps</button>
       </div>
     </div>
-    <div class="two-charts-shared">
+    <div id="abl-dgp-panel" style="display:none">
+      <div class="abl-tabs" id="dgp-tabs">
+        <span class="abl-group-label">Direct modifiers</span>
+        <button class="abl-tab active" data-r="r0">r = 0</button>
+        <button class="abl-tab" data-r="r1">r = 1</button>
+        <button class="abl-tab" data-r="r2">r = 2 (main)</button>
+        <button class="abl-tab" data-r="r3">r = 3</button>
+      </div>
+    </div>
+    <div class="two-charts-shared" id="abl-metric-row">
       <span class="sh-label">Metric</span>
       <label class="chart-controls"><input type="radio" name="am" value="precision" checked> Precision</label>
       <label class="chart-controls"><input type="radio" name="am" value="recall"> Recall</label>
       <label class="chart-controls"><input type="radio" name="am" value="iou"> IoU</label>
     </div>
-    <div class="two-charts-grid">
+    <div class="two-charts-grid" id="abl-grid">
       <div class="chart-card">
         <div class="chart-title">Sample size sweep</div>
-        <div class="chart-controls">
+        <div class="chart-controls" id="abl-n-ctrl">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix &eta; =</span>
-          <label><input type="radio" name="a-feta" value="2" checked> 2</label>
-          <label><input type="radio" name="a-feta" value="5"> 5</label>
+          <label><input type="radio" name="a-feta" value="2"> 2</label>
+          <label><input type="radio" name="a-feta" value="5" checked> 5</label>
         </div>
         <canvas id="abl-n-chart"></canvas>
       </div>
-      <div class="chart-card">
+      <div class="chart-card" id="abl-e-card">
         <div class="chart-title">Effect size sweep</div>
         <div class="chart-controls">
           <span style="color:var(--muted);font-family:sans-serif;font-size:0.72rem;">Fix n =</span>
-          <label><input type="radio" name="a-fn" value="500" checked> 500</label>
-          <label><input type="radio" name="a-fn" value="2000"> 2000</label>
+          <label><input type="radio" name="a-fn" value="500"> 500</label>
+          <label><input type="radio" name="a-fn" value="2000" checked> 2000</label>
         </div>
         <canvas id="abl-e-chart"></canvas>
       </div>
     </div>
-    <div id="abl-desc" style="font-size:0.87rem;color:var(--muted);margin-top:0.8rem;font-family:'Helvetica Neue',sans-serif;"></div>
+    <details class="align-details" id="align-abl">
+      <summary>Check Principal Alignment</summary>
+      <div class="nexis-interp align-panel">
+        <div class="nexis-interp-head">
+          <span class="ni-label">Concept</span>
+          <select class="align-concept" aria-label="Select concept"></select>
+          <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
+            <span>top-k</span>
+            <select class="align-n" style="width:3.8em;">
+              <option>4</option><option selected>8</option><option>16</option>
+            </select>
+          </label>
+        </div>
+        <div class="nexis-interp-body align-body">
+          <div class="align-chart-wrap"><canvas></canvas></div>
+          <div class="ni-tiles">
+            <div class="ni-tile-group">
+              <div class="ni-tile-group-label align-top-label">Most activating</div>
+              <div class="ni-tile-row align-tiles-top"></div>
+            </div>
+            <div class="ni-tile-group">
+              <div class="ni-tile-group-label align-bot-label">Least activating</div>
+              <div class="ni-tile-row align-tiles-bot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
   </div>
 </section>
 
 <!-- ══════════════════════════════════
-     APPLICATION 1 — UGANDA YOP
+     CASE STUDY 1 — UGANDA YOP
      ══════════════════════════════════ -->
 <section id="uganda">
   <div class="wrap">
-    <h2>Application 1: Youth Opportunities Program (Uganda)</h2>
+    <h2>Case Study 1: Youth Opportunities Program (Uganda)</h2>
 
     <p id="uganda-program">
       <strong>Program.</strong>
       The <a href="https://chrisblattman.com/documents/research/2014.GeneratingSkilledEmployment.QJE.pdf" class="ref" target="_blank">Youth Opportunities Program (YOP)</a>
-      was a randomised cash-grant experiment conducted in post-conflict Northern Uganda in 2008.
-      The government awarded one-time grants (~$7,500 USD) to randomly selected groups of young adults,
-      enabling them to pursue skilled artisan or business activity. The program targeted communities
-      in five linguistic sub-regions severely affected by the LRA conflict.
+      is an anti-poverty program launched in 2008 in post-conflict Northern Uganda, awarding cash
+      grants (approximately $382 per group member, plus optional vocational training) to
+      self-organised youth groups, randomized across 535 groups. The original evaluation reports a
+      positive average effect on productive economic capacity, captured through skilled employment
+      and business asset accumulation. We ask <em>why</em> and <em>how</em> the impact varies.
     </p>
 
     <p>
       <strong>Experiment.</strong>
-      The trial enrolled 439 groups across 331 communities (422 geo-coded sites),
-      with individual-level baseline and endline surveys covering labour-market outcomes
-      (skilled employment, business assets) and pre-treatment demographic covariates
-      (age, education, household composition, linguistic group).
+      Our analytic sample has 2,082 individuals in 439 groups and 327 distinct communities
+      (331 RCT sites) across four sub-regions (Karamoja, Teso, Lango and West Nile), 825 of them
+      treated. Outcomes are skilled employment and log business assets at endline; pre-treatment
+      covariates include age, sex, parental education, the group share of women and the
+      community language group (7 ethnolinguistic clusters). We define the treatment <em>T</em>
+      as grant receipt: 29 of the 265 groups assigned to the grant never received it and count as
+      untreated. This exploratory as-treated analysis assumes non-receipt is as good as random.
     </p>
 
     <p id="uganda-map"><strong>Data fusion (ours).</strong>
-      We extend the trial with Landsat-7 imagery (2005&#8211;2007), embedded via
+      We extend the trial with Landsat-7 multispectral imagery (2005&#8211;2007 composite,
+      immediately before the program), embedded via
       <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
-      and summarised by a 1,024-atom SAE, adding 146 active SAE atoms and spectral indices
-      to the demographic covariates — 170 total NEXIS candidates.
-      The map below shows trial communities colored by linguistic group or treatment assignment.
+      and summarised by a 1,024-atom TopK SAE trained on a held-out Uganda national grid.
+      The 146 atoms active in at least 5 sites, 12 spectral-index summaries (NDVI, NDWI, MNDWI,
+      NDBI, EVI, BSI; mean and standard deviation per tile) and the trial covariates form
+      170 NEXIS candidates. The map below shows the trial communities by treatment, outcome
+      or covariate.
     </p>
     <div class="map-controls" style="margin-bottom:0.4rem;flex-wrap:wrap;gap:0.5rem;">
       <span class="mc-label">View:</span>
@@ -874,58 +984,70 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div id="ug-ctx-skilled">
       <div class="finding">
         <strong>Skilled Employment &#8212; Key finding</strong>
-        NEXIS selects 5 direct modifiers: 3 ethnolinguistic-group interactions (Karamojong, Lugbara,
-        Pallisa) pointing to post-conflict market connectivity, and 2 satellite-derived environmental
-        features following an <em>outside-option logic</em>: program impact on skilled employment is
-        strongest where subsistence alternatives are scarcest. Marginal screening returns 71 features
-        from the same 170 candidates.
+        NEXIS certifies 3 modifiers: the Karamojong and Pallisa language groups and
+        <em>vegetation spatial heterogeneity</em>. Two more coordinates, the Lugbara language group
+        and <em>perennial river presence</em>, enter in the forward step but fail the terminal
+        backward step: we report them as candidates. The language groups point to post-conflict
+        market connectivity; the environmental features follow an <em>outside-option logic</em>,
+        picking out landscapes where fishing or bush subsistence remains viable. No individual-level
+        demographic is selected, while 71 of the 170 candidates pass an uncorrected marginal test.
       </div>
     </div>
     <div id="ug-ctx-biz" style="display:none">
       <div class="finding">
         <strong>Log Business Assets &#8212; Key finding</strong>
-        NEXIS selects 2 satellite-derived direct modifiers. Vegetation greenness (NDVI) amplifies
-        asset accumulation where baseline agricultural productivity is higher; structured agricultural
-        landscapes dampen it through crowding-out by incumbent commercial farming. No demographic or
-        linguistic modifier survives. Marginal screening returns 45 features from the same 170 candidates.
+        NEXIS certifies NDVI: regions with greater vegetation greenness show a higher program impact,
+        as more productive baseline land compounds whatever inputs the grant funds.
+        <em>Structured agricultural landscape</em> is a candidate that dampens returns, plausibly
+        through crowding-out by incumbent commercial-scale agriculture. No demographic or language
+        group is selected, while 45 of the 170 candidates pass an uncorrected marginal test.
       </div>
     </div>
 
+    <p class="status-note">
+      <strong>Certified</strong> modifiers are selected by the forward step and survive the
+      terminal backward step; <strong>candidate</strong> modifiers are selected by the forward
+      step only. Both are hypotheses: exploratory findings to be investigated further, since
+      whether the requirements of NEXIS&#8217;s guarantee hold in practice cannot be verified here.
+    </p>
+
     <div id="ug-table-skilled">
       <table class="results-table">
-        <caption>GATE and &#916; in probability points (s.e. in parentheses)</caption>
+        <caption>GATE and &#916; in probability points (s.e. in parentheses).</caption>
         <thead><tr>
-          <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-          <th>&#916;</th><th><em>p</em>-value</th>
+          <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+          <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
         </tr></thead>
         <tbody>
-          <tr class="sub-panel"><td colspan="5">Linguistic group</td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Karamojong</summary><p class="mod-desc">Under an active government disarmament campaign through 2011 and isolated from post-LRA reconstruction flows, Karamoja had the weakest market recovery of all subgroups. Without functioning markets to channel the grant into skilled trade, the program had no positive effect on skilled employment in these communities — the sharpest dampening across all discovered modifiers.</p></details></td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
-            <td class="lo">&#8722;0.403 (0.063)</td><td>7.7&#215;10<sup>&#8722;10</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Lugbara</summary><p class="mod-desc">West Nile's geographic isolation at the DRC–South Sudan border, historical underservice by national infrastructure, and constrained cross-border trade reduced how much of the grant translated into skilled employment. The program remained positive but well below the baseline rate, reflecting barriers to market participation that skill grants alone cannot overcome.</p></details></td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
-            <td class="lo">&#8722;0.255 (0.065)</td><td>1.6&#215;10<sup>&#8722;5</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Pallisa</summary><p class="mod-desc">Located outside the northern conflict core in eastern Uganda, Pallisa's mixed Iteso–Bagwere farming economy and shorter supply chains to central markets provided conditions for skill-grant success. Where markets had recovered, the grant compounded into durable employment gains — the strongest amplifying effect among all discovered modifiers.</p></details></td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
-            <td class="hi">+0.386 (0.062)</td><td>6.3&#215;10<sup>&#8722;8</sup></td></tr>
-          <tr class="sub-panel"><td colspan="5">Satellite atoms</td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Perennial river presence</summary><p class="mod-desc">River corridors sustain subsistence fishing and bush-crop farming — persistent outside options that reduce the marginal utility of entering skilled trade. In communities along permanent watercourses the program effect on skilled employment is markedly dampened (outside-option mechanism).</p></details></td><td>+0.089 (0.098)</td><td>+0.330 (0.021)</td>
-            <td class="lo">&#8722;0.242 (0.100)</td><td>2.1&#215;10<sup>&#8722;4</sup></td></tr>
-          <tr class="sub-indent"><td><details class="mod-detail"><summary>Vegetation spatial heterogeneity</summary><p class="mod-desc">A mosaic of agricultural patches and bush signals diverse subsistence livelihoods. Where land cover is varied, households can sustain mixed farming strategies without the grant, dampening its incentive to enter skilled trade (outside-option mechanism).</p></details></td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td>
-            <td class="lo">&#8722;0.159 (0.045)</td><td>6.7&#215;10<sup>&#8722;5</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Certified modifiers</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Karamojong</summary><p class="mod-desc">Language group. Karamoja was conflict-affected at trial time, under a government disarmament campaign through 2011, with weak supply-chain integration. The estimated effect on skilled employment is null in these communities. Hypothesis: without functioning markets, the grant does not compound into skilled trade.</p></details></td><td>&#8722;0.030 (0.060)</td><td>+0.372 (0.022)</td>
+            <td class="lo">&#8722;0.403 (0.063)</td><td>7.7&#215;10<sup>&#8722;10</sup></td><td>7.6&#215;10<sup>&#8722;8</sup></td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Pallisa</summary><p class="mod-desc">Language group covering Pallisa district, outside the northern conflict core in eastern Uganda, with a mixed Iteso&#8211;Bagwere farming economy and shorter supply chains to central markets. The estimated effect is the largest among the selected modifiers. Hypothesis: where markets had recovered, the grant compounds into durable skilled employment.</p></details></td><td>+0.674 (0.058)</td><td>+0.288 (0.022)</td>
+            <td class="hi">+0.386 (0.062)</td><td>6.3&#215;10<sup>&#8722;8</sup></td><td>1.0&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Vegetation spatial heterogeneity</summary><p class="mod-desc">Satellite atom (neuron 533): a mosaic of agricultural patches and bush. Hypothesis: where land cover is varied, households can sustain mixed subsistence livelihoods, reducing the pull of a new skilled trade (outside-option logic).</p></details></td><td>+0.214 (0.038)</td><td>+0.373 (0.025)</td>
+            <td class="lo">&#8722;0.159 (0.045)</td><td>6.7&#215;10<sup>&#8722;5</sup></td><td>2.7&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Candidate modifiers</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Lugbara</summary><p class="mod-desc">Language group of West Nile, historically isolated from national infrastructure, underserved by post-LRA reconstruction flows and constrained by its position at the DRC and South Sudan border. The estimated effect stays positive but well below the rest of the sample. A candidate: its certification <em>p</em>-value exceeds &alpha;/<em>m</em>.</p></details></td><td>+0.092 (0.061)</td><td>+0.347 (0.023)</td>
+            <td class="lo">&#8722;0.255 (0.065)</td><td>1.6&#215;10<sup>&#8722;5</sup></td><td>3.2&#215;10<sup>&#8722;4</sup></td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Perennial river presence</summary><p class="mod-desc">Satellite atom (neuron 339): sites along permanent watercourses. Hypothesis: river corridors keep fishing and subsistence farming viable, reducing the pull of a new skilled trade (outside-option logic). A candidate: its certification <em>p</em>-value exceeds &alpha;/<em>m</em>.</p></details></td><td>+0.089 (0.097)</td><td>+0.330 (0.021)</td>
+            <td class="lo">&#8722;0.242 (0.100)</td><td>2.1&#215;10<sup>&#8722;4</sup></td><td>4.4&#215;10<sup>&#8722;4</sup></td></tr>
         </tbody>
       </table>
     </div>
     <div id="ug-table-biz" style="display:none">
       <table class="results-table">
-        <caption>GATE and &#916; in log points (s.e. in parentheses)</caption>
+        <caption>GATE and &#916; in log points (s.e. in parentheses); NDVI binarized at the sample median.</caption>
         <thead><tr>
-          <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-          <th>&#916;</th><th><em>p</em>-value</th>
+          <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+          <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
         </tr></thead>
         <tbody>
-          <tr><td><details class="mod-detail"><summary>NDVI (vegetation greenness)</summary><p class="mod-desc">Higher greenness indexes more productive agricultural land and stronger pre-program economic activity. The grant amplifies business-asset accumulation where baseline agricultural productivity is already higher — a complementarity between land endowment and the cash transfer.</p></details></td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
-            <td class="hi">+0.115 (0.092)</td><td>5.6&#215;10<sup>&#8722;5</sup></td></tr>
-          <tr><td><details class="mod-detail"><summary>Structured agricultural landscape</summary><p class="mod-desc">Regular field grids and mechanised-scale agriculture signal incumbent commercial farming. Pre-existing large-scale agriculture reduces marginal returns on new business formation from the grant — a crowding-out effect on asset accumulation.</p></details></td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td>
-            <td class="lo">&#8722;0.282 (0.107)</td><td>1.7&#215;10<sup>&#8722;2</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Certified modifiers</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>NDVI</summary><p class="mod-desc">Spectral index of vegetation greenness. Higher greenness goes with a larger effect on business assets. Hypothesis: more productive baseline land compounds whatever inputs the grant funds.</p></details></td><td>+0.668 (0.061)</td><td>+0.552 (0.068)</td>
+            <td class="hi">+0.115 (0.092)</td><td>5.6&#215;10<sup>&#8722;5</sup></td><td>5.6&#215;10<sup>&#8722;5</sup></td></tr>
+          <tr class="sub-panel"><td colspan="6">Candidate modifiers</td></tr>
+          <tr class="sub-indent"><td><details class="mod-detail"><summary>Structured agricultural landscape</summary><p class="mod-desc">Satellite atom (neuron 820): regular field grid, mechanised-scale agriculture. Hypothesis: incumbent commercial-scale agriculture crowds out the returns to new business assets. A candidate: its certification <em>p</em>-value exceeds &alpha;/<em>m</em>.</p></details></td><td>+0.368 (0.094)</td><td>+0.649 (0.051)</td>
+            <td class="lo">&#8722;0.282 (0.107)</td><td>1.7&#215;10<sup>&#8722;2</sup></td><td>1.7&#215;10<sup>&#8722;2</sup></td></tr>
         </tbody>
       </table>
     </div>
@@ -936,7 +1058,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <!-- NEXIS Interpretation — Skilled Employment -->
     <div id="ug-interp-skilled" class="nexis-interp">
       <div class="nexis-interp-head">
-        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <span class="ni-label">Modifier Explorer</span>
         <select id="ug-mod-skilled" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
           <span>top-k</span>
@@ -964,7 +1086,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <!-- NEXIS Interpretation — Log Business Assets -->
     <div id="ug-interp-biz" class="nexis-interp" style="display:none">
       <div class="nexis-interp-head">
-        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <span class="ni-label">Modifier Explorer</span>
         <select id="ug-mod-biz" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
           <span>top-k</span>
@@ -992,37 +1114,39 @@ footer{padding:1.8rem 2rem;text-align:center;
 </section>
 
 <!-- ══════════════════════════════════
-     APPLICATION 2 — GHANA LEAP
+     CASE STUDY 2 — GHANA LEAP
      ══════════════════════════════════ -->
 <section id="ghana">
   <div class="wrap">
-    <h2>Application 2: Livelihood Empowerment Against Poverty (Ghana)</h2>
+    <h2>Case Study 2: Livelihood Empowerment Against Poverty (Ghana)</h2>
 
     <p id="ghana-program">
       <strong>Program.</strong>
       The <a href="https://www.unicef.org/innocenti/reports/ghana-leap-1000-programme" class="ref" target="_blank">Livelihood Empowerment Against Poverty 1000 (LEAP 1000)</a>
-      is Ghana's national unconditional cash transfer program, targeting pregnant women and
-      mothers of children under one year of age in the country's poorest districts.
-      A quasi-experimental evaluation using a regression discontinuity design was conducted
-      in Northern Ghana between 2015 and 2017, measuring the program's impact on household
-      consumption and welfare.
+      programme was launched in Ghana in 2015 to target early-childhood poverty and stunted
+      nutrition, providing bimonthly cash transfers to extremely poor households with newborns.
+      Its evaluation uses a regression discontinuity design on a proxy means test score, with
+      difference-in-differences estimation between the 2015 baseline and the 2017 endline.
     </p>
 
     <p>
       <strong>Experiment.</strong>
-      The evaluation enrolled 2,331 households in 162 communities across the North East, Northern,
-      Savannah, and Upper East regions. Baseline (2015) and endline (2017) surveys provide
-      household-level consumption outcomes and 24 pre-treatment covariates (demographics,
-      asset ownership, household composition). The overall difference-in-differences
-      ATE is <strong>+7.35 GH&#8353;/month</strong>.
+      The evaluation covers 2,331 households (1,185 treated) in 162 communities across five
+      districts in two regions, Northern and Upper East (region boundaries as of 2015; the map
+      shows today&#8217;s regions). The outcome is monthly adult-equivalent household consumption
+      expenditure, and 24 pre-treatment survey covariates describe household composition, the
+      household head, housing, water and sanitation, and livelihoods. The difference-in-differences
+      estimate of the local average treatment effect on the treated (local ATT), for households
+      near the eligibility cutoff, is <strong>+7.35 GH&#8373;/month</strong>.
     </p>
 
     <p id="ghana-map"><strong>Data fusion (ours).</strong>
-      We extend the trial with Landsat-8 2015 imagery, embedded via
+      We extend the evaluation with Landsat-8 2015 imagery, embedded via
       <a href="https://arxiv.org/abs/2310.18660" class="ref" target="_blank">Prithvi-EO</a>
-      and summarised by a 4,096-atom SAE, combined with the 24 survey covariates
-      — 155 total NEXIS candidates.
-      The map below shows GPS centroids of the 162 trial communities, colored by study region.
+      and summarised by a 4,096-atom TopK SAE trained on a held-out Ghana national grid.
+      The 131 atoms active in at least 5 communities, 12 spectral-index summaries and the
+      24 survey covariates form 167 NEXIS candidates. Standard errors are clustered by
+      community. The map below shows the GPS centroids of the 162 communities.
     </p>
     <div class="map-controls" style="flex-wrap:wrap;gap:0.5rem;">
       <span class="mc-label">View:</span>
@@ -1084,31 +1208,42 @@ footer{padding:1.8rem 2rem;text-align:center;
     <h3 id="ghana-results">Results</h3>
     <div class="finding">
       <strong>Key finding</strong>
-      NEXIS selects 2 satellite-derived direct modifiers: <em>ephemeral waterways</em> and
-      <em>closed-canopy forest</em>, rare endowments in this predominantly arid savannah landscape
-      that let households direct the transfer into productive investment. No survey covariate
-      survives. Active communities show 6&#8211;8&#215; the average program effect.
-      Marginal screening returns 50+ features from the same 155 candidates.
+      NEXIS certifies 2 satellite-derived modifiers, <em>ephemeral waterways</em> and
+      <em>closed-canopy forest</em>, with no candidates and no survey covariate; 18 of the
+      167 candidates pass an uncorrected marginal test. In the few communities where these
+      features are present, the estimated effect is 6&#8211;8&#215; the local ATT. We hypothesize
+      <em>complementarity</em>: water-adjacent smallholders can invest transfers in
+      irrigation-season agriculture, while forest-edge households can combine cash with
+      non-timber livelihoods. No demographic modifier is detected at this threshold, which
+      does not establish invariance.
     </div>
 
+    <p class="status-note">
+      <strong>Certified</strong> modifiers are selected by the forward step and survive the
+      terminal backward step; <strong>candidate</strong> modifiers are selected by the forward
+      step only. Both are hypotheses: exploratory findings to be investigated further, since
+      whether the requirements of NEXIS&#8217;s guarantee hold in practice cannot be verified here.
+    </p>
+
     <table class="results-table">
-      <caption>GATE and &#916; in GH&#8373;/month, deflated to constant Greater Accra Aug-2017 prices (s.e. in parentheses)</caption>
+      <caption>GATE and &#916; in GH&#8373;/month, deflated to constant Greater Accra Aug-2017 prices (s.e. clustered by community in parentheses).</caption>
       <thead><tr>
-        <th>Direct Effect Modifier</th><th>GATE active</th><th>GATE inactive</th>
-        <th>&#916;</th><th><em>p</em>-value</th>
+        <th>Modifier</th><th>GATE active</th><th>GATE inactive</th>
+        <th>&#916;</th><th>Marginal <em>p</em></th><th>Certification <em>p</em></th>
       </tr></thead>
       <tbody>
-        <tr>
-          <td><details class="mod-detail"><summary>Ephemeral waterways</summary><p class="mod-desc">Narrow seasonal streams and wetland corridors enable micro-irrigation of adjacent plots during the agricultural season. In Northern Ghana's rainfed smallholder system, the transfer can be invested in seeds, fertiliser, or tools that water-adjacent households productively deploy — driving far larger consumption gains than in waterless communities. Active in 6 communities (83 households); temporal satellite analysis confirms cropland expansion and denser riparian vegetation by 2017 in three of them.</p></details></td>
-          <td>+42.9 (14.9)</td><td>+6.0 (1.0)</td>
-          <td class="hi">+36.9 (14.9)</td>
-          <td>2.1&#215;10<sup>&#8722;8</sup></td>
+        <tr class="sub-panel"><td colspan="6">Certified modifiers</td></tr>
+        <tr class="sub-indent">
+          <td><details class="mod-detail"><summary>Ephemeral waterways</summary><p class="mod-desc">Satellite atom: narrow seasonal streams and wetland corridors with adjacent riparian vegetation. Active in 6 communities (83 households). Hypothesis: in Northern Ghana&#8217;s rainfed smallholder system, seasonal water allows micro-irrigation of adjacent plots, and the transfer can be invested in seeds, fertiliser or tools that water-adjacent households can put to productive use. Paired 2015/2017 imagery shows unchanged waterways and cropland expansion with denser riparian vegetation in three of the six communities.</p></details></td>
+          <td>+42.9 (15.8)</td><td>+6.0 (3.9)</td>
+          <td class="hi">+36.9</td>
+          <td>3.2&#215;10<sup>&#8722;8</sup></td><td>3.2&#215;10<sup>&#8722;8</sup></td>
         </tr>
-        <tr>
-          <td><details class="mod-detail"><summary>Closed-canopy forest</summary><p class="mod-desc">Dense, continuous forest canopy is a rare endowment in this predominantly savannah landscape. Forest-adjacent households access non-timber forest products, fuelwood, and forest-edge cultivation. Because these resources buffer basic consumption needs, the transfer can be redirected from emergency food purchases toward productive assets or dietary diversity — driving substantially larger welfare gains than in open-savannah communities. Active in 5 communities (42 households).</p></details></td>
-          <td>+56.2 (20.8)</td><td>+6.4 (1.0)</td>
-          <td class="hi">+49.8 (20.8)</td>
-          <td>3.7&#215;10<sup>&#8722;7</sup></td>
+        <tr class="sub-indent">
+          <td><details class="mod-detail"><summary>Closed-canopy forest</summary><p class="mod-desc">Satellite atom: dense, continuous forest canopy, a rare endowment in this predominantly savannah landscape. Active in 5 communities (42 households). Hypothesis: forest-adjacent households access non-timber forest products, fuelwood and forest-edge cultivation, so the transfer can go beyond emergency food purchases toward dietary diversity or productive assets. The large estimate may also reflect selection of forest-proximate communities.</p></details></td>
+          <td>+56.2 (19.7)</td><td>+6.4 (3.9)</td>
+          <td class="hi">+49.8</td>
+          <td>2.0&#215;10<sup>&#8722;5</sup></td><td>2.0&#215;10<sup>&#8722;5</sup></td>
         </tr>
       </tbody>
     </table>
@@ -1117,7 +1252,7 @@ footer{padding:1.8rem 2rem;text-align:center;
     <!-- NEXIS Interpretation — LEAP Ghana -->
     <div id="gh-interp" class="nexis-interp">
       <div class="nexis-interp-head">
-        <span class="ni-label">Direct Effect Modifier Explorer</span>
+        <span class="ni-label">Modifier Explorer</span>
         <select id="gh-mod" aria-label="Select modifier"></select>
         <label style="display:flex;align-items:center;gap:0.3em;margin-left:auto;">
           <span>top-k</span>
@@ -1152,14 +1287,17 @@ footer{padding:1.8rem 2rem;text-align:center;
     <div class="finding" style="border-left-color:#5b8dd9;background:#f0f5ff;margin-bottom:1rem;">
       <strong>Theoretical.</strong>
       <b>Causal and interpretable heterogeneous treatment effect identification is now within reach</b>
-      in controlled experiments — made possible by more extensive pre-treatment measurements
-      and scalable representations.
+      in controlled experiments, by combining more extensive pre-treatment measurements with
+      scalable learned representations. Structural assumptions determine the target and its causal
+      reading; valid and consistent tests determine the selection guarantee.
     </div>
     <div class="finding" style="border-left-color:#4caf7d;background:#f0faf4;">
       <strong>Applied.</strong>
-      Across two anti-poverty programs, satellite-derived <b>environmental
-      features are the dominant direct effect modifiers</b>, explaining treatment heterogeneity
-      not captured by survey covariates.
+      Across two anti-poverty programs, the modifiers NEXIS selects are <b>mainly environmental
+      features from satellite imagery</b>, coarsely proxied or absent in survey data, while no
+      individual-level demographic is selected. They are candidate hypotheses that call for
+      experimental validation, and NEXIS recovers only what the measurements capture: future
+      evaluations should invest in richer, multi-source pre-treatment measurement.
     </div>
   </div>
 </section>
@@ -1195,11 +1333,11 @@ footer{padding:1.8rem 2rem;text-align:center;
   const CREP = '<a href="https://academic.oup.com/qje/article-abstract/128/2/531/1942569" target="_blank" rel="noopener">Cr&eacute;pon et al., 2013</a>';
   const DEMEL= '<a href="https://www.aeaweb.org/articles?id=10.1257/app.1.3.1" target="_blank" rel="noopener">De Mel et al., 2008</a>';
   const DESCS=[
-    'River corridors sustain subsistence fishing and bush-crop farming; where these livelihood alternatives exist, the grant’s pull into skilled trade is weakest — <strong>outside-option effect</strong> ('+ROY+').',
-    'Diverse vegetation patches signal varied subsistence options; communities with mixed land cover can sustain bush and crop livelihoods, dampening the grant’s incentive to enter skilled trade — <strong>outside-option effect</strong> ('+ROY+').',
-    'Incumbent commercial-scale agriculture reduces the grant’s marginal returns on new business formation — <strong>crowding-out effect</strong> ('+CREP+').',
-    'Seasonal water corridors let smallholders direct the transfer into irrigation-season agriculture, amplifying household spending to ~7× the program average — <strong>complementarity effect</strong> ('+DEMEL+').',
-    'Forest-edge households layer the transfer onto existing non-timber livelihoods unavailable elsewhere, driving spending gains of ~8× the program average — <strong>complementarity effect</strong> ('+DEMEL+').',
+    '<em>Candidate</em> modifier. River corridors keep fishing and subsistence farming viable; where these alternatives exist, the grant&rsquo;s estimated effect on skilled employment is lower, plausibly an <strong>outside-option effect</strong> ('+ROY+').',
+    '<em>Certified</em> modifier. A mosaic of agricultural patches and bush signals varied subsistence options; in these communities the estimated effect on skilled employment is lower, plausibly an <strong>outside-option effect</strong> ('+ROY+').',
+    '<em>Candidate</em> modifier. Where commercial-scale agriculture is already present, the estimated effect on business assets is lower, plausibly a <strong>crowding-out effect</strong> ('+CREP+').',
+    '<em>Certified</em> modifier. In the 6 communities with seasonal water corridors, the estimated spending gain is +42.9 GH&#8373;/month against a local ATT of +7.35; hypothesis: smallholders invest the transfer in irrigation-season agriculture, a <strong>complementarity effect</strong> ('+DEMEL+').',
+    '<em>Certified</em> modifier. In the 5 forest-edge communities, the estimated spending gain is +56.2 GH&#8373;/month against a local ATT of +7.35; hypothesis: households combine the transfer with non-timber livelihoods, a <strong>complementarity effect</strong> ('+DEMEL+').',
   ];
   const desc=document.getElementById('sat-desc');
   const tiles=[...document.querySelectorAll('#sat-strip .sat-tile')];
@@ -1765,7 +1903,7 @@ function drawUganda(){
     drawLegendGrad(ctx,'Treatment (%)',gradColor(0,LO,HI),gradColor(1,LO,HI),'0%','100%');
   } else if(ugView==='outcome'){
     const field=ugOutSub==='biz'?'mean_biz':'mean_skilled';
-    const label=ugOutSub==='biz'?'Business assets (log UGX)':'Skilled employment (hrs)';
+    const label=ugOutSub==='biz'?'Business assets (log UGX)':'Skilled trade (hrs, last 7 days)';
     const[lo,hi]=ugOutSub==='biz'?[4,10]:[0,90];
     const[loLbl,hiLbl]=ugOutSub==='biz'?['4','10']:['0','90'];
     const LO=[237,248,251],HI=[110,1,107];
@@ -2160,33 +2298,28 @@ function updateGhInterp(){
   renderTiles('gh-bot-tiles',bot,'gh',actDict,Object.values(actDict).reduce((a,b)=>Math.max(a,b),0));
 }
 
-// Discovered modifiers only — keys and display names must match the results tables exactly
+// Selected modifiers, in table order; display names and certified/candidate status
+// come from assets/nexis_activations.json and match the results tables.
 const DISC={
-  ghana:{
-    '3821':'Ephemeral waterways',
-    '2095':'Closed-canopy forest',
-  },
-  uganda_skilled:{
-    'lang_4':'Karamojong',
-    'lang_2':'Lugbara',
-    'lang_7':'Iteso (Pallisa)',
-    '339':  'Perennial river presence',
-    '533':  'Vegetation spatial heterogeneity',
-  },
-  uganda_biz:{
-    'ndvi':'NDVI (vegetation greenness)',
-    '820': 'Structured agricultural landscape',
-  },
+  ghana:['3821','2095'],
+  uganda_skilled:['lang_4','lang_7','533','lang_2','339'],
+  uganda_biz:['ndvi','820'],
 };
 
-function populateModifierDropdown(selectId, mods, labels){
+function populateModifierDropdown(selectId, mods, keys){
   const sel=document.getElementById(selectId);if(!sel)return;
   sel.innerHTML='';
-  Object.entries(labels).forEach(([key,name])=>{
-    if(!mods[key])return;
-    const opt=document.createElement('option');
-    opt.value=key;opt.textContent=name;
-    sel.appendChild(opt);
+  // grouped as in the results tables: certified modifiers, then candidate modifiers
+  [['certified','Certified modifiers'],['candidate','Candidate modifiers']].forEach(([st,lbl])=>{
+    const ks=keys.filter(k=>mods[k]&&(mods[k].status==='candidate'?'candidate':'certified')===st);
+    if(!ks.length)return;
+    const grp=document.createElement('optgroup');grp.label=lbl;
+    ks.forEach(key=>{
+      const opt=document.createElement('option');
+      opt.value=key;opt.textContent=mods[key].label;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
   });
 }
 
@@ -2263,6 +2396,115 @@ document.getElementById('ug-outcome-tabs').addEventListener('click',e=>{
 /* ══════════════════════════════════════════════
    CELEBA CHARTS (Paradox + Ablation)
    ══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════
+   PRINCIPAL ALIGNMENT PANELS (CelebA)
+   assets/celeba_alignment.json, written by
+   src/apps/celeba/export_website_alignment.py
+   ══════════════════════════════════════════════ */
+const ALIGN_ATTR={
+  Wearing_Hat:{label:'Wearing Hat',c:'#E69F00'},
+  Eyeglasses:{label:'Eyeglasses',c:'#009E73'},
+  Sideburns:{label:'Sideburns',c:'#CC79A7'},
+};
+const alignState={};   // panel id -> {dict, concepts, chart}
+let alignData=null;
+
+function alignSet(id,dict,concepts){
+  const st=alignState[id]||(alignState[id]={});
+  st.dict=dict;st.concepts=concepts;
+  const root=document.getElementById(id);if(!root)return;
+  const sel=root.querySelector('.align-concept');
+  if(!st.bound){
+    st.bound=true;
+    sel.addEventListener('change',()=>alignRender(id));
+    root.querySelector('.align-n').addEventListener('change',()=>alignRender(id));
+    root.addEventListener('toggle',()=>{if(root.open)alignRender(id);});
+  }
+  const prev=sel.value;
+  sel.innerHTML='';
+  concepts.forEach(a=>{
+    const o=document.createElement('option');o.value=a;o.textContent=ALIGN_ATTR[a].label;sel.appendChild(o);
+  });
+  if(concepts.includes(prev))sel.value=prev;
+  alignRender(id);
+}
+
+function alignTiles(row,I,which,n,col,label){
+  // one sprite per concept: row 0 = most activating, row 1 = least activating
+  row.innerHTML='';
+  const ids=I[which].slice(0,n),attr=I[which+'_attr'],r=which==='top'?0:1;
+  const px=n>8?48:72;
+  ids.forEach((img,k)=>{
+    const d=document.createElement('div');d.className='ni-tile';
+    const t=document.createElement('div');
+    t.className='align-thumb'+(attr[k]?' has-attr':'');
+    t.style.setProperty('--attr-col',col);t.style.setProperty('--thumb',px+'px');
+    t.style.backgroundImage=`url(assets/${I.sprite})`;
+    t.style.backgroundSize=`${I.n*100}% 200%`;
+    t.style.backgroundPosition=`${I.n>1?k/(I.n-1)*100:0}% ${r*100}%`;
+    t.title=(attr[k]?'labelled ':'not labelled ')+label;
+    d.appendChild(t);row.appendChild(d);
+  });
+}
+
+function alignRender(id){
+  const st=alignState[id],root=document.getElementById(id);
+  if(!alignData||!st||!root||!root.open)return;
+  const D=alignData[st.dict];if(!D)return;
+  const attr=root.querySelector('.align-concept').value;
+  const C=D.concepts[attr];if(!C)return;
+  const col=ALIGN_ATTR[attr].c;
+
+  // left: alignment spectrum
+  const grey=C.spectrum.filter(([r])=>r!==C.rank).map(([x,y])=>({x,y}));
+  const runnerRank=C.rank===1?2:1;
+  const ds=[
+    {label:'other coordinates',data:grey,pointRadius:1.6,pointHoverRadius:3,
+     backgroundColor:'#b5b5b5',borderColor:'#b5b5b5',showLine:false,order:3},
+    {label:'runner-up',data:[{x:runnerRank,y:C.auc_runner_up}],pointRadius:4.5,
+     pointHoverRadius:6,backgroundColor:'#9a9a9a',borderColor:'#333',borderWidth:1,showLine:false,order:2},
+    {label:'principal coordinate',data:[{x:C.rank,y:C.auc}],pointStyle:'star',pointRadius:11,
+     pointHoverRadius:13,backgroundColor:col,borderColor:col,borderWidth:2.2,showLine:false,order:1},
+  ];
+  if(!st.chart){
+    st.chart=new Chart(root.querySelector('canvas'),{
+      type:'scatter',data:{datasets:ds},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,clip:false,
+        plugins:{
+          legend:{display:true,position:'top',align:'end',
+            labels:{boxWidth:8,font:{size:10},usePointStyle:true,filter:i=>i.datasetIndex>0}},
+          tooltip:{callbacks:{label:ctx=>{
+            const p=ctx.raw;const nm=ctx.datasetIndex===0?'rank '+p.x:ctx.dataset.label;
+            return nm+': AUC '+Number(p.y).toFixed(3);}}}
+        },
+        scales:{
+          x:{type:'linear',title:{display:true,text:'coordinate rank (sorted by AUC)',font:{size:10}},
+             ticks:{font:{size:9},callback:v=>Number(v).toLocaleString('en-US')},
+             afterBuildTicks:ax=>{const m=ax.max;
+               ax.ticks=[0,2000,4000,6000,8000].filter(v=>v<m-900).concat([m]).map(value=>({value}));},
+             grid:{color:'#eee'}},
+          y:{min:0.4,max:1,title:{display:true,text:'AUC (sign-free)',font:{size:10}},
+             ticks:{font:{size:9},stepSize:0.1},grid:{color:'#eee'}}
+        }}
+    });
+  } else st.chart.data.datasets=ds;
+  st.chart.options.scales.x.min=-Math.round(0.03*D.m);   // room for the star at rank 1
+  st.chart.options.scales.x.max=D.m;
+  st.chart.update();
+
+  // right: most and least activating images of the principal coordinate
+  const n=parseInt(root.querySelector('.align-n').value),I=C.images,lbl=ALIGN_ATTR[attr].label;
+  root.querySelector('.align-top-label').textContent=`Most activating (${n})`;
+  root.querySelector('.align-bot-label').textContent=`Least activating (${n})`;
+  alignTiles(root.querySelector('.align-tiles-top'),I,'top',n,col,lbl);
+  alignTiles(root.querySelector('.align-tiles-bot'),I,'bottom',n,col,lbl);
+}
+
+fetch('assets/celeba_alignment.json').then(r=>r.json()).then(d=>{
+  alignData=d;
+  Object.keys(alignState).forEach(alignRender);
+});
+
 fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const PALETTE={
     'NEXIS':                        {c:'#1a56a0'},
@@ -2271,18 +2513,16 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     'Marginal Testing (FDR)':       {c:'#f59e0b'},
     'NEXIS (adjust=FDR)':           {c:'#42a5f5'},
     'NEXIS (adjust=None)':          {c:'#26a69a'},
-    'NEXIS (backward=False)':       {c:'#e91e63'},
+    'NEXIS (terminal=False)':       {c:'#e91e63'},
+    'NEXIS (interleaved=True, terminal=False)': {c:'#f59e0b'},
+    'NEXIS (interleaved=True)':     {c:'#8b5cf6'},
     'NEXIS (rho=0)':                {c:'#8b5cf6'},
     'NEXIS (rho=0.2)':              {c:'#f97316'},
     'NEXIS (rho=0.8)':              {c:'#4caf50'},
     'NEXIS (test=GCM: quadratic)':  {c:'#2d9a60'},
     'NEXIS (test=GCM: lgbm)':       {c:'#9c27b0'},
-    'NEXIS [k=20]':                 {c:'#1a56a0'},
-    'NEXIS [k=5]':                  {c:'#4db6ac'},
-    'Marginal [k=20]':              {c:'#e05c1a'},
-    'Marginal [k=5]':               {c:'#ef9a9a'},
-    'NEXIS [Z]':                    {c:'#1a56a0'},
-    'NEXIS [Z_pre]':                {c:'#00bcd4'},
+    'NEXIS (test=PCM: quadratic)':  {c:'#f97316'},
+    'NEXIS (test=PCM: lgbm)':       {c:'#e91e63'},
   };
   function colOf(k){return PALETTE[k]||{c:'#888'};}
   function hexToRgba(hex,a){
@@ -2356,15 +2596,19 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
     });
   }
 
-  function updChart(chart,ds,metric,xLbl){
+  function updChart(chart,ds,metric,xLbl,yLbl){
     chart.data.datasets=ds;
     chart.options.scales.x.title.text=xLbl;
-    chart.options.scales.y.title.text=metric.charAt(0).toUpperCase()+metric.slice(1);
+    chart.options.scales.y.title.text=yLbl||(metric.charAt(0).toUpperCase()+metric.slice(1));
     chart.update();
   }
 
+  // Same methods as paper Figure 3; 'NEXIS' is the default configuration
+  // (forward step + terminal backward step), exported by
+  // src/apps/celeba/export_website_data.py
   const PM=[
     {key:'Marginal Testing',        label:'Marginal Testing',        c:'#e05c1a'},
+    {key:'Marginal Testing (FDR)',  label:'Marginal Testing (FDR)',  c:'#f59e0b'},
     {key:'Marginal Testing (FWER)', label:'Marginal Testing (FWER)', c:'#c0392b'},
     {key:'NEXIS',                   label:'NEXIS (ours)',            c:'#1a56a0'},
   ];
@@ -2390,29 +2634,29 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   updParadoxN();updParadoxE();
 
   const ABL={
-    test:{desc:'Linear and GCM tests all converge to the same target; GCM variants need roughly twice the sample size to reach the same precision as the correctly-specified linear test.',
-      v:'k20_sae',methods:[
+    test:{v:'k20_sae',methods:[
         {key:'NEXIS',                      label:'linear (default)',  c:'#1a56a0'},
         {key:'NEXIS (test=GCM: quadratic)',label:'GCM: quadratic',   c:'#2d9a60'},
-        {key:'NEXIS (test=GCM: lgbm)',     label:'GCM: lgbm',        c:'#9c27b0'},
+        {key:'NEXIS (test=GCM: lgbm)',     label:'GCM: LightGBM',    c:'#9c27b0'},
+        {key:'NEXIS (test=PCM: quadratic)',label:'PCM: quadratic',   c:'#f97316'},
+        {key:'NEXIS (test=PCM: lgbm)',     label:'PCM: LightGBM',    c:'#e91e63'},
       ]},
-    correction:{desc:'FWER and FDR are indistinguishable at |S*|=2. Omitting correction is harmless at low power but false positives accumulate steadily once n or η grows.',
-      v:'k20_sae',methods:[
+    correction:{v:'k20_sae',methods:[
         {key:'NEXIS (adjust=None)',label:'none',             c:'#26a69a'},
         {key:'NEXIS (adjust=FDR)', label:'FDR',             c:'#42a5f5'},
         {key:'NEXIS',               label:'FWER (default)', c:'#1a56a0'},
       ]},
-    rho:{desc:'ρ=0 admits correlated proxies and precision collapses; ρ=0.8 can drop a weaker principal at low power. The default ρ=0.5 keeps both dimensions stable across the power range.',
-      v:'k20_sae',methods:[
+    rho:{v:'k20_sae',methods:[
         {key:'NEXIS (rho=0)',   label:'ρ = 0',              c:'#8b5cf6'},
         {key:'NEXIS (rho=0.2)',label:'ρ = 0.2',             c:'#f97316'},
         {key:'NEXIS',            label:'ρ = 0.5 (default)', c:'#1a56a0'},
         {key:'NEXIS (rho=0.8)',label:'ρ = 0.8',             c:'#4caf50'},
       ]},
-    backward:{desc:'Forward-only and full backward are empirically indistinguishable here. Backward elimination is a theoretical safety net that matters for larger or more entangled truth sets.',
-      v:'k20_sae',methods:[
-        {key:'NEXIS (backward=False)', label:'forward-only',             c:'#e91e63'},
-        {key:'NEXIS',                   label:'with backward (default)', c:'#1a56a0'},
+    backward:{v:'k20_sae',methods:[
+        {key:'NEXIS (terminal=False)',                   label:'forward',                                    c:'#e91e63'},
+        {key:'NEXIS (interleaved=True, terminal=False)', label:'forward + interleaved backward',             c:'#f59e0b'},
+        {key:'NEXIS',                                     label:'forward + terminal backward (default)',      c:'#1a56a0'},
+        {key:'NEXIS (interleaved=True)',                 label:'forward + interleaved and terminal backward',c:'#8b5cf6'},
       ]},
   };
 
@@ -2420,75 +2664,127 @@ fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const aEC=mkChart('abl-e-chart','Effect size η','linear');
   let ablView='representation';
   let curAbl='test';
+  let curR='r0';
 
-  function getAblDS(ak,sweep,metric,fval){
-    const abl=ABL[ak];const all=[];
-    abl.methods.forEach(m=>{
-      const vr=m.v||abl.v;
-      all.push(...getDS(vr,sweep,metric,[{key:m.key,label:m.label,c:m.c}],fval));
+  function getAblDS(ak,sweep,metric,fval,v){
+    const all=[];
+    ABL[ak].methods.forEach(m=>{
+      all.push(...getDS(v,sweep,metric,[{key:m.key,label:m.label,c:m.c}],fval));
     });
     return all;
   }
 
-  function reprVariant(){
-    const k=document.getElementById('repr-k').value;
-    const view=document.getElementById('repr-view').value;
-    return k+'_'+view;
+  // Dictionaries with results, per tab (celeba_data.json keys; "_rep" = replica SAE,
+  // paper Figure replica_k20). The Algorithm tab and the r = 0, 1, 3 DGP ablations only
+  // run on the main dictionary; r = 2 is the main setting, i.e. the Representation tab.
+  const ALL_DICTS=['k20_sae','k20_precode','k5_sae','k20_sae_rep'];
+  function availDicts(){
+    if(ablView==='algorithm')return['k20_sae'];
+    if(ablView==='dgp'&&curR!=='r2')return['k20_sae'];
+    return ALL_DICTS;
+  }
+  // SAE selectors: options without results are disabled and a selection is forced
+  function sae(){
+    const av=availDicts();
+    const kS=document.getElementById('repr-k'),vS=document.getElementById('repr-view'),
+          sS=document.getElementById('repr-seed');
+    const key=(k,v,sd)=>k+'_'+v+(sd==='rep'?'_rep':'');
+    const ok=(k,v,sd)=>av.includes(key(k,v,sd));
+    const fix=(sel,test)=>{
+      [...sel.options].forEach(o=>o.disabled=!test(o.value));
+      if(sel.selectedOptions[0].disabled)sel.value=[...sel.options].find(o=>!o.disabled).value;
+    };
+    fix(kS,k=>['sae','precode'].some(v=>['orig','rep'].some(sd=>ok(k,v,sd))));
+    fix(vS,v=>['orig','rep'].some(sd=>ok(kS.value,v,sd)));
+    fix(sS,sd=>ok(kS.value,vS.value,sd));
+    return key(kS.value,vS.value,sS.value);
+  }
+  function dataKey(dict){
+    if(ablView==='dgp'&&curR!=='r2')return'dgp_'+curR;
+    return dict;
   }
 
-  const reprDesc={
-    'k20_sae':    'Default configuration — NEXIS isolates the two direct modifiers as power grows; marginal screening steadily accumulates proxies.',
-    'k5_sae':     'Sparser codes reduce entanglement; NEXIS performance is nearly identical to k=20, confirming robustness to sparsity level.',
-    'k20_precode':'Continuous pre-TopK activations are richer but noisier; NEXIS still converges cleanly while marginal screening worsens faster.',
-    'k5_precode': 'Sparsest pre-TopK setting; NEXIS remains robust throughout, while marginal screening accumulates false positives earlier.',
-  };
+  const R0_LBL='Share of runs with any false discovery';
+  const R0M=[PM[3],PM[2],PM[1]];   // NEXIS first, then the dashed corrected baselines
+  const R0_DASH={'Marginal Testing (FWER)':[6,4],'Marginal Testing (FDR)':[2,3]};
+  const alphaLine={label:'α = 0.05',data:[{x:50,y:0.05},{x:10000,y:0.05}],borderColor:'#999',
+    borderDash:[5,4],borderWidth:1.2,pointRadius:0,pointHoverRadius:0,fill:false};
 
-  function updAblDesc(){
-    if(ablView==='representation')
-      document.getElementById('abl-desc').textContent=reprDesc[reprVariant()]||'';
-    else
-      document.getElementById('abl-desc').textContent=ABL[curAbl].desc;
+  function isR0(){return ablView==='dgp'&&curR==='r0';}
+  function updAblLayout(){
+    const r0=isR0(),grid=document.getElementById('abl-grid');
+    if(grid.classList.contains('single')===r0)return;
+    document.getElementById('abl-metric-row').style.display=r0?'none':'';
+    document.getElementById('abl-n-ctrl').style.display=r0?'none':'';
+    document.getElementById('abl-e-card').style.display=r0?'none':'';
+    grid.classList.toggle('single',r0);
+    // the canvases keep their old pixel size until Chart.js is told the layout changed
+    aNC.resize();if(!r0)aEC.resize();
   }
-  function updAblN(){
+  function updAblN(dict){
     const m=document.querySelector('input[name=am]:checked').value;
     const fe=parseFloat(document.querySelector('input[name=a-feta]:checked').value);
-    if(ablView==='representation')
-      updChart(aNC,getDS(reprVariant(),'n_sweep',m,PM,fe),m,'Sample size n');
+    const y=aNC.options.scales.y;
+    y.max=isR0()?0.1:1;y.ticks.stepSize=isR0()?0.02:0.2;
+    if(isR0()){
+      // as paper Figure dgp_r0: uncorrected marginal testing is off scale; the corrected
+      // baselines coincide with NEXIS run by run, so they are dashed and drawn on top
+      const ds=getDS('dgp_r0','n_sweep','anyfd',R0M,1);
+      ds.forEach(d=>{if(d.label in R0_DASH)d.borderDash=R0_DASH[d.label];});
+      updChart(aNC,ds.concat([alphaLine]),'anyfd','Sample size n',R0_LBL);
+    }
+    else if(ablView==='algorithm')
+      updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe,dict),m,'Sample size n');
     else
-      updChart(aNC,getAblDS(curAbl,'n_sweep',m,fe),m,'Sample size n');
+      updChart(aNC,getDS(dataKey(dict),'n_sweep',m,PM,fe),m,'Sample size n');
   }
-  function updAblE(){
+  function updAblE(dict){
+    if(isR0())return;
     const m=document.querySelector('input[name=am]:checked').value;
     const fn=parseFloat(document.querySelector('input[name=a-fn]:checked').value);
-    if(ablView==='representation')
-      updChart(aEC,getDS(reprVariant(),'effect_sweep',m,PM,fn),m,'Effect size η');
+    if(ablView==='algorithm')
+      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn,dict),m,'Effect size η');
     else
-      updChart(aEC,getAblDS(curAbl,'effect_sweep',m,fn),m,'Effect size η');
+      updChart(aEC,getDS(dataKey(dict),'effect_sweep',m,PM,fn),m,'Effect size η');
   }
-  function updAbl(){updAblDesc();updAblN();updAblE();}
+  function updAblAlign(dict){
+    const cs=['Wearing_Hat','Eyeglasses'];
+    if(ablView==='dgp'&&curR==='r3')cs.push('Sideburns');
+    alignSet('align-abl',dict,cs);
+  }
+  function updAbl(){
+    const dict=sae();
+    updAblLayout();updAblN(dict);updAblE(dict);updAblAlign(dict);
+  }
 
   document.getElementById('abl-view-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.outcome-tab');if(!btn)return;
     document.querySelectorAll('#abl-view-tabs .outcome-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');ablView=btn.dataset.view;
-    document.getElementById('abl-repr-panel').style.display=ablView==='representation'?'':'none';
     document.getElementById('abl-algo-panel').style.display=ablView==='algorithm'?'':'none';
+    document.getElementById('abl-dgp-panel').style.display=ablView==='dgp'?'':'none';
     updAbl();
   });
   document.getElementById('abl-tabs').addEventListener('click',e=>{
     const btn=e.target.closest('.abl-tab');if(!btn)return;
-    document.querySelectorAll('.abl-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('#abl-tabs .abl-tab').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');curAbl=btn.dataset.abl;
+    updAbl();
+  });
+  document.getElementById('dgp-tabs').addEventListener('click',e=>{
+    const btn=e.target.closest('.abl-tab');if(!btn)return;
+    document.querySelectorAll('#dgp-tabs .abl-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');curR=btn.dataset.r;
     updAbl();
   });
   document.querySelectorAll('input[name=am]')
     .forEach(i=>i.addEventListener('change',updAbl));
   document.querySelectorAll('input[name=a-feta]')
-    .forEach(i=>i.addEventListener('change',updAblN));
+    .forEach(i=>i.addEventListener('change',()=>updAblN(sae())));
   document.querySelectorAll('input[name=a-fn]')
-    .forEach(i=>i.addEventListener('change',updAblE));
-  document.getElementById('repr-k').addEventListener('change',updAbl);
-  document.getElementById('repr-view').addEventListener('change',updAbl);
+    .forEach(i=>i.addEventListener('change',()=>updAblE(sae())));
+  ['repr-k','repr-view','repr-seed'].forEach(id=>
+    document.getElementById(id).addEventListener('change',updAbl));
   updAbl();
 });
 </script>
