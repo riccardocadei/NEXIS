@@ -7,19 +7,33 @@
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/ghana_sae_%j.out
 #SBATCH --error=logs/ghana_sae_%j.err
+#
+# Train the Ghana TopK SAE on the national grid, evaluate on the 162 LEAP communities.
+# Submit from the repo root. train_sae.py resolves relative paths against its own folder,
+# so every path is passed absolute. The default OUT_DIR holds the SAE behind the paper's
+# coordinate indices (not bit-reproducible): the job refuses to overwrite it unless
+# OVERWRITE=1; set OUT_DIR to train elsewhere.
 
+set -euo pipefail
 export PYTHONUNBUFFERED=1
 
-source /nfs/scistore19/locatgrp/rcadei/miniconda3/etc/profile.d/conda.sh
-conda activate crl
+ROOT=/nfs/scistore19/locatgrp/rcadei/NEXIS
+PYTHON=/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3
+SAT=$ROOT/data/ghana/satellite
+OUT_DIR=${OUT_DIR:-$SAT}
 
-echo "=== env ready: $(which python3) ==="
+if [ -e "$OUT_DIR/sae_model.pt" ] && [ "${OVERWRITE:-0}" != 1 ]; then
+  echo "$OUT_DIR/sae_model.pt exists; set OVERWRITE=1 or another OUT_DIR" >&2
+  exit 1
+fi
 
-cd /nfs/scistore19/locatgrp/rcadei/NEXIS
+mkdir -p "$ROOT/logs"
+cd "$ROOT"
 
-python3 -u scripts/ghana/train_sae.py \
-  --train-embeddings ../../data/ghana/satellite/national/prithvi_embeddings.npy \
-  --eval-embeddings  ../../data/ghana/satellite/prithvi_embeddings.npy \
-  --eval-ids         ../../data/ghana/satellite/prithvi_comm_ids.npy \
+$PYTHON -u src/apps/ghana/train_sae.py \
+  --train-embeddings "$SAT/national/prithvi_embeddings.npy" \
+  --eval-embeddings  "$SAT/prithvi_embeddings.npy" \
+  --eval-ids         "$SAT/prithvi_comm_ids.npy" \
+  --out-dir          "$OUT_DIR" \
   --d-hidden 4096 --k 25 \
   --epochs 2000 --batch-size 256

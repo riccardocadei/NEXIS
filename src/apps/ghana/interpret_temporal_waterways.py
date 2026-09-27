@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-ROOT    = Path(__file__).resolve().parents[2]
+ROOT    = Path(__file__).resolve().parents[3]
 TIF_DIR_2015 = ROOT / "data" / "ghana" / "satellite" / "tif"
 TIF_DIR_2017 = ROOT / "data" / "ghana" / "satellite" / "tif_2017"
 OUT_PATH = ROOT / "results" / "ghana" / "temporal" / "neuron_3821_temporal.json"
