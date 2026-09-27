@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Size of the forward selection |S~| and cost of the terminal backward step (paper item).
 
-Produces the numbers of Appendix B ("Backward steps", paper/iclr27/appendix.tex):
+Produces the numbers of paper Appendix B ("Backward steps"):
   "over the 6,300 CelebA runs of the three dictionaries at rho = 0.5, |S~| has median 2
    and maximum 7, and the forward step alone gives the same median and maximum on the
    main setting. [...] the same runs needed a median of 4 and a maximum of 192 tests,
@@ -23,8 +23,8 @@ Inputs (untracked outputs):
       NEXIS-v2 (backward=False) plus the interleaved backward step. Its selections equal
       experiment_v2's NEXIS-v2 on 6,299 of 6,300 runs; |S~| and test counts of the pure
       default are stored only for the 2,100 main-setting runs (cross-check below).
-  results/celeba/iclr_local_runs/results/runs/main/*/NEXIS.parquet (optional
-      cross-check: the ICLR re-implementation's main-setting runs, n_forward and
+  results/celeba/benchmark/results/runs/main/*/NEXIS.parquet (optional
+      cross-check: the benchmark package's main-setting runs, n_forward and
       terminal_tests; these agree run by run with the k20/sae rows).
 
 Command (repo root, CPU, seconds):
@@ -39,7 +39,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[3]
 RF = ROOT / "results/celeba/ablation_rho_filter"
-ICLR = ROOT / "results/celeba/iclr_local_runs/results/runs/main"
+BENCH = ROOT / "results/celeba/benchmark/results/runs/main"
 OUT = ROOT / "results/celeba/paper_numbers"
 KEY = ["sweep", "fixed", "param", "seed"]
 
@@ -67,15 +67,15 @@ def main() -> None:
                             for k in ["tree", "sweep", "fixed", "param", "seed",
                                       "size_pre", "filter_tests"]}
 
-    # Cross-check against the ICLR re-implementation (main setting only).
-    if (ICLR / "n_sweep/NEXIS.parquet").exists():
+    # Cross-check against the benchmark package, src/apps/celeba/benchmark (main setting only).
+    if (BENCH / "n_sweep/NEXIS.parquet").exists():
         a = pd.concat([
-            pd.read_parquet(ICLR / "n_sweep/NEXIS.parquet").assign(
+            pd.read_parquet(BENCH / "n_sweep/NEXIS.parquet").assign(
                 sweep="n", fixed=lambda x: x.fixed_effect, param=lambda x: x.n),
-            pd.read_parquet(ICLR / "effect_sweep/NEXIS.parquet").assign(
+            pd.read_parquet(BENCH / "effect_sweep/NEXIS.parquet").assign(
                 sweep="effect", fixed=lambda x: x.fixed_n, param=lambda x: x.effect_scale)])
         m = a.merge(nexis[nexis.tree == "k20/sae"], on=KEY)
-        res["iclr_main_crosscheck"] = {
+        res["benchmark_main_crosscheck"] = {
             "runs_matched": int(len(m)),
             "n_forward_equal": int((m.n_forward == m.size_pre).sum()),
             "terminal_tests_equal": int((m.terminal_tests == m.filter_tests).sum()),
@@ -95,8 +95,8 @@ def main() -> None:
            f"{f['S_hat_median']:g}, max {f['S_hat_max']}.",
            f"Bound |S~| 2^(|S~|-1) at max |S~|: {res['bound']}.",
            f"Run with the most tests: {res['max_tests_run']}."]
-    if "iclr_main_crosscheck" in res:
-        md.append(f"ICLR main-setting cross-check: {res['iclr_main_crosscheck']}.")
+    if "benchmark_main_crosscheck" in res:
+        md.append(f"Benchmark main-setting cross-check: {res['benchmark_main_crosscheck']}.")
     text = "\n".join(md) + "\n"
     (OUT / "run_statistics.md").write_text(text)
     print(text)

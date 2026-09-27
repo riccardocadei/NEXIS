@@ -78,8 +78,9 @@ src/causality/     HC1-robust OLS, ATE and GATE/CATE reporting
 src/train/         TopK SAE training (overcomplete), used by CelebA
 src/apps/<app>/    one pipeline per application: celeba, uganda, ghana, synthetic
                    (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)
+src/apps/celeba/benchmark/
+                   self-contained CelebA benchmark package, one command per block
 scripts/           SLURM entry points per app, and realworld_*.py (the application runs)
-iclr/              self-contained CelebA reproduction package, one command per block
 animations/        Manim scenes for the website videos
 docs/              project website (index.html, assets/) and the experiment briefs
 ```
@@ -124,11 +125,11 @@ python src/apps/celeba/figure_test_story_v2.py
 python src/apps/celeba/interleaved_backward_align.py sae_precode_k20 && \
     python src/apps/celeba/third_modifier_candidates.py
 python src/apps/celeba/run_statistics.py
-(cd iclr && python run.py violation)                 # the controlled-violation figure
+(cd src/apps/celeba/benchmark && python run.py violation)   # the controlled-violation figure
 ```
 
-[`iclr/`](iclr/README.md) is a self-contained reproduction package for every CelebA
-experiment (`cd iclr && python run.py <block>`); only its `main` and `violation` blocks are
+[`src/apps/celeba/benchmark/`](src/apps/celeba/benchmark/README.md) is a self-contained
+package that reproduces every CelebA experiment (`python run.py <block>` from that folder); only its `main` and `violation` blocks are
 checked against the paper so far. It will be folded into `src/apps/celeba` as the
 canonical CelebA pipeline, running on the single `src/method/nexis.py`.
 

@@ -59,7 +59,7 @@ def build_transform(spec: BackboneSpec) -> transforms.Compose:
 _SIGLIP_TRANSFORM = build_transform(BACKBONES[DEFAULT_BACKBONE])
 
 # Hugging Face dataset and the exact revision behind the paper's embeddings (the only one
-# ever cached locally; iclr/config.py pins the same one).
+# ever cached locally; benchmark/config.py pins the same one).
 HF_DATASET = "flwrlabs/celeba"
 HF_DATASET_REVISION = "2d738f56e0e7f925ea36ae7c808ea925264aacec"
 

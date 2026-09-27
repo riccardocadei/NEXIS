@@ -1,12 +1,14 @@
-# NEXIS: semi-synthetic CelebA experiments
+# NEXIS: semi-synthetic CelebA benchmark
 
-Code for *From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects
-Identification*, anonymous submission to ICLR 2027.
+This package reproduces every semi-synthetic CelebA experiment of the paper *From Tokens
+to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification*:
+Figure 3 (the experimental power paradox) and all the figures and tables of Appendix C.
+It is self-contained. `nexis/` implements the method, `celeba/` implements the benchmark,
+and `run.py` runs one block of experiments per command.
 
-This package reproduces every semi-synthetic CelebA experiment of the paper: Figure 3
-(the experimental power paradox) and all the figures and tables of Appendix C. It is
-self-contained. `nexis/` implements the method, `celeba/` implements the benchmark, and
-`run.py` runs one block of experiments per command.
+Run every command from this folder (`src/apps/celeba/benchmark/` of the repository).
+Data, results and logs are written next to it, to `data/`, `results/` and `logs/`
+(ignored by git), unless `--data-dir` / `--results-dir` move them.
 
 ## What it reproduces
 
@@ -218,16 +220,15 @@ exists is skipped, so `python run.py prepare` then only computes the ground-trut
 
 ## Real-world applications
 
-The paper also applies NEXIS to two anti-poverty programs: a youth cash-transfer program
-in Uganda and the LEAP 1000 program in Ghana. Both analyses use household microdata that
-are sensitive or held under data-use agreements. They also use satellite features
-geolocated to the program communities. Neither the data nor the derived features can be
-released, so this package contains no data or code for these applications. The analyses
-did not use this package: they ran the same algorithm (forward step, terminal backward
-step, α = 0.05, ρ = 0.5, linear test) with the research implementation of NEXIS in the
-parent repository (`src/method/nexis.py`, called by `scripts/realworld_final_runs.py`),
-which adds what the applications need and `nexis/` lacks: cluster-robust (CR1S) standard
-errors and a hook for a custom conditional test (`cluster`, `pvalue_fn`).
+The paper also applies NEXIS to two anti-poverty programs: the Youth Opportunities Program
+in Uganda and the LEAP 1000 program in Ghana. They do not use this package: their
+pipelines are in `src/apps/uganda/` and `src/apps/ghana/`, and they run the same algorithm
+(forward step, terminal backward step, α = 0.05, ρ = 0.5, linear test) with the library
+implementation `src/method/nexis.py` (called by `scripts/realworld_final_runs.py`). That
+implementation adds what the applications need and `nexis/` lacks: cluster-robust (CR1S)
+standard errors and a hook for a custom conditional test (`cluster`, `pvalue_fn`). The
+household microdata of both programs are sensitive or held under data-use agreements and
+are not distributed with the repository.
 
 ## Assets
 
