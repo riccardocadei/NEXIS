@@ -110,16 +110,15 @@ output `results/uganda/prithvi_l5_1024/`): TopK SAE, 768 → 1,024, k = 25, unit
 decoder, 2,000 epochs, lr 2×10⁻⁴, 5-fold CV, trained on the national grid with the 331
 RCT sites held out; whitening fit on the national corpus. *Why a national corpus:*
 geographic diversity for the dictionary, and no leakage from the trial sites.
-**Discrepancy, still open:** the paper says batch size 256; the SLURM script does not pass
-`--batch-size`, so `train_sae.py` uses its default 64. Forensics (2026-09-27): the
-checkpoint (`sae_model.pt`, 2026-05-05 11:35) was trained outside SLURM that day, and no
-record of the command survives; the SLURM script's own run (`logs/slurm-sae-58521261`)
-used the default 64 and hit its time limit at 08:20, so it is not the source. The paper's
-256 is unsupported and likely copied from the Ghana SAE, whose script passes 256. A CPU
-re-run cannot distinguish batch size 64/128/256 at epoch 200. GPU training is not
-bit-reproducible: restore the original `results/uganda/prithvi_l5_1024/` rather than
-retraining. Pending the author's decision (drop the value from the paper, or a GPU
-retraining test).
+**Batch size 64** (the script default; the SLURM script passes none). The checkpoint
+(`sae_model.pt`, 2026-05-05 11:35) was trained outside SLURM with no recorded command, so
+this was checked on 2026-09-27 by retraining on a GPU at 64 and at 256
+(`results/uganda/batch_size_check/`). Batch 64 reproduces the original log
+(`logs/train_sae_l5.log`, archived): the loss trajectory matches at every logged epoch to
+about 1e-4 (e.g. 0.023912 vs 0.023921 at epoch 400, including the bump at epoch 1200), and
+the CV fold MSEs and live latents (167 vs 161) are close; batch 256 ends at a clearly lower
+loss (0.02176 vs 0.02290) with 186 live latents. GPU training is not bit-reproducible:
+restore the original `results/uganda/prithvi_l5_1024/` rather than retraining.
 
 **Feature filter.** Atoms active (Z_j > 0) in at least 5 of the 331 sites: 146 of 1,024.
 *Why:* atoms active at 1–4 sites have too little variation to estimate an interaction.
@@ -259,9 +258,7 @@ estimates carried over from the June brief; not re-measured.
 
 ## 9. Open issues
 
-- Paper says SAE batch size 256; the scripted default is 64, the checkpoint was trained
-  outside SLURM on 2026-05-05 with no recorded command, and the paper's 256 is unsupported
-  (likely copied from the Ghana SAE script); pending the author's decision (Section 3).
+- None.
 
 ---
 

@@ -76,7 +76,7 @@ See the docstring of [`src/method/nexis.py`](src/method/nexis.py) for all option
 src/method/        the NEXIS method (nexis.py); the library, app-agnostic
 src/causality/     HC1-robust OLS, ATE and GATE/CATE reporting
 src/train/         TopK SAE training (overcomplete), used by CelebA
-src/apps/<app>/    one pipeline per application: celeba, uganda, ghana, synthetic
+src/apps/<app>/    one pipeline per application: celeba, uganda, ghana
                    (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)
 src/apps/celeba/benchmark/
                    self-contained CelebA benchmark package, one command per block

@@ -19,10 +19,6 @@ data/
 logs/
 outputs/
 models/
-neuralscience-main/
-
-# Local LaTeX paper source
-paper/
 
 # Results (large; only specific outputs are tracked via git add -f)
 results/
@@ -33,9 +29,6 @@ results/
 # Manim build artefacts
 animations/media/
 animations/__pycache__/
-
-# Social media drafts (images/clips staged for tweets, not repo content)
-tweet/
 
 # Agent guidance and machine-specific notes (backups, local paths): local only
 AGENTS.md
