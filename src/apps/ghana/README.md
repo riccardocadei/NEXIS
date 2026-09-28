@@ -182,6 +182,19 @@ drafted. Figure: `bash scripts/ghana/run_figure_neural.sh` (VLM temporal labels 
 teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
 districts map `src/apps/ghana/figure_maps.py`.
 
+The three `figure_neural*.py` scripts read the sign of each neuron's GATE contrast (the
+"(+impact)" in the titles) from `results/ghana/gate/gate_Z.csv`. Build it first with
+`python3 src/apps/ghana/gate_neurons.py` (CPU, seconds): marginal GATE of every
+community-level candidate on the balanced panel (2,331 households), SAE neurons active in
+≥ 5 communities binarized at > 0, interaction s.e. CR1S by community. It gives GATE +42.9
+vs +6.0 (3821), +56.2 vs +6.4 (2095) and +26.3 vs +5.6 (1777, contrast p = 0.30), the
+paper's numbers. Regenerated 2026-09-28: text, titles, maps, active tiles and the temporal
+panel match the paper PDFs; the inactive example tiles do not (paper: 1613/1604,
+1624/1583 and 1624/1604/1576; now 1635/534, 1635/506 and 562/483/506). All of them have
+z = 0, and the scripts pick among these ties with an unstable `np.argsort`, so the paper's
+choice is not recoverable from the code. On `main` these scripts still read the survey
+and basemap files from the old flat `data/ghana/` layout, not `survey/` and `geo/`.
+
 ---
 
 ## 7. Limitations as reported
