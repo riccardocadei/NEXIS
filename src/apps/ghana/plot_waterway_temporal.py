@@ -21,7 +21,7 @@ mpl.rcParams.update({
     "axes.formatter.use_mathtext":   True,
 })
 
-ROOT     = Path(__file__).resolve().parents[2]
+ROOT     = Path(__file__).resolve().parents[3]
 TIF_2015 = ROOT / "data"    / "ghana" / "satellite" / "tif"
 TIF_2017 = ROOT / "data"    / "ghana" / "satellite" / "tif_2017"
 OUT_PATH = ROOT / "results" / "ghana" / "temporal" / "neuron_3821_grid.png"

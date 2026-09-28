@@ -18,7 +18,7 @@ import argparse
 import json
 from pathlib import Path
 
-ROOT    = Path(__file__).resolve().parents[2]
+ROOT    = Path(__file__).resolve().parents[3]
 RES_DIR = ROOT / "results" / "ghana"
 NEU_DIR = RES_DIR / "neurons"
 

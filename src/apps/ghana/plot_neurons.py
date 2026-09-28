@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-ROOT     = Path(__file__).resolve().parents[2]
+ROOT     = Path(__file__).resolve().parents[3]
 SAT_DIR  = ROOT / "data" / "ghana" / "satellite"
 TIF_NAT  = SAT_DIR / "tif_national"
 RES_DIR  = ROOT / "results" / "ghana"
