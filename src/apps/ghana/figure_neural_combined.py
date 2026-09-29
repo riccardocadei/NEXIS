@@ -55,6 +55,13 @@ TEMPORAL_COMMUNITIES = [
     {"comm_id": 624,  "activation": 0.6847},
 ]
 
+# Inactive example tiles, pinned to the published figure. All inactive
+# communities tie at z = 0, so np.argsort would pick an arbitrary pair on a rerun.
+INACTIVE_COMMUNITIES = {
+    3821: [1613, 1604],
+    2095: [1624, 1583],
+}
+
 CHANGE_COLORS = {
     "cropland":   "#c0392b",
     "vegetation": "#27ae60",
@@ -70,6 +77,10 @@ def _load_temporal_changes() -> dict:
 
     Returns {comm_id: [(symbol, label, color), ...]} only for communities
     where the VLM detected meaningful intensification.
+
+    Only the cropland change is shown. The vegetation reading ("denser
+    vegetation") is not robust: a re-run with a neutral prompt
+    (results/ghana/temporal_changes.json) reports less vegetation.
     """
     path = RES_DIR / "temporal" / "neuron_3821_temporal.json"
     if not path.exists():
@@ -87,11 +98,8 @@ def _load_temporal_changes() -> dict:
             continue
         items = []
         ag  = e.get("agricultural_change", "").lower()
-        veg = e.get("vegetation_change",   "").lower()
         if "expansion" in ag or "intensif" in ag:
             items.append(("+", "cropland",   CHANGE_COLORS["cropland"]))
-        if "denser" in veg or "increase" in veg:
-            items.append(("+", "vegetation", CHANGE_COLORS["vegetation"]))
         if items:
             changes[cid] = items
     return changes
@@ -136,8 +144,8 @@ def load_tile_community(tif_dir: Path, comm_id: int, size: int = 224) -> np.ndar
 # ── basemap ────────────────────────────────────────────────────────────────────
 
 def load_basemap():
-    ghana = gpd.read_file(DATA_DIR / "gadm41_GHA_1.json").to_crs("EPSG:4326")
-    lakes = gpd.read_file(DATA_DIR / "ne_10m_lakes.shp").to_crs("EPSG:4326")
+    ghana = gpd.read_file(DATA_DIR / "geo" / "gadm41_GHA_1.json").to_crs("EPSG:4326")
+    lakes = gpd.read_file(DATA_DIR / "geo" / "ne_10m_lakes.shp").to_crs("EPSG:4326")
     lakes = lakes.clip(ghana.total_bounds)
     return ghana, lakes
 
@@ -224,7 +232,7 @@ def main():
     else:
         print("WARNING: temporal_changes.json not found — arrows will be omitted.")
 
-    df = pd.read_stata(DATA_DIR / "LEAP1000 2015-2017 household data++.dta")
+    df = pd.read_stata(DATA_DIR / "survey" / "LEAP1000 2015-2017 household data++.dta")
     comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
                  .mean().reset_index().set_index("comm"))
 
@@ -256,14 +264,15 @@ def main():
         all_acts    = sae_acts[:, neuron]
         sorted_idx  = np.argsort(all_acts)[::-1]
         nonzero_idx = sorted_idx[all_acts[sorted_idx] > 0]
-        zero_idx    = sorted_idx[all_acts[sorted_idx] == 0]
+        bot_keys    = INACTIVE_COMMUNITIES[neuron]
+        bot_idx     = [int(np.flatnonzero(comm_ids == k)[0]) for k in bot_keys]
 
         neural_rows.append(dict(
             title     = f"Neuron {neuron}: {entry['label']} ({sign}impact)",
             top_keys  = comm_ids[nonzero_idx[:2]].tolist(),
             top_acts  = all_acts[nonzero_idx[:2]].tolist(),
-            bot_keys  = comm_ids[zero_idx[:2]].tolist(),
-            bot_acts  = all_acts[zero_idx[:2]].tolist(),
+            bot_keys  = bot_keys,
+            bot_acts  = all_acts[bot_idx].tolist(),
             all_acts  = all_acts,
             comm_df   = comm_df_aligned,
             map_color = colors.get(neuron, C_BLUE),
