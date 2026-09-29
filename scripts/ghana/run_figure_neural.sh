@@ -13,7 +13,6 @@ echo "=== Step 1: Interpret 2015→2017 temporal changes ===" | tee -a "$LOG"
 $PYTHON src/apps/ghana/interpret_temporal_changes.py \
     --vlm-model Qwen/Qwen2.5-VL-72B-Instruct \
     --quantize \
-    --overwrite \
     2>&1 | tee -a "$LOG"
 
 echo "" | tee -a "$LOG"

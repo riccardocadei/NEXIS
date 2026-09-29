@@ -1,6 +1,11 @@
 """
-VLM interpretation of 2015→2017 landscape changes for the 4 most-activated
-neuron-3821 communities. Outputs results/ghana/temporal_changes.json.
+VLM interpretation of 2015→2017 landscape changes for the communities where
+neuron 3821 (ephemeral waterways) is active. Neutral prompt: the model is asked
+for all land-cover changes with a colour key and is not told the feature label.
+
+Default: all six active communities (activation > 0 in sae_activations.npy),
+written to results/ghana/temporal/neuron_3821_temporal_neutral.json. The first
+run (4 most active communities only) is results/ghana/temporal_changes.json.
 
 Format
 ------
@@ -15,6 +20,8 @@ Format
 
 Usage:
     python src/apps/ghana/interpret_temporal_changes.py --quantize
+    python src/apps/ghana/interpret_temporal_changes.py --quantize \
+        --communities 951,675,395,1265 --out results/ghana/temporal_changes.json
 """
 
 import argparse
@@ -35,9 +42,9 @@ import sys
 sys.path.insert(0, str(ROOT))
 from src.apps.ghana.interpret import load_vlm, _load_composite
 
-# Top-4 communities by neuron-3821 activation (derived from sae_activations.npy)
+# Communities ranked by neuron-3821 activation (derived from sae_activations.npy)
 NEURON = 3821
-N_TOP  = 4
+DEFAULT_OUT = RES_DIR / "temporal" / "neuron_3821_temporal_neutral.json"
 
 CHANGE_COLORS = {
     "cropland":   "#c0392b",
@@ -129,7 +136,8 @@ def run_vlm_change(model, processor, comm_id: int, img_2015, img_2017) -> dict:
     return {"changes": changes, "description": description, "raw": raw}
 
 
-def get_top_communities(n: int = N_TOP):
+def get_top_communities(n: int | None = None):
+    """Active communities (activation > 0), most active first; all of them if n is None."""
     sae_acts = np.load(SAT_DIR / "sae_activations.npy")
     comm_ids = np.load(SAT_DIR / "prithvi_comm_ids.npy")
     acts     = sae_acts[:, NEURON]
@@ -144,15 +152,24 @@ def main():
     p.add_argument("--vlm-model", default="Qwen/Qwen2.5-VL-72B-Instruct")
     p.add_argument("--quantize", action="store_true")
     p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--communities", default=None,
+                   help="Comma-separated community ids (default: every community "
+                        f"where neuron {NEURON} is active).")
+    p.add_argument("--out", type=Path, default=DEFAULT_OUT,
+                   help="Output JSON (default: %(default)s).")
     args = p.parse_args()
 
-    out_path = RES_DIR / "temporal_changes.json"
+    out_path = args.out if args.out.is_absolute() else ROOT / args.out
     if out_path.exists() and not args.overwrite:
         print(f"Already exists: {out_path} (use --overwrite to redo)")
         return
 
     communities = get_top_communities()
-    print(f"Top-{N_TOP} communities for neuron {NEURON}:")
+    if args.communities:
+        acts = dict(communities)
+        wanted = [int(c) for c in args.communities.split(",")]
+        communities = [(c, acts.get(c, 0.0)) for c in wanted]
+    print(f"{len(communities)} communities for neuron {NEURON}:")
     for cid, act in communities:
         print(f"  comm {cid:4d}  z={act:.4f}")
 
@@ -173,6 +190,7 @@ def main():
         print(f"    changes: {r['changes']}")
         print(f"    {r['description']}")
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nSaved → {out_path}")
