@@ -22,9 +22,8 @@ so the table no longer uses it.
 Paper item: Table tab:ghana_temporal (paper appendix, "Per-community VLM
 temporal analysis for the six waterway-active LEAP communities").
 
-Columns: community, cropland change (from the "+/- cropland" line), and the
-colour cue the VLM gave for the cropland change, taken from its description
-(for a community without a cropland line, the other change it listed).
+Columns: community and cropland change (from the "+/- cropland" line; for a
+community without a cropland line, the other change it listed).
 The vegetation calls are printed as a note, not as a column.
 
 Usage
@@ -56,17 +55,6 @@ def change(entry: dict, category: str) -> str:
     return syms.pop() if syms else ""
 
 
-def cue(description: str) -> str:
-    """The colour the VLM cites for the change, as written in its description."""
-    d = description.lower()
-    for key, short in (("bright red/magenta", "more bright red/magenta"),
-                       ("bright green", "more bright green"),
-                       ("tan/brown", "more tan/brown")):
-        if key in d:
-            return short
-    return "--"
-
-
 LATEX = {"+": r"$\uparrow$ increase", "-": r"$\downarrow$ decrease",
          "+/-": "mixed", "": "not listed"}
 MD = {"+": "↑ increase", "-": "↓ decrease", "+/-": "mixed", "": "not listed"}
@@ -96,18 +84,19 @@ def check(rows) -> int:
 
 
 def render(rows):
-    md = ["| Community | Cropland change | Colour cue (VLM) |", "|---|---|---|"]
-    tex = [r"\toprule", r"Community & Cropland change & Colour cue (VLM) \\", r"\midrule"]
+    md = ["| Community | Cropland change |", "|---|---|"]
+    tex = [r"\toprule", r"Community & Cropland change \\", r"\midrule"]
     for e in rows:
         c = change(e, "cropland")
-        if c:
-            q = cue(e["description"])
-        else:   # name what the VLM listed instead (vegetation aside)
+        cell_md, cell_tex = MD[c], LATEX[c]
+        if not c:   # name what the VLM listed instead (vegetation aside)
             other = [f"{x['symbol']} {x['label']}" for x in e["changes"]
                      if x["label"] not in ("cropland", "vegetation")]
-            q = f"lists {', '.join(other)} instead" if other else "--"
-        md.append(f"| {e['comm_id']} | {MD[c]} | {q} |")
-        tex.append(f"    {e['comm_id']:<5}& {LATEX[c]:<22}& {q:<28}\\\\")
+            if other:
+                cell_md += f" ({', '.join(other)})"
+                cell_tex += f" ({', '.join(other)})"
+        md.append(f"| {e['comm_id']} | {cell_md} |")
+        tex.append(f"    {e['comm_id']:<5}& {cell_tex:<30}\\\\")
     tex.append(r"\bottomrule")
     n_crop = sum(change(e, "cropland") == "+" for e in rows)
     veg = ", ".join(f"{e['comm_id']}: {MD[change(e, 'vegetation')]}" for e in rows)

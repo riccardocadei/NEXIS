@@ -176,8 +176,8 @@ Result: "+ cropland" in 5 of 6 (951, 675, 395, 1265, 624), "+ bare soil" in 655;
 in all 6. The descriptions attribute the cropland increase to more bright red/magenta
 (the colour key's "dense healthy vegetation or crops") in 951, 675, 395 and 624, and to
 "bright green regions expanding" in 1265. Table from `src/apps/ghana/table_temporal.py
---paper` → `results/ghana/paper_numbers/table_temporal.{md,tex}` (columns: cropland change,
-colour cue; the vegetation calls are printed as a note, not tabulated). An earlier run on
+--paper` → `results/ghana/paper_numbers/table_temporal.{md,tex}` (column: cropland change; the
+vegetation calls and descriptions are printed as a note, not tabulated). An earlier run on
 the four most active communities only (`results/ghana/temporal_changes.json`) is
 reproduced by the rerun: identical outputs for 951, 675 and 1265, and for 395 the same
 change list with a reworded description.
@@ -193,8 +193,9 @@ flips to a decrease everywhere, so it is not used.
 Figure: `bash scripts/ghana/run_figure_neural.sh` (runs the neutral interpretation if its
 JSON is missing, then `figure_neural_combined.py` →
 `results/ghana/figures/figure_neural_ghana_combined.pdf`). The temporal panel shows 951,
-675, 1265 and 624; each gets "+ cropland" and, below it, the colour cue from its description
-("(more bright red/magenta)", or "(more bright green)" for 1265). Teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
+675, 1265 and 624; each gets "+ cropland". The colour cues
+are left out of the figure and table because the colour key does not separate crops from
+other vegetation. Teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
 districts map `src/apps/ghana/figure_maps.py`.
 
 The three `figure_neural*.py` scripts read the sign of each neuron's GATE contrast (the

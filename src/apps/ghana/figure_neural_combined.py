@@ -15,7 +15,6 @@ Usage:
 """
 
 import json
-import textwrap
 from pathlib import Path
 
 import geopandas as gpd
@@ -63,22 +62,11 @@ INACTIVE_COMMUNITIES = {
 }
 
 
-# Second label line under "+ cropland": the colour the VLM said grew, read from
-# its description. It cites "bright red/magenta" (the prompt's colour key for
-# dense healthy vegetation or crops) for 951, 675, 395 and 624, and "bright
-# green" for 1265.
-CROPLAND_CUES = [
-    ("bright red/magenta", "(more bright red/magenta)"),
-    ("bright green",       "(more bright green)"),
-]
-
-
 def _load_temporal_changes() -> dict:
     """Read the neutral-prompt VLM run, neuron_3821_temporal_neutral.json.
 
-    Returns {comm_id: [line, ...]}, only for communities where the VLM lists
-    "+ cropland": the change and, below it, the colour cue the VLM used.
-    Other changes (the vegetation calls) are not shown.
+    Returns {comm_id: ["+ cropland"]}, only for communities where the VLM lists
+    a cropland increase. Other changes (the vegetation calls) are not shown.
     """
     path = RES_DIR / "temporal" / "neuron_3821_temporal_neutral.json"
     if not path.exists():
@@ -90,14 +78,7 @@ def _load_temporal_changes() -> dict:
     for cid, e in entries.items():
         if not any(c["symbol"] == "+" and c["label"] == "cropland" for c in e["changes"]):
             continue
-        desc  = e.get("description", "").lower()
-        lines = ["+ cropland"]
-        cue   = next((phrase for key, phrase in CROPLAND_CUES if key in desc), None)
-        if cue is None:
-            print(f"  NOTE: community {cid}: no colour cue in {desc!r}")
-        else:
-            lines.append(cue)
-        changes[int(cid)] = lines
+        changes[int(cid)] = ["+ cropland"]
     return changes
 
 
@@ -399,9 +380,7 @@ def main():
 
         mid_y   = 0.5 * (p_top[1] + p_bot[1])
         label_x = arrow_x + 0.003
-        # First line is the change, the rest is the cue wrapped to fit one column.
-        head, *cue = temporal_changes[cid]
-        lines = [(head, 7.5)] + [(t, 6.5) for t in textwrap.wrap(" ".join(cue), 16)]
+        lines = [(t, 7.5) for t in temporal_changes[cid]]
         step  = 0.1 / total_h                      # 0.1 in between baselines
         for k, (line, size) in enumerate(lines):
             offset_y = -step * (k - (len(lines) - 1) / 2)
