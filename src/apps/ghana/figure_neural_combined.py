@@ -14,9 +14,9 @@ Usage:
     python src/apps/ghana/figure_neural_combined.py
 """
 
-from pathlib import Path
-
 import json
+import textwrap
+from pathlib import Path
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -62,46 +62,42 @@ INACTIVE_COMMUNITIES = {
     2095: [1624, 1583],
 }
 
-CHANGE_COLORS = {
-    "cropland":   "#c0392b",
-    "vegetation": "#27ae60",
-    "bare soil":  "#e67e22",
-    "settlement": "#8e44ad",
-    "water":      "#2980b9",
-    "burn scar":  "#7f8c8d",
-}
+
+# Second label line under "+ cropland": the colour the VLM said grew, read from
+# its description. It cites "bright red/magenta" (the prompt's colour key for
+# dense healthy vegetation or crops) for 951, 675, 395 and 624, and "bright
+# green" for 1265.
+CROPLAND_CUES = [
+    ("bright red/magenta", "(more bright red/magenta)"),
+    ("bright green",       "(more bright green)"),
+]
 
 
 def _load_temporal_changes() -> dict:
-    """Parse VLM temporal descriptions from neuron_3821_temporal.json.
+    """Read the neutral-prompt VLM run, neuron_3821_temporal_neutral.json.
 
-    Returns {comm_id: [(symbol, label, color), ...]} only for communities
-    where the VLM detected meaningful intensification.
-
-    Only the cropland change is shown. The vegetation reading ("denser
-    vegetation") is not robust: a re-run with a neutral prompt
-    (results/ghana/temporal_changes.json) reports less vegetation.
+    Returns {comm_id: [line, ...]}, only for communities where the VLM lists
+    "+ cropland": the change and, below it, the colour cue the VLM used.
+    Other changes (the vegetation calls) are not shown.
     """
-    path = RES_DIR / "temporal" / "neuron_3821_temporal.json"
+    path = RES_DIR / "temporal" / "neuron_3821_temporal_neutral.json"
     if not path.exists():
         return {}
     with open(path) as f:
         entries = json.load(f)
 
     changes = {}
-    for e in entries:
-        cid     = int(e["comm_id"])
-        overall = e.get("overall", "").lower()
-        if "does not" in overall or "no sign" in overall or "stable" in overall:
+    for cid, e in entries.items():
+        if not any(c["symbol"] == "+" and c["label"] == "cropland" for c in e["changes"]):
             continue
-        if "intensif" not in overall and "expand" not in overall:
-            continue
-        items = []
-        ag  = e.get("agricultural_change", "").lower()
-        if "expansion" in ag or "intensif" in ag:
-            items.append(("+", "cropland",   CHANGE_COLORS["cropland"]))
-        if items:
-            changes[cid] = items
+        desc  = e.get("description", "").lower()
+        lines = ["+ cropland"]
+        cue   = next((phrase for key, phrase in CROPLAND_CUES if key in desc), None)
+        if cue is None:
+            print(f"  NOTE: community {cid}: no colour cue in {desc!r}")
+        else:
+            lines.append(cue)
+        changes[int(cid)] = lines
     return changes
 
 
@@ -230,7 +226,7 @@ def main():
     if temporal_changes:
         print(f"Loaded temporal changes for {len(temporal_changes)} communities from JSON.")
     else:
-        print("WARNING: temporal_changes.json not found — arrows will be omitted.")
+        print("WARNING: neuron_3821_temporal_neutral.json not found — arrows will be omitted.")
 
     df = pd.read_stata(DATA_DIR / "survey" / "LEAP1000 2015-2017 household data++.dta")
     comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
@@ -403,10 +399,14 @@ def main():
 
         mid_y   = 0.5 * (p_top[1] + p_bot[1])
         label_x = arrow_x + 0.003
-        for k, (sym, label, _) in enumerate(temporal_changes[cid]):
-            offset_y = 0.034 * (k - (len(temporal_changes[cid]) - 1) / 2)
-            fig.text(label_x, mid_y + offset_y, f"{sym} {label}",
-                     ha="left", va="center", fontsize=7.5,
+        # First line is the change, the rest is the cue wrapped to fit one column.
+        head, *cue = temporal_changes[cid]
+        lines = [(head, 7.5)] + [(t, 6.5) for t in textwrap.wrap(" ".join(cue), 16)]
+        step  = 0.1 / total_h                      # 0.1 in between baselines
+        for k, (line, size) in enumerate(lines):
+            offset_y = -step * (k - (len(lines) - 1) / 2)
+            fig.text(label_x, mid_y + offset_y, line,
+                     ha="left", va="center", fontsize=size,
                      color="black", fontweight="normal",
                      transform=fig.transFigure)
 

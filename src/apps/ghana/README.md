@@ -164,22 +164,37 @@ side with the prompt quoted in the appendix, record a short label and a confiden
   endowment in a savannah landscape. Hypothesis: complementarity with forest-based
   livelihoods; the large GATE may also reflect selection.
 
-**Temporal check (Table `tab:ghana_temporal`).** Paired 2015/2017 composites of the
-waterway-active communities shown to the VLM (`src/apps/ghana/interpret_temporal_waterways.py`;
-table from `src/apps/ghana/table_temporal.py --paper` →
-`results/ghana/paper_numbers/table_temporal.{md,tex}`): waterway structure unchanged in 6
-of 6, cropland expansion with denser vegetation next to the waterway in 3 of 6 (951,
-1265, 624). **Fixed:** `tab:ghana_temporal` now lists all six communities active for
-neuron 3821 — 951, 1265, 624, 675, 395, 655 — with 675, 395 and 655 "no change / no
-change", as produced by `table_temporal.py --paper`. A forensic check found the analysis
-always used the correct six communities; 311 and 1613, which the June brief's table
-showed instead of 395 and 655, appear only as tile labels in paper figures (1613 as an
-inactive example for neuron 3821, 311 for the burn-scar neuron), and the June brief listed
-only three communities, so the two rows were most likely filled in when the appendix was
-drafted. Figure: `bash scripts/ghana/run_figure_neural.sh` (VLM temporal labels for the
-4 most-activated communities, `interpret_temporal_changes.py`, then
-`figure_neural_combined.py` → `results/ghana/figures/figure_neural_ghana_combined.pdf`);
-teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
+**Temporal check (Table `tab:ghana_temporal`).** Paired 2015/2017 false-colour composites
+of the six communities where neuron 3821 is active (951, 675, 395, 1265, 655, 624; 83
+households) shown side by side to the VLM with a **neutral prompt**
+(`src/apps/ghana/interpret_temporal_changes.py`, `sbatch scripts/ghana/slurm_temporal_changes.sh`,
+Qwen2.5-VL-72B-Instruct 4-bit, greedy decoding, one H100, ~21 min of which ~18 min model
+loading): list every land-cover change as "+/− category" with the colour key of the
+composite, plus a 1–2 sentence description; the model is not told the feature label. Output
+`results/ghana/temporal/neuron_3821_temporal_neutral.json` (2026-09-29, SLURM job 12671).
+Result: "+ cropland" in 5 of 6 (951, 675, 395, 1265, 624), "+ bare soil" in 655; "− vegetation"
+in all 6. The descriptions attribute the cropland increase to more bright red/magenta
+(the colour key's "dense healthy vegetation or crops") in 951, 675, 395 and 624, and to
+"bright green regions expanding" in 1265. Table from `src/apps/ghana/table_temporal.py
+--paper` → `results/ghana/paper_numbers/table_temporal.{md,tex}` (columns: cropland change,
+colour cue; the vegetation calls are printed as a note, not tabulated). An earlier run on
+the four most active communities only (`results/ghana/temporal_changes.json`) is
+reproduced by the rerun: identical outputs for 951, 675 and 1265, and for 395 the same
+change list with a reworded description.
+
+Superseded: `results/ghana/temporal/neuron_3821_temporal.json`
+(`interpret_temporal_waterways.py`, 6 May 2026) told the model the tiles contain ephemeral
+waterways and asked about changes near them (a leading prompt). It reported cropland
+expansion with denser vegetation next to the waterway in 3 of 6 (951, 1265, 624) and
+waterways unchanged in 6 of 6, which is what the paper's table and Figure 5 labels
+(+ vegetation, + cropland) were built from. Under the neutral prompt the vegetation call
+flips to a decrease everywhere, so it is not used.
+
+Figure: `bash scripts/ghana/run_figure_neural.sh` (runs the neutral interpretation if its
+JSON is missing, then `figure_neural_combined.py` →
+`results/ghana/figures/figure_neural_ghana_combined.pdf`). The temporal panel shows 951,
+675, 1265 and 624; each gets "+ cropland" and, below it, the colour cue from its description
+("(more bright red/magenta)", or "(more bright green)" for 1265). Teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
 districts map `src/apps/ghana/figure_maps.py`.
 
 The three `figure_neural*.py` scripts read the sign of each neuron's GATE contrast (the
@@ -193,7 +208,11 @@ panel match the paper PDFs; the inactive example tiles do not (paper: 1613/1604,
 1624/1583 and 1624/1604/1576; now 1635/534, 1635/506 and 562/483/506). All of them have
 z = 0, and the scripts pick among these ties with an unstable `np.argsort`, so the paper's
 choice is not recoverable from the code. On `main` these scripts still read the survey
-and basemap files from the old flat `data/ghana/` layout, not `survey/` and `geo/`.
+and basemap files from the old flat `data/ghana/` layout, not `survey/` and `geo/`. Since
+2026-09-29 `figure_neural_combined.py` (Figure 5) reads `survey/` and `geo/` and pins the
+paper's inactive tiles (1613/1604, 1624/1583); its regenerated PDF matches the paper's
+except for the temporal-panel labels, which now come from the neutral run above.
+`figure_neural.py` and `figure_neural_1777.py` are not fixed yet.
 
 ---
 
@@ -250,8 +269,8 @@ unverifiable and should not be used.
 
 GEE extraction (LEAP + national grid) ~1–2 h (cloud CPU); Prithvi embeddings ~30 min
 (H100); SAE ~2 h (H100); NEXIS < 5 min (CPU); VLM, 2 atoms × top/bottom 12, ~30 min (H100);
-VLM temporal, 6 communities × 2 years, ~15 min (H100). Estimates carried over from the June
-brief; not re-measured.
+VLM temporal, 6 communities × 2 years, ~21 min (H100, measured 2026-09-29, ~18 min of it
+loading the model). The other estimates are carried over from the June brief; not re-measured.
 
 ---
 

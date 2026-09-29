@@ -1,32 +1,35 @@
 #!/usr/bin/env python3
 """Emit the per-community temporal table straight from the VLM artifact.
 
-Why this exists
----------------
-Table `tab:ghana_temporal` was hand-transcribed and drifted from the analysis it
-reports.  The artifact covers the six communities where neuron 3821 fires,
-`[951, 675, 395, 1265, 655, 624]` (hard-coded in interpret_temporal_waterways.py
-and reproducible from data/ghana/satellite/sae_activations.npy).  The printed
-table instead listed communities 311 and 1613, whose activation on that neuron is
-exactly 0.0 under both the post-TopK codes and the dense pre-activations, and
-dropped 395 and 655, which are genuinely active.  Only the three
-cropland-expansion rows were right -- those are the three the source brief
-enumerates; the other three rows had no source to copy from.  Row 675 is also
-wrong in its vegetation column: the artifact reads "similarly distributed" (no
-change), not "increased biomass".
+Source
+------
+`results/ghana/temporal/neuron_3821_temporal_neutral.json`, written by
+`interpret_temporal_changes.py` (Qwen2.5-VL-72B-Instruct, 4-bit, greedy
+decoding). The VLM sees the 2015 and 2017 false-colour composites of one
+community side by side, with a colour key, and is asked to list every
+land-cover change as "+/- <category>" plus a 1-2 sentence description. It is
+not told which feature the community was selected for (neutral prompt).
+
+The artifact covers the six communities where neuron 3821 (ephemeral
+waterways) fires, `[951, 675, 395, 1265, 655, 624]` (activation > 0 in
+data/ghana/satellite/sae_activations.npy; `--check` verifies this).
+
+An earlier run, `results/ghana/temporal/neuron_3821_temporal.json`
+(`interpret_temporal_waterways.py`), told the model that the tile contains
+ephemeral waterways and asked about changes near them. That prompt is leading,
+so the table no longer uses it.
 
 Paper item: Table tab:ghana_temporal (paper appendix, "Per-community VLM
-temporal analysis for the six waterway-active LEAP communities") and the sentence
-"agricultural land use changed detectably in three communities".
-Inputs: results/ghana/temporal/neuron_3821_temporal.json (interpret_temporal_waterways.py,
-GPU, 6 May 2026); data/ghana/satellite/{sae_activations,prithvi_comm_ids}.npy (--check).
+temporal analysis for the six waterway-active LEAP communities").
 
-Generating the table removes the transcription step entirely.
+Columns: community, cropland change (from the "+/- cropland" line), and the
+colour cue the VLM gave for the cropland change, taken from its description
+(for a community without a cropland line, the other change it listed).
+The vegetation calls are printed as a note, not as a column.
 
 Usage
 -----
     python src/apps/ghana/table_temporal.py                # markdown + latex to stdout
-    python src/apps/ghana/table_temporal.py --write        # also write files next to the artifact
     python src/apps/ghana/table_temporal.py --check        # verify against the activations, exit 1 on drift
     python src/apps/ghana/table_temporal.py --paper        # write results/ghana/paper_numbers/table_temporal.{md,tex}
 """
@@ -40,39 +43,38 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
-ARTIFACT = ROOT / "results" / "ghana" / "temporal" / "neuron_3821_temporal.json"
+ARTIFACT = ROOT / "results" / "ghana" / "temporal" / "neuron_3821_temporal_neutral.json"
 SAT = ROOT / "data" / "ghana" / "satellite"
 NEURON = 3821
 
 
-def classify(text: str) -> str:
-    """Map a free-text VLM change description onto the table's three-valued column.
-
-    Negations are tested first: "no significant expansion or contraction" contains
-    the word "expansion" and would otherwise be read as an increase.
-    """
-    t = text.lower()
-    if any(k in t for k in ("no significant", "stable", "similarly", "no noticeable")):
-        return "no change"
-    if "expansion" in t:
-        return "increase"
-    if "denser" in t or "increase" in t:
-        return "denser"
-    return "unclear"
+def change(entry: dict, category: str) -> str:
+    """'+', '-' or '' for one category of the VLM's change list."""
+    syms = {c["symbol"] for c in entry["changes"] if c["label"] == category}
+    if len(syms) > 1:
+        return "+/-"
+    return syms.pop() if syms else ""
 
 
-LATEX = {"no change": "no change",
-         "increase": r"$\uparrow$ expansion",
-         "denser": r"$\uparrow$ denser adjacent to waterway",
-         "unclear": "unclear"}
-MD = {"no change": "no change",
-      "increase": "↑ expansion",
-      "denser": "↑ denser adjacent to waterway",
-      "unclear": "unclear"}
+def cue(description: str) -> str:
+    """The colour the VLM cites for the change, as written in its description."""
+    d = description.lower()
+    for key, short in (("bright red/magenta", "more bright red/magenta"),
+                       ("bright green", "more bright green"),
+                       ("tan/brown", "more tan/brown")):
+        if key in d:
+            return short
+    return "--"
+
+
+LATEX = {"+": r"$\uparrow$ increase", "-": r"$\downarrow$ decrease",
+         "+/-": "mixed", "": "not listed"}
+MD = {"+": "↑ increase", "-": "↓ decrease", "+/-": "mixed", "": "not listed"}
 
 
 def load_rows():
-    rows = json.loads(ARTIFACT.read_text())
+    data = json.loads(ARTIFACT.read_text())
+    rows = [dict(v, comm_id=int(k)) for k, v in data.items()]
     rows.sort(key=lambda e: -e["activation"])
     return rows
 
@@ -94,29 +96,29 @@ def check(rows) -> int:
 
 
 def render(rows):
-    md = ["| Community | Cropland change | Vegetation change |",
-          "|---|---|---|"]
-    tex = [r"\toprule",
-           r"Community & Cropland change & Vegetation change \\", r"\midrule"]
-    n_crop = 0
+    md = ["| Community | Cropland change | Colour cue (VLM) |", "|---|---|---|"]
+    tex = [r"\toprule", r"Community & Cropland change & Colour cue (VLM) \\", r"\midrule"]
     for e in rows:
-        a = classify(e["agricultural_change"])
-        v = classify(e["vegetation_change"])
-        n_crop += a != "no change"
-        md.append(f"| {e['comm_id']} | {MD[a]} | {MD[v]} |")
-        tex.append(f"    {e['comm_id']:<5}& {LATEX[a]:<30}& {LATEX[v]:<40}\\\\")
+        c = change(e, "cropland")
+        if c:
+            q = cue(e["description"])
+        else:   # name what the VLM listed instead (vegetation aside)
+            other = [f"{x['symbol']} {x['label']}" for x in e["changes"]
+                     if x["label"] not in ("cropland", "vegetation")]
+            q = f"lists {', '.join(other)} instead" if other else "--"
+        md.append(f"| {e['comm_id']} | {MD[c]} | {q} |")
+        tex.append(f"    {e['comm_id']:<5}& {LATEX[c]:<22}& {q:<28}\\\\")
     tex.append(r"\bottomrule")
-    n_wat = sum("similarly visible" in e["waterway_change"] for e in rows)
-    note = (f"cropland expansion in {n_crop} of {len(rows)} communities; "
-            f"waterway structure unchanged in {n_wat} of {len(rows)}")
+    n_crop = sum(change(e, "cropland") == "+" for e in rows)
+    veg = ", ".join(f"{e['comm_id']}: {MD[change(e, 'vegetation')]}" for e in rows)
+    note = (f"cropland increase in {n_crop} of {len(rows)} communities; "
+            f"vegetation (not tabulated): {veg}")
     return "\n".join(md), "\n".join(tex), note
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--write", action="store_true",
-                   help="Write table_temporal.{md,tex} beside the artifact.")
     p.add_argument("--check", action="store_true",
                    help="Only verify the artifact against the activations.")
     p.add_argument("--paper", action="store_true",
@@ -125,18 +127,15 @@ def main():
 
     if not ARTIFACT.exists():
         sys.exit(f"missing artifact: {ARTIFACT}\n"
-                 f"run: python src/apps/ghana/interpret_temporal_waterways.py")
+                 f"run: sbatch scripts/ghana/slurm_temporal_changes.sh")
     rows = load_rows()
     if args.check:
         sys.exit(check(rows))
 
     md, tex, note = render(rows)
     print(md, "\n"); print(tex, "\n"); print(note)
-    if args.write:
-        out = ARTIFACT.parent
-        (out / "table_temporal.md").write_text(md + "\n\n" + note + "\n")
-        (out / "table_temporal.tex").write_text(tex + "\n")
-        print(f"\nwrote {out/'table_temporal.md'} and {out/'table_temporal.tex'}")
+    for e in rows:
+        print(f"  {e['comm_id']}: {e['description']}")
     if args.paper:
         out = ROOT / "results" / "ghana" / "paper_numbers"
         out.mkdir(parents=True, exist_ok=True)
