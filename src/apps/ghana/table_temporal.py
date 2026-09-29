@@ -22,8 +22,8 @@ so the table no longer uses it.
 Paper item: Table tab:ghana_temporal (paper appendix, "Per-community VLM
 temporal analysis for the six waterway-active LEAP communities").
 
-Columns: community, cropland change (from the "+/- cropland" line; for a
-community without a cropland line, the other change it listed), and local NDVI
+Columns: community, cropland change (from the "+/- cropland" line; "not listed"
+when the VLM gives no cropland line), and local NDVI
 increase (% area): the area of the patches where NDVI rose between the 2015 and
 2017 composites by more than 0.05 beyond the tile's median change, as % of the
 tile's non-water area (rule in `ndvi_change.py`; the same patches are boxed in
@@ -97,12 +97,6 @@ def render(rows):
     for e in rows:
         c = change(e, "cropland")
         cell_md, cell_tex = MD[c], LATEX[c]
-        if not c:   # name what the VLM listed instead (vegetation aside)
-            other = [(x["symbol"], x["label"]) for x in e["changes"]
-                     if x["label"] not in ("cropland", "vegetation")]
-            if other:
-                cell_md += f" ({', '.join(f'{s} {l}' for s, l in other)})"
-                cell_tex += f" ({', '.join(f'${s}$ {l}' for s, l in other)})"
         pct = increase_area_pct(e["comm_id"])
         pct_md = "n/a" if pct is None else f"{pct:.1f}"
         pct_tex = "n/a" if pct is None else f"${pct:.1f}$"
