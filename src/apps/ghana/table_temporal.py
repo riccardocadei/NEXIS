@@ -22,9 +22,12 @@ so the table no longer uses it.
 Paper item: Table tab:ghana_temporal (paper appendix, "Per-community VLM
 temporal analysis for the six waterway-active LEAP communities").
 
-Columns: community and cropland change (from the "+/- cropland" line; for a
-community without a cropland line, the other change it listed).
-The vegetation calls are printed as a note, not as a column.
+Columns: community, cropland change (from the "+/- cropland" line; for a
+community without a cropland line, the other change it listed), and local NDVI
+increase (% area): the area of the patches where NDVI rose between the 2015 and
+2017 composites by more than 0.05 beyond the tile's median change, as % of the
+tile's non-water area (rule in `ndvi_change.py`; the same patches are boxed in
+Figure 5). The vegetation calls are printed as a note, not as a column.
 
 Usage
 -----
@@ -42,6 +45,9 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
+from src.apps.ghana.ndvi_change import increase_area_pct  # noqa: E402
+
 ARTIFACT = ROOT / "results" / "ghana" / "temporal" / "neuron_3821_temporal_neutral.json"
 SAT = ROOT / "data" / "ghana" / "satellite"
 NEURON = 3821
@@ -84,19 +90,24 @@ def check(rows) -> int:
 
 
 def render(rows):
-    md = ["| Community | Cropland change |", "|---|---|"]
-    tex = [r"\toprule", r"Community & Cropland change \\", r"\midrule"]
+    md = ["| Community | Cropland change | Local NDVI increase (% area) |", "|---|---|---|"]
+    tex = [r"\toprule",
+           r"Community & Cropland change & Local NDVI increase (\% area) \\",
+           r"\midrule"]
     for e in rows:
         c = change(e, "cropland")
         cell_md, cell_tex = MD[c], LATEX[c]
         if not c:   # name what the VLM listed instead (vegetation aside)
-            other = [f"{x['symbol']} {x['label']}" for x in e["changes"]
+            other = [(x["symbol"], x["label"]) for x in e["changes"]
                      if x["label"] not in ("cropland", "vegetation")]
             if other:
-                cell_md += f" ({', '.join(other)})"
-                cell_tex += f" ({', '.join(other)})"
-        md.append(f"| {e['comm_id']} | {cell_md} |")
-        tex.append(f"    {e['comm_id']:<5}& {cell_tex:<30}\\\\")
+                cell_md += f" ({', '.join(f'{s} {l}' for s, l in other)})"
+                cell_tex += f" ({', '.join(f'${s}$ {l}' for s, l in other)})"
+        pct = increase_area_pct(e["comm_id"])
+        pct_md = "n/a" if pct is None else f"{pct:.1f}"
+        pct_tex = "n/a" if pct is None else f"${pct:.1f}$"
+        md.append(f"| {e['comm_id']} | {cell_md} | {pct_md} |")
+        tex.append(f"{e['comm_id']:<5}& {cell_tex} & {pct_tex} \\\\")
     tex.append(r"\bottomrule")
     n_crop = sum(change(e, "cropland") == "+" for e in rows)
     veg = ", ".join(f"{e['comm_id']}: {MD[change(e, 'vegetation')]}" for e in rows)

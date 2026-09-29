@@ -176,8 +176,26 @@ Result: "+ cropland" in 5 of 6 (951, 675, 395, 1265, 624), "+ bare soil" in 655;
 in all 6. The descriptions attribute the cropland increase to more bright red/magenta
 (the colour key's "dense healthy vegetation or crops") in 951, 675, 395 and 624, and to
 "bright green regions expanding" in 1265. Table from `src/apps/ghana/table_temporal.py
---paper` → `results/ghana/paper_numbers/table_temporal.{md,tex}` (column: cropland change; the
-vegetation calls and descriptions are printed as a note, not tabulated). An earlier run on
+--paper` → `results/ghana/paper_numbers/table_temporal.{md,tex}` (columns: cropland change and
+local NDVI increase, % area; the vegetation calls and descriptions are printed as a note, not
+tabulated).
+
+**Local NDVI increase (table column, boxes in Figure 5).** A computed check of where the
+land greened, in `src/apps/ghana/ndvi_change.py` (CPU, seconds). NDVI = (NIR − Red)/(NIR + Red)
+on the 2015 (`tif/`) and 2017 (`tif_2017/`) composites; water is masked (MNDWI > 0 or
+NDVI < 0 in either year, plus a 2-pixel buffer). Every tile greens overall (median ΔNDVI
++0.015 to +0.043), a year-to-year shift of the annual composites, so the tile's median
+ΔNDVI is subtracted. The local ΔNDVI is Gaussian-smoothed (σ = 1 pixel, 30 m), thresholded
+at +0.05 (about 2 robust SD of the smoothed field, 0.024, pooled over the six tiles),
+cleaned with a 3×3 opening, and patches ≥ 20 pixels (1.8 ha) are kept. Area of these patches
+as % of the non-water area: 951 7.9, 675 1.7, 395 2.7, 1265 0.3, 655 1.9, 624 3.5. The
+patches are spatially compact (neighbour correlation of local ΔNDVI 0.84–0.89), but local
+decreases of the same size exist too (951 4.8, 675 2.4, 395 2.1, 1265 1.5, 655 3.4, 624 1.8
+% area), so the support for the VLM's "+ cropland" is clear in 951 and 624, weak in 395 and
+675, and absent in 1265. NDVI shows greening, not crops as such. The neon-green patch of
+1265 (and of 395) is a water body, not a tile artefact (NDVI < 0; in 1265 it grows from 100
+to 253 pixels between the two years): the VLM's "bright green regions expanding" in 1265
+describes this water. An earlier run on
 the four most active communities only (`results/ghana/temporal_changes.json`) is
 reproduced by the rerun: identical outputs for 951, 675 and 1265, and for 395 the same
 change list with a reworded description.
@@ -192,10 +210,15 @@ flips to a decrease everywhere, so it is not used.
 
 Figure: `bash scripts/ghana/run_figure_neural.sh` (runs the neutral interpretation if its
 JSON is missing, then `figure_neural_combined.py` →
-`results/ghana/figures/figure_neural_ghana_combined.pdf`). The temporal panel shows 951,
-675, 1265 and 624; each gets "+ cropland". The colour cues
-are left out of the figure and table because the colour key does not separate crops from
-other vegetation. Teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
+`results/ghana/figures/figure_neural_ghana_combined.pdf`; alone:
+`python src/apps/ghana/figure_neural_combined.py`). The temporal panel shows 951, 675, 395
+and 624 (395 replaced 1265 on 2026-09-29, since 1265 has almost no local NDVI increase);
+each gets "+ cropland". On each tile a white box (1 pt, thin black halo) marks the
+bounding box, plus a 2-pixel margin, of the largest local-NDVI-increase patch, and of the
+second largest when it is at least 75% of the largest's area; the same boxes are drawn on
+both years. Boxed: 951 79.0 ha (local ΔNDVI +0.079), 675 22.5 ha (+0.069), 395 29.7 ha
+(+0.075), 624 34.2 ha (+0.085) and 29.8 ha (+0.079). The colour cues are left out of the
+figure and table because the colour key does not separate crops from other vegetation. Teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
 districts map `src/apps/ghana/figure_maps.py`.
 
 The three `figure_neural*.py` scripts read the sign of each neuron's GATE contrast (the
@@ -211,8 +234,9 @@ z = 0, and the scripts pick among these ties with an unstable `np.argsort`, so t
 choice is not recoverable from the code. On `main` these scripts still read the survey
 and basemap files from the old flat `data/ghana/` layout, not `survey/` and `geo/`. Since
 2026-09-29 `figure_neural_combined.py` (Figure 5) reads `survey/` and `geo/` and pins the
-paper's inactive tiles (1613/1604, 1624/1583); its regenerated PDF matches the paper's
-except for the temporal-panel labels, which now come from the neutral run above.
+paper's inactive tiles (1613/1604, 1624/1583); its left part matches the paper's earlier
+PDF, while the temporal panel now shows 395 instead of 1265, the labels from the neutral
+run and the NDVI-increase boxes.
 `figure_neural.py` and `figure_neural_1777.py` are not fixed yet.
 
 ---

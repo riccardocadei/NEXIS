@@ -10,20 +10,31 @@ Row 1 ── Neuron 2095: [map | act×2 | div | inact×2] ─┘    [2017 grid �
 A V-shaped dashed connector runs from the last inactive tile of the 3821 row
 to the left edge of both temporal rows.
 
+The temporal panel shows communities 951, 675, 395 and 624 in 2015 and 2017,
+labelled with the neutral-prompt VLM call ("+ cropland"). On each tile, white
+boxes mark the largest patch(es) where NDVI rose locally between the two
+composites (rule in ndvi_change.py); the same boxes are drawn on both years.
+
 Usage:
     python src/apps/ghana/figure_neural_combined.py
 """
 
 import json
+import sys
 from pathlib import Path
 
 import geopandas as gpd
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
 from matplotlib.patches import FancyArrowPatch
 from PIL import Image as PILImage
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
+from src.apps.ghana.ndvi_change import largest_patches  # noqa: E402
 
 plt.rcParams.update({
     "text.usetex":      False,
@@ -32,7 +43,6 @@ plt.rcParams.update({
     "mathtext.fontset": "cm",
 })
 
-ROOT     = Path(__file__).resolve().parents[3]
 DATA_DIR = ROOT / "data"    / "ghana"
 SAT_DIR  = DATA_DIR / "satellite"
 TIF_NAT  = SAT_DIR  / "tif_national"
@@ -50,7 +60,7 @@ C_GREEN  = "#2E8B57"
 TEMPORAL_COMMUNITIES = [
     {"comm_id": 951,  "activation": 2.8516},
     {"comm_id": 675,  "activation": 2.3856},
-    {"comm_id": 1265, "activation": 1.9522},
+    {"comm_id": 395,  "activation": 2.0504},
     {"comm_id": 624,  "activation": 0.6847},
 ]
 
@@ -116,6 +126,32 @@ def load_tile_community(tif_dir: Path, comm_id: int, size: int = 224) -> np.ndar
         swir2 = src.read(6).astype(np.float32)
     arr = (np.stack([_norm(nir), _norm(green), _norm(swir2)], axis=-1) * 255).astype(np.uint8)
     return np.asarray(PILImage.fromarray(arr).resize((size, size), PILImage.BICUBIC))
+
+
+# ── NDVI-change boxes on the temporal tiles ─────────────────────────────────────
+
+# White line with a thin, semi-transparent black halo; margin in 30 m pixels.
+BOX_COLOUR, BOX_LW, BOX_HALO_LW, BOX_HALO_ALPHA = "white", 1.0, 1.6, 0.6
+BOX_MARGIN_PX = 2
+
+
+def draw_patch_box(ax, mask: np.ndarray, size: int) -> None:
+    """Draw the patch's axis-aligned bounding box (+ margin), clipped to the tile."""
+    ys, xs = np.nonzero(mask)
+    sy, sx = size / mask.shape[0], size / mask.shape[1]
+    y0 = max(ys.min() - BOX_MARGIN_PX, 0) * sy
+    y1 = min(ys.max() + 1 + BOX_MARGIN_PX, mask.shape[0]) * sy
+    x0 = max(xs.min() - BOX_MARGIN_PX, 0) * sx
+    x1 = min(xs.max() + 1 + BOX_MARGIN_PX, mask.shape[1]) * sx
+    # display pixel edges run from -0.5 to size - 0.5; inset by 1 px so a box on
+    # the tile edge stays fully visible
+    x0, y0 = max(x0 - 0.5, 0.5), max(y0 - 0.5, 0.5)
+    x1, y1 = min(x1 - 0.5, size - 1.5), min(y1 - 0.5, size - 1.5)
+    halo = [pe.Stroke(linewidth=BOX_HALO_LW, foreground="black", alpha=BOX_HALO_ALPHA),
+            pe.Normal()]
+    ax.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False,
+                               edgecolor=BOX_COLOUR, linewidth=BOX_LW, joinstyle="miter",
+                               path_effects=halo, zorder=5))
 
 
 # ── basemap ────────────────────────────────────────────────────────────────────
@@ -203,6 +239,12 @@ def _row_y(row_i: int):
 # ── main ───────────────────────────────────────────────────────────────────────
 
 def main():
+    ndvi_patches = {c["comm_id"]: largest_patches(c["comm_id"]) for c in TEMPORAL_COMMUNITIES}
+    for cid, patches in ndvi_patches.items():
+        for p in patches:
+            print(f"NDVI-increase box, community {cid}: {p['area_ha']:.1f} ha, "
+                  f"local dNDVI {p['local_dndvi']:+.3f}")
+
     temporal_changes = _load_temporal_changes()
     if temporal_changes:
         print(f"Loaded temporal changes for {len(temporal_changes)} communities from JSON.")
@@ -332,6 +374,9 @@ def main():
             img = load_tile_community(tif_dir, cid)
             if img is not None:
                 ax.imshow(img)
+                # Same boxes on both years: they mark where the change happened.
+                for patch in ndvi_patches[cid]:
+                    draw_patch_box(ax, patch["mask"], img.shape[0])
             else:
                 ax.set_facecolor("#222")
                 ax.text(0.5, 0.5, "missing", ha="center", va="center",
