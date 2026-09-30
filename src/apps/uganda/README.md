@@ -59,7 +59,7 @@ headline effect of Blattman et al. Source: `src/apps/uganda/table_gate.py` →
 | Community / site | language group (7 dummies); 12 spectral indices; 146 SAE atoms |
 
 **Pool.** 146 SAE atoms + 24 hand-crafted covariates = 170 candidates, searched in one
-pass in which covariates and atoms compete symmetrically (they are all columns of `z`).
+pass in which covariates and atoms compete symmetrically (they are all columns of `w`).
 The 24 covariates are `W_age, W_female, W_father_educ, W_mother_educ, W_group_female`,
 `W_lang_1..7` and `W_{ndvi,ndwi,mndwi,ndbi,evi,bsi}_{mean,std}` (names in `report.json`
 → `candidates`). Pool built by `scripts/verify_new_default_realworld.py::uganda_data`.

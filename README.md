@@ -41,17 +41,24 @@ from method import nexis
 
 rng = np.random.default_rng(0)
 n, m = 2000, 100
-z = rng.normal(size=(n, m))          # pre-treatment representation (e.g. SAE codes)
+w = rng.normal(size=(n, m))          # pre-treatment candidates (e.g. SAE codes, covariates)
 t = rng.binomial(1, 0.5, size=n)     # randomized binary treatment
-y = z[:, 0] + t * (1.0 + 0.5 * z[:, 3] - 0.5 * z[:, 7]) + rng.normal(size=n)
+y = w[:, 0] + t * (1.0 + 0.5 * w[:, 3] - 0.5 * w[:, 7]) + rng.normal(size=n)
 
-res = nexis(y=y, t=t, z=z, alpha=0.05,
+res = nexis(y=y, t=t, w=w, alpha=0.05,
             backward=False, terminal_filter=True,  # the paper's Algorithm 1
             rho=0.5, max_rounds=None)
-res.selected                          # [7, 3]: certified coordinates (columns of z)
+res.selected                          # [7, 3]: certified coordinates (columns of w)
+res.feature_names                     # "0" ... "99" for an ndarray, column names for a DataFrame
 res.metadata["terminal_candidates"]   # forward-step output S~; S~ minus selected = candidates
 res.metadata["terminal_log"]          # per j in S~: the certification p-value (worst_p)
 ```
+
+`w` holds every candidate, learned or hand-crafted, in one matrix: all its columns compete
+in one search and the Bonferroni gates count all of them. It can be an ndarray or a pandas
+DataFrame; for a DataFrame, `res.feature_names` are its column names and
+`w.attrs["cluster"]` supplies cluster labels when `cluster=` is not passed.
+`marginal_select(y, t, w, ...)` takes the same `w`.
 
 The defaults of `nexis()` are those of an earlier version of the method (interleaved
 backward step, no terminal step) and are kept so that older results reproduce. Always pass
@@ -59,7 +66,7 @@ backward step, no terminal step) and are kept so that older results reproduce. A
 
 | Parameter | Default | Paper | Meaning |
 |---|---|---|---|
-| `alpha` | `0.05` | `0.05` | Level α: forward gate α/\|S̄\|, terminal gate α/m (m = columns of `z`) |
+| `alpha` | `0.05` | `0.05` | Level α: forward gate α/\|S̄\|, terminal gate α/m (m = columns of `w`) |
 | `backward` | `True` | `False` | Interleaved backward step after every forward addition |
 | `terminal_filter` | `False` | `True` | Terminal certification: keep j ∈ S̃ only if p_j(A) ≤ α/m for every A ⊆ S̃ \ {j} |
 | `rho` | `0.5` | `0.5` | Spectral-gap stop: new \|t\| < ρ · min \|t\| of the selected; `0`/`None` disables |

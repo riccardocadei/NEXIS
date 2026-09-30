@@ -79,10 +79,19 @@ def uganda_data(outcome: str):
                 run_kw=run_kw, pv_kw=pv_kw, rho_new=0.5)
 
 
-# ── Data: Ghana (as notebooks/ghana.ipynb, the run behind results/ghana/codes/nexis_fwer_crve) ─
+# ── Data: Ghana (joint pool of SAE neurons and survey covariates) ─────────────
 
 def ghana_data():
-    from src.apps.ghana.data import load_data, W_ALL, W_LABELS
+    """Joint pool of 155 = 131 SAE neurons + 24 survey covariates, searched in one pass.
+
+    This is the pool the paper counts (scripts/realworld_clustered_nexis.py::ghana), and
+    the published set on it is {Z_3821, Z_2095}.  The June run in
+    results/ghana/codes/nexis_fwer_crve/result.json passed the survey covariates through
+    a former two-phase form of nexis() whose W-only phase selected nothing, so it
+    searched the 131 neurons alone (m = 131); its looser gates also admitted Z_3318.
+    nexis() no longer has that form, so that file is not the reference here.
+    """
+    from src.apps.ghana.data import load_data, W_ALL
 
     data_dir = ROOT / "data" / "ghana"
     df = load_data(data_dir)
@@ -102,16 +111,13 @@ def ghana_data():
     live_idx = np.where(live)[0]
     row = merged["comm"].map(dict(zip(ids, range(len(ids))))).values
     Z = act[:, live][row]                       # 131 SAE neurons, community-level
-    W = merged[W_ALL].values.astype(float)      # 24 survey covariates (preliminary phase)
+    W = merged[W_ALL].values.astype(float)      # 24 survey covariates, household-level
 
-    published = json.loads((ROOT / "results" / "ghana" / "codes" / "nexis_fwer_crve"
-                            / "result.json").read_text())
-    pub = [f"Z_{e['neuron_idx']}" for e in published["selected_z"]] + \
-          [f"W_{e['label']}" for e in published["selected_w"]]
-    run_kw = dict(alpha=ALPHA, adjust="FWER", cluster=comms, rho=0.5,
-                  w=W, w_names=[W_LABELS.get(c, c) for c in W_ALL])
-    return dict(y=y, t=t, z=Z, names=[f"Z_{k}" for k in live_idx], published=pub,
-                run_kw=run_kw, pv_kw=dict(cluster=comms), rho_new=None)
+    pub = ["Z_3821", "Z_2095"]
+    run_kw = dict(alpha=ALPHA, adjust="FWER", cluster=comms, rho=0.5)
+    return dict(y=y, t=t, z=np.hstack([Z, W]),
+                names=[f"Z_{k}" for k in live_idx] + [f"W_{c}" for c in W_ALL],
+                published=pub, run_kw=run_kw, pv_kw=dict(cluster=comms), rho_new=None)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -143,7 +149,7 @@ def check(app, outcome, d):
     if sorted(got) != sorted(d["published"]):
         raise SystemExit(f"[{app}/{outcome}] published run NOT reproduced: "
                          f"got {got}, expected {d['published']}")
-    assert pub_run.metadata["m"] == m, "W-phase selected something; m would change"
+    assert pub_run.metadata["m"] == m
 
     a = nexis(y, t, z, backward=True, terminal_filter=True, **kw)
     kw_b = dict(kw, rho=d["rho_new"])

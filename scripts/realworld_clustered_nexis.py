@@ -270,8 +270,8 @@ def ghana():
     d = V.ghana_data()
     y = (merged["Y1"] - merged["Y"]).values.astype(float)
     assert np.allclose(y, d["y"]) and np.array_equal(merged["comm"].values, d["run_kw"]["cluster"])
-    z = np.hstack([d["z"], d["run_kw"]["w"]])
-    names = d["names"] + [f"W_{c}" for c in W_ALL]
+    z, names = d["z"], d["names"]
+    assert names[-len(W_ALL):] == [f"W_{c}" for c in W_ALL]
     comm = merged["comm"].values
     levels = {"region": codes(merged["region"]), "district": codes(merged["district"]),
               "community": codes(comm), "household": np.arange(len(merged))}

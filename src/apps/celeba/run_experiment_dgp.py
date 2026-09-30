@@ -109,7 +109,7 @@ def sweep_beta(features, labels_df, buckets, truth, sweep_param, param_grid, *,
         except ValueError:
             return pv, seed, None   # bucket exhausted
         return pv, seed, evaluate_methods_on_dataset(
-            y=d.Y, t=d.T, z=d.Z, truth=truth, alpha=alpha, max_rounds=max_rounds,
+            y=d.Y, t=d.T, w=d.Z, truth=truth, alpha=alpha, max_rounds=max_rounds,
             methods=methods, gcm_splits=gcm_splits)
 
     tasks = [(pv, s) for pv in param_grid for s in range(n_seeds)]
