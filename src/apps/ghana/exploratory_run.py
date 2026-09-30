@@ -13,9 +13,13 @@ Produces the numbers of the appendix section "Exploratory analysis"
 The run replays the 6 May 2026 configuration behind results/ghana/mact10/codes/
 nexis_no_adj/result.json (src/apps/ghana/interpret.py --min-activations 10, codes): Z =
 the SAE codes of the 72 neurons active in >= 10 of the 162 LEAP communities plus the 6
-spectral *_mean indices; the 24 survey covariates enter through nexis(w=...);
-nexis(adjust=None, cluster=community) with the other arguments at their defaults. It
-reproduces that file's selection and p-values exactly (asserted), without writing to it.
+spectral *_mean indices, plus the 24 survey covariates, all in one candidate pool;
+nexis(adjust=None, cluster=community) with the other arguments at their defaults. The
+6 May run passed the survey covariates through a former two-phase form of nexis() that
+screened them first and seeded the search with the one it selected (farming household);
+with adjust=None no gate depends on the pool size, and the one-pool search selects the
+same set with the same p-values. It reproduces that file's selection and p-values
+(asserted), without writing to it.
 
 GATE of neuron 1777: OLS of dY on (1, T) within active (code > 0) / inactive
 households; the contrast, its s.e. and p come from dY ~ 1 + T + A + T x A with CR1S by
@@ -85,10 +89,13 @@ def main() -> None:
     live = np.where((codes > 0).sum(axis=0) >= MIN_ACT)[0]
     hh = m["comm"].map(dict(zip(ids, range(len(ids))))).values
     Z = np.concatenate([codes[:, live][hh], m[spec].values.astype(float)], axis=1)
-    z_names = [None] * len(live) + [c[:-5] for c in spec]
+    # column names as the saved result.json labels them: z_<j> for the j-th live neuron,
+    # z_<index> for the spectral indices, w_<label> for the survey covariates
+    names = ([f"z_{j}" for j in range(len(live))] + [f"z_{c[:-5]}" for c in spec]
+             + [f"w_{W_LABELS.get(c, c)}" for c in W_ALL])
+    pool = pd.DataFrame(np.hstack([Z, W]), columns=names)
 
-    res = nexis(y, t, Z, w=W, w_names=[W_LABELS.get(c, c) for c in W_ALL], z_names=z_names,
-                alpha=0.05, adjust=None, cluster=comm)
+    res = nexis(y, t, pool, alpha=0.05, adjust=None, cluster=comm)
     sel_z, sel_w = [], []
     for i in res.selected:
         name, p = res.feature_names[i], float(res.pvalues[i])

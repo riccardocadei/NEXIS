@@ -258,7 +258,7 @@ run and the NDVI-increase boxes.
 ## 8. Exploratory analysis (Appendix `sec:ghana:exploratory`)
 
 NEXIS without multiple-testing correction on an earlier, smaller pool (72 atoms active in
-≥ 10 communities, 24 survey covariates through `nexis(w=...)`, 6 spectral `*_mean`
+≥ 10 communities, 24 survey covariates and 6 spectral `*_mean`
 indices; the two certified atoms are not in it), in the configuration of 6 May 2026
 (the earlier defaults: interleaved backward step, `adjust=None`, CR1S by community). Source:
 `src/apps/ghana/exploratory_run.py` → `results/ghana/paper_numbers/exploratory_run.md`,
