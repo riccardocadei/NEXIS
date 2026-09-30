@@ -1,0 +1,176 @@
+"""Uganda data of the project website (docs/assets/).
+
+Rebuilds uganda_communities.json (one record per RCT site with Prithvi features: location,
+language group, district, site means of the survey variables, spectral indices) and the
+`act` dicts of the Uganda modifiers in nexis_activations.json, keyed by RCT site key
+(geo_long_lat_key 1-331) instead of the UgandaGeocodes keys.  nexis_activations.json is
+read from docs/assets/ and written, with only those `act` dicts replaced, to --out-dir.
+
+Reads data/uganda/UgandaDataProcessed.csv, data/uganda/satellite/rct/spectral_indices.csv
+and results/uganda/prithvi_l5_1024/site_features.npz.
+
+    python src/apps/uganda/export_website_data.py [--out-dir docs/assets]
+"""
+
+import argparse
+import json
+import math
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[3]
+ASSETS = ROOT / "docs" / "assets"
+
+# Geographic language labels (matching UG_COL in index.html)
+LANG_LABELS = {
+    1: 'Alur',
+    2: 'Lugbara',
+    3: 'Madi',
+    4: 'Karamojong',
+    5: 'Teso',
+    6: 'Langi',
+    7: 'Other',
+}
+
+
+def _f(v):
+    """Round float or return None for NaN."""
+    if v is None:
+        return None
+    try:
+        return None if math.isnan(float(v)) else round(float(v), 4)
+    except Exception:
+        return None
+
+
+def build_sites(df, prithvi_keys):
+    """Per-site location, language group and survey means, merged with the spectral indices."""
+    sites = (
+        df.groupby('geo_long_lat_key')
+        .agg(lat=('geo_lat', 'first'), lon=('geo_long', 'first'), lang_group=('lang_group', 'first'))
+        .reset_index()
+        .rename(columns={'geo_long_lat_key': 'geokey'})
+    )
+    # Keep only sites that have Prithvi features, drop the 1 site with NaN coords
+    sites = sites[sites['geokey'].isin(prithvi_keys)].dropna(subset=['lat', 'lon'])
+
+    # Aggregate per-site fields from individual-level CSV
+    agg = df.groupby('geo_long_lat_key').agg(
+        n_indiv=('Wobs', 'count'),
+        pct_treated=('Wobs', 'mean'),
+        mean_skilled=('skilledtrade7da_zero', 'mean'),
+        mean_biz=('bizasset_val_real_ln_e', 'mean'),
+        mean_age=('age', 'mean'),
+        mean_father_educ=('father_educ', 'mean'),
+        mean_mother_educ=('mother_educ', 'mean'),
+        mean_group_female=('group_female', 'mean'),
+        pct_female=('female', 'mean'),
+        district=('district', lambda x: x.mode().iloc[0] if x.notna().any() else None),
+    ).reset_index().rename(columns={'geo_long_lat_key': 'geokey'})
+    sites = sites.merge(agg, on='geokey', how='left')
+
+    # Merge spectral indices
+    sp = pd.read_csv(ROOT / "data/uganda/satellite/rct/spectral_indices.csv")
+    sp = sp.rename(columns={'site_key': 'geokey',
+                            'ndvi_mean': 'ndvi', 'ndwi_mean': 'ndwi', 'mndwi_mean': 'mndwi',
+                            'ndbi_mean': 'ndbi', 'evi_mean': 'evi', 'bsi_mean': 'bsi'})
+    return sites.merge(sp[['geokey', 'ndvi', 'ndwi', 'mndwi', 'ndbi', 'evi', 'bsi']], on='geokey', how='left')
+
+
+def community_record(row):
+    return {
+        "geokey":   int(row['geokey']),
+        "lat":      round(float(row['lat']), 6),
+        "lon":      round(float(row['lon']), 6),
+        "lang":     LANG_LABELS.get(int(row['lang_group']), 'Other'),
+        "district": str(row['district']) if pd.notna(row.get('district')) else None,
+        "n_indiv":  int(row['n_indiv']) if pd.notna(row.get('n_indiv')) else None,
+        "pct_treated":     _f(row.get('pct_treated')),
+        "mean_skilled":    _f(row.get('mean_skilled')),
+        "mean_biz":        _f(row.get('mean_biz')),
+        "mean_age":        _f(row.get('mean_age')),
+        "mean_father_educ": _f(row.get('mean_father_educ')),
+        "mean_mother_educ": _f(row.get('mean_mother_educ')),
+        "mean_group_female": _f(row.get('mean_group_female')),
+        "pct_female":      _f(row.get('pct_female')),
+        "ndvi":  _f(row.get('ndvi')),
+        "ndwi":  _f(row.get('ndwi')),
+        "mndwi": _f(row.get('mndwi')),
+        "ndbi":  _f(row.get('ndbi')),
+        "evi":   _f(row.get('evi')),
+        "bsi":   _f(row.get('bsi')),
+    }
+
+
+def act_dict(mod_key, site_lang, feat, keys):
+    """Site key -> activation of one modifier: the language-group dummy (`lang_<g>`) or
+    the nonzero values of an SAE feature (`<index>`); None for an unknown key."""
+    new_act = {}
+    if mod_key.startswith('lang_'):
+        lg = int(mod_key.split('_')[1])
+        for sk, lg_val in site_lang.items():
+            new_act[str(sk)] = 1.0 if lg_val == lg else 0.0
+    elif mod_key.isdigit():
+        col = feat[:, int(mod_key)]
+        for i, sk in enumerate(keys):
+            v = float(col[i])
+            if v != 0.0:
+                new_act[str(int(sk))] = v
+    else:
+        return None
+    return new_act
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out-dir", type=Path, default=ASSETS)
+    out_dir = ap.parse_args().out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df = pd.read_csv(ROOT / "data/uganda/UgandaDataProcessed.csv")
+    # Use ALL Prithvi sites (all 331 RCT keys), not just geolocated_failed=FALSE.
+    # geolocated_failed=TRUE sites still have approximate coordinates (geo_long/geo_lat)
+    # which are accurate enough for a map dot. Filtering to 182 would leave SAE top/bottom
+    # activation sites off the map because they often fall in the 149 non-geocoded sites.
+    npz = np.load(ROOT / "results/uganda/prithvi_l5_1024/site_features.npz")
+    feat = npz['site_features']            # (331, 1024)
+    keys = npz['site_keys'].astype(int)    # (331,)
+    sites = build_sites(df, set(keys))
+
+    print(f"Total sites with Prithvi features: {len(sites)}")
+    print(f"Geokey range: {sites['geokey'].min()} – {sites['geokey'].max()}")
+    print("\nSites per lang_group:")
+    for lg, cnt in sites.groupby('lang_group').size().items():
+        print(f"  lang_group={lg} ({LANG_LABELS.get(lg, '?')}): {cnt} sites")
+
+    communities = [community_record(row) for _, row in sites.iterrows()]
+    out_path = out_dir / "uganda_communities.json"
+    with open(out_path, 'w') as f:
+        json.dump(communities, f, separators=(',', ':'))
+    print(f"\nWrote {len(communities)} communities to {out_path}")
+
+    # act dicts of the Uganda modifiers in nexis_activations.json
+    with open(ASSETS / "nexis_activations.json") as f:
+        nexis = json.load(f)
+    site_lang = dict(zip(sites['geokey'].astype(int), sites['lang_group'].astype(int)))
+    for block, prefix in [('uganda_skilled', ''), ('uganda_biz', 'biz/')]:
+        print(f"\nRebuilding act dicts for {block}...")
+        for mod_key, mod in nexis.get(block, {}).items():
+            new_act = act_dict(mod_key, site_lang, feat, keys)
+            if new_act is None:
+                print(f"  {prefix}{mod_key}: skipped (unknown format)")
+                continue
+            n_active = sum(1 for v in new_act.values() if v > 0)
+            print(f"  {prefix}{mod_key}: {n_active} active sites")
+            mod['act'] = new_act
+
+    act_path = out_dir / "nexis_activations.json"
+    with open(act_path, 'w') as f:
+        json.dump(nexis, f, separators=(',', ':'))
+    print(f"\nWrote {act_path}")
+
+
+if __name__ == "__main__":
+    main()

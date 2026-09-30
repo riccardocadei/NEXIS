@@ -32,8 +32,9 @@ result.json (for the check only).
 Command (repo root, CPU, seconds):
   /nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3 src/apps/ghana/exploratory_run.py
 
-Output: results/ghana/paper_numbers/exploratory_run.{md,json}
+Output: results/ghana/paper_numbers/exploratory_run.{md,json} (--out-dir to change)
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -70,6 +71,9 @@ def ols_cr1s(X, y, g):
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out-dir", type=Path, default=OUT)
+    out_dir = ap.parse_args().out_dir
     df = load_data(ROOT / "data/ghana")
     both = df.groupby("hhid")["wave"].nunique()
     df = df[df["hhid"].isin(both[both == 2].index)]
@@ -138,9 +142,9 @@ def main() -> None:
           f"{n['gate_active']:+.1f} active vs {n['gate_inactive']:+.1f} inactive; contrast "
           f"{n['contrast']:+.2f} (CR1S s.e. {n['contrast_se']:.2f}), p = {n['contrast_p_t']:.3f} "
           f"(t(G-1)), {n['contrast_p_normal']:.3f} (normal)."]
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "exploratory_run.json").write_text(json.dumps(out, indent=2) + "\n")
-    (OUT / "exploratory_run.md").write_text("\n".join(md) + "\n")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "exploratory_run.json").write_text(json.dumps(out, indent=2) + "\n")
+    (out_dir / "exploratory_run.md").write_text("\n".join(md) + "\n")
     print("\n".join(md))
 
 

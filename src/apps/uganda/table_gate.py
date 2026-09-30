@@ -13,21 +13,22 @@ with HC1 s.e. T = Wobs (grant received), as in the NEXIS runs. Subgroups: active
 Z_j > 0 for SAE neurons, Z_j = 1 for language groups, NDVI above its sample median.
 (The June brief's 0.098 for neuron 339 is the unpooled Neyman s.e.; HC1 gives 0.097.)
 
-p-values: read from results/realworld_final/report.json (scripts/realworld_final_runs.py),
+p-values: read from results/realworld_final/report.json (src/apps/realworld_final_runs.py),
 run "Wobs | published test | new default": Marginal = p_marginal (unconditional
 T x Z_j test), Certification = worst_subset_p (largest p_j(A) over the subsets tested by
 the terminal backward step).
 
 Inputs: data/uganda/UgandaDataProcessed.csv and
 results/uganda/prithvi_l5_1024/individual_features.npz, loaded through
-scripts/realworld_clustered_nexis.py::uganda (the pool NEXIS runs on);
+src/apps/uganda/pool.py::uganda (the pool NEXIS runs on);
 results/realworld_final/report.json.
 
 Command (repo root, CPU, seconds):
   /nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3 src/apps/uganda/table_gate.py
 
-Output: results/uganda/paper_numbers/table_gate.{tex,md,json}
+Output: results/uganda/paper_numbers/table_gate.{tex,md,json} (--out-dir to change)
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -35,10 +36,9 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
-for p in (ROOT, ROOT / "src", ROOT / "scripts"):
-    sys.path.insert(0, str(p))
+sys.path.insert(0, str(ROOT / "src"))
 
-import realworld_clustered_nexis as R  # noqa: E402
+from apps.uganda.pool import uganda  # noqa: E402
 from causality.estimation import ate_ols  # noqa: E402
 
 REPORT = ROOT / "results/realworld_final/report.json"
@@ -82,10 +82,13 @@ def num(x: float) -> str:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out-dir", type=Path, default=OUT)
+    out = ap.parse_args().out_dir
     report = json.loads(REPORT.read_text())
     res, tex, md = {}, [], []
     for outcome, title, rows in PANELS:
-        d = R.uganda(outcome)
+        d = uganda(outcome)
         y, t = d["y"], d["t"]
         ate, ate_se = gate(y, t)
         coords = {c["name"]: c for c in report[f"uganda/{outcome}"]["runs"][RUN]["coords"]}
@@ -120,10 +123,10 @@ def main() -> None:
         md.append("")
         tex.append("  \\midrule")
     tex = tex[:-1]
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "table_gate.json").write_text(json.dumps(res, indent=2) + "\n")
-    (OUT / "table_gate.tex").write_text("\n".join(tex) + "\n")
-    (OUT / "table_gate.md").write_text("# tab:nexis_appendix (Uganda YOP)\n\n" + "\n".join(md))
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "table_gate.json").write_text(json.dumps(res, indent=2) + "\n")
+    (out / "table_gate.tex").write_text("\n".join(tex) + "\n")
+    (out / "table_gate.md").write_text("# tab:nexis_appendix (Uganda YOP)\n\n" + "\n".join(md))
     print("\n".join(md))
     print("\n".join(tex))
 
