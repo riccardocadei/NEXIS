@@ -7,7 +7,7 @@ Runs both NEXIS variants on Uganda YOP and Ghana LEAP 1000:
 
 with rho = 0.5, alpha = 0.05, the FWER forward gate and the linear T x Z_j test, each
 with the application's published test and with the level-aware clustered test of
-src/causality/multilevel.py (support gate k = 5 clusters per (side of Z_j) x (arm)
+src/nexis/multilevel.py (support gate k = 5 clusters per (side of Z_j) x (arm)
 cell).  The grids are in src/apps/uganda/final_runs.py (T = grant received and T =
 lottery assignment) and src/apps/ghana/final_runs.py (the 155 and 167 pools).  Post
 hoc, a design-based table for every published modifier and every new selection, each
@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from apps.ghana.final_runs import ghana_block  # noqa: E402
 from apps.uganda.final_runs import OUTCOMES as UG_OUTCOMES, uganda_block  # noqa: E402
-from causality.multilevel import ALPHA, MIN_SUPPORT, RHO  # noqa: E402
+from nexis.multilevel import ALPHA, MIN_SUPPORT, RHO  # noqa: E402
 
 OUT = ROOT / "results" / "realworld_final"
 

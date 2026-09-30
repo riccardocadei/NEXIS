@@ -3,6 +3,9 @@ Sparse Autoencoder (SAE) for learning interpretable representations.
 
 TopKSAE uses the `overcomplete` library (pip install overcomplete) which provides
 a Linear → BatchNorm1d → ReLU encoder and an L2-normalised dictionary layer.
+
+Needs the `gpu` extra (torch, overcomplete).  `import nexis` does not import this
+module; import it explicitly as `nexis.sae`.
 This matches the ECI paper implementation exactly.
 
 Typical usage:

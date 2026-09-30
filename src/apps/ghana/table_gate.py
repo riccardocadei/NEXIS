@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from apps.ghana.pool import ghana, ghana_with_spectral  # noqa: E402
-from causality.multilevel import plain_test  # noqa: E402
+from nexis.multilevel import plain_test  # noqa: E402
 
 REPORT = ROOT / "results/realworld_final/report.json"
 RUN = "pool 167 | published test | new default"

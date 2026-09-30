@@ -8,7 +8,7 @@ and the two p-value columns; plus the full-sample difference in means quoted in 
 text (+0.32 skilled employment, +0.61 log business assets).
 
 Estimator: within each subgroup, OLS of Y on (1, T) with HC1 standard errors
-(src/causality/estimation.py::ate_ols, no covariates), i.e. the difference in means
+(src/nexis/estimation.py::ate_ols, no covariates), i.e. the difference in means
 with HC1 s.e. T = Wobs (grant received), as in the NEXIS runs. Subgroups: active =
 Z_j > 0 for SAE neurons, Z_j = 1 for language groups, NDVI above its sample median.
 (The June brief's 0.098 for neuron 339 is the unpooled Neyman s.e.; HC1 gives 0.097.)
@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from apps.uganda.pool import uganda  # noqa: E402
-from causality.estimation import ate_ols  # noqa: E402
+from nexis.estimation import ate_ols  # noqa: E402
 
 REPORT = ROOT / "results/realworld_final/report.json"
 RUN = "Wobs | published test | new default"

@@ -41,7 +41,7 @@ import pandas as pd
 ROOT     = Path(__file__).parent.parent.parent.parent   # repo root
 DATA_DIR = ROOT / "data" / "uganda"
 
-from method.nexis import nexis, marginal_select
+from nexis import nexis, marginal_select
 from apps.uganda.data import resolve_outcome
 
 

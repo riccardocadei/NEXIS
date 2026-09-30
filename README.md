@@ -17,27 +17,36 @@ treatment is assigned next time.
 
 ![NEXIS pipeline](docs/assets/pipeline.gif)
 
-This repository is first a small Python library for the method (`src/method`), kept
-minimal and app-agnostic, and second the code that reproduces the paper's experiments
-(`src/apps`, with shell launchers in `scripts`).
+This repository is first a small Python package for the method, `nexis` (`src/nexis`),
+kept minimal and app-agnostic, and second the code that reproduces the paper's
+experiments (`src/apps`, with shell launchers in `scripts`).
 
 ## Install
 
 ```bash
-pip install -e .            # the method and the CPU experiments (Python >= 3.11)
-pip install -e ".[gpu]"     # + embeddings, SAE training, VLM interpretation
-pip install -e ".[geo]"     # + Google Earth Engine downloads and maps (Uganda, Ghana)
+pip install git+https://github.com/riccardocadei/NEXIS   # the nexis package (Python >= 3.11)
 ```
 
-Versions are pinned to the environment the paper's runs used (Python 3.11.8). The install
-exposes the folders of `src/` as top-level modules (`method`, `causality`, `train`,
-`apps`), so `from method import nexis` works from any directory.
+The package needs only numpy, scipy, pandas, scikit-learn and lightgbm. To reproduce the
+paper, clone the repository and install the extras of the experiment pipelines:
+
+```bash
+git clone https://github.com/riccardocadei/NEXIS && cd NEXIS
+pip install -e ".[apps,gpu,geo]"
+# apps: CPU experiments and figures; gpu: embeddings, SAE training (nexis.sae) and VLM
+# interpretation; geo: Google Earth Engine downloads and maps (Uganda, Ghana)
+```
+
+Versions are pinned to the environment the paper's runs used (Python 3.11.8). Only the
+`nexis` package is installed: the application code in `src/apps` is not, and runs from the
+checkout (`python src/apps/<app>/<script>.py` from the repo root; each script puts `src/`
+on `sys.path`, so it also runs without installing).
 
 ## Using NEXIS
 
 ```python
 import numpy as np
-from method import nexis
+from nexis import nexis
 
 rng = np.random.default_rng(0)
 n, m = 2000, 100
@@ -57,8 +66,21 @@ res.metadata["terminal_log"]          # per j in S~: the certification p-value (
 `w` holds every candidate, learned or hand-crafted, in one matrix: all its columns compete
 in one search and the Bonferroni gates count all of them. It can be an ndarray or a pandas
 DataFrame; for a DataFrame, `res.feature_names` are its column names and
-`w.attrs["cluster"]` supplies cluster labels when `cluster=` is not passed.
-`marginal_select(y, t, w, ...)` takes the same `w`.
+`w.attrs["cluster"]` supplies cluster labels (cluster-robust tests) when `cluster=` is not
+passed. `marginal_select(y, t, w, ...)` takes the same `w`. Continuing the example:
+
+```python
+import pandas as pd
+
+df = pd.DataFrame(w, columns=[f"atom_{j}" for j in range(m)])
+df.attrs["cluster"] = np.arange(n) // 20     # e.g. the village of each unit
+res = nexis(y=y, t=t, w=df, backward=False, terminal_filter=True)
+[res.feature_names[j] for j in res.selected]   # ["atom_7", "atom_3"]
+```
+
+For multilevel data (treatment assigned to, or candidates varying at, a coarser level than
+the row), `nexis.multilevel.LevelAwareTest` is a level-aware clustered test to pass as
+`pvalue_fn=`.
 
 The defaults of `nexis()` are those of an earlier version of the method (interleaved
 backward step, no terminal step) and are kept so that older results reproduce. Always pass
@@ -75,16 +97,17 @@ backward step, no terminal step) and are kept so that older results reproduce. A
 | `test` | `"linear"` | `"linear"` | T × Z_j interaction t-test; also `"GCM: ..."` and `"PCM: ..."` (nonparametric) |
 | `cluster`, `hc1`, `pvalue_fn` | `None` | Ghana: clusters | Cluster-robust or HC1 errors, or a custom conditional test |
 
-See the docstring of [`src/method/nexis.py`](src/method/nexis.py) for all options.
+See the docstring of `nexis()` ([`src/nexis/core.py`](src/nexis/core.py)) for all options.
 
 ## Repository layout
 
 ```
-src/method/        the NEXIS method (nexis.py); the library, app-agnostic
-src/causality/     HC1-robust OLS, ATE and GATE/CATE reporting (estimation.py), and the
-                   level-aware clustered CATE test for multilevel data (multilevel.py)
-src/train/         TopK SAE training (overcomplete), used by CelebA
-src/apps/<app>/    one pipeline per application: celeba, uganda, ghana
+src/nexis/         the installable package, app-agnostic:
+  core.py          the NEXIS method: nexis(), marginal_select(), the CATE tests
+  multilevel.py    level-aware clustered CATE test for multilevel data, post-hoc checks
+  estimation.py    HC1-robust OLS, ATE and GATE/CATE reporting
+  sae.py           TopK SAE training (overcomplete, `gpu` extra), used by CelebA
+src/apps/<app>/    one pipeline per application: celeba, uganda, ghana (not installed)
                    (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)
 src/apps/realworld_final_runs.py
                    the Uganda and Ghana runs behind the paper's application numbers
@@ -95,8 +118,9 @@ animations/        Manim scenes for the website videos
 docs/              project website (GitHub Pages: index.html, assets/)
 ```
 
-Library code (`src/method`, `src/causality`) stays minimal, app-agnostic and free of
-experiment-specific options; application logic belongs in `src/apps`.
+Package code (`src/nexis`) stays minimal, app-agnostic and free of experiment-specific
+options; application logic belongs in `src/apps`, which imports it as `from nexis import
+...` and `from nexis.multilevel import ...`.
 
 ## Reproducing the paper
 
@@ -141,7 +165,7 @@ python src/apps/celeba/run_statistics.py
 [`src/apps/celeba/benchmark/`](src/apps/celeba/benchmark/README.md) is a self-contained
 package that reproduces every CelebA experiment (`python run.py <block>` from that folder); only its `main` and `violation` blocks are
 checked against the paper so far. It will be folded into `src/apps/celeba` as the
-canonical CelebA pipeline, running on the single `src/method/nexis.py`.
+canonical CelebA pipeline, running on the single `nexis` package.
 
 ### Uganda YOP (Youth Opportunities Program)
 

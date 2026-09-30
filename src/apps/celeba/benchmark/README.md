@@ -223,9 +223,9 @@ exists is skipped, so `python run.py prepare` then only computes the ground-trut
 The paper also applies NEXIS to two anti-poverty programs: the Youth Opportunities Program
 in Uganda and the LEAP 1000 program in Ghana. They do not use this package: their
 pipelines are in `src/apps/uganda/` and `src/apps/ghana/`, and they run the same algorithm
-(forward step, terminal backward step, α = 0.05, ρ = 0.5, linear test) with the library
-implementation `src/method/nexis.py` (called by `scripts/realworld_final_runs.py`). That
-implementation adds what the applications need and `nexis/` lacks: cluster-robust (CR1S)
+(forward step, terminal backward step, α = 0.05, ρ = 0.5, linear test) with the repository's
+installable `nexis` package (`src/nexis/`, called by `src/apps/realworld_final_runs.py`). That
+package adds what the applications need and this folder's `nexis/` copy lacks: cluster-robust (CR1S)
 standard errors and a hook for a custom conditional test (`cluster`, `pvalue_fn`). The
 household microdata of both programs are sensitive or held under data-use agreements and
 are not distributed with the repository.

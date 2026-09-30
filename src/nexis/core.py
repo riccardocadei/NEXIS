@@ -998,7 +998,7 @@ def nexis(
       `test`, `cluster` and `hc1`.  NEXIS only ever consumes p-values and t-statistics
       from the test, so any valid test plugs in here — e.g. a level-aware clustered
       test on a candidate pool that spans several levels of nesting
-      (LevelAwareTest in src/causality/multilevel.py).
+      (LevelAwareTest in nexis.multilevel).
 
     rho (ρ):
       Relative stopping threshold in (0, 1].  At each forward step the new

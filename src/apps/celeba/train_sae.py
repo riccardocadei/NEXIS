@@ -38,7 +38,7 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from train.sae import TopKSAE, TopKSAETrainConfig, SAETrainResult, train_topk_sae, get_features, get_pre_features
+from nexis.sae import TopKSAE, TopKSAETrainConfig, SAETrainResult, train_topk_sae, get_features, get_pre_features
 from apps.celeba.backbones import (
     BACKBONES, DEFAULT_BACKBONE, get_backbone,
     embed_path as _embed_path, patches_path as _patches_path,
