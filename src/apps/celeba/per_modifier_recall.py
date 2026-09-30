@@ -73,7 +73,7 @@ def main():
         d = generate_celeba_rct(n=n, features=features, labels_df=labels, buckets=buckets,
                                 w_attrs=a.w_attrs, betas=betas, gammas=a.gammas,
                                 tau_0=0.5, noise_sd=1.0, effect_scale=eta, seed=seed)
-        sel = set(int(j) for j in nexis(y=d.Y, t=d.T, z=d.Z, alpha=0.05, max_rounds=10,
+        sel = set(int(j) for j in nexis(y=d.Y, t=d.T, w=d.Z, alpha=0.05, max_rounds=10,
                                         **NEXIS_V2_DEFAULT).selected)
         rec = {"row": row, "sweep": sweep, "fixed": fixed, "x": x, "seed": seed,
                "selected": ",".join(map(str, sorted(sel))), "n_selected": len(sel),

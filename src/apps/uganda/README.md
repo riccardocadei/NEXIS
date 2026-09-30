@@ -23,9 +23,9 @@ endline 2–4 years later.
 **Sample.** 2,082 individuals, 439 groups, 327 distinct communities (331 RCT sites), 825
 treated (39.6 %). Sub-regions: Karamoja, Teso, Lango, West Nile.
 Source: `results/realworld_final/report.json` (`uganda/<outcome>` → `n`, `pool`) and
-`scripts/realworld_uganda_groupcluster.py` log (`groups=439 districts=14 communities=327`,
+`src/apps/uganda/multilevel_groupcluster.py` log (`groups=439 districts=14 communities=327`,
 `results/realworld_uganda_groupcluster/run.log`); treated count and rate recomputed from
-`scripts/realworld_clustered_nexis.py::uganda` (`t.sum() = 825`, mean 0.396).
+`src/apps/uganda/pool.py::uganda` (`t.sum() = 825`, mean 0.396).
 
 **Treatment.** T = grant received (`Wobs`, as-treated), not the lottery assignment. Of
 the 265 groups assigned to the grant, 29 never received it (21 administrative, 8 theft or
@@ -33,7 +33,7 @@ diversion; Blattman et al. 2014). The paper treats them as untreated and assumes
 non-receipt is as good as random, which may fail (receiving groups were slightly more
 educated and wealthier); it is stated as a limitation. In the data `Wobs != assigned` in
 122 of 2,082 rows (`report.json` → `n_rows_wobs_ne_assigned`).
-*Why:* the published selections were computed with `Wobs`. `realworld_final_runs.py` also
+*Why:* the published selections were computed with `Wobs`. `src/apps/realworld_final_runs.py` also
 runs T = assigned (intent-to-treat) for reference; the paper reports `Wobs`.
 
 **Outcomes.**
@@ -59,10 +59,10 @@ headline effect of Blattman et al. Source: `src/apps/uganda/table_gate.py` →
 | Community / site | language group (7 dummies); 12 spectral indices; 146 SAE atoms |
 
 **Pool.** 146 SAE atoms + 24 hand-crafted covariates = 170 candidates, searched in one
-pass in which covariates and atoms compete symmetrically (they are all columns of `z`).
+pass in which covariates and atoms compete symmetrically (they are all columns of `w`).
 The 24 covariates are `W_age, W_female, W_father_educ, W_mother_educ, W_group_female`,
 `W_lang_1..7` and `W_{ndvi,ndwi,mndwi,ndbi,evi,bsi}_{mean,std}` (names in `report.json`
-→ `candidates`). Pool built by `scripts/verify_new_default_realworld.py::uganda_data`.
+→ `candidates`). Pool built by `src/apps/uganda/pool.py::uganda`.
 
 **Language groups.** 7 ethnolinguistic clusters inherited from Blattman et al.
 (dominant language of each district): Alur, Langi, Lugbara (`W_lang_2`), Madi, Teso,
@@ -70,7 +70,7 @@ Karamojong (`W_lang_4`), Pallisa (`W_lang_7`). Pallisa is geographic rather than
 linguistic: all communities of Pallisa district, a mix of Iteso and Bagwere/Banyole.
 *Why clusters and not districts:* ≈47 communities per cluster against ≈24 per district,
 so enough support for an interaction. District-dummy sensitivity
-(`scripts/realworld_uganda_districts.py` → `results/realworld_final/uganda_districts.json`;
+(`src/apps/uganda/district_sensitivity.py` → `results/realworld_final/uganda_districts.json`;
 the 7 language dummies replaced in place by 14 district dummies, m = 177, skilled
 employment): Pallisa survives at the single-district level, while Karamojong and Lugbara
 span several small districts and lose significance, so the cluster representation is
@@ -105,7 +105,7 @@ averages the patch tokens of the last (12th) encoder layer, matching
 `forward_features(x)[-1]` in the code. The `l5` in `prithvi_l5` refers to Landsat, not to
 a layer; the extractor's docstring and comments now say Landsat 7.
 
-**SAE** (`src/apps/uganda/train_sae.py` via `scripts/uganda/train_sae_slurm.sh`,
+**SAE** (`src/apps/uganda/train_sae.py` via `scripts/uganda/submit_train_sae.sh`,
 output `results/uganda/prithvi_l5_1024/`): TopK SAE, 768 → 1,024, k = 25, unit-norm
 decoder, 2,000 epochs, lr 2×10⁻⁴, 5-fold CV, trained on the national grid with the 331
 RCT sites held out; whitening fit on the national corpus. *Why a national corpus:*
@@ -130,7 +130,7 @@ The filter uses Z only, so the terminal level α/m with m = 170 stays valid (App
 
 `nexis(backward=False, terminal_filter=True, alpha=0.05, adjust="FWER", rho=0.5,
 max_rounds=20)`, linear T × Z_j test, homoskedastic OLS, no clustering
-(`scripts/realworld_final_runs.py`, `VARIANTS["new default"]`, run
+(`src/apps/realworld_final_runs.py`, `VARIANTS["new default"]`, run
 `Wobs | published test | new default`).
 
 - Forward step admits the best candidate if p_j(S) ≤ α/|S̄| and it passes the spectral
@@ -187,8 +187,8 @@ education) enters S̃ for either outcome.
 **Marginal screening (Table `tab:uganda_marginal`, main text).** Uncorrected marginal
 test at 0.05: 71 of 170 (skilled employment) and 45 of 170 (log business assets), against
 3 certified + 2 candidates and 1 + 1 for NEXIS. Source: recomputed on 2026-09-26 with
-`realworld_clustered_nexis.plain_test()` at S = ∅ on the pool of
-`realworld_clustered_nexis.uganda()` (71 and 45).
+`causality.multilevel.plain_test()` at S = ∅ on the pool of
+`apps.uganda.pool.uganda()` (71 and 45).
 *Reading:* ~8–9 false positives are expected under the global null; the excess comes from
 correlated SAE atoms that proxy the same few modifiers, the experimental power paradox.
 
@@ -197,7 +197,7 @@ correlated SAE atoms that proxy the same few modifiers, the experimental power p
 ## 6. VLM interpretation
 
 Qwen2.5-VL-72B-Instruct, 4-bit, one H100 (`src/apps/uganda/interpret.py`, wrapper
-`scripts/uganda/slurm_interpret.sh`, pipeline `qwen72b`). Direct contrast: rank the 331
+`scripts/uganda/submit_interpret.sh`, pipeline `qwen72b`). Direct contrast: rank the 331
 sites by Z_j, show the top 12 and bottom 12 tiles side by side with the prompt quoted in
 the appendix, post-process into a short label. *Why contrast:* describing top tiles alone
 gave generic descriptions ("~60 % vegetation").
@@ -222,7 +222,7 @@ top and two bottom tiles per atom); `figure_maps.py` → `figure_districts.pdf`,
 
 ## 7. Limitations as reported
 
-**Multilevel inference** (`scripts/realworld_uganda_groupcluster.py`, run 2, →
+**Multilevel inference** (`src/apps/uganda/multilevel_groupcluster.py`, run 2, →
 `results/realworld_uganda_groupcluster/{report.json,summary.csv,run.log}`). Same algorithm
 with the test clustered by treatment-assignment group (CR1S, G = 439, t(G−1)) and 14
 district fixed effects, as in Blattman et al., after a support gate that keeps the 128
@@ -238,7 +238,7 @@ candidates with at least 5 active groups per arm (the gate uses Z and T only).
 atoms active in few groups), not from smaller effects; clustering leaves point estimates
 unchanged. Clustering at the language-group level (7 clusters) would ask a different
 question (generalisation to other regions). The modifiers are therefore presented as
-suggestive hypotheses. (`realworld_final_runs.py` repeats the RI with 1,999 permutations;
+suggestive hypotheses. (`src/apps/realworld_final_runs.py` repeats the RI with 1,999 permutations;
 the paper quotes the 9,999-permutation run.)
 
 **Community-level exposure.** All individuals of a site share one tile; within-site
@@ -264,17 +264,25 @@ estimates carried over from the June brief; not re-measured.
 
 ## 10. Run notes
 
-- `scripts/realworld_final_runs.py` without `--only` runs both applications and writes
-  `results/realworld_final/report.json`, the file the paper numbers were read from. The
-  paper's Uganda rows are the runs `Wobs | published test | new default`.
+- `src/apps/realworld_final_runs.py` without `--only` runs both applications and writes
+  `results/realworld_final/report.json`, the file the paper numbers were read from
+  (`--out-dir` writes elsewhere). The paper's Uganda rows are the runs
+  `Wobs | published test | new default`. The Uganda grid is in
+  `src/apps/uganda/final_runs.py`, the pool in `src/apps/uganda/pool.py` and the
+  level-aware test in `src/causality/multilevel.py`.
 - The script first checks that the earlier configuration (interleaved backward step)
   reproduces the published sets, read from
   `results/uganda/prithvi_l5_1024/<outcome>/nexis_result.json` (untracked; comes with the
   original SAE outputs).
-- VLM labels: `src/apps/uganda/interpret.py` via `scripts/uganda/slurm_interpret.sh`
+- VLM labels: `src/apps/uganda/interpret.py` via `scripts/uganda/submit_interpret.sh`
   (Section 6); add `--extra-atoms 261` for an atom outside the selected sets.
-- `scripts/uganda/run.sh` and `reanalyze.sh` are the older multi-backbone pipeline that
-  wrote the published sets; they are not needed for the paper numbers.
+- Website data: `src/apps/uganda/export_website_data.py` rebuilds
+  `docs/assets/uganda_communities.json` and the Uganda `act` dicts of
+  `docs/assets/nexis_activations.json` (`--out-dir` writes elsewhere).
+- The older multi-backbone pipeline that wrote the published sets (the launcher
+  `scripts/uganda/run.sh` and the steps `train.py`, `summarize.py`, `plot_features.py`)
+  is not needed for the paper numbers and was removed from the tree; it is at git tag
+  `pre-cleanup-2026-09`. Its `analyze.py` stays: the pool uses its `build_covariates`.
 
 ---
 
@@ -283,26 +291,17 @@ estimates carried over from the June brief; not re-measured.
 > **Status.** An earlier, broader robustness analysis of the June results (the
 > interleaved-backward algorithm and its seven published modifiers), made before the
 > paper's final configuration. The paper's multilevel limitation is Section 7
-> (`scripts/realworld_uganda_groupcluster.py`). "Brief" and "appendix" below refer to the
+> (`src/apps/uganda/multilevel_groupcluster.py`). "Brief" and "appendix" below refer to the
 > June versions; § references point inside this section.
 
-Reproduce with:
-
-```bash
-# variance-estimator sweep + nested mixed model
-python src/apps/uganda/robustness_clustering.py \
-    --embed-model prithvi_l5 --sae-dim 1024 \
-    --outcomes skilled_employed,log_biz_assets
-
-# level-aware clustering, wild cluster bootstrap, randomization inference
-python src/apps/uganda/multilevel_inference.py \
-    --embed-model prithvi_l5 --sae-dim 1024 \
-    --outcomes skilled_employed,log_biz_assets \
-    --n-boot 99999 --n-perm 99999
-```
-
-Outputs in `results/uganda/prithvi_l5_1024/{robustness_clustering,multilevel_inference}/`.
-Nothing is retrained; the frozen SAE artifacts are read as-is.
+The code of this analysis (`robustness_clustering.py`: variance-estimator sweep and nested
+mixed model; `multilevel_inference.py`: level-aware clustering, wild cluster bootstrap and
+randomization inference, run with `--embed-model prithvi_l5 --sae-dim 1024 --outcomes
+skilled_employed,log_biz_assets --n-boot 99999 --n-perm 99999`) was removed from the
+tree; it is at git tag `pre-cleanup-2026-09`. Its outputs are in
+`results/uganda/prithvi_l5_1024/{robustness_clustering,multilevel_inference}/`
+(untracked). Nothing was retrained; the frozen SAE artifacts were read as-is. The
+level-aware test the paper uses is `src/causality/multilevel.py`.
 
 ---
 

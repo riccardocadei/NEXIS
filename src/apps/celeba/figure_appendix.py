@@ -8,7 +8,9 @@ All figures use a 4-row × 3-col layout (one row per DGP setting, three metrics 
   Row 2: η-sweep   @ n=2000 — [Precision | Recall | IoU]
   Row 3: η-sweep   @ n=500  — [Precision | Recall | IoU]
 
-Figures saved to results/celeba/appendix/:
+Figures saved to --out-dir (default results/celeba/appendix/, the earlier v1 figures; the
+paper's come from --experiment-dir results/celeba/experiment_v2 --out-dir
+results/celeba/figures_v2 --variant v2, see README.md):
   dgp.pdf           Reference (k=20/z, MAIN_METHODS, both DGP rows) — also serves as DGP ablation
   model_k5.pdf      SAE k=5 with MAIN_METHODS (compare to dgp.pdf for k ablation)
   model_precode.pdf k=20/z_pre with MAIN_METHODS (compare to dgp.pdf for feature-type ablation)

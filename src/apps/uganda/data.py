@@ -1,4 +1,4 @@
-"""Uganda YOP helper functions — shared across notebooks."""
+"""Uganda YOP helper functions (outcome aliases, imagery, basemap and plots), shared by the Uganda scripts."""
 
 import io
 import urllib.request

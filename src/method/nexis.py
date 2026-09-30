@@ -331,9 +331,9 @@ def conditional_interaction_pvalues_pcm(
          studentises over all n — DO NOT USE: unlike in DML, the projection does not
          converge under H0 (it is normalised noise), so the two half-blocks stay
          strongly dependent and the pooled variance is understated.  Measured size at
-         α=0.05 on the null design of `check_pcm_calibration.py`: 0.090 (crossfit) vs
-         0.048 (bonferroni) and 0.045 (single).  Bonferroni also dominates single on
-         power, so it is the default.
+         α=0.05 on a null design (a calibration check since removed from the tree, at
+         git tag pre-cleanup-2026-09): 0.090 (crossfit) vs 0.048 (bonferroni) and 0.045
+         (single).  Bonferroni also dominates single on power, so it is the default.
 
     The test is ONE-SIDED (large positive statistic ⇒ evidence against H0): under the
     alternative the projection is aligned with the conditional-mean contrast by
@@ -499,7 +499,32 @@ class SelectionResult:
     method: str
     alpha: float
     metadata: Dict[str, float]
-    feature_names: List[str] = field(default_factory=list)  # w_{name} / z_{j} labels
+    feature_names: List[str] = field(default_factory=list)  # one name per column of w
+
+
+def _candidate_matrix(w, cluster=None):
+    """Unpack the candidate matrix `w` of nexis() / marginal_select().
+
+    Returns (W, names, cluster): W the (n, M) float ndarray, one name per column and
+    the cluster labels.  Duck-typed so this module stays independent of any
+    application code:
+
+      - `w` with a `.columns` attribute (a pandas DataFrame): names are the column
+        labels verbatim; when `cluster` is None it is read from w.attrs['cluster']
+        (absent key or None value: no clustering).  Any other attrs are ignored.
+      - a plain ndarray: names are the column positions as strings, "0" … "M-1".
+
+    A 1-D `w` is treated as a single column.
+    """
+    names = list(w.columns) if hasattr(w, "columns") else None
+    if cluster is None:
+        cluster = (getattr(w, "attrs", None) or {}).get("cluster")
+    W = np.asarray(w, dtype=float)
+    if W.ndim == 1:
+        W = W[:, None]
+    if names is None:
+        names = [str(j) for j in range(W.shape[1])]
+    return W, names, cluster
 
 
 # ── Pathwise Bonferroni backward gate ─────────────────────────────────────────
@@ -804,7 +829,7 @@ def marginal_interaction_pvalues(
 def marginal_select(
     y: np.ndarray,
     t: np.ndarray,
-    z: np.ndarray,
+    w,
     alpha: float = 0.05,
     adjust: Optional[str] = None,  # None | "FWER" | "FDR"
     groups: Optional[Dict[str, List[int]]] = None,
@@ -816,8 +841,12 @@ def marginal_select(
     adjust="FWER": Bonferroni correction (α/M).  groups splits the budget
                    per group instead of globally.
     adjust="FDR" : Benjamini-Hochberg step-up procedure at level alpha.
+
+    w: the (n, M) candidate matrix, an ndarray or a pandas DataFrame, read exactly
+      as in nexis() (column names, and w.attrs['cluster'] when `cluster` is None).
     """
-    pvals = conditional_interaction_pvalues(y=y, t=t, z=z, S=[], cluster=cluster)
+    W, names, cluster = _candidate_matrix(w, cluster)
+    pvals = conditional_interaction_pvalues(y=y, t=t, z=W, S=[], cluster=cluster)
     m = len(pvals)
     _adj = adjust.upper() if adjust is not None else None
 
@@ -865,6 +894,7 @@ def marginal_select(
         method=method,
         alpha=alpha,
         metadata=metadata,
+        feature_names=names,
     )
 
 
@@ -873,10 +903,7 @@ def marginal_select(
 def nexis(
     y: np.ndarray,
     t: np.ndarray,
-    z: np.ndarray,
-    w: Optional[np.ndarray] = None,
-    w_names: Optional[List[str]] = None,
-    z_names: Optional[List[str]] = None,
+    w,
     alpha: float = 0.05,
     max_rounds: Optional[int] = 20,
     rho: Optional[float] = 0.5,
@@ -891,8 +918,8 @@ def nexis(
     pcm_order: int = 2,              # pcm only: polynomial-projection degree
     pcm_screen_top: int = 32,        # pcm only: candidates refitted with the ML projection
     pcm_combine: str = "bonferroni", # pcm only: "bonferroni" (2·min) | "single" | "crossfit" (invalid)
-    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs for Z-phase (linear test)
-    hc1: bool = False,                     # HC1 robust SEs for W-phase and Z-phase fallback
+    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs (linear test)
+    hc1: bool = False,                     # HC1 robust SEs (linear test, when cluster is None)
     backward_gate: str = "standard",       # "standard" (alpha/s) | "pathwise" (g_s)
     alpha_spending: AlphaSpending = None,  # pathwise only; default w_s = 1/(s(s+1))
     pvalue_fn=None,                        # custom conditional test (see below)
@@ -918,13 +945,17 @@ def nexis(
 
     backward=False runs a pure greedy forward pass — useful for ablation.
 
-    w: optional (n, q) matrix of interpretable covariates.  When provided, a
-      preliminary phase runs NEXIS on W first; the features selected there seed
-      the initial S for the main phase on Z.  Both W and Z features compete
-      symmetrically in that phase: forward can re-add expelled W features,
-      backward can expel W features.  SelectionResult.feature_names labels
-      each column as w_{name} (using w_names if given, else column index) or
-      z_{j}.
+    w: the (n, M) matrix of ALL pre-treatment candidates — learned coordinates (e.g.
+      SAE codes) and hand-crafted covariates alike — as an ndarray or a pandas
+      DataFrame.  Every column competes in one search, and m = M is the pool that
+      every Bonferroni gate (forward α/|remaining|, pathwise backward, terminal α/m)
+      counts; there is no preliminary phase that screens a subset of columns first.
+      A DataFrame carries its own metadata, read by duck typing (no pandas import):
+        - SelectionResult.feature_names are its column labels, verbatim;
+        - w.attrs['cluster'] supplies the cluster labels when `cluster` is not
+          passed (an explicit `cluster=` wins).  Other attrs are ignored.
+      For a plain ndarray, feature_names are the column positions as strings,
+      "0", "1", …, "M-1".  selected and pvalues always index the columns of w.
 
     test:
       "linear"  — parametric interaction t-test; fast, assumes linear effects.
@@ -962,11 +993,12 @@ def nexis(
       Optional drop-in replacement for the conditional interaction test.  Called as
       pvalue_fn(y=, t=, z=, S=, candidates=, return_tstats=) and must return the same
       shapes as conditional_interaction_pvalues: a length-m vector of p-values (ones
-      off `candidates`), or (pvalues, tstats) when return_tstats=True.  Overrides
+      off `candidates`), or (pvalues, tstats) when return_tstats=True.  `z` is the
+      candidate matrix w as an (n, M) float ndarray.  Overrides
       `test`, `cluster` and `hc1`.  NEXIS only ever consumes p-values and t-statistics
       from the test, so any valid test plugs in here — e.g. a level-aware clustered
       test on a candidate pool that spans several levels of nesting
-      (src/apps/uganda/multilevel_inference.py).
+      (LevelAwareTest in src/causality/multilevel.py).
 
     rho (ρ):
       Relative stopping threshold in (0, 1].  At each forward step the new
@@ -993,9 +1025,7 @@ def nexis(
     # "linear"    → linear (nuisance unused)
     # The canonical lowercase keys "gcm" and "pcm" are pass-through: they keep the
     # caller's `nuisance` / `pcm_projection` rather than re-deriving them.  Only the
-    # user-facing aliases set those.  This matters because the W phase recurses with
-    # the already-normalised `test`, so a remapping alias would silently reset the
-    # variant mid-run (e.g. "GCM: quadratic" turning into lgbm inside the W phase).
+    # user-facing aliases set those.
     _test_key = test.lower().strip()
     if _test_key in {"gcm: quadratic", "quadratic"}:
         test, nuisance = "gcm", "poly2"
@@ -1033,42 +1063,8 @@ def nexis(
 
     y_arr = np.asarray(y, dtype=float).reshape(-1)
     t_arr = np.asarray(t, dtype=float).reshape(-1)
-    Z = np.asarray(z, dtype=float)
-    n, m = Z.shape
-
-    if w is not None and w_names is None:
-        raise ValueError("w_names is required when w is provided")
-    if w is not None and pvalue_fn is not None:
-        # pvalue_fn is defined against the column layout of Z; the W phase runs on a
-        # different matrix, so silently reusing it there would mislabel candidates.
-        raise ValueError("pvalue_fn is not supported together with w; pass the W "
-                         "columns inside z instead (the w_candidates=True layout)")
-
-    # ── Phase 1: W selection ──────────────────────────────────────────────────
-    S_w: List[int] = []
-    k = 0
-    if w is not None:
-        W = np.asarray(w, dtype=float)
-        if W.ndim == 1:
-            W = W[:, None]
-        result_w = nexis(
-            y=y_arr, t=t_arr, z=W, alpha=alpha, max_rounds=max_rounds,
-            test=test, nuisance=nuisance, n_splits=n_splits,
-            n_estimators=n_estimators, max_depth=max_depth,
-            pcm_projection=pcm_projection, pcm_order=pcm_order,
-            pcm_screen_top=pcm_screen_top, pcm_combine=pcm_combine,
-            rho=rho, adjust=adjust, cluster=None, hc1=hc1,
-            backward=backward, verbose=verbose,
-        )
-        S_w = result_w.selected
-        k = len(S_w)
-        if k > 0:
-            # Prepend selected W columns to Z; forward step will only add Z columns
-            Z = np.hstack([W[:, S_w], Z])
-            if verbose:
-                print(f"  [W phase] selected {k} features: {S_w}", flush=True)
-
-    total = Z.shape[1]  # k + m (or m when k=0)
+    Z, feature_names, cluster = _candidate_matrix(w, cluster)
+    total = Z.shape[1]  # m: every column of w is in the one candidate pool
 
     gcm_kwargs: dict = (dict(nuisance=nuisance, n_splits=n_splits,
                              n_estimators=n_estimators, max_depth=max_depth)
@@ -1097,8 +1093,7 @@ def nexis(
             return_tstats=return_tstats, cluster=cluster, hc1=hc1,
         )
 
-    # W features (0..k-1) seed S; all features compete symmetrically from here
-    selected: List[int] = list(range(k))
+    selected: List[int] = []
     last_pvals = np.ones(total, dtype=float)
     selected_pvals = np.ones(total, dtype=float)
     t_selected: List[float] = []
@@ -1287,8 +1282,6 @@ def nexis(
         selected = keep
 
     # Recompute final conditional p-values: p(j | S \ {j}) for every selected j.
-    # This gives meaningful values for W-seeded features (which never pass through
-    # the forward step and would otherwise be reported as 1.0).
     for j in list(selected):
         S_minus_j = [s for s in selected if s != j]
         selected_pvals[j] = float(_pvalues(S_minus_j, [j])[j])
@@ -1297,21 +1290,6 @@ def nexis(
     for j in selected:
         out_pvals[j] = selected_pvals[j]
 
-    # Feature names: w_{name} for prior features, z_{j} for neural features
-    z_labels = [
-        f"z_{z_names[j]}" if (z_names is not None and j < len(z_names) and z_names[j])
-        else f"z_{j}"
-        for j in range(m)
-    ]
-    if k > 0:
-        w_labels = [
-            f"w_{w_names[S_w[i]]}" if w_names else f"w_{S_w[i]}"
-            for i in range(k)
-        ]
-        feature_names = w_labels + z_labels
-    else:
-        feature_names = z_labels
-
     if test == "gcm":
         test_label = "gcm_quadratic" if nuisance == "poly2" else "gcm_lgbm"
     elif test == "pcm":
@@ -1319,8 +1297,6 @@ def nexis(
     else:
         test_label = test
     method_str = f"nexis_{test_label}"
-    if w is not None:
-        method_str = "w_" + method_str
     if not backward:
         method_str += "_fwd"
     if _bwd == "pathwise":
@@ -1387,7 +1363,7 @@ def iou_score(selected: Sequence[int], truth: Sequence[int]) -> float:
 def evaluate_methods_on_dataset(
     y: np.ndarray,
     t: np.ndarray,
-    z: np.ndarray,
+    w,
     truth: Sequence[int],
     alpha: float = 0.05,
     max_rounds: Optional[int] = None,
@@ -1413,29 +1389,29 @@ def evaluate_methods_on_dataset(
             "precision": float(precision),
         }
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="linear")
     out["NEXIS (linear)"] = _metrics(res.selected)
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="linear", rho=rho)
     out["NEXIS (auto) (linear)"] = _metrics(res.selected)
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2")
     out["NEXIS (poly2)"] = _metrics(res.selected)
 
-    res = nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="gcm", nuisance="poly2", rho=rho)
     out["NEXIS (auto) (poly2)"] = _metrics(res.selected)
 
-    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FWER")
+    res = marginal_select(y=y, t=t, w=w, alpha=alpha, adjust="FWER")
     out["Marginal Testing (FWER)"] = _metrics(res.selected)
 
-    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FDR")
+    res = marginal_select(y=y, t=t, w=w, alpha=alpha, adjust="FDR")
     out["Marginal Testing (FDR)"] = _metrics(res.selected)
 
-    res = marginal_select(y=y, t=t, z=z, alpha=alpha, adjust=None)
+    res = marginal_select(y=y, t=t, w=w, alpha=alpha, adjust=None)
     out["Marginal Testing"] = _metrics(res.selected)
 
     return out

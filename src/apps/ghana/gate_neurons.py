@@ -7,7 +7,7 @@ figure scripts figure_neural.py, figure_neural_1777.py and figure_neural_combine
 read the sign of its `diff` column to print "(+impact)" or "(-impact)" in each
 neuron's title.
 
-Computation (the one the exploratory notebook used to write this file):
+Computation (as in the exploratory analysis that first wrote this file):
   * sample: balanced LEAP 1000 panel (households seen in both waves), n = 2,331
     households in 162 communities; outcome dY = endline - baseline monthly
     adult-equivalent consumption; T = LEAP treatment arm (`tac`);

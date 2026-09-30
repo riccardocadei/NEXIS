@@ -101,7 +101,7 @@ V2_METHODS: Dict[str, Dict[str, Any]] = {
 def evaluate_methods_on_dataset(
     y: np.ndarray,
     t: np.ndarray,
-    z: np.ndarray,
+    w: np.ndarray,
     truth: Sequence[int],
     alpha: float = 0.05,
     max_rounds: Optional[int] = None,
@@ -149,47 +149,47 @@ def evaluate_methods_on_dataset(
         out[name] = _metrics(res.selected, time.perf_counter() - t0)
 
     _run("Marginal Testing",
-         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust=None))
+         lambda: marginal_select(y=y, t=t, w=w, alpha=alpha, adjust=None))
     _run("Marginal Testing (FWER)",
-         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FWER"))
+         lambda: marginal_select(y=y, t=t, w=w, alpha=alpha, adjust="FWER"))
     _run("Marginal Testing (FDR)",
-         lambda: marginal_select(y=y, t=t, z=z, alpha=alpha, adjust="FDR"))
+         lambda: marginal_select(y=y, t=t, w=w, alpha=alpha, adjust="FDR"))
     # NEXIS default: test=linear, adjust=FWER, rho=0.5, backward=True
     _run("NEXIS",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds))
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds))
     # test ablation
     _run("NEXIS (test=GCM: quadratic)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="GCM: quadratic", n_splits=gcm_splits))
     _run("NEXIS (test=GCM: lgbm)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="GCM: lgbm", n_splits=gcm_splits))
     _run("NEXIS (test=PCM: quadratic)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="PCM: quadratic", n_splits=gcm_splits))
     _run("NEXIS (test=PCM: lgbm)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       test="PCM: lgbm", n_splits=gcm_splits))
     # adjust ablation
     _run("NEXIS (adjust=None)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       adjust=None))
     _run("NEXIS (adjust=FDR)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       adjust="FDR"))
     # rho ablation
     _run("NEXIS (rho=0)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       rho=0))
     _run("NEXIS (rho=0.8)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       rho=0.8))
     _run("NEXIS (rho=0.2)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       rho=0.2))
     # backward ablation
     _run("NEXIS (backward=False)",
-         lambda: nexis(y=y, t=t, z=z, alpha=alpha, max_rounds=max_rounds,
+         lambda: nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
                       backward=False))
 
     # v2 (terminal backward step) default and its one-axis variants
@@ -197,7 +197,7 @@ def evaluate_methods_on_dataset(
         kw = {**NEXIS_V2_DEFAULT, **overrides}
         if "test" in kw:
             kw["n_splits"] = gcm_splits
-        _run(name, lambda kw=kw: nexis(y=y, t=t, z=z, alpha=alpha,
+        _run(name, lambda kw=kw: nexis(y=y, t=t, w=w, alpha=alpha,
                                        max_rounds=max_rounds, **kw))
 
     return out
@@ -339,7 +339,7 @@ def run_one(
     return evaluate_methods_on_dataset(
         y=data.Y,
         t=data.T,
-        z=data.Z,
+        w=data.Z,
         truth=truth,
         alpha=alpha,
         max_rounds=max_rounds,

@@ -19,15 +19,15 @@ results/realworld_final/report.json, run "pool 167 | published test | new defaul
 Marginal = p_marginal, Certification = worst_subset_p.
 
 Inputs: data/ghana (load_data), data/ghana/satellite/spectral_indices.csv and the SAE
-pool, loaded through scripts/realworld_clustered_nexis.py::ghana and
-scripts/realworld_final_runs.py::ghana_with_spectral (the 167-candidate pool NEXIS runs
-on); results/realworld_final/report.json.
+pool, loaded through src/apps/ghana/pool.py::ghana and ::ghana_with_spectral (the
+167-candidate pool NEXIS runs on); results/realworld_final/report.json.
 
 Command (repo root, CPU, under a minute):
   /nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3 src/apps/ghana/table_gate.py
 
-Output: results/ghana/paper_numbers/table_gate.{tex,md,json}
+Output: results/ghana/paper_numbers/table_gate.{tex,md,json} (--out-dir to change)
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -35,11 +35,10 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
-for p in (ROOT, ROOT / "src", ROOT / "scripts"):
-    sys.path.insert(0, str(p))
+sys.path.insert(0, str(ROOT / "src"))
 
-import realworld_clustered_nexis as R  # noqa: E402
-import realworld_final_runs as F  # noqa: E402
+from apps.ghana.pool import ghana, ghana_with_spectral  # noqa: E402
+from causality.multilevel import plain_test  # noqa: E402
 
 REPORT = ROOT / "results/realworld_final/report.json"
 RUN = "pool 167 | published test | new default"
@@ -70,14 +69,17 @@ def ptex(p: float) -> str:
 
 
 def main() -> None:
-    d = F.ghana_with_spectral(R.ghana())
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out-dir", type=Path, default=OUT)
+    out = ap.parse_args().out_dir
+    d = ghana_with_spectral(ghana())
     y, t, z, names = d["y"], d["t"], d["z"], d["names"]
     comm = d["levels"]["community"]
     m = z.shape[1]
     ate, ate_se = gate_cr1s(y, t, comm)
 
     # marginal test of every candidate alone (the paper's test)
-    fn = R.plain_test(cluster=comm, m=m)
+    fn = plain_test(cluster=comm, m=m)
     pm_all = np.asarray(fn(y, t, z, [], list(range(m))), dtype=float)
     kinds = {"SAE neurons": "Z_", "survey covariates": "W_", "spectral indices": "S_"}
     marg = {"m": int(m), "n_pass_0.05": int((pm_all <= 0.05).sum()),
@@ -126,10 +128,10 @@ def main() -> None:
            f"(CR1S by community, t(G-1)); by kind: {marg['by_kind']}.", "",
            "Passing: " + ", ".join(f"{k} {v:.1e}" for k, v in marg["passing"].items()), "",
            "## LaTeX rows", "", "```", *tex, "```"]
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "table_gate.json").write_text(json.dumps(res, indent=2) + "\n")
-    (OUT / "table_gate.tex").write_text("\n".join(tex) + "\n")
-    (OUT / "table_gate.md").write_text("\n".join(md) + "\n")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "table_gate.json").write_text(json.dumps(res, indent=2) + "\n")
+    (out / "table_gate.tex").write_text("\n".join(tex) + "\n")
+    (out / "table_gate.md").write_text("\n".join(md) + "\n")
     print("\n".join(md))
 
 

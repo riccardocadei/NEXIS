@@ -833,29 +833,34 @@ def run_nexis(rep_mode: str, method_name: str, data: dict,
     """NEXIS over the JOINT candidate pool: SAE features and survey covariates together.
 
     The survey covariates must stay in the pool for the whole search, not just seed it.
-    Passing them via nexis(w=...) runs the two-phase form, which carries only the
-    *selected* W columns into the main phase — and no survey covariate is selected here,
+    An earlier two-phase form of nexis() screened them first and carried only the
+    *selected* ones into the main search — and no survey covariate is selected here,
     so the pool would shrink from 163 to 139 and every Bonferroni gate would loosen by
     the same factor.  That is not a cosmetic difference: at step 3 the gate moves from
     alpha/161 = 3.11e-04 to alpha/137 = 3.65e-04, which straddles neuron 3318
     (p = 3.64e-04) and admits a third feature that the correct pool rejects.
 
     Stacking W into the candidate matrix is also what the Uganda application does
-    (analyze.py, w_candidates=True), so the two case studies now run the same search.
-    The preliminary survey-covariate phase is vacuous on this dataset — the W-only pass
-    selects nothing at alpha/24 — so seeding changes no result here.
+    (analyze.py, w_candidates=True), so the two case studies run the same search.
+
+    The pool goes in as a DataFrame whose column names are the labels the code below
+    and the saved result.json parse: z_<j> for the j-th live neuron, z_<name> for the
+    spectral, community and survey columns.
     """
+    import pandas as pd
+
     cfg = data[rep_mode]
     y, t, W, W_NAMES = data["y"], data["t"], data["W"], data["W_NAMES"]
-    Z_joint = np.hstack([cfg["Z_hh"], W])
     n_z = cfg["Z_hh"].shape[1]
-    z_names_joint = list(cfg["z_names"]) + list(W_NAMES)
+    names = list(cfg["z_names"]) + list(W_NAMES)
+    labels = [f"z_{nm}" if nm else f"z_{j}" for j, nm in enumerate(names)]
+    pool = pd.DataFrame(np.hstack([cfg["Z_hh"], W]), columns=labels)
     print(f"\n{'='*60}")
     print(f"NEXIS  rep={rep_mode}  method={method_name}  "
-          f"pool={Z_joint.shape} ({n_z} Z + {W.shape[1]} W)  adjust={adjust}")
+          f"pool={pool.shape} ({n_z} Z + {W.shape[1]} W)  adjust={adjust}")
     print(f"{'='*60}")
-    res = nexis(y, t, Z_joint, z_names=z_names_joint,
-                alpha=alpha, adjust=adjust, cluster=data["cluster"], verbose=True)
+    res = nexis(y, t, pool, alpha=alpha, adjust=adjust, cluster=data["cluster"],
+                verbose=True)
     print(f"\nSelected: {len(res.selected)}")
     for i in res.selected:
         name = res.feature_names[i]

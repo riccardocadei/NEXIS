@@ -133,13 +133,13 @@ def one(param, seed):
         m = columns entering nexis).  Returns (S~, S_hat, n_tests, sec, uncertifiable)."""
         t0 = time.perf_counter()
         try:
-            r = nexis(y=y, t=t, z=Zm, alpha=ALPHA, max_rounds=MAX_STEPS, rho=rho,
+            r = nexis(y=y, t=t, w=Zm, alpha=ALPHA, max_rounds=MAX_STEPS, rho=rho,
                       backward=backward, terminal_filter=True,
                       terminal_max_size=MAX_CERT)
         except ValueError as e:
             if "terminal_max_size" not in str(e):
                 raise
-            S = list(nexis(y=y, t=t, z=Zm, alpha=ALPHA, max_rounds=MAX_STEPS,
+            S = list(nexis(y=y, t=t, w=Zm, alpha=ALPHA, max_rounds=MAX_STEPS,
                            rho=rho, backward=backward).selected)
             return S, S, 0, time.perf_counter() - t0, True
         md = r.metadata

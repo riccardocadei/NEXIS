@@ -5,7 +5,7 @@ district, cluster standard errors by group and include district fixed effects.  
 script runs NEXIS with that specification of the linear T x Z_j interaction test for
 every candidate: CR1S clustered by GROUP (G = 439), 14 district fixed effects in the
 nuisance design, t(G - 1) reference.  One clustering for every candidate, not the
-level-aware join of scripts/realworld_clustered_nexis.py.
+level-aware join of src/causality/multilevel.py.
 
 T = Wobs (grant received), as published.  rho = 0.5, alpha = 0.05, FWER forward gate.
 Runs, for each outcome (skilled employment, log business assets):
@@ -32,9 +32,10 @@ selected or not: its group-clustered p (marginal, given the rest of the publishe
 given the run-2 set) and its RI p given the rest of the published set.
 
 CPU only, under a few minutes.  Reads data/ and results/ (local, not tracked); writes
-results/realworld_uganda_groupcluster/{report.json,summary.csv} (tee stdout to run.log).
+<out-dir>/{report.json,summary.csv}, by default in results/realworld_uganda_groupcluster/
+(tee stdout to run.log).
 
-    python scripts/realworld_uganda_groupcluster.py [--n-perm 9999]
+    python src/apps/uganda/multilevel_groupcluster.py [--n-perm 9999] [--out-dir DIR]
 """
 
 from __future__ import annotations
@@ -48,13 +49,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
 
-import realworld_clustered_nexis as R  # noqa: E402
-import realworld_final_runs as F  # noqa: E402  (patches R._cr_last: singular RI draws get t = 0)
+from apps.uganda.pool import uganda  # noqa: E402
+from causality.multilevel import (ALPHA, NEW_DEFAULT, PUBLISHED_CFG, RHO, LevelAwareTest,  # noqa: E402
+                                  block_fe, kept_dropped, plain_test, randomization_test, run)
 
 K = 5
 OUT = ROOT / "results" / "realworld_uganda_groupcluster"
@@ -93,8 +93,8 @@ def sup_str(s):
             f"communities {s['communities_T']}/{s['communities_C']} (T/C)")
 
 
-def run(d, lab, fn, cfg, pool, sup):
-    out = R.run(d, lab, fn, cfg, pool)
+def run_with_support(d, lab, fn, cfg, pool, sup):
+    out = run(d, lab, fn, cfg, pool)
     idx = {n: j for j, n in enumerate(d["names"])}
     for row in out["coords"]:
         row["support"] = sup[idx[row["name"]]]
@@ -104,7 +104,7 @@ def run(d, lab, fn, cfg, pool, sup):
 
 
 def block(outcome, n_perm):
-    d = R.uganda(outcome)
+    d = uganda(outcome)
     y, t, z, names = d["y"], d["t"], d["z"], d["names"]
     n, m = z.shape
     grp, dist = d["levels"]["group"], d["levels"]["district"]
@@ -113,8 +113,8 @@ def block(outcome, n_perm):
           f"districts={len(np.unique(dist))}   communities={len(np.unique(d['levels']['community']))}")
     assert (pd.Series(t).groupby(grp).nunique() == 1).all(), "T varies within group"
 
-    fe = R.block_fe(dist)
-    test = R.LevelAwareTest(["group"] * m, {"group": grp}, fe=fe)   # CR1S by group, district FE, t(G-1)
+    fe = block_fe(dist)
+    test = LevelAwareTest(["group"] * m, {"group": grp}, fe=fe)   # CR1S by group, district FE, t(G-1)
     sup = [support(d, j) for j in range(m)]
     full = list(range(m))
     gated = [j for j in full if sup[j]["finite"] and min(sup[j]["groups_T"], sup[j]["groups_C"]) >= K]
@@ -124,22 +124,22 @@ def block(outcome, n_perm):
 
     runs = {}
     print("  -- 0a published variant, published test (homoskedastic OLS)")
-    runs["0a"] = run(d, "0a", R.plain_test(), R.PUBLISHED_CFG, full, sup)
+    runs["0a"] = run_with_support(d, "0a", plain_test(), PUBLISHED_CFG, full, sup)
     if sorted(runs["0a"]["selected"]) != sorted(d["published"]):
         raise SystemExit(f"published set NOT reproduced: {runs['0a']['selected']} vs {d['published']}")
     print("  -- 0b new default, published test (homoskedastic OLS)")
-    runs["0b"] = run(d, "0b", R.plain_test(), R.NEW_DEFAULT, full, sup)
+    runs["0b"] = run_with_support(d, "0b", plain_test(), NEW_DEFAULT, full, sup)
     if sorted(runs["0b"]["selected"]) != sorted(NEW_DEFAULT_EXPECTED[outcome]):
         raise SystemExit(f"new-default set NOT reproduced: {runs['0b']['selected']}")
     print("  -- 1 new default, group-clustered test + district FE, full pool")
-    runs["1"] = run(d, "1", test, R.NEW_DEFAULT, full, sup)
+    runs["1"] = run_with_support(d, "1", test, NEW_DEFAULT, full, sup)
     print(f"  -- 2 new default, group-clustered test + district FE, support gate k={K}")
-    runs["2"] = run(d, "2", test, R.NEW_DEFAULT, gated, sup)
+    runs["2"] = run_with_support(d, "2", test, NEW_DEFAULT, gated, sup)
     runs["2"]["gated_out"] = removed
     print("  -- 3 published variant, group-clustered test + district FE, full pool")
-    runs["3"] = run(d, "3", test, R.PUBLISHED_CFG, full, sup)
+    runs["3"] = run_with_support(d, "3", test, PUBLISHED_CFG, full, sup)
     for r in runs.values():
-        r.update(F.kept_dropped(r["selected"], d["published"]))
+        r.update(kept_dropped(r["selected"], d["published"]))
 
     # post hoc RI for every coordinate of S~ in runs 1-3, given the rest of S~
     idx = {n_: j for j, n_ in enumerate(names)}
@@ -153,9 +153,7 @@ def block(outcome, n_perm):
             S = tuple(sorted(idx[x] for x in S_t if x != row["name"]))
             key = (idx[row["name"]], S)
             if key not in cache:
-                F.DEGENERATE[0] = 0
-                ri = R.randomization_test(d, list(S), idx[row["name"]], n_perm)
-                ri["degenerate_draws"] = F.DEGENERATE[0]
+                ri = randomization_test(d, list(S), idx[row["name"]], n_perm)
                 cache[key] = ri
                 print(f"    {row['name']:14s} | {[names[k] for k in S]}  RI p={ri['p']:.1e} "
                       f"(floor {ri['floor']:.0e}, degenerate draws {ri['degenerate_draws']})  "
@@ -169,14 +167,12 @@ def block(outcome, n_perm):
     for j in pub:
         S_pub = [k for k in pub if k != j]
         S_2 = [k for k in fin2 if k != j]
-        F.DEGENERATE[0] = 0
-        ri = R.randomization_test(d, S_pub, j, n_perm)
-        ri["degenerate_draws"] = F.DEGENERATE[0]
+        ri = randomization_test(d, S_pub, j, n_perm)
         row = dict(name=names[j], gated_out=names[j] in removed,
                    p_marginal=float(test(y, t, z, [], [j])[j]),
                    p_given_published=float(test(y, t, z, S_pub, [j])[j]),
                    p_given_run2_final=float(test(y, t, z, S_2, [j])[j]),
-                   p_homoskedastic_given_published=float(R.plain_test()(y, t, z, S_pub, [j])[j]),
+                   p_homoskedastic_given_published=float(plain_test()(y, t, z, S_pub, [j])[j]),
                    ri_given_published=ri, support=sup[j],
                    status={rk: ("certified" if names[j] in runs[rk]["selected"] else
                                 "candidate" if names[j] in runs[rk]["S_tilde"] else "not selected")
@@ -213,9 +209,11 @@ def summary_rows(outcome, b):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-perm", type=int, default=9999)
+    ap.add_argument("--out-dir", type=Path, default=OUT)
     args = ap.parse_args()
-    OUT.mkdir(parents=True, exist_ok=True)
-    report = dict(alpha=R.ALPHA, rho=R.RHO, treatment="Wobs", n_perm=args.n_perm,
+    out = args.out_dir
+    out.mkdir(parents=True, exist_ok=True)
+    report = dict(alpha=ALPHA, rho=RHO, treatment="Wobs", n_perm=args.n_perm,
                   test="linear T x Z_j, CR1S clustered by group, district FE, t(G-1)")
     rows = []
     for o in OUTCOMES:
@@ -238,9 +236,9 @@ def main():
         for p in b["published_modifiers"]:
             print(f"  published {label(p['name']):22s} {p['status']}  p|published {p['p_given_published']:.1e}  "
                   f"RI|published {p['ri_given_published']['p']:.1e}")
-    pd.DataFrame(rows).to_csv(OUT / "summary.csv", index=False)
-    (OUT / "report.json").write_text(json.dumps(report, indent=2, default=float))
-    print(f"\nSaved → {OUT / 'report.json'}, {OUT / 'summary.csv'}")
+    pd.DataFrame(rows).to_csv(out / "summary.csv", index=False)
+    (out / "report.json").write_text(json.dumps(report, indent=2, default=float))
+    print(f"\nSaved → {out / 'report.json'}, {out / 'summary.csv'}")
 
 
 if __name__ == "__main__":

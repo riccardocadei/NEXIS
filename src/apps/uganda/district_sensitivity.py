@@ -1,12 +1,12 @@
 """Uganda YOP district-dummy sensitivity analysis, with the paper's NEXIS configuration.
 
-The Uganda pool of the paper (scripts/realworld_clustered_nexis.py::uganda, m = 170)
+The Uganda pool of the paper (src/apps/uganda/pool.py::uganda, m = 170)
 holds 7 language-group dummies W_lang_1..7.  This sensitivity analysis replaces them,
 in place, with the 14 district dummies W_district_<NAME> (m = 177), everything else
 unchanged: 146 SAE atoms, age, female, father's and mother's education, group_female
 and the 12 spectral indices; T = grant received (Wobs); linear T x Z_j test with
 homoskedastic OLS SEs, no clustering, no support gate (the paper's
-`Wobs | published test` run of scripts/realworld_final_runs.py).
+`Wobs | published test` run of src/apps/realworld_final_runs.py).
 
 It runs both NEXIS variants, rho = 0.5, alpha = 0.05, FWER forward gate:
 
@@ -25,10 +25,10 @@ terminal gate alpha/m.  Language group -> districts: Karamojong = KOTIDO, MOROTO
 NAKAPIRIPIRIT; Lugbara = ARUA, YUMBE; Pallisa = PALLISA.
 
 CPU only, under a minute.  Reads data/ and results/ (local, not tracked); writes
-results/realworld_final/uganda_districts.json (refuses to overwrite without
---overwrite).
+results/realworld_final/uganda_districts.json, or the file given by --out (refuses to
+overwrite without --overwrite).
 
-    python scripts/realworld_uganda_districts.py [--overwrite]
+    python src/apps/uganda/district_sensitivity.py [--overwrite] [--out FILE]
 """
 
 from __future__ import annotations
@@ -41,25 +41,22 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT / "scripts"))
 
-import realworld_clustered_nexis as R  # noqa: E402
+from apps.uganda.data import resolve_outcome  # noqa: E402
+from apps.uganda.pool import MODEL_DIR, uganda  # noqa: E402
+from causality.multilevel import ALPHA, PUBLISHED_CFG, RHO, VARIANTS, plain_test, run  # noqa: E402
 
 OUT = ROOT / "results" / "realworld_final" / "uganda_districts.json"
-MODEL_DIR = ROOT / "results" / "uganda" / "prithvi_l5_1024"
 OUTCOMES = ["skilled_employed", "log_biz_assets"]
-VARIANTS = {"published NEXIS": R.PUBLISHED_CFG, "new default": R.NEW_DEFAULT}
 LANG_DISTRICTS = {"Karamojong": ["KOTIDO", "MOROTO", "NAKAPIRIPIRIT"],
                   "Lugbara": ["ARUA", "YUMBE"], "Pallisa": ["PALLISA"]}
 
 
 def uganda_districts(outcome):
     """The paper's Uganda pool with W_lang_* replaced in place by W_district_*."""
-    from apps.uganda.data import resolve_outcome
-    d = R.uganda(outcome)
+    d = uganda(outcome)
     df = pd.read_csv(ROOT / "data" / "uganda" / "UgandaDataProcessed.csv", low_memory=False)
     Zall = np.load(MODEL_DIR / "individual_features.npz")["features"]
     df = df[df[resolve_outcome(outcome)].notna() & np.isfinite(Zall[:, 0])].reset_index(drop=True)
@@ -91,23 +88,25 @@ def district_table(d, fn, S_final, S_tilde, m):
         ps = float(fn(y, t, z, [k for k in til if k != j], [j])[j])
         rows[names[j]] = dict(p_marginal=float(pm[j]), p_given_final=pf, p_given_Stilde=ps,
                               in_Stilde=names[j] in S_tilde, selected=names[j] in S_final,
-                              below_alpha_over_m=bool(min(pf, ps) <= R.ALPHA / m))
+                              below_alpha_over_m=bool(min(pf, ps) <= ALPHA / m))
     return rows
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
-    if OUT.exists() and not args.overwrite:
-        raise SystemExit(f"{OUT} exists; pass --overwrite to replace it")
-    report = dict(alpha=R.ALPHA, rho=R.RHO, test="linear, homoskedastic OLS, no clustering",
+    out = args.out
+    if out.exists() and not args.overwrite:
+        raise SystemExit(f"{out} exists; pass --overwrite to replace it")
+    report = dict(alpha=ALPHA, rho=RHO, test="linear, homoskedastic OLS, no clustering",
                   treatment="Wobs (grant received)", lang_districts=LANG_DISTRICTS)
-    fn = R.plain_test()
+    fn = plain_test()
     for outcome in OUTCOMES:
         d = uganda_districts(outcome)
         m = d["z"].shape[1]
-        print(f"\n{'=' * 100}\nuganda / {outcome}   n={len(d['y'])}   pool={m}   alpha/m={R.ALPHA / m:.2e}")
+        print(f"\n{'=' * 100}\nuganda / {outcome}   n={len(d['y'])}   pool={m}   alpha/m={ALPHA / m:.2e}")
         june = june_run(outcome)
         block = dict(n=len(d["y"]), pool=m, names=d["names"], runs={})
         if june is not None:
@@ -117,9 +116,9 @@ def main():
             print("  pool: identical names and order to the June run")
         for vname, cfg in VARIANTS.items():
             print(f"  -- {vname}")
-            r = R.run(d, vname, fn, cfg)
+            r = run(d, vname, fn, cfg)
             r["districts"] = district_table(d, fn, r["selected"], r["S_tilde"], m)
-            if cfg is R.PUBLISHED_CFG and june is not None:
+            if cfg is PUBLISHED_CFG and june is not None:
                 jsel = {s["label"]: s["pvalue"] for s in june["nexis_fwer"]["selected"]}
                 ours = {c["name"]: c["p_cond_final"] for c in r["coords"] if c["selected"]}
                 same = sorted(jsel) == sorted(ours)
@@ -151,9 +150,9 @@ def main():
                 print(f"    {lang:10s} {dn:14s} marginal {row['p_marginal']:.1e}  "
                       f"| final {row['p_given_final']:.1e}  "
                       f"{'selected' if row['selected'] else ('in S~' if row['in_Stilde'] else 'not in S~')}")
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(report, indent=2, default=float))
-    print(f"\nSaved → {OUT}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, default=float))
+    print(f"\nSaved → {out}")
 
 
 if __name__ == "__main__":

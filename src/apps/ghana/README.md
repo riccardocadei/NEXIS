@@ -57,8 +57,8 @@ subset-wise conditional parallel-trends condition on ΔY (paper, Eq. `eq:cpt`).
 | Spectral indices (NDVI, NDWI, MNDWI, NDBI, EVI, BSI; mean and std) | 12 | community |
 | Survey covariates | 24 | household |
 
-Built by `scripts/realworld_clustered_nexis.py::ghana` (131 + 24 = 155) and
-`scripts/realworld_final_runs.py::ghana_with_spectral` (+ 12 from
+Built by `src/apps/ghana/pool.py::ghana` (131 + 24 = 155) and
+`src/apps/ghana/pool.py::ghana_with_spectral` (+ 12 from
 `data/ghana/satellite/spectral_indices.csv`) = 167, searched in one pass.
 *Why the 12 spectral indices:* the main text describes the pool with them, as in Uganda;
 the June runs used 155. Selections are identical on both pools (`report.json`, runs
@@ -95,7 +95,7 @@ Outputs `data/ghana/satellite/{sae_model.pt, sae_activations.npy, sae_comm_ids.n
 (not in the repo; GPU training is not bit-reproducible, restore the original rather than
 retrain).
 *Why 4,096 atoms (vs 1,024 for Uganda):* a larger and more diverse national corpus.
-The SLURM wrapper `scripts/ghana/slurm_train_sae.sh` runs `src/apps/ghana/train_sae.py`
+The SLURM wrapper `scripts/ghana/submit_train_sae.sh` runs `src/apps/ghana/train_sae.py`
 with these settings; it refuses to overwrite the original SAE unless `OVERWRITE=1` (or pass
 another `OUT_DIR`).
 
@@ -105,9 +105,9 @@ another `OUT_DIR`).
 
 `nexis(backward=False, terminal_filter=True, alpha=0.05, adjust="FWER", rho=0.5,
 max_rounds=20)`, linear T × Z_j test on ΔY with CR1S standard errors clustered by
-community (G = 162) and a t(G−1) reference (`scripts/realworld_final_runs.py`, run
+community (G = 162) and a t(G−1) reference (`src/apps/realworld_final_runs.py`, run
 `pool 167 | published test | new default`; the test is
-`realworld_clustered_nexis.plain_test(cluster=community)`, identical to
+`causality.multilevel.plain_test(cluster=community)`, identical to
 `nexis(cluster=...)`). Terminal level α/m = 0.05/167 ≈ 3.0×10⁻⁴.
 
 *Why cluster by community:* the satellite features are community constants; treating
@@ -152,7 +152,7 @@ test (CR1S by community, p ≤ 0.05): 17 SAE atoms, 1 survey covariate (farming 
 
 ## 6. Interpretation
 
-**VLM protocol** (`src/apps/ghana/interpret.py`, `scripts/ghana/slurm_interpret.sh`):
+**VLM protocol** (`src/apps/ghana/interpret.py`, `scripts/ghana/submit_interpret.sh`):
 Qwen2.5-VL-72B-Instruct, 4-bit, one H100; rank the national-grid tiles (not only the 162
 LEAP tiles, for a larger contrast pool) by Z_j, show the top 12 and bottom 12 side by
 side with the prompt quoted in the appendix, record a short label and a confidence.
@@ -167,7 +167,7 @@ side with the prompt quoted in the appendix, record a short label and a confiden
 **Temporal check (Table `tab:ghana_temporal`).** Paired 2015/2017 false-colour composites
 of the six communities where neuron 3821 is active (951, 675, 395, 1265, 655, 624; 83
 households) shown side by side to the VLM with a **neutral prompt**
-(`src/apps/ghana/interpret_temporal_changes.py`, `sbatch scripts/ghana/slurm_temporal_changes.sh`,
+(`src/apps/ghana/interpret_temporal_changes.py`, `sbatch scripts/ghana/submit_temporal_changes.sh`,
 Qwen2.5-VL-72B-Instruct 4-bit, greedy decoding, one H100, ~21 min of which ~18 min model
 loading): list every land-cover change as "+/− category" with the colour key of the
 composite, plus a 1–2 sentence description; the model is not told the feature label. Output
@@ -258,7 +258,7 @@ run and the NDVI-increase boxes.
 ## 8. Exploratory analysis (Appendix `sec:ghana:exploratory`)
 
 NEXIS without multiple-testing correction on an earlier, smaller pool (72 atoms active in
-≥ 10 communities, 24 survey covariates through `nexis(w=...)`, 6 spectral `*_mean`
+≥ 10 communities, 24 survey covariates and 6 spectral `*_mean`
 indices; the two certified atoms are not in it), in the configuration of 6 May 2026
 (the earlier defaults: interleaved backward step, `adjust=None`, CR1S by community). Source:
 `src/apps/ghana/exploratory_run.py` → `results/ghana/paper_numbers/exploratory_run.md`,
@@ -307,13 +307,16 @@ loading the model). The other estimates are carried over from the June brief; no
 
 ## 11. Run notes
 
-- `scripts/realworld_final_runs.py` without `--only` runs both applications and writes
-  `results/realworld_final/report.json`. The paper's Ghana rows are the runs
-  `pool 167 | published test | new default`. The script first checks that the earlier
-  configuration (interleaved backward step) reproduces the published set, read from
-  `results/ghana/codes/nexis_fwer_crve/result.json` (untracked).
+- `src/apps/realworld_final_runs.py` without `--only` runs both applications and writes
+  `results/realworld_final/report.json` (`--out-dir` writes elsewhere). The Ghana grid is
+  in `src/apps/ghana/final_runs.py`, the pools in `src/apps/ghana/pool.py`. The paper's
+  Ghana rows are the runs `pool 167 | published test | new default`. The script first
+  checks that the earlier configuration (interleaved backward step) reproduces the
+  published set {Z_3821, Z_2095} on the 155 pool. That set is fixed in `pool.py`, not read
+  from `results/ghana/codes/nexis_fwer_crve/result.json`: the June run behind that file
+  searched the 131 neurons alone (see the `pool.py` docstring).
 - The download, extraction and training scripts default to paths relative to
   `src/apps/ghana/` (`../../data/ghana/...`): run `download_satellite_images.py`,
   `download_national_grid.py` and `extract_satellite_features.py` from that folder, or pass
   `--out-dir`/`--tif-dir`; pass explicit paths to `train_sae.py` (as in `README.md` and
-  `scripts/ghana/slurm_train_sae.sh`).
+  `scripts/ghana/submit_train_sae.sh`).
