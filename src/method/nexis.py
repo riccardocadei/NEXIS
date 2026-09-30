@@ -331,9 +331,9 @@ def conditional_interaction_pvalues_pcm(
          studentises over all n — DO NOT USE: unlike in DML, the projection does not
          converge under H0 (it is normalised noise), so the two half-blocks stay
          strongly dependent and the pooled variance is understated.  Measured size at
-         α=0.05 on the null design of `check_pcm_calibration.py`: 0.090 (crossfit) vs
-         0.048 (bonferroni) and 0.045 (single).  Bonferroni also dominates single on
-         power, so it is the default.
+         α=0.05 on a null design (a calibration check since removed from the tree, at
+         git tag pre-cleanup-2026-09): 0.090 (crossfit) vs 0.048 (bonferroni) and 0.045
+         (single).  Bonferroni also dominates single on power, so it is the default.
 
     The test is ONE-SIDED (large positive statistic ⇒ evidence against H0): under the
     alternative the projection is aligned with the conditional-mean contrast by
@@ -998,7 +998,7 @@ def nexis(
       `test`, `cluster` and `hc1`.  NEXIS only ever consumes p-values and t-statistics
       from the test, so any valid test plugs in here — e.g. a level-aware clustered
       test on a candidate pool that spans several levels of nesting
-      (src/apps/uganda/multilevel_inference.py).
+      (LevelAwareTest in src/causality/multilevel.py).
 
     rho (ρ):
       Relative stopping threshold in (0, 1].  At each forward step the new
