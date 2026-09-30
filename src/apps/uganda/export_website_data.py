@@ -23,7 +23,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 ASSETS = ROOT / "docs" / "assets"
 
-# Geographic language labels (matching UG_COL in index.html)
+# Language-group labels (matching UG_COL in docs/index.html; group 7 is Pallisa district)
 LANG_LABELS = {
     1: 'Alur',
     2: 'Lugbara',
@@ -31,7 +31,7 @@ LANG_LABELS = {
     4: 'Karamojong',
     5: 'Teso',
     6: 'Langi',
-    7: 'Other',
+    7: 'Pallisa',
 }
 
 
