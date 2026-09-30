@@ -107,7 +107,7 @@ another `OUT_DIR`).
 max_rounds=20)`, linear T × Z_j test on ΔY with CR1S standard errors clustered by
 community (G = 162) and a t(G−1) reference (`src/apps/realworld_final_runs.py`, run
 `pool 167 | published test | new default`; the test is
-`causality.multilevel.plain_test(cluster=community)`, identical to
+`nexis.multilevel.plain_test(cluster=community)`, identical to
 `nexis(cluster=...)`). Terminal level α/m = 0.05/167 ≈ 3.0×10⁻⁴.
 
 *Why cluster by community:* the satellite features are community constants; treating
