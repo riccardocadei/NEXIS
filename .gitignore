@@ -2,6 +2,8 @@
 __pycache__/
 *.egg-info/
 *.pyc
+build/
+dist/
 
 # Claude Code settings (local only)
 .claude/

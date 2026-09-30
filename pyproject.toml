@@ -1,28 +1,37 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexis"
 dynamic = ["version"]
+description = "NEXIS: select the features that modify a treatment effect, with family-wise error control"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 # Pinned to the versions of the conda env the paper's runs used
 # (/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl, Python 3.11.8).
+# Core: what `import nexis`, nexis() and nexis.multilevel need.  lightgbm backs the
+# nonparametric tests (test="GCM: lgbm" / "PCM: lgbm"); it is imported only then.
 dependencies = [
     "numpy==1.26.4",
     "scipy==1.15.3",
     "pandas==2.2.3",
-    "pyarrow==23.0.0",
     "scikit-learn==1.5.2",
-    "statsmodels==0.14.2",
     "lightgbm==4.4.0",
+]
+
+[project.optional-dependencies]
+# The experiment pipelines under src/apps (not installed; run from a checkout).
+apps = [
+    "pyarrow==23.0.0",
+    "statsmodels==0.14.2",
     "joblib==1.4.2",
     "matplotlib==3.10.8",
     "tqdm==4.66.4",
 ]
-
-[project.optional-dependencies]
-# Foundation-model embeddings, SAE training, VLM interpretation (GPU steps).
+# Foundation-model embeddings, SAE training (nexis.sae), VLM interpretation (GPU steps).
 gpu = [
     "torch==2.5.1",
     "torchvision==0.20.1",
