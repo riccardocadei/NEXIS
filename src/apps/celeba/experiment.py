@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from method.nexis import nexis, marginal_select, iou_score
+from nexis import nexis, marginal_select, iou_score
 from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 
 

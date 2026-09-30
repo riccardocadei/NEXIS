@@ -58,7 +58,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from apps.celeba.scm import build_buckets, generate_celeba_rct  # noqa: E402
-from method.nexis import nexis  # noqa: E402
+from nexis import nexis  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("tree")

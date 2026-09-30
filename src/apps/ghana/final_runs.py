@@ -19,9 +19,9 @@ import time
 import pandas as pd
 
 from apps.ghana.pool import ghana, ghana_with_spectral
-from causality.multilevel import (ALPHA, MIN_SUPPORT, PUBLISHED_CFG, VARIANTS, LevelAwareTest,
-                                  build_rule, cell_str, cells, kept_dropped, plain_test, run,
-                                  wild_cluster_bootstrap)
+from nexis.multilevel import (ALPHA, MIN_SUPPORT, PUBLISHED_CFG, VARIANTS, LevelAwareTest,
+                              build_rule, cell_str, cells, kept_dropped, plain_test, run,
+                              wild_cluster_bootstrap)
 
 
 def posthoc_ghana(d, rule, pub_fn, S, j, n_boot):

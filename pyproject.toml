@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexis"
-version = "0.1"
+dynamic = ["version"]
 requires-python = ">=3.11"
 # Pinned to the versions of the conda env the paper's runs used
 # (/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl, Python 3.11.8).
@@ -49,3 +49,7 @@ geo = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["nexis*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "nexis.__version__"}

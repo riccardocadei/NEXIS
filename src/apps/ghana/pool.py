@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 from apps.ghana.data import load_data, W_ALL
-from causality.multilevel import codes
+from nexis.multilevel import codes
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = ROOT / "data" / "ghana"
@@ -45,7 +45,7 @@ def _panel() -> pd.DataFrame:
 
 
 def ghana() -> dict:
-    """The 155 pool as a multilevel dict (see src/causality/multilevel.py): levels
+    """The 155 pool as a multilevel dict (see src/nexis/multilevel.py): levels
     region > district > community > household; T assigned by household."""
     merged = _panel()
     comm = merged["comm"].values

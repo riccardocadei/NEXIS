@@ -46,7 +46,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from apps.uganda.data import resolve_outcome  # noqa: E402
 from apps.uganda.pool import MODEL_DIR, uganda  # noqa: E402
-from causality.multilevel import ALPHA, PUBLISHED_CFG, RHO, VARIANTS, plain_test, run  # noqa: E402
+from nexis.multilevel import ALPHA, PUBLISHED_CFG, RHO, VARIANTS, plain_test, run  # noqa: E402
 
 OUT = ROOT / "results" / "realworld_final" / "uganda_districts.json"
 OUTCOMES = ["skilled_employed", "log_biz_assets"]

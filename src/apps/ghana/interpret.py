@@ -59,9 +59,9 @@ TIF_DIR  = SAT_DIR / "tif"
 TIF_NAT  = SAT_DIR / "tif_national"
 RES_DIR  = ROOT / "results" / "ghana"
 
-sys.path.insert(0, str(ROOT))
-from src.apps.ghana.data import load_data, W_ALL, W_LABELS, COMMUNITY_Z
-from src.method.nexis    import nexis, marginal_select, SelectionResult
+sys.path.insert(0, str(ROOT / "src"))
+from apps.ghana.data import load_data, W_ALL, W_LABELS, COMMUNITY_Z
+from nexis import nexis, marginal_select, SelectionResult
 
 
 # ── Image loading ──────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ import pandas as pd
 
 from apps.uganda.analyze import build_covariates
 from apps.uganda.data import resolve_outcome
-from causality.multilevel import codes
+from nexis.multilevel import codes
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = ROOT / "data" / "uganda"
@@ -29,7 +29,7 @@ MODEL_DIR = ROOT / "results" / "uganda" / "prithvi_l5_1024"
 
 def uganda(outcome: str) -> dict:
     """The pool for `outcome` (skilled_employed or log_biz_assets) as a multilevel dict
-    (see src/causality/multilevel.py): y, t, z, names, the lottery assignment, the
+    (see src/nexis/multilevel.py): y, t, z, names, the lottery assignment, the
     published set and the levels region > district > community > group > individual."""
     df = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
     df = df.rename(columns={"Wobs": "T", resolve_outcome(outcome): "Y"})

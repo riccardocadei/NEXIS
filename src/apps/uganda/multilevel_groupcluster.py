@@ -5,7 +5,7 @@ district, cluster standard errors by group and include district fixed effects.  
 script runs NEXIS with that specification of the linear T x Z_j interaction test for
 every candidate: CR1S clustered by GROUP (G = 439), 14 district fixed effects in the
 nuisance design, t(G - 1) reference.  One clustering for every candidate, not the
-level-aware join of src/causality/multilevel.py.
+level-aware join of src/nexis/multilevel.py.
 
 T = Wobs (grant received), as published.  rho = 0.5, alpha = 0.05, FWER forward gate.
 Runs, for each outcome (skilled employment, log business assets):
@@ -53,8 +53,8 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from apps.uganda.pool import uganda  # noqa: E402
-from causality.multilevel import (ALPHA, NEW_DEFAULT, PUBLISHED_CFG, RHO, LevelAwareTest,  # noqa: E402
-                                  block_fe, kept_dropped, plain_test, randomization_test, run)
+from nexis.multilevel import (ALPHA, NEW_DEFAULT, PUBLISHED_CFG, RHO, LevelAwareTest,  # noqa: E402
+                              block_fe, kept_dropped, plain_test, randomization_test, run)
 
 K = 5
 OUT = ROOT / "results" / "realworld_uganda_groupcluster"

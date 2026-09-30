@@ -44,10 +44,10 @@ import pandas as pd
 from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
-from src.apps.ghana.data import load_data, W_ALL, W_LABELS  # noqa: E402
-from src.method.nexis import nexis  # noqa: E402
+from apps.ghana.data import load_data, W_ALL, W_LABELS  # noqa: E402
+from nexis import nexis  # noqa: E402
 
 SAT = ROOT / "data/ghana/satellite"
 SAVED = ROOT / "results/ghana/mact10/codes/nexis_no_adj/result.json"

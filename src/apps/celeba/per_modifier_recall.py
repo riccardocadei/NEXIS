@@ -28,7 +28,7 @@ from joblib import Parallel, delayed
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
-from method.nexis import nexis
+from nexis import nexis
 from apps.celeba.scm import build_buckets, generate_celeba_rct
 from apps.celeba.experiment import NEXIS_V2_DEFAULT
 from apps.celeba.run_experiment_dgp import EFFECT_GRID, N_GRID, neurons_by_attr
