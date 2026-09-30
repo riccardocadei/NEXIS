@@ -13,7 +13,7 @@
 #        (data/celeba_resample_b1/eval; src/apps/celeba/README.md, Section 8), ground truth
 #        from results/celeba/experiment_resample_b1/k20/sae/ground_truth.json
 #   r3   three direct modifiers: Wearing_Hat (+1), Eyeglasses (-1), Sideburns (+1),
-#        the convention of results/celeba/experiment_r3 (run_experiment_rsweep.sh)
+#        the convention of results/celeba/experiment_r3 (an earlier r sweep)
 #   r1   one direct modifier: Wearing_Hat (+1); Eyeglasses sampled as in the main
 #        setting but prognostic only (gamma = 0)
 #   r0   no modifier: tau = tau_0 = 0.5 constant, S* = {}; prognostic effects fixed at
@@ -29,8 +29,8 @@
 # n in {500, 2000}, n in {50..10000} at eta in {2, 5}, 50 seeds, alpha 0.05, 10 steps.
 # Results: results/celeba/experiment_v2_{resample_b1,r3,r1,r0_fixbeta}/k20/sae/.
 #
-#   bash   scripts/celeba/submit_dgp_extra_v2.sh [--overwrite]   # submit all 7 jobs
-#   sbatch scripts/celeba/submit_dgp_extra_v2.sh r0 effect        # one job
+#   bash   scripts/celeba/submit_dgp_extra.sh [--overwrite]   # submit all 7 jobs
+#   sbatch scripts/celeba/submit_dgp_extra.sh r0 effect        # one job
 #
 # Memory: the n sweep peaks at ~170G with 40 threads (n = 10,000 x 9,216 per task);
 # the effect sweep (n <= 2,000) needs ~40G.

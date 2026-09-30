@@ -9,12 +9,12 @@
 #
 # CelebA sweeps for the terminal-backward-step NEXIS default ("NEXIS-v2", see
 # V2_METHODS in src/apps/celeba/experiment.py), for Figure 3 and the Appendix C
-# ablations.  Same grid, seeds, SCM and ground truth as the published runs
-# (ground_truth.json reused from results/celeba/experiment/); CPU only, existing
+# ablations.  Same grid, seeds, SCM and ground truth as the earlier sweeps in
+# results/celeba/experiment/ (their ground_truth.json is reused); CPU only, existing
 # SAE features only.  Results go to results/celeba/experiment_v2/<tree>/.
 #
-#   bash   scripts/celeba/submit_experiment_v2.sh [--overwrite]   # submit everything
-#   sbatch scripts/celeba/submit_experiment_v2.sh k20/sae n fast   # one job
+#   bash   scripts/celeba/submit_experiment.sh [--overwrite]   # submit everything
+#   sbatch scripts/celeba/submit_experiment.sh k20/sae n fast   # one job
 #
 # Per (tree, sweep): a "fast" job (baselines + linear/GCM-quadratic v2 variants) and,
 # on k20/sae only, a "slow" job (GCM: lgbm, PCM: quadratic, PCM: lgbm) that waits for
@@ -113,7 +113,7 @@ else
   if [[ -z "$OVERWRITE" ]] && has_methods "$(pq "$TREE" "$SWEEP")" "${SLOW_K20[@]}"; then
     echo "slow methods already in $(pq "$TREE" "$SWEEP"), skipping"; exit 0
   fi
-  export OMP_NUM_THREADS=1   # as the published PCM runs (run_experiment_pcm.sh)
+  export OMP_NUM_THREADS=1   # as the earlier PCM sweeps (results/celeba/experiment/)
   METHODS=("${SLOW_K20[@]}")
   EXTRA=(--merge)
 fi

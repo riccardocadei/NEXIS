@@ -3,7 +3,7 @@
 GCM-blind U-shape DGP (test comparison, panel B) under NEXIS-v2 and the calibrated PCM.
 
 Reads results/celeba/experiment_v2_ushape/k20/sae_precode/{n,effect}_sweep.parquet
-(scripts/celeba/submit_experiment_v2_ushape.sh) and, for comparison, the earlier run
+(scripts/celeba/submit_experiment_ushape.sh) and, for comparison, the earlier run
 results/celeba/experiment_ushape/ (published NEXIS, invalid "crossfit" PCM rule), and
 writes to results/celeba/figures_v2/:
 

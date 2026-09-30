@@ -121,7 +121,7 @@ def main():
 
     if not ARTIFACT.exists():
         sys.exit(f"missing artifact: {ARTIFACT}\n"
-                 f"run: sbatch scripts/ghana/slurm_temporal_changes.sh")
+                 f"run: sbatch scripts/ghana/submit_temporal_changes.sh")
     rows = load_rows()
     if args.check:
         sys.exit(check(rows))

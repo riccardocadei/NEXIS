@@ -9,9 +9,9 @@ aggregation as src/apps/celeba/visualize.py::plot_sweep (mean, pandas .sem(); th
 site draws the +-1.96 SE band).
 
   results/celeba/experiment_v2/<k>/<view>/        dictionary and algorithm ablations
-                                                  (scripts/celeba/submit_experiment_v2.sh)
+                                                  (scripts/celeba/submit_experiment.sh)
   results/celeba/experiment_v2_r{1,3}/k20/sae/    DGP ablation, r = 1 and r = 3 direct
-                                                  modifiers (scripts/celeba/submit_dgp_extra_v2.sh)
+                                                  modifiers (scripts/celeba/submit_dgp_extra.sh)
   results/celeba/experiment_v2_r0_fixbeta/k20/sae/  DGP ablation, r = 0 (n sweep only,
                                                   200 seeds); as in figure_dgp_extra.py
   results/celeba/experiment_v2_resample_b1/k20/sae/  main setting on the independently

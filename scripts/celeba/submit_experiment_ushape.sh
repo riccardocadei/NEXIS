@@ -10,14 +10,14 @@
 # GCM-blind U-shape DGP (test comparison, panel B; --effect-form ortho_quadratic) rerun under the
 # NEXIS-v2 default (rho=0.5, no interleaved backward step, terminal filter) and the
 # calibrated PCM combination rule (2·min over the two split directions, the nexis()
-# default since dd18f32).  The earlier run (results/celeba/experiment_ushape/,
-# scripts/celeba/run_experiment_ushape.sh) used the published NEXIS and the invalid
+# default since dd18f32).  The earlier run (results/celeba/experiment_ushape/, its
+# launcher since removed) used the published NEXIS and the invalid
 # "crossfit" PCM rule.  Same DGP, ground truth, grids and 50 seeds: eta in 1..10 at
 # n = 2000, n in 50..10000 at eta = 5, continuous k=20 SAE pre-activations.
 # CPU only, existing SAE features only.
 #
-#   bash   scripts/celeba/submit_experiment_v2_ushape.sh [--overwrite]  # submit all
-#   sbatch scripts/celeba/submit_experiment_v2_ushape.sh n pcm_lgbm 0   # one shard
+#   bash   scripts/celeba/submit_experiment_ushape.sh [--overwrite]  # submit all
+#   sbatch scripts/celeba/submit_experiment_ushape.sh n pcm_lgbm 0   # one shard
 #
 # Shards = sweep x method group x seed block of 10, each in its own out-dir under
 # results/celeba/experiment_v2_ushape/shards/ so they never race; a merge job (afterok)

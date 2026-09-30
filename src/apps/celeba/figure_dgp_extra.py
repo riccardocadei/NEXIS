@@ -3,7 +3,7 @@
 Appendix C extras for NEXIS-v2: reproducibility on an independently trained SAE and
 data-generating processes with r = 0, 1, 3 direct modifiers.
 
-Reads the sweeps of scripts/celeba/submit_dgp_extra_v2.sh and the main NEXIS-v2 sweep:
+Reads the sweeps of scripts/celeba/submit_dgp_extra.sh and the main NEXIS-v2 sweep:
 
   results/celeba/experiment_v2/k20/sae/              main setting (r = 2), reference
   results/celeba/experiment_v2_resample_b1/k20/sae/  replica dictionary
