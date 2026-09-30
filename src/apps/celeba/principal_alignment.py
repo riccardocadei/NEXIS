@@ -318,7 +318,7 @@ def parse_args():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data-dir", type=Path, default="data/celeba")
     p.add_argument("--out", type=Path,
-                   default="results/celeba/appendix/principal_alignment.json")
+                   default="results/celeba/figures_v2/principal_alignment/principal_alignment.json")
     p.add_argument("--backbone", default=DEFAULT_BACKBONE, choices=sorted(BACKBONES))
     p.add_argument("--sae-top-k", type=int, default=20)
     p.add_argument("--precode", action="store_true")
