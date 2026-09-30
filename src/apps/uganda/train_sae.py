@@ -328,8 +328,8 @@ def main():
                   'individual_features.npz', 'sae_reconstruction_error.csv']:
         print(f"  {fname}")
 
-    print(f"\nTo run the NEXIS analysis pipeline:")
-    print(f"  bash scripts/uganda/run.sh --models=prithvi_l5 --all-outcomes")
+    print(f"\nTo run the NEXIS analysis (paper numbers):")
+    print(f"  python src/apps/realworld_final_runs.py --only uganda")
 
 
 if __name__ == '__main__':

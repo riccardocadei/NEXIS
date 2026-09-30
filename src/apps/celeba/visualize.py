@@ -1,5 +1,5 @@
 """
-Visualization helpers for the CelebA semi-synthetic experiment notebook.
+Plotting helpers for the CelebA semi-synthetic experiment, used by the figure scripts.
 """
 from __future__ import annotations
 

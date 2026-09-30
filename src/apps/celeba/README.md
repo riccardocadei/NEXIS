@@ -78,11 +78,11 @@ methods, and all DGPs sampling the same attributes, see the same units.
 
 | DGP | Modifiers (γ) | Prognostic β | S\* | Sweep |
 |---|---|---|---|---|
-| main, r = 2 | Wearing_Hat (+1, prevalence 4.7 %), Eyeglasses (−1, 7.0 %) | 0.3, −0.2 | {5348, 5537} | `submit_experiment_v2.sh` |
-| r = 1 | Wearing_Hat (+1); Eyeglasses sampled, γ = 0 | 0.3, −0.2 | {5348} | `submit_dgp_extra_v2.sh r1` |
-| r = 3 | + Sideburns (+1) | 0.3, −0.2, 0.3 | {5348, 5537, 1683} | `submit_dgp_extra_v2.sh r3` |
-| r = 0 | none, τ = τ₀ | 0.3, −0.2 (fixed) | ∅ | `submit_dgp_extra_v2.sh r0`, n sweep only, 200 seeds |
-| U-shape | τ = τ₀ + η (g₁(Z_pre^5348) − g₂(Z_pre^5537)) | 0.3, −0.2 | {5348, 5537} on Z_pre | `submit_experiment_v2_ushape.sh` (`--effect-form ortho_quadratic`) |
+| main, r = 2 | Wearing_Hat (+1, prevalence 4.7 %), Eyeglasses (−1, 7.0 %) | 0.3, −0.2 | {5348, 5537} | `submit_experiment.sh` |
+| r = 1 | Wearing_Hat (+1); Eyeglasses sampled, γ = 0 | 0.3, −0.2 | {5348} | `submit_dgp_extra.sh r1` |
+| r = 3 | + Sideburns (+1) | 0.3, −0.2, 0.3 | {5348, 5537, 1683} | `submit_dgp_extra.sh r3` |
+| r = 0 | none, τ = τ₀ | 0.3, −0.2 (fixed) | ∅ | `submit_dgp_extra.sh r0`, n sweep only, 200 seeds |
+| U-shape | τ = τ₀ + η (g₁(Z_pre^5348) − g₂(Z_pre^5537)) | 0.3, −0.2 | {5348, 5537} on Z_pre | `submit_experiment_ushape.sh` (`--effect-form ortho_quadratic`) |
 | violation | main DGP; Z^5348 split into U·Z and (1−U)·Z, U ~ Bern(0.5) per image | 0.3, −0.2 | {5348, 9216 (new), 5537} | `benchmark/run.py violation` |
 
 g_k is the squared standardised pre-activation, residualised on (1, z) over the pool and
@@ -276,13 +276,15 @@ figures are copied under the same name into the paper's figure folder.
 | `violation` | `benchmark/results/figures/violation.pdf` | `python run.py violation` in `src/apps/celeba/benchmark/` (`--data-dir`/`--results-dir` point it at `results/celeba/benchmark/`) |
 
 **Ground truth.** The sweeps read the principal coordinates from `ground_truth.json` files
-written by earlier runs (`--gt-json results/celeba/experiment{,_r3,_resample_b1,_ushape}/…`,
+written by earlier sweeps (`--gt-json results/celeba/experiment{,_r3,_resample_b1,_ushape}/…`,
 untracked). Without them, drop `--gt-json`: `run_experiment.py` then recomputes the same
 rule (argmax best-threshold F1 on Z_pre, Section 1).
 
-**Not in the paper.** The DINOv2 backbone ablation (`backbone=dinov2` in every stage,
-`compare_backbones.py`) and the earlier sweeps (`submit_experiment.sh`,
-`submit_resample_experiment.sh`, `run_experiment_*.sh`).
+**Not in the paper.** The DINOv2 backbone ablation (`backbone=dinov2` in every stage) and
+the earlier sweeps (`submit_resample_experiment.sh`, and the launchers that wrote
+`results/celeba/experiment{,_r3,_ushape}/`). The earlier sweep launchers and the backbone
+comparison script `compare_backbones.py` were removed from the tree; they are at git tag
+`pre-cleanup-2026-09`.
 
 ---
 
@@ -290,7 +292,7 @@ rule (argmax best-threshold F1 on Z_pre, Section 1).
 
 > **Status.** An earlier, more extensive analysis than the paper's replica figure. The
 > replica dictionary built here (steps 1-3 of §8.7) and its ground truth feed the
-> reproducibility figure `replica_k20.pdf` (`scripts/celeba/submit_dgp_extra_v2.sh`, then
+> reproducibility figure `replica_k20.pdf` (`scripts/celeba/submit_dgp_extra.sh`, then
 > `src/apps/celeba/figure_dgp_extra.py`).
 > The agreement analyses (§8.1, §8.4-§8.6: `sae_agreement.py`, `agreement_rates.py`,
 > `concept_agreement.py`, `submit_concept_agreement.sh`) are not in the paper and were

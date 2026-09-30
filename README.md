@@ -19,7 +19,7 @@ treatment is assigned next time.
 
 This repository is first a small Python library for the method (`src/method`), kept
 minimal and app-agnostic, and second the code that reproduces the paper's experiments
-(`src/apps`, `scripts`).
+(`src/apps`, with shell launchers in `scripts`).
 
 ## Install
 
@@ -81,13 +81,16 @@ See the docstring of [`src/method/nexis.py`](src/method/nexis.py) for all option
 
 ```
 src/method/        the NEXIS method (nexis.py); the library, app-agnostic
-src/causality/     HC1-robust OLS, ATE and GATE/CATE reporting
+src/causality/     HC1-robust OLS, ATE and GATE/CATE reporting (estimation.py), and the
+                   level-aware clustered CATE test for multilevel data (multilevel.py)
 src/train/         TopK SAE training (overcomplete), used by CelebA
 src/apps/<app>/    one pipeline per application: celeba, uganda, ghana
                    (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)
+src/apps/realworld_final_runs.py
+                   the Uganda and Ghana runs behind the paper's application numbers
 src/apps/celeba/benchmark/
                    self-contained CelebA benchmark package, one command per block
-scripts/           SLURM entry points per app, and realworld_*.py (the application runs)
+scripts/<app>/     shell launchers: submit_<step>.sh (SLURM), run_<step>.sh (bash)
 animations/        Manim scenes for the website videos
 docs/              project website (GitHub Pages: index.html, assets/)
 ```
@@ -117,9 +120,9 @@ bash scripts/celeba/submit_sae.sh
 sbatch scripts/celeba/submit_resample_embed.sh b1 1
 sbatch scripts/celeba/submit_resample_sae.sh 20 b1
 # CPU sweeps, 50 seeds (jobs whose output exists are skipped)
-bash scripts/celeba/submit_experiment_v2.sh          # main, k=5, Z_pre, method ablations
-bash scripts/celeba/submit_experiment_v2_ushape.sh   # U-shape DGP
-bash scripts/celeba/submit_dgp_extra_v2.sh           # replica, r = 3, 1, 0
+bash scripts/celeba/submit_experiment.sh          # main, k=5, Z_pre, method ablations
+bash scripts/celeba/submit_experiment_ushape.sh   # U-shape DGP
+bash scripts/celeba/submit_dgp_extra.sh           # replica, r = 3, 1, 0
 bash scripts/celeba/submit_per_modifier_recall.sh
 bash scripts/celeba/submit_alignment_appendix.sh     # Principal Alignment check
 # Figures and tables -> results/celeba/figures_v2/
@@ -156,12 +159,12 @@ python src/apps/uganda/download_tiles.py --mode rct        # 331 trial sites
 python src/apps/uganda/download_tiles.py --mode national   # national grid (SAE corpus)
 python src/apps/uganda/extract_satellite_features.py --tif-dir data/uganda/satellite/tif_rct --out-dir data/uganda/satellite/rct
 python src/apps/uganda/extract_satellite_features.py --tif-dir data/uganda/satellite/tif_national --out-dir data/uganda/satellite/national
-sbatch scripts/uganda/train_sae_slurm.sh                   # -> results/uganda/prithvi_l5_1024/
-python scripts/realworld_final_runs.py --only uganda       # paper numbers
-python scripts/realworld_uganda_groupcluster.py            # multilevel limitation
-python scripts/realworld_uganda_districts.py               # district-dummy sensitivity
+sbatch scripts/uganda/submit_train_sae.sh                  # -> results/uganda/prithvi_l5_1024/
+python src/apps/realworld_final_runs.py --only uganda      # paper numbers
+python src/apps/uganda/multilevel_groupcluster.py          # multilevel limitation
+python src/apps/uganda/district_sensitivity.py             # district-dummy sensitivity
 python src/apps/uganda/table_gate.py                       # GATE columns
-sbatch scripts/uganda/slurm_interpret.sh                   # VLM labels (Qwen2.5-VL-72B)
+sbatch scripts/uganda/submit_interpret.sh                  # VLM labels (Qwen2.5-VL-72B)
 python src/apps/uganda/figure_neural.py
 python src/apps/uganda/figure_maps.py
 python src/apps/figure1_tiles.py                           # Figure 1 tiles
@@ -182,7 +185,7 @@ python src/apps/ghana/train_sae.py --d-hidden 4096 --k 25 --epochs 2000 --batch-
     --train-embeddings data/ghana/satellite/national/prithvi_embeddings.npy \
     --eval-embeddings data/ghana/satellite/prithvi_embeddings.npy \
     --eval-ids data/ghana/satellite/prithvi_comm_ids.npy --out-dir data/ghana/satellite
-python scripts/realworld_final_runs.py --only ghana              # paper numbers
+python src/apps/realworld_final_runs.py --only ghana             # paper numbers
 python src/apps/ghana/table_gate.py                              # GATEs
 bash scripts/ghana/run_figure_neural.sh                          # VLM temporal step (GPU) and figure
 python src/apps/ghana/figure_neural_1777.py                      # exploratory figure
