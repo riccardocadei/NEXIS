@@ -79,7 +79,7 @@ res = nexis(y=y, t=t, w=df, backward=False, terminal_filter=True)
 ```
 
 For multilevel data (treatment assigned to, or candidates varying at, a coarser level than
-the row), `nexis.multilevel.LevelAwareTest` is a level-aware clustered test to pass as
+the row), `nexis.design.LevelAwareTest` is a level-aware clustered test to pass as
 `pvalue_fn=`.
 
 The defaults of `nexis()` are those of an earlier version of the method (interleaved
@@ -105,13 +105,16 @@ See the docstring of `nexis()` ([`src/nexis/search.py`](src/nexis/search.py)) fo
 src/nexis/         the installable package, app-agnostic:
   search.py        the NEXIS search: nexis(), marginal_select(), SelectionResult
   pvalues.py       the conditional CATE tests (linear OLS/HC1/CR1S, GCM, PCM)
-  multilevel.py    level-aware clustered CATE test for multilevel data, post-hoc checks
+  design.py        level-aware clustered CATE test and support rule for multilevel data
+  checks.py        post-hoc design checks: randomization test, wild cluster bootstrap
   estimation.py    HC1-robust OLS, ATE and GATE/CATE reporting
   sae.py           TopK SAE training (overcomplete, `gpu` extra), used by CelebA
 src/apps/<app>/    one pipeline per application: celeba, uganda, ghana (not installed)
                    (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)
 src/apps/realworld_final_runs.py
                    the Uganda and Ghana runs behind the paper's application numbers
+src/apps/realworld_harness.py
+                   their shared run configurations and reporting (run(), cells())
 src/apps/celeba/benchmark/
                    self-contained CelebA benchmark package, one command per block
 scripts/<app>/     shell launchers: submit_<step>.sh (SLURM), run_<step>.sh (bash)
@@ -121,7 +124,7 @@ docs/              project website (GitHub Pages: index.html, assets/)
 
 Package code (`src/nexis`) stays minimal, app-agnostic and free of experiment-specific
 options; application logic belongs in `src/apps`, which imports it as `from nexis import
-...` and `from nexis.multilevel import ...`.
+...` and `from nexis.design import ...`.
 
 ## Reproducing the paper
 

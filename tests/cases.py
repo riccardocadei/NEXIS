@@ -14,8 +14,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from nexis import marginal_select, nexis  # noqa: E402
-from nexis.multilevel import (LevelAwareTest, block_fe, build_rule, codes,  # noqa: E402
-                              randomization_test, wild_cluster_bootstrap, worst_subset)
+from nexis.checks import randomization_test, wild_cluster_bootstrap, worst_subset  # noqa: E402
+from nexis.design import LevelAwareTest, block_fe, build_rule, codes  # noqa: E402
 from nexis.estimation import ate_ols  # noqa: E402
 
 

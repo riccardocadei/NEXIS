@@ -187,7 +187,7 @@ education) enters S̃ for either outcome.
 **Marginal screening (Table `tab:uganda_marginal`, main text).** Uncorrected marginal
 test at 0.05: 71 of 170 (skilled employment) and 45 of 170 (log business assets), against
 3 certified + 2 candidates and 1 + 1 for NEXIS. Source: recomputed on 2026-09-26 with
-`nexis.multilevel.plain_test()` at S = ∅ on the pool of
+`nexis.design.plain_test()` at S = ∅ on the pool of
 `apps.uganda.pool.uganda()` (71 and 45).
 *Reading:* ~8–9 false positives are expected under the global null; the excess comes from
 correlated SAE atoms that proxy the same few modifiers, the experimental power paradox.
@@ -269,7 +269,7 @@ estimates carried over from the June brief; not re-measured.
   (`--out-dir` writes elsewhere). The paper's Uganda rows are the runs
   `Wobs | published test | new default`. The Uganda grid is in
   `src/apps/uganda/final_runs.py`, the pool in `src/apps/uganda/pool.py` and the
-  level-aware test in `src/nexis/multilevel.py`.
+  level-aware test in `src/nexis/design.py`.
 - The script first checks that the earlier configuration (interleaved backward step)
   reproduces the published sets, read from
   `results/uganda/prithvi_l5_1024/<outcome>/nexis_result.json` (untracked; comes with the
@@ -301,7 +301,7 @@ skilled_employed,log_biz_assets --n-boot 99999 --n-perm 99999`) was removed from
 tree; it is at git tag `pre-cleanup-2026-09`. Its outputs are in
 `results/uganda/prithvi_l5_1024/{robustness_clustering,multilevel_inference}/`
 (untracked). Nothing was retrained; the frozen SAE artifacts were read as-is. The
-level-aware test the paper uses is `src/nexis/multilevel.py`.
+level-aware test the paper uses is `src/nexis/design.py`.
 
 ---
 

@@ -19,9 +19,9 @@ import time
 import numpy as np
 
 from apps.uganda.pool import uganda
-from nexis.multilevel import (MIN_SUPPORT, PUBLISHED_CFG, VARIANTS, LevelAwareTest, block_fe,
-                              build_rule, cell_str, cells, kept_dropped, plain_test,
-                              randomization_test, run)
+from apps.realworld_harness import PUBLISHED_CFG, VARIANTS, cell_str, cells, kept_dropped, run
+from nexis.checks import randomization_test
+from nexis.design import MIN_SUPPORT, LevelAwareTest, block_fe, build_rule, plain_test
 
 OUTCOMES = ["skilled_employed", "log_biz_assets"]
 

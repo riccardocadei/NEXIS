@@ -9,7 +9,8 @@ treatment effects) from a large pool of candidates, with family-wise error contr
 
 Submodules, imported on demand:
 
-    nexis.multilevel   level-aware clustered test for multilevel data (a `pvalue_fn`)
+    nexis.design       level-aware clustered test for multilevel data (a `pvalue_fn`)
+    nexis.checks       post-hoc design checks: randomization test, wild cluster bootstrap
     nexis.estimation   HC1-robust OLS, ATE and GATE/CATE reporting
     nexis.sae          TopK sparse autoencoder (needs the `gpu` extra: torch, overcomplete)
 """

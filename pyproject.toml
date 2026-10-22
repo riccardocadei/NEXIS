@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 # Pinned to the versions of the conda env the paper's runs used
 # (/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl, Python 3.11.8).
-# Core: what `import nexis`, nexis() and nexis.multilevel need.  lightgbm backs the
+# Core: what `import nexis`, nexis() and nexis.design need.  lightgbm backs the
 # nonparametric tests (test="GCM: lgbm" / "PCM: lgbm"); it is imported only then.
 dependencies = [
     "numpy==1.26.4",
