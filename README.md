@@ -107,7 +107,7 @@ src/nexis/         the installable package, app-agnostic:
   pvalues.py       the conditional CATE tests (linear OLS/HC1/CR1S, GCM, PCM)
   design.py        level-aware clustered CATE test and support rule for multilevel data
   checks.py        post-hoc design checks: randomization test, wild cluster bootstrap
-  estimation.py    HC1-robust OLS, ATE and GATE/CATE reporting
+  effects.py       HC1-robust OLS and the ATE
   sae.py           TopK SAE training (overcomplete, `gpu` extra), used by CelebA
 src/apps/<app>/    one pipeline per application: celeba, uganda, ghana (not installed)
                    (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)

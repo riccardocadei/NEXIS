@@ -11,7 +11,7 @@ Submodules, imported on demand:
 
     nexis.design       level-aware clustered test for multilevel data (a `pvalue_fn`)
     nexis.checks       post-hoc design checks: randomization test, wild cluster bootstrap
-    nexis.estimation   HC1-robust OLS, ATE and GATE/CATE reporting
+    nexis.effects      HC1-robust OLS and the ATE
     nexis.sae          TopK sparse autoencoder (needs the `gpu` extra: torch, overcomplete)
 """
 from .pvalues import conditional_interaction_pvalues
