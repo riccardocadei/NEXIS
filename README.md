@@ -27,17 +27,20 @@ experiments (`src/apps`, with shell launchers in `scripts`).
 pip install git+https://github.com/riccardocadei/NEXIS   # the nexis package (Python >= 3.11)
 ```
 
-The package needs only numpy, scipy, pandas, scikit-learn and lightgbm. To reproduce the
-paper, clone the repository and install the extras of the experiment pipelines:
+The package needs only numpy, scipy, pandas and scikit-learn; the `lgbm` extra
+(`pip install "nexis[lgbm] @ git+https://github.com/riccardocadei/NEXIS"`) adds lightgbm
+for the nonparametric tests `test="GCM: lgbm"` / `"PCM: lgbm"`. To reproduce the paper,
+clone the repository and install the extras of the experiment pipelines, pinned to the
+environment the paper's runs used (Python 3.11.8) by `requirements-paper.txt`:
 
 ```bash
 git clone https://github.com/riccardocadei/NEXIS && cd NEXIS
-pip install -e ".[apps,gpu,geo]"
-# apps: CPU experiments and figures; gpu: embeddings, SAE training (nexis.sae) and VLM
-# interpretation; geo: Google Earth Engine downloads and maps (Uganda, Ghana)
+pip install -r requirements-paper.txt -e ".[apps,gpu,geo]"
+# apps: CPU experiments and figures (includes lightgbm); gpu: embeddings, SAE training
+# (nexis.sae) and VLM interpretation; geo: Google Earth Engine downloads and maps
 ```
 
-Versions are pinned to the environment the paper's runs used (Python 3.11.8). Only the
+`pyproject.toml` lists those versions as lower bounds. Only the
 `nexis` package is installed: the application code in `src/apps` is not, and runs from the
 checkout (`python src/apps/<app>/<script>.py` from the repo root; each script puts `src/`
 on `sys.path`, so it also runs without installing).
