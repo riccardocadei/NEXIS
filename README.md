@@ -97,13 +97,14 @@ backward step, no terminal step) and are kept so that older results reproduce. A
 | `test` | `"linear"` | `"linear"` | T × Z_j interaction t-test; also `"GCM: ..."` and `"PCM: ..."` (nonparametric) |
 | `cluster`, `hc1`, `pvalue_fn` | `None` | Ghana: clusters | Cluster-robust or HC1 errors, or a custom conditional test |
 
-See the docstring of `nexis()` ([`src/nexis/core.py`](src/nexis/core.py)) for all options.
+See the docstring of `nexis()` ([`src/nexis/search.py`](src/nexis/search.py)) for all options.
 
 ## Repository layout
 
 ```
 src/nexis/         the installable package, app-agnostic:
-  core.py          the NEXIS method: nexis(), marginal_select(), the CATE tests
+  search.py        the NEXIS search: nexis(), marginal_select(), SelectionResult
+  pvalues.py       the conditional CATE tests (linear OLS/HC1/CR1S, GCM, PCM)
   multilevel.py    level-aware clustered CATE test for multilevel data, post-hoc checks
   estimation.py    HC1-robust OLS, ATE and GATE/CATE reporting
   sae.py           TopK SAE training (overcomplete, `gpu` extra), used by CelebA

@@ -13,7 +13,8 @@ Submodules, imported on demand:
     nexis.estimation   HC1-robust OLS, ATE and GATE/CATE reporting
     nexis.sae          TopK sparse autoencoder (needs the `gpu` extra: torch, overcomplete)
 """
-from .core import SelectionResult, conditional_interaction_pvalues, marginal_select, nexis
+from .pvalues import conditional_interaction_pvalues
+from .search import SelectionResult, marginal_select, nexis
 
 __version__ = "0.1"
 

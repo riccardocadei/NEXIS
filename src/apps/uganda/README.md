@@ -307,9 +307,9 @@ level-aware test the paper uses is `src/nexis/multilevel.py`.
 
 ### 11.1 The published SEs are homoskedastic OLS with no clustering
 
-`nexis()` defaults to `cluster=None, hc1=False` (`src/nexis/core.py`) and
+`nexis()` defaults to `cluster=None, hc1=False` (`src/nexis/search.py`) and
 `analyze.py` never passes either. The June brief's §6 and the appendix `\paragraph{Standard errors}`
-are accurate as written. The CR1S path already existed in the core but was never
+are accurate as written. The CR1S path already existed in the library but was never
 wired into the Uganda app; it is validated here against `statsmodels`
 `cov_type='cluster'`/`'HC1'` (exact agreement on the t-statistic).
 
@@ -419,7 +419,7 @@ varies.** For a pool spanning levels, that makes the cluster level a property of
 
 NEXIS needed no redesign to accept this. It consumes only p-values and t-statistics,
 so the level-aware test drops in through a new `nexis(pvalue_fn=...)` hook
-(`src/nexis/core.py`) — which simply realises the claim the appendix already makes
+(`src/nexis/search.py`) — which simply realises the claim the appendix already makes
 ("any valid p-value-returning test can be plugged in").
 
 ### 11.6 Results

@@ -48,7 +48,8 @@ import scipy.sparse as sp
 from scipy import stats
 from scipy.sparse.csgraph import connected_components
 
-from .core import nexis, conditional_interaction_pvalues
+from .pvalues import conditional_interaction_pvalues
+from .search import nexis
 
 ALPHA, RHO, MIN_SUPPORT = 0.05, 0.5, 5
 PUBLISHED_CFG = dict(backward=True, terminal_filter=False)
