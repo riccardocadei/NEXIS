@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from nexis import nexis, marginal_select, iou_score
+from nexis import nexis, marginal_select
 from apps.celeba.scm import CelebAData, build_buckets, generate_celeba_rct
 
 
@@ -96,6 +96,15 @@ V2_METHODS: Dict[str, Dict[str, Any]] = {
         dict(backward=True, terminal_filter=False),
     "NEXIS-v2 (interleaved=True)": dict(backward=True),               # both steps
 }
+
+
+def iou_score(selected: Sequence[int], truth: Sequence[int]) -> float:
+    S = set(int(x) for x in selected)
+    T = set(int(x) for x in truth)
+    union = S | T
+    if len(union) == 0:
+        return 1.0
+    return len(S & T) / len(union)
 
 
 def evaluate_methods_on_dataset(

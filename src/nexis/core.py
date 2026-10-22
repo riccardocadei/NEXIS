@@ -806,26 +806,6 @@ def conditional_interaction_pvalues(
     return (pvals, all_tstats) if return_tstats else pvals
 
 
-def interaction_test_pvalue(
-    y: np.ndarray,
-    t: np.ndarray,
-    z: np.ndarray,
-    j: int,
-    S: Optional[Sequence[int]] = None,
-) -> float:
-    pvals = conditional_interaction_pvalues(y=y, t=t, z=z, S=S, candidates=[j])
-    return float(pvals[int(j)])
-
-
-def marginal_interaction_pvalues(
-    y: np.ndarray,
-    t: np.ndarray,
-    z: np.ndarray,
-    cluster: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    return conditional_interaction_pvalues(y=y, t=t, z=z, S=[], cluster=cluster)
-
-
 def marginal_select(
     y: np.ndarray,
     t: np.ndarray,
@@ -1347,71 +1327,3 @@ def nexis(
         metadata=meta,
         feature_names=feature_names,
     )
-
-
-# ── Evaluation ────────────────────────────────────────────────────────────────
-
-def iou_score(selected: Sequence[int], truth: Sequence[int]) -> float:
-    S = set(int(x) for x in selected)
-    T = set(int(x) for x in truth)
-    union = S | T
-    if len(union) == 0:
-        return 1.0
-    return len(S & T) / len(union)
-
-
-def evaluate_methods_on_dataset(
-    y: np.ndarray,
-    t: np.ndarray,
-    w,
-    truth: Sequence[int],
-    alpha: float = 0.05,
-    max_rounds: Optional[int] = None,
-    rho: float = 0.5,
-) -> Dict[str, Dict[str, float]]:
-    out = {}
-    truth_set = set(int(x) for x in truth)
-    n_truth = len(truth_set)
-
-    def _metrics(selected: Sequence[int]) -> Dict[str, float]:
-        selected_set = set(int(x) for x in selected)
-        tp = float(len(selected_set & truth_set))
-        fp = float(len(selected_set - truth_set))
-        n_selected = float(len(selected_set))
-        recall = tp / n_truth if n_truth > 0 else 1.0
-        precision = (tp / n_selected) if n_selected > 0 else (1.0 if n_truth == 0 else 0.0)
-        return {
-            "iou": iou_score(selected_set, truth_set),
-            "n_selected": n_selected,
-            "tp": tp,
-            "fp": fp,
-            "recall": float(recall),
-            "precision": float(precision),
-        }
-
-    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
-                      test="linear")
-    out["NEXIS (linear)"] = _metrics(res.selected)
-
-    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
-                      test="linear", rho=rho)
-    out["NEXIS (auto) (linear)"] = _metrics(res.selected)
-
-    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="poly2")
-    out["NEXIS (poly2)"] = _metrics(res.selected)
-
-    res = nexis(y=y, t=t, w=w, alpha=alpha, max_rounds=max_rounds,
-                      test="gcm", nuisance="poly2", rho=rho)
-    out["NEXIS (auto) (poly2)"] = _metrics(res.selected)
-
-    res = marginal_select(y=y, t=t, w=w, alpha=alpha, adjust="FWER")
-    out["Marginal Testing (FWER)"] = _metrics(res.selected)
-
-    res = marginal_select(y=y, t=t, w=w, alpha=alpha, adjust="FDR")
-    out["Marginal Testing (FDR)"] = _metrics(res.selected)
-
-    res = marginal_select(y=y, t=t, w=w, alpha=alpha, adjust=None)
-    out["Marginal Testing"] = _metrics(res.selected)
-
-    return out
