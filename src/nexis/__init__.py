@@ -1,35 +1,43 @@
-"""NEXIS: Neural EXposure Interaction Search.
-
-Selects the pre-treatment features that modify a treatment effect (heterogeneous
-treatment effects) from a large pool of candidates, with family-wise error control.
+"""NEXIS: select the pre-treatment features that modify a treatment effect, from a large
+pool of candidates (e.g. sparse-autoencoder atoms of images), with family-wise error control.
 
     import nexis
     data = nexis.Dataset(units, sources=[nexis.Source(table, time="pre"), ...],
-                         design=nexis.Randomized(treatment="T", assigned_at="group_id"))
+                         design=nexis.Randomized(treatment="T", assigned_at="village"))
     data.info()
     result = nexis.discover(data, outcome="y")
     result.table(); result.interpret()
 
-The search itself, on a candidate matrix:
+Architecture.  The public layer describes a study and runs the search on it:
 
-    from nexis import nexis
-    res = nexis(y, t, w)           # w: (n, M) ndarray or pandas DataFrame
-    res.selected, res.feature_names
+    data.py        Source (one table: level, time, origin) and Dataset (the units, the
+                   sources broadcast onto them, the design; missing-value policy)
+    assignment.py  Design, Randomized, Discontinuity: treatment, assignment / sampling
+                   / strata levels, and their checks
+    api.py         discover() -> Result (modifiers, table(), interpret())
+    interpret.py   Interpretation of the selected learned modifiers
 
-Modules:
+The engine works on arrays and can be used directly:
 
-    nexis.data         Source and Dataset
-    nexis.assignment   the designs: Randomized, Discontinuity
-    nexis.api          discover() and its Result
+    search.py      nexis(y, t, w): the search (forward Bonferroni gates, terminal filter)
+                   and marginal_select, the one-test-per-column baseline
+    pvalues.py     the conditional interaction tests nexis() calls (linear, GCM, PCM)
+    design.py      the level-aware clustered test (LevelAwareTest, a `pvalue_fn`) and
+                   the clustering and support rule (build_rule)
+    checks.py      post-hoc checks of a selected set: randomization test, wild cluster
+                   bootstrap, worst conditioning subset
+    effects.py     HC1-robust OLS and the ATE
+    sae.py         TopK sparse autoencoder (needs the `gpu` extra; not imported here)
 
-    nexis.design       level-aware clustered test for multilevel data (a `pvalue_fn`)
-    nexis.checks       post-hoc design checks: randomization test, wild cluster bootstrap
-    nexis.effects      HC1-robust OLS and the ATE
-    nexis.sae          TopK sparse autoencoder (needs the `gpu` extra: torch, overcomplete)
+Data flow: Dataset joins every Source onto the units and checks the design; discover()
+takes the pre columns as one candidate matrix, applies build_rule (cluster level and
+support of each candidate), runs nexis() with LevelAwareTest as its test, and returns
+a Result indexed by covariate names.
 """
 from .api import Result, discover
 from .assignment import Design, Discontinuity, Randomized
 from .data import Dataset, Source
+from .interpret import Interpretation
 from .pvalues import conditional_interaction_pvalues
 from .search import SelectionResult, marginal_select, nexis
 
@@ -43,6 +51,7 @@ __all__ = [
     "Discontinuity",
     "discover",
     "Result",
+    "Interpretation",
     "nexis",
     "marginal_select",
     "SelectionResult",

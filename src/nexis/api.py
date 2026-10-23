@@ -7,76 +7,101 @@ level-aware by the design (nexis.design.LevelAwareTest):
   * candidate j is clustered at the coarsest of the assignment level, the sampling level
     and the level where Z_j varies (HC1 when that is the unit itself);
   * strata of a stratified randomization enter as fixed effects;
-  * support rule: a candidate with a mass point whose minority side holds fewer than
-    `min_support` clusters in either arm is dropped before the search (nexis.design.
-    build_rule), as are candidates with missing values; Bonferroni counts the rest.
+  * support rule (nexis.design.build_rule): a candidate whose modal value holds >= 10%
+    of the units (binary or sparse) is dropped before the search when one of the four
+    cells (Z_j at / off its mode) x (treated / control) spans fewer than `min_support`
+    clusters; candidates with missing values are excluded too.  Bonferroni counts the
+    rest (m).
 """
 
 from __future__ import annotations
 
-import logging
 import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
+from .assignment import MIN_CLUSTERS
 from .data import Dataset
-from .design import MIN_SUPPORT, LevelAwareTest, block_fe, build_rule, codes, is_coarser
+from .design import LevelAwareTest, block_fe, build_rule, codes, is_coarser
+from .interpret import Interpretation, extremes
 from .search import SelectionResult, nexis
 
-logger = logging.getLogger("nexis")
-
 RHO, MAX_ROUNDS = 0.5, 20
+MIN_SUPPORT = 4
 
 
 @dataclass
 class Result:
-    """What discover() found.  `modifiers` are the selected covariates; `selection` is
-    the raw SelectionResult of the search, indexing the tested pool `tested`."""
+    """What discover() found.
+
+    modifiers: the selected covariates.
+    tested: the pool the search ran on (m = len(tested)); `selection` is the raw
+        SelectionResult of the search, whose indices refer to `tested`.
+    units: the units analysed (n = len(units), n_treated + n_control).
+    table(): one row per candidate (see discover).
+    """
 
     data: Dataset
     outcome: str
     alpha: float
+    min_support: int
     modifiers: list[str]
     selection: SelectionResult
     tested: list[str]
+    units: pd.Index
+    n_treated: int
+    n_control: int
     _table: pd.DataFrame = field(repr=False)
 
+    @property
+    def n(self) -> int:
+        return len(self.units)
+
     def table(self) -> pd.DataFrame:
-        """One row per candidate: where it comes from, how it was tested, its p-value
-        given the selected set (given the other modifiers, for a modifier) and status."""
+        """One row per candidate: covariate, source, level, varies_at, origin, time,
+        clustered_at, n_clusters, support, missing, p_value (given the selected set, or
+        given the other modifiers for a modifier) and status."""
         return self._table.copy()
 
-    def interpret(self, k: int = 5) -> dict[str, str]:
+    def interpret(self, k: int = 5, seed: int = 0) -> Interpretation:
         """Describe every selected learned modifier with its source's interpreter, from
-        the raw items of the k ids (at the source's level) with the highest and the k
-        with the lowest values.  {} when no learned modifier was selected."""
+        the raw items of the k ids (at the source's level, among the units analysed)
+        with the highest values and the k with the lowest (ties broken at random with
+        `seed`).  Empty, with a message, when no learned modifier was selected."""
         learned = [c for c in self.modifiers if self.data.column_source[c].origin == "learned"]
-        if not learned:
-            logger.warning("interpret(): no learned modifier was selected; nothing to interpret")
-            return {}
-        out = {}
+        rows, items = [], {}
         for c in learned:
             src = self.data.column_source[c]
-            ids = pd.Index(self.data.levels[src.level].unique())
-            col = src.data.loc[src.data.index.intersection(ids), c].dropna().sort_values(kind="stable")
-            top, bottom = col.index[::-1][:k], col.index[:k]
-            out[c] = src.interpreter.describe(src.raw_items(top), src.raw_items(bottom))
-        return out
+            ids = pd.Index(self.data.levels[src.level].loc[self.units].unique())
+            top, bottom = extremes(src.data.loc[src.data.index.intersection(ids), c], k, seed)
+            items[c] = (src.raw_items(top), src.raw_items(bottom))
+            rows.append(dict(covariate=c, source=src.name, label=src.interpreter.describe(*items[c]),
+                             top=top, bottom=bottom))
+        frame = pd.DataFrame(rows, columns=["covariate", "source", "label", "top", "bottom"])
+        message = "" if learned else (
+            f"no learned modifier was selected (modifiers: {', '.join(self.modifiers) or 'none'}); "
+            "nothing to interpret")
+        return Interpretation(frame, items, message)
 
     def __repr__(self) -> str:
-        return (f"Result(outcome={self.outcome!r}, alpha={self.alpha}, m={len(self.tested)}, "
-                f"modifiers={self.modifiers})")
+        return (f"Result(outcome={self.outcome!r}, n={self.n} ({self.n_treated} treated), "
+                f"m={len(self.tested)}, alpha={self.alpha}, modifiers={self.modifiers})")
 
 
 def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int = MIN_SUPPORT,
              include_during: bool = False) -> Result:
-    """Select the effect modifiers of the design's treatment on `outcome` (a post column).
+    """Select the effect modifiers of the design's treatment on `outcome` (a post column),
+    with family-wise error rate `alpha` over the tested pool.
 
-    Units with a missing outcome are dropped.  Columns measured during treatment are
-    excluded with a warning unless include_during=True: include them only if treatment
-    cannot have changed them.  Family-wise error rate alpha over the tested pool.
+    min_support: the support rule's minimum number of clusters per (side of a sparse
+        candidate) x (arm) cell (see the module docstring).
+    include_during: also search the columns measured during treatment; do it only if
+        treatment cannot have changed them (excluded with a warning otherwise).
+
+    Units with a missing outcome are dropped and candidates with a missing value are
+    excluded, each with a warning; Result.table() lists every candidate and its status.
     """
     if outcome not in data.outcomes:
         if outcome in data.frame.columns:
@@ -84,6 +109,7 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
                              f"(time={data.column_source[outcome].time!r}); outcomes are post columns: "
                              f"{data.outcomes}")
         raise ValueError(f"unknown outcome {outcome!r}; outcomes are the post columns: {data.outcomes}")
+    des = data.design
     during = [c for c in data.candidates(True) if data.column_source[c].time == "during"]
     if during and not include_during:
         warnings.warn(f"{len(during)} columns measured during treatment are excluded from the pool "
@@ -93,26 +119,46 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
     if not names:
         raise ValueError("no candidate covariates")
 
+    # units: those with an outcome
     y_all = data.frame[outcome].to_numpy(float)
+    t_all = data.design_frame[des.treatment].to_numpy(float)
     rows = np.isfinite(y_all)
     if not rows.all():
-        logger.warning("discover(): %d of %d units have no %s and are dropped",
-                       int((~rows).sum()), len(rows), outcome)
-    des = data.design
+        gone = ~rows
+        warnings.warn(f"{int(gone.sum())} of {len(rows)} units have no {outcome!r} and are dropped "
+                      f"({int((t_all[gone] == 1).sum())} treated, {int((t_all[gone] == 0).sum())} control)",
+                      stacklevel=2)
+    n1 = int((t_all[rows] == 1).sum())
+    if n1 in (0, int(rows.sum())):
+        raise ValueError(f"no {'control' if n1 else 'treated'} unit has an outcome {outcome!r}")
+
+    # candidates: those without missing values among these units
+    z_all = data.frame[names].to_numpy(float)[rows]
+    n_miss = np.isnan(z_all).sum(0)
+    if n_miss.any():
+        bad = [f"{c} ({k})" for c, k in zip(names, n_miss) if k]
+        warnings.warn(f"{len(bad)} candidates have missing values and are excluded from the pool: "
+                      f"{', '.join(bad[:10])}{', ...' if len(bad) > 10 else ''}", stacklevel=2)
+
     levels = {k: codes(v.to_numpy()[rows]) for k, v in data.levels.items()}
     assign = des.assigned_at
     if des.sampled_by and is_coarser(levels[des.sampled_by], levels[assign]):
         assign = des.sampled_by
-    d = dict(y=y_all[rows], t=data.design_frame[des.treatment].to_numpy(float)[rows],
-             z=data.frame[names].to_numpy(float)[rows], names=names, levels=levels,
+    d = dict(y=y_all[rows], t=t_all[rows], z=z_all, names=names, levels=levels,
              order=list(levels), assign=assign)
     keys, parts, info = build_rule(d, min_support)
     pool = [j for j, i in enumerate(info) if i["testable"]]
     if not pool:
         raise ValueError("no candidate passes the support rule")
+    few = [f"{names[j]} ({info[j]['G']} {keys[j]})" for j in pool
+           if parts[keys[j]] is not None and info[j]["G"] < MIN_CLUSTERS]
+    if few:
+        warnings.warn(f"{len(few)} tested candidates are clustered with fewer than {MIN_CLUSTERS} "
+                      f"clusters, where cluster-robust p-values are unreliable: "
+                      f"{', '.join(few[:10])}{', ...' if len(few) > 10 else ''}", stacklevel=2)
+
     fe = block_fe(levels[des.stratified_by]) if des.stratified_by else None
-    test = LevelAwareTest(keys, parts, fe=fe)
-    fn = test.subset(pool)
+    fn = LevelAwareTest(keys, parts, fe=fe).subset(pool)
     y, t, z = d["y"], d["t"], d["z"][:, pool]
     sel = nexis(y, t, z, alpha=alpha, max_rounds=MAX_ROUNDS, rho=RHO, adjust="FWER",
                 backward=False, terminal_filter=True, pvalue_fn=fn)
@@ -136,21 +182,26 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
             status = "selected"
         elif i["testable"]:
             status = "not selected"
-        elif not np.isfinite(d["z"][:, j]).all():
-            status = "dropped: missing values"
+        elif n_miss[j]:
+            status = f"excluded: {n_miss[j]} missing values"
+        elif np.nanstd(d["z"][:, j]) == 0:
+            status = "dropped: constant"
         else:
             status = f"dropped: support {i['support']} < {min_support} clusters"
         recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=i["level"],
                          origin=src.origin, time=src.time,
                          clustered_at="none (HC1)" if hc1 else keys[j].replace("+", " + "),
-                         n_clusters=int(len(y)) if hc1 else i["G"], p_value=p[j], status=status))
+                         n_clusters=int(len(y)) if hc1 else i["G"], support=i["support"],
+                         missing=int(n_miss[j]), p_value=p[j], status=status))
     if during and not include_during:
         for c in during:
             src = data.column_source[c]
             recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=None,
                              origin=src.origin, time=src.time, clustered_at=None, n_clusters=None,
+                             support=None, missing=int(data.frame.loc[rows, c].isna().sum()),
                              p_value=np.nan, status="excluded: measured during treatment"))
-    tab = pd.DataFrame(recs).astype({"n_clusters": "Int64"})
-    modifiers = [names[pool[j]] for j in S]
-    return Result(data=data, outcome=outcome, alpha=alpha, modifiers=modifiers, selection=sel,
-                  tested=[names[j] for j in pool], _table=tab)
+    tab = pd.DataFrame(recs).astype({"n_clusters": "Int64", "support": "Int64"})
+    return Result(data=data, outcome=outcome, alpha=alpha, min_support=min_support,
+                  modifiers=[names[pool[j]] for j in S], selection=sel,
+                  tested=[names[j] for j in pool], units=data.units.index[rows],
+                  n_treated=n1, n_control=int(rows.sum()) - n1, _table=tab)
