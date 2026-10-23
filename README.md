@@ -4,145 +4,180 @@
 · Riccardo Cadei, Frank Otchere, Nyasha Tirivayi, Gustavo Angeles Tagliaferro, Falco J. Bargagli-Stoffi, Francesco Locatello
 · [arXiv](https://arxiv.org/abs/2606.17010) · [Website](https://riccardocadei.github.io/NEXIS/)
 
-NEXIS finds *which* pre-treatment features drive the heterogeneity of a treatment effect
-in a randomized experiment. Given an outcome `y`, a binary treatment `t` and a
-representation `z` of rich pre-treatment measurements (for example the atoms of a sparse
-autoencoder (SAE) trained on a foundation-model embedding of images), it returns the
-minimal set of coordinates of `z` that characterizes the conditional average treatment
-effect (CATE): a forward search with conditional interaction tests, then a terminal
-backward certification step, which, under the paper's assumptions, recovers the true set
-with probability at least 1 − α asymptotically. The selected coordinates are interpreted afterwards (for example by
-showing their most activating images to a vision-language model) and can guide how the
-treatment is assigned next time.
+NEXIS finds *which* pre-treatment features drive the heterogeneity of a treatment effect.
+Given an outcome, a binary treatment and a large pool of candidate features (survey
+covariates, and for example the atoms of a sparse autoencoder (SAE) trained on
+foundation-model embeddings of satellite images), it returns a small set of features that
+characterizes the conditional average treatment effect (CATE), with family-wise error
+control: a forward search with conditional interaction tests and Bonferroni gates, then a
+terminal step that keeps a feature only if it stays significant given every subset of the
+others. Learned features are then interpreted from their most and least active raw items
+(for example by a vision-language model), and the result can guide how the treatment is
+targeted next time.
 
 ![NEXIS pipeline](docs/assets/pipeline.gif)
 
-This repository is first a small Python package for the method, `nexis` (`src/nexis`),
-kept minimal and app-agnostic, and second the code that reproduces the paper's
-experiments (`src/apps`, with shell launchers in `scripts`).
+This repository holds the `nexis` Python library (`src/nexis`) and, separately, the code
+that reproduces the paper's three case studies (`src/apps`).
 
 ## Install
 
+The package is not on PyPI. For library use (Python >= 3.11; needs numpy, scipy, pandas,
+scikit-learn):
+
 ```bash
-pip install git+https://github.com/riccardocadei/NEXIS   # the nexis package (Python >= 3.11)
+pip install "git+https://github.com/riccardocadei/NEXIS.git"
 ```
 
-The package needs only numpy, scipy, pandas and scikit-learn; the `lgbm` extra
-(`pip install "nexis[lgbm] @ git+https://github.com/riccardocadei/NEXIS"`) adds lightgbm
-for the nonparametric tests `test="GCM: lgbm"` / `"PCM: lgbm"`. To reproduce the paper,
-clone the repository and install the extras of the experiment pipelines, pinned to the
-environment the paper's runs used (Python 3.11.8) by `requirements-paper.txt`:
+Only the `nexis` package is installed. The `lgbm` extra
+(`pip install "nexis[lgbm] @ git+https://github.com/riccardocadei/NEXIS.git"`) adds
+lightgbm for the nonparametric tests `test="GCM: lgbm"` and `"PCM: lgbm"`; `nexis.sae`
+(TopK SAE training) needs the `gpu` extra.
+
+To reproduce the paper, clone the repository and install the pipelines' extras, pinned to
+the environment the paper's runs used (Python 3.11.8):
 
 ```bash
 git clone https://github.com/riccardocadei/NEXIS && cd NEXIS
 pip install -r requirements-paper.txt -e ".[apps,gpu,geo]"
-# apps: CPU experiments and figures (includes lightgbm); gpu: embeddings, SAE training
-# (nexis.sae) and VLM interpretation; geo: Google Earth Engine downloads and maps
+# apps: CPU experiments and figures; gpu: embeddings, SAE training and VLM
+# interpretation; geo: Google Earth Engine downloads and maps
 ```
 
-`pyproject.toml` lists those versions as lower bounds. Only the
-`nexis` package is installed: the application code in `src/apps` is not, and runs from the
-checkout (`python src/apps/<app>/<script>.py` from the repo root; each script puts `src/`
-on `sys.path`, so it also runs without installing).
+`pyproject.toml` lists those versions as lower bounds. The application code in `src/apps`
+is not installed: it runs from the checkout (`python src/apps/<app>/<script>.py` from the
+repo root; each script puts `src/` on `sys.path`).
 
-## Using NEXIS
+## Quickstart
+
+Households in villages, a grant randomized by village within districts, candidates from a
+household survey and from sparse features learned on village images. The runnable version,
+with the synthetic data, is [`examples/quickstart.py`](examples/quickstart.py).
 
 ```python
-import numpy as np
+import nexis
+
+data = nexis.Dataset(
+    units=units,          # one row per household (index household_id): village_id, district_id, grant
+    sources=[
+        nexis.Source(survey, time="pre", name="survey"),           # indexed by household_id
+        nexis.Source(atoms, time="pre", origin="learned",          # indexed by village_id
+                     raw=tiles, interpreter=MyInterpreter(), name="satellite"),
+        nexis.Source(rain, time="during", name="rainfall"),        # indexed by district_id
+        nexis.Source(endline, time="post", name="endline"),        # the outcomes
+    ],
+    design=nexis.Randomized(treatment="grant", assigned_at="village_id",
+                            stratified_by="district_id"),
+)
+data.info()                  # levels, sources, candidates, missing values, design checks
+
+result = nexis.discover(data, outcome="consumption")
+result.modifiers             # ['atom_3']
+result.table()               # every candidate: level, clustering, support, p-value, status
+interpretation = result.interpret(k=4)
+interpretation               # label, most and least active ids of each learned modifier
+interpretation.show()        # image grid per modifier (matplotlib)
+```
+
+An interpreter is any object with `describe(top, bottom) -> str`, called with the raw
+items (here image arrays; paths work too) of the most and the least active ids.
+
+## Concepts
+
+**Sources.** A `Source` is a table indexed by the ids of one level; its index name (e.g.
+`village_id`) is the level and must be the index name or a column of `units`. Each source
+is broadcast onto the units. Its `time` decides its role: `pre` columns are candidates,
+`during` columns are excluded unless `discover(..., include_during=True)` (include them
+only if the treatment cannot have changed them), `post` columns are outcomes. Its
+`origin` (`measured`, `predicted`, `learned`) is metadata only: every candidate competes
+in one pool and the Bonferroni gates count all of them. Learned sources carry `raw`
+(id -> raw item, read lazily) and an `interpreter`.
+
+**Designs.** `Randomized(treatment, assigned_at, stratified_by=None, sampled_by=None)`
+and `Discontinuity(treatment, running_variable, assigned_at, sampled_by=None,
+cutoff=None)` (sharp). The checks run when the `Dataset` is built and fail with a clear
+message: treatment 0/1 with both arms present, constant within the assignment unit,
+assignment units nested in strata and with the sampling clusters; for a discontinuity, a
+sharp separation (the violating units are named), the inferred cutoff interval and
+direction, and a given cutoff inside that interval. They warn on fewer than 20 clusters
+and on strata holding a single arm. Design variables never enter the candidate pool.
+
+**Clustering rule.** Each candidate's interaction test is clustered at the coarsest of
+the assignment level, the sampling level and the level where the candidate varies
+(detected from the data); HC1 when that is the unit itself. Strata enter as fixed
+effects.
+
+**Support rule.** A clustered test is identified by the clusters behind each (side of the
+candidate) x (arm) cell. For a candidate with a mass point (its most frequent value holds
+at least 10% of the units: binary or sparse), the support is the smallest number of
+distinct clusters over the four cells (at the mode, off the mode) x (treated, control).
+Candidates with support below `min_support` (default 4) are dropped before the search. The
+rule uses only the candidates, the treatment and the clusters, never the outcome, so the
+Bonferroni count over the remaining pool stays valid.
+
+**Missing values** never change the analysis silently. A missing id, or a unit without a
+row in a source, is an error (add a row of NaN to declare a missing value). Units with a
+missing treatment or running variable are dropped by `Dataset`, units with a missing
+outcome by `discover`, each with a warning that counts them by arm. A candidate with a
+missing value among the units analysed is excluded from the pool, with a warning, and
+listed with its count in `data.info()` and `result.table()`. Infinite values are an error.
+
+**The search on arrays.** `discover` runs `nexis.nexis` on the candidate matrix with the
+level-aware test `nexis.design.LevelAwareTest`. The search can also be called directly:
+
+```python
 from nexis import nexis
 
-rng = np.random.default_rng(0)
-n, m = 2000, 100
-w = rng.normal(size=(n, m))          # pre-treatment candidates (e.g. SAE codes, covariates)
-t = rng.binomial(1, 0.5, size=n)     # randomized binary treatment
-y = w[:, 0] + t * (1.0 + 0.5 * w[:, 3] - 0.5 * w[:, 7]) + rng.normal(size=n)
-
-res = nexis(y=y, t=t, w=w, alpha=0.05,
-            backward=False, terminal_filter=True,  # the paper's Algorithm 1
-            rho=0.5, max_rounds=None)
-res.selected                          # [7, 3]: certified coordinates (columns of w)
-res.feature_names                     # "0" ... "99" for an ndarray, column names for a DataFrame
-res.metadata["terminal_candidates"]   # forward-step output S~; S~ minus selected = candidates
-res.metadata["terminal_log"]          # per j in S~: the certification p-value (worst_p)
+res = nexis(y, t, w, backward=False, terminal_filter=True)   # the paper's algorithm
+res.selected, res.feature_names, res.metadata["terminal_candidates"]
 ```
 
-`w` holds every candidate, learned or hand-crafted, in one matrix: all its columns compete
-in one search and the Bonferroni gates count all of them. It can be an ndarray or a pandas
-DataFrame; for a DataFrame, `res.feature_names` are its column names and
-`w.attrs["cluster"]` supplies cluster labels (cluster-robust tests) when `cluster=` is not
-passed. `marginal_select(y, t, w, ...)` takes the same `w`. Continuing the example:
-
-```python
-import pandas as pd
-
-df = pd.DataFrame(w, columns=[f"atom_{j}" for j in range(m)])
-df.attrs["cluster"] = np.arange(n) // 20     # e.g. the village of each unit
-res = nexis(y=y, t=t, w=df, backward=False, terminal_filter=True)
-[res.feature_names[j] for j in res.selected]   # ["atom_7", "atom_3"]
-```
-
-For multilevel data (treatment assigned to, or candidates varying at, a coarser level than
-the row), `nexis.design.LevelAwareTest` is a level-aware clustered test to pass as
-`pvalue_fn=`.
-
-The defaults of `nexis()` are those of an earlier version of the method (interleaved
-backward step, no terminal step) and are kept so that older results reproduce. Always pass
-`backward=False, terminal_filter=True` to run the paper's algorithm.
+`w` is an (n, m) array or DataFrame of every candidate (a DataFrame's column names become
+`feature_names`, and `w.attrs["cluster"]` supplies cluster labels when `cluster=` is not
+passed). The defaults of `nexis()` are those of an earlier version of the method
+(interleaved backward step, no terminal step), kept so that older results reproduce:
+always pass `backward=False, terminal_filter=True` for the paper's algorithm.
 
 | Parameter | Default | Paper | Meaning |
 |---|---|---|---|
-| `alpha` | `0.05` | `0.05` | Level α: forward gate α/\|S̄\|, terminal gate α/m (m = columns of `w`) |
+| `alpha` | `0.05` | `0.05` | Level α: forward gate α/\|remaining\|, terminal gate α/m (m = columns of `w`) |
 | `backward` | `True` | `False` | Interleaved backward step after every forward addition |
-| `terminal_filter` | `False` | `True` | Terminal certification: keep j ∈ S̃ only if p_j(A) ≤ α/m for every A ⊆ S̃ \ {j} |
+| `terminal_filter` | `False` | `True` | Keep j ∈ S̃ only if p_j(A) ≤ α/m for every A ⊆ S̃ \ {j} |
 | `rho` | `0.5` | `0.5` | Spectral-gap stop: new \|t\| < ρ · min \|t\| of the selected; `0`/`None` disables |
 | `adjust` | `"FWER"` | `"FWER"` | Forward gate: Bonferroni, `"FDR"` (Benjamini–Hochberg) or `None` |
 | `max_rounds` | `20` | no cap | Cap on forward rounds (CelebA sweeps: 10; applications: 20, never binding) |
 | `test` | `"linear"` | `"linear"` | T × Z_j interaction t-test; also `"GCM: ..."` and `"PCM: ..."` (nonparametric) |
-| `cluster`, `hc1`, `pvalue_fn` | `None` | Ghana: clusters | Cluster-robust or HC1 errors, or a custom conditional test |
+| `cluster`, `hc1`, `pvalue_fn` | `None` | | Cluster-robust or HC1 errors, or a custom conditional test |
 
-See the docstring of `nexis()` ([`src/nexis/search.py`](src/nexis/search.py)) for all options.
+See the docstrings (`help(nexis.discover)`, `help(nexis.nexis)`) and the architecture
+overview in [`src/nexis/__init__.py`](src/nexis/__init__.py).
 
-## Repository layout
-
-```
-src/nexis/         the installable package, app-agnostic:
-  search.py        the NEXIS search: nexis(), marginal_select(), SelectionResult
-  pvalues.py       the conditional CATE tests (linear OLS/HC1/CR1S, GCM, PCM)
-  design.py        level-aware clustered CATE test and support rule for multilevel data
-  checks.py        post-hoc design checks: randomization test, wild cluster bootstrap
-  effects.py       HC1-robust OLS and the ATE
-  sae.py           TopK SAE training (overcomplete, `gpu` extra), used by CelebA
-src/apps/<app>/    one pipeline per application: celeba, uganda, ghana (not installed)
-                   (data, embeddings, SAE, NEXIS runs, VLM interpretation, figures)
-src/apps/realworld_final_runs.py
-                   the Uganda and Ghana runs behind the paper's application numbers
-src/apps/realworld_harness.py
-                   their shared run configurations and reporting (run(), cells())
-src/apps/celeba/benchmark/
-                   self-contained CelebA benchmark package, one command per block
-scripts/<app>/     shell launchers: submit_<step>.sh (SLURM), run_<step>.sh (bash)
-animations/        Manim scenes for the website videos
-docs/              project website (GitHub Pages: index.html, assets/)
-```
-
-Package code (`src/nexis`) stays minimal, app-agnostic and free of experiment-specific
-options; application logic belongs in `src/apps`, which imports it as `from nexis import
-...` and `from nexis.design import ...`.
+**Tests.** `python tests/test_regression.py` (the engine's outputs are frozen in
+`tests/expected.json`), `python tests/test_api.py`, `python tests/test_examples.py`; all
+run on synthetic data, with or without pytest.
 
 ## Reproducing the paper
 
-Scripts target SLURM but also run with `bash` from the repo root; logs go to `logs/`,
-outputs to the untracked `data/` and `results/`. GPUs are needed for embeddings, SAE
-training and VLM interpretation; NEXIS itself runs on CPU in minutes. GPU training is not
-bit-reproducible, so a retrained SAE gives other coordinate indices than the ones quoted in
-the paper. Each application has a `README.md` in its folder (`src/apps/<app>/`) with every
-number the paper quotes, its source file and script, and the design choices behind it.
+| Case study | Data | Code and numbers |
+|---|---|---|
+| CelebA (semi-synthetic benchmark) | public | [`src/apps/celeba/README.md`](src/apps/celeba/README.md) |
+| Uganda YOP (Youth Opportunities Program) | public replication data, imagery re-downloaded | [`src/apps/uganda/README.md`](src/apps/uganda/README.md) |
+| Ghana LEAP 1000 (Livelihood Empowerment Against Poverty) | restricted survey | [`src/apps/ghana/README.md`](src/apps/ghana/README.md) |
 
-### CelebA (semi-synthetic benchmark)
+Each application README lists every number the paper quotes, its source file and script,
+and the design choices behind it. Scripts in `scripts/<app>/` target SLURM but also run
+with `bash` from the repo root; logs go to `logs/`, outputs to the untracked `data/` and
+`results/`. GPUs are needed for embeddings, SAE training and VLM interpretation; NEXIS
+itself runs on CPU in minutes. GPU training is not bit-reproducible, so a retrained SAE
+gives other atom indices than the ones quoted in the paper. The application scripts call
+the engine directly (`nexis.nexis`, and `nexis.design.build_rule` with its own default
+`min_support=5`), so their numbers do not depend on the defaults of `discover`.
+
+### CelebA
 
 Data: the 19,867 validation images of CelebA, streamed from the Hugging Face mirror
-`flwrlabs/celeba` at a pinned revision (no manual download). Compute: embeddings and SAEs
-~1 h on one GPU, sweeps ~400 CPU-hours. Figure map: [`src/apps/celeba/README.md`](src/apps/celeba/README.md) (Section 7).
+`flwrlabs/celeba` at a pinned revision. Compute: embeddings and SAEs ~1 h on one GPU,
+sweeps ~400 CPU-hours.
 
 ```bash
 # GPU: SigLIP 2 embeddings and TopK SAEs (m = 9,216, k = 5 and 20), plus the replica SAE
@@ -155,7 +190,7 @@ bash scripts/celeba/submit_experiment.sh          # main, k=5, Z_pre, method abl
 bash scripts/celeba/submit_experiment_ushape.sh   # U-shape DGP
 bash scripts/celeba/submit_dgp_extra.sh           # replica, r = 3, 1, 0
 bash scripts/celeba/submit_per_modifier_recall.sh
-bash scripts/celeba/submit_alignment_appendix.sh     # Principal Alignment check
+bash scripts/celeba/submit_alignment_appendix.sh  # Principal Alignment check
 # Figures and tables -> results/celeba/figures_v2/
 python src/apps/celeba/figure_main.py --data-dir results/celeba/experiment_v2/k20/sae \
     --out-path results/celeba/figures_v2/figure_main.pdf --nexis-key NEXIS-v2
@@ -170,20 +205,12 @@ python src/apps/celeba/run_statistics.py
 ```
 
 [`src/apps/celeba/benchmark/`](src/apps/celeba/benchmark/README.md) is a self-contained
-package that reproduces every CelebA experiment (`python run.py <block>` from that folder); only its `main` and `violation` blocks are
-checked against the paper so far. It will be folded into `src/apps/celeba` as the
-canonical CelebA pipeline, running on the single `nexis` package.
+package for every CelebA experiment (`python run.py <block>` from that folder); only its
+`main` and `violation` blocks are checked against the paper so far.
 
-### Uganda YOP (Youth Opportunities Program)
+### Uganda YOP
 
-Data: survey microdata from the public replication release of Jerzak et al. (2023) of the
-Blattman, Fiala & Martinez (2014) trial
-([Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/O8XOSF),
-[Hugging Face](https://huggingface.co/datasets/cjerzak/ImageHeterogeneity)), as
-`data/uganda/UgandaDataProcessed.csv`; we do not redistribute it. Landsat 7 tiles are
-re-extracted from Google Earth Engine (`earthengine authenticate`); its imagery cannot be
-redistributed, so the scripts download it. Compute: SAE ~1 h on one GPU,
-VLM ~30 min on one H100. Details: [`src/apps/uganda/README.md`](src/apps/uganda/README.md).
+Compute: SAE ~1 h on one GPU, VLM ~30 min on one H100.
 
 ```bash
 python src/apps/uganda/download_tiles.py --mode rct        # 331 trial sites
@@ -201,12 +228,10 @@ python src/apps/uganda/figure_maps.py
 python src/apps/figure1_tiles.py                           # Figure 1 tiles
 ```
 
-### Ghana LEAP 1000 (Livelihood Empowerment Against Poverty)
+### Ghana LEAP 1000
 
-Data: the LEAP 1000 household panel (2015–2017) is restricted (contact UNICEF Ghana) and
-must not be redistributed; Landsat 8 tiles from Google Earth Engine. Compute: SAE ~2 h and
-VLM ~45 min on one H100. Details: [`src/apps/ghana/README.md`](src/apps/ghana/README.md)
-(Section 11 for path conventions).
+Compute: SAE ~2 h and VLM ~45 min on one H100. Run notes: Section 11 of
+[`src/apps/ghana/README.md`](src/apps/ghana/README.md).
 
 ```bash
 python src/apps/ghana/download_satellite_images.py --year 2015   # 162 communities
@@ -223,6 +248,21 @@ python src/apps/ghana/figure_neural_1777.py                      # exploratory f
 python src/apps/ghana/figure_maps.py
 ```
 
+## Data
+
+The real-world data are not distributed with this repository, and it contains no
+unit-level records; the tests and the example use synthetic data.
+
+- **CelebA**: public; the scripts stream it from the Hugging Face mirror `flwrlabs/celeba`.
+- **Uganda YOP**: survey microdata from the public replication release of Jerzak et al.
+  (2023) of the Blattman, Fiala & Martinez (2014) trial
+  ([Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/O8XOSF),
+  [Hugging Face](https://huggingface.co/datasets/cjerzak/ImageHeterogeneity)), saved as
+  `data/uganda/UgandaDataProcessed.csv`. Landsat 7 imagery is re-extracted from Google
+  Earth Engine (`earthengine authenticate`), since it cannot be redistributed.
+- **Ghana LEAP 1000**: the household panel (2015–2017) is restricted: request access from
+  UNICEF Ghana; it must not be redistributed. Landsat 8 imagery from Google Earth Engine.
+
 ## Citation
 
 ```bibtex
@@ -230,8 +270,7 @@ python src/apps/ghana/figure_maps.py
   title   = {From Tokens to Policy: Causal and Interpretable Heterogeneous Treatment Effects Identification},
   author  = {Cadei, Riccardo and Otchere, Frank and Tirivayi, Nyasha and Angeles Tagliaferro, Gustavo and Bargagli-Stoffi, Falco J. and Locatello, Francesco},
   year    = {2026},
-  url     = {https://arxiv.org/abs/2606.17010},
-  note    = {Under review}
+  url     = {https://arxiv.org/abs/2606.17010}
 }
 ```
 
