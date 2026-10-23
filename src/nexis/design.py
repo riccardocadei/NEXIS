@@ -22,18 +22,24 @@ further parts of the rule:
   * Blocking.  When assignment was blocked with unequal treated shares, the block
     fixed effects enter the nuisance design (`d["block"]`).
   * Support.  A clustered t-test on T x Z_j is identified by the clusters that hold
-    each (side of Z_j) x (arm) cell.  A candidate with a mass point (binary or sparse)
-    whose minority side has fewer than `min_support` clusters in either arm is not
-    testable at L_j (the few-treated-clusters failure, MacKinnon & Webb 2017) and is
-    removed from the pool before the search.  The gate uses only Z, T and the
-    clusters, never Y, so Bonferroni over the remaining pool stays valid.
+    each (side of Z_j) x (arm) cell.  For a candidate with a mass point (its modal
+    value holds >= 10% of the rows: binary or sparse), the support is the smallest
+    number of distinct L_j clusters over the four cells (Z_j = mode, Z_j != mode) x
+    (T = 1, T = 0); rows count as clusters under HC1.  A candidate with support below
+    `min_support` is not testable at L_j (the few-treated-clusters failure, MacKinnon
+    & Webb 2017) and is removed from the pool before the search; candidates without a
+    mass point (continuous) have no support requirement.  The gate uses only Z, T and
+    the clusters, never Y, so Bonferroni over the remaining pool stays valid.
+    Candidates with a missing value are not testable either.
 
 The same test runs in the forward step, the interleaved backward step and the terminal
 subset enumeration.
 
-A pool `d` is a dict with keys y, t, z (n x m), names, published, levels (name ->
-partition codes), order (level names, coarse to fine), assign, block (a level name or
-None), community.  The application pools are built in src/apps/{uganda,ghana}/pool.py.
+A pool `d` is a dict with keys y, t, z (n x m), names, levels (level name -> partition
+codes, one per row), order (level names, coarse to fine), assign (the level name of the
+assignment unit) and, for the randomization test, block (a level name).  The application
+pools (src/apps/{uganda,ghana}/pool.py) carry a few more keys for their reports;
+nexis.discover builds one from a Dataset.
 """
 
 from __future__ import annotations
@@ -53,6 +59,7 @@ MIN_SUPPORT = 5
 # ── Partitions ────────────────────────────────────────────────────────────────
 
 def codes(x) -> np.ndarray:
+    """Integer codes 0..G-1 of the labels in x (compared as strings)."""
     return pd.factorize(pd.Series(np.asarray(x)).astype(str))[0]
 
 
@@ -180,7 +187,7 @@ class LevelAwareTest:
         return (pv, ts) if return_tstats else pv
 
 
-def plain_test(cluster=None, hc1=False, m=None):
+def plain_test(cluster: np.ndarray | None = None, hc1: bool = False, m: int | None = None):
     """One clustering (or HC1) for every candidate, no FE.
 
     Clustered / HC1 variants go through LevelAwareTest, which reproduces
@@ -198,17 +205,24 @@ def plain_test(cluster=None, hc1=False, m=None):
 
 # ── The correction rule ───────────────────────────────────────────────────────
 
-def block_fe(block):
+def block_fe(block) -> np.ndarray:
+    """Dummies of the blocks in `block`, the first block dropped (n x (G - 1))."""
     c = codes(block)
     return np.column_stack([(c == b).astype(float) for b in range(1, c.max() + 1)])
 
 
-def build_rule(d, min_support=MIN_SUPPORT):
+def build_rule(d: dict, min_support: int = MIN_SUPPORT):
     """Per-candidate level, cluster partition L_j, G_j and support at L_j.
+
+    Uses d["t"], d["z"], d["names"], d["levels"], d["order"] and d["assign"].  The
+    support of a candidate with a mass point is the smallest number of distinct L_j
+    clusters (rows under HC1) over the four cells (Z_j = mode, Z_j != mode) x
+    (T = 1, T = 0); it is None for a candidate without a mass point.  A candidate is
+    `testable` when it has no missing value and its support is None or >= min_support.
 
     Returns (keys, parts, info): the partition key of every candidate, the partitions
     by key (None = HC1), and per candidate a dict with its level, cluster, G, support
-    and whether it passes the support gate (`testable`)."""
+    and testable."""
     lv, t, z = d["levels"], d["t"], d["z"]
     assign = lv[d["assign"]]
     finest = d["order"][-1]

@@ -4,7 +4,8 @@
   randomization_test       replays the lottery of the assignment units within blocks
   wild_cluster_bootstrap   restricted (null-imposed) wild cluster bootstrap-t
 
-A pool `d` is the dict described in nexis.design.
+A pool `d` is the dict described in nexis.design.  These checks are not run by
+nexis.discover; the application scripts run them on the published sets.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ def worst_subset(fn, y, t, z, S, j, gate, full_max=10):
 
 # ── Post-hoc design-based checks ─────────────────────────────────────────────
 
-def _cr_last(X, y, C, factor_G):
+def _cr_last(X, y, C):
     """OLS coefficient on the last column of X and its CR1S (or HC1 if C is None) t.
 
     A singular design returns (None, 0.0).  In the permutation and bootstrap draws below
@@ -66,7 +67,8 @@ def _cr_last(X, y, C, factor_G):
     return b[-1], b[-1] / np.sqrt(v)
 
 
-def _design(t, z, S, j, fe):
+def _kept_columns(t, z, S, j, fe):
+    """Columns of [1, T, FE, Z_S, T*Z_S, Z_j, T*Z_j] kept after dropping collinear ones."""
     n = len(t)
     cols = [np.ones(n), t] + ([] if fe is None else list(fe.T))
     cols += [z[:, k] for k in S] + [t * z[:, k] for k in S] + [z[:, j], t * z[:, j]]
@@ -88,10 +90,10 @@ def randomization_test(d, S, j, n_perm, seed=0):
     grp, dist = d["levels"][d["assign"]], d["levels"][d["block"]]
     fe = block_fe(dist)
     C = sp.csr_matrix((np.ones(len(grp)), (np.arange(len(grp)), grp)))
-    keep = _design(t, z, S, j, fe)
+    keep = _kept_columns(t, z, S, j, fe)
     X = lambda tt: np.column_stack([np.ones(len(tt)), tt] + list(fe.T) + [z[:, k] for k in S]  # noqa: E731
                                    + [tt * z[:, k] for k in S] + [z[:, j], tt * z[:, j]])[:, keep]
-    b_obs, t_obs = _cr_last(X(t), y, C, True)
+    b_obs, t_obs = _cr_last(X(t), y, C)
     degenerate = int(b_obs is None)
     Xr = X(t)[:, :-1]
     br = np.linalg.lstsq(Xr, y, rcond=None)[0]
@@ -115,7 +117,7 @@ def randomization_test(d, S, j, n_perm, seed=0):
         for b, k in zip(blocks, n_t):
             gt[rng.choice(b, size=k, replace=False)] = 1.0
         ts = gt[grp]
-        b_star, t_star = _cr_last(X(ts), y0 + ts * tau, C, True)
+        b_star, t_star = _cr_last(X(ts), y0 + ts * tau, C)
         degenerate += b_star is None
         count += abs(t_star) >= abs(t_obs) - 1e-12
     return dict(t_obs=float(t_obs), p=(1 + count) / (n_perm + 1), floor=1 / (n_perm + 1),
@@ -128,10 +130,10 @@ def wild_cluster_bootstrap(d, S, j, cluster, n_boot, seed=0):
     y, t, z = d["y"], d["t"], d["z"]
     g = codes(cluster)
     C = sp.csr_matrix((np.ones(len(g)), (np.arange(len(g)), g)))
-    keep = _design(t, z, S, j, None)
+    keep = _kept_columns(t, z, S, j, None)
     cols = [np.ones(len(t)), t] + [z[:, k] for k in S] + [t * z[:, k] for k in S] + [z[:, j], t * z[:, j]]
     X = np.column_stack(cols)[:, keep]
-    b_obs, t_obs = _cr_last(X, y, C, True)
+    b_obs, t_obs = _cr_last(X, y, C)
     degenerate = int(b_obs is None)
     Xr = X[:, :-1]
     fit = Xr @ np.linalg.lstsq(Xr, y, rcond=None)[0]
@@ -139,7 +141,7 @@ def wild_cluster_bootstrap(d, S, j, cluster, n_boot, seed=0):
     count = 0
     for _ in range(n_boot):
         w = rng.choice([-1.0, 1.0], size=C.shape[1])[g]
-        b_star, tb = _cr_last(X, fit + w * res, C, True)
+        b_star, tb = _cr_last(X, fit + w * res, C)
         degenerate += b_star is None
         count += abs(tb) >= abs(t_obs) - 1e-12
     return dict(t_obs=float(t_obs), p=(1 + count) / (n_boot + 1), floor=1 / (n_boot + 1),

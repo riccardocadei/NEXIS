@@ -6,7 +6,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from itertools import combinations
 from math import lgamma, log10
-from typing import Callable, List, Optional, Sequence, Dict, Tuple, Union
+from collections.abc import Callable, Sequence
+from typing import Any
+
 import numpy as np
 
 from .pvalues import (conditional_interaction_pvalues, conditional_interaction_pvalues_gcm,
@@ -15,12 +17,21 @@ from .pvalues import (conditional_interaction_pvalues, conditional_interaction_p
 
 @dataclass
 class SelectionResult:
-    selected: List[int]            # indices into the feature space nexis ran on
-    pvalues: np.ndarray            # one entry per feature in that space
+    """Output of nexis() and marginal_select().
+
+    selected: the selected columns of the candidate matrix, in selection order.
+    pvalues: one p-value per column (for a selected column, given the rest of the set).
+    method: a label of the configuration that ran.
+    alpha: the level.
+    metadata: run details (m, rounds, the terminal-filter log, ...).
+    feature_names: one name per column of the candidate matrix.
+    """
+    selected: list[int]
+    pvalues: np.ndarray
     method: str
     alpha: float
-    metadata: Dict[str, float]
-    feature_names: List[str] = field(default_factory=list)  # one name per column of w
+    metadata: dict[str, Any]
+    feature_names: list[str] = field(default_factory=list)
 
 
 def _candidate_matrix(w, cluster=None):
@@ -72,7 +83,7 @@ def default_alpha_spending(s: int) -> float:
     return 1.0 / (s * (s + 1))
 
 
-AlphaSpending = Union[Callable[[int], float], Sequence[float], None]
+AlphaSpending = Callable[[int], float] | Sequence[float] | None
 
 
 def _log_comb(n: int, k: int) -> float:
@@ -90,7 +101,7 @@ def log10_n_backward_hypotheses(m: int, s: int) -> float:
 
 
 def resolve_alpha_spending(spending: AlphaSpending,
-                           max_depth: Optional[int] = None) -> Callable[[int], float]:
+                           max_depth: int | None = None) -> Callable[[int], float]:
     """Validate and normalise an alpha-spending specification.
 
     spending may be None (use the default 1/(s(s+1))), a callable s -> w_s, or a
@@ -134,7 +145,7 @@ def resolve_alpha_spending(spending: AlphaSpending,
 
 
 def pathwise_backward_gate(alpha: float, m: int, s: int,
-                           weight_fn: Callable[[int], float]) -> Tuple[float, float, float]:
+                           weight_fn: Callable[[int], float]) -> tuple[float, float, float]:
     """Return (g_s, log10 g_s, log10 N_s) for the pathwise backward gate at depth s.
 
     g_s underflows to 0.0 in float64 for very large s; log10 g_s is exact, so
@@ -163,9 +174,9 @@ def marginal_select(
     t: np.ndarray,
     w,
     alpha: float = 0.05,
-    adjust: Optional[str] = None,  # None | "FWER" | "FDR"
-    groups: Optional[Dict[str, List[int]]] = None,
-    cluster: Optional[np.ndarray] = None,
+    adjust: str | None = None,  # None | "FWER" | "FDR"
+    groups: dict[str, list[int]] | None = None,
+    cluster: np.ndarray | None = None,
 ) -> SelectionResult:
     """Marginal interaction test with optional multiple-testing adjustment.
 
@@ -185,7 +196,7 @@ def marginal_select(
     if _adj is None:
         selected = np.where(pvals <= alpha)[0].tolist()
         method = "marginal_raw"
-        metadata: Dict[str, float] = {"threshold": float(alpha), "m": float(m)}
+        metadata: dict[str, Any] = {"threshold": float(alpha), "m": float(m)}
     elif _adj == "FWER":
         if groups is not None:
             # Per-group Bonferroni: each group corrects for its own size only.
@@ -237,26 +248,26 @@ def nexis(
     t: np.ndarray,
     w,
     alpha: float = 0.05,
-    max_rounds: Optional[int] = 20,
-    rho: Optional[float] = 0.5,
+    max_rounds: int | None = 20,
+    rho: float | None = 0.5,
     backward: bool = True,
-    adjust: Optional[str] = "FWER",  # None | "FWER" (Bonferroni) | "FDR" (BH)
+    adjust: str | None = "FWER",  # None | "FWER" (Bonferroni) | "FDR" (BH)
     test: str = "linear",            # "linear" | "quadratic" | "GCM" | "PCM" variants
     nuisance: str = "poly2",         # gcm/pcm only: "poly2" | "lgbm" | "rf"
     n_splits: int = 5,             # gcm/pcm only
     n_estimators: int = 100,       # gcm/pcm only
-    max_depth: Optional[int] = None,  # gcm/pcm only
+    max_depth: int | None = None,  # gcm/pcm only
     pcm_projection: str = "poly",    # pcm only: "poly" | "lgbm"
     pcm_order: int = 2,              # pcm only: polynomial-projection degree
     pcm_screen_top: int = 32,        # pcm only: candidates refitted with the ML projection
     pcm_combine: str = "bonferroni", # pcm only: "bonferroni" (2·min) | "single" | "crossfit" (invalid)
-    cluster: Optional[np.ndarray] = None,  # CR1S cluster-robust SEs (linear test)
+    cluster: np.ndarray | None = None,  # CR1S cluster-robust SEs (linear test)
     hc1: bool = False,                     # HC1 robust SEs (linear test, when cluster is None)
     backward_gate: str = "standard",       # "standard" (alpha/s) | "pathwise" (g_s)
     alpha_spending: AlphaSpending = None,  # pathwise only; default w_s = 1/(s(s+1))
     pvalue_fn=None,                        # custom conditional test (see below)
     terminal_filter: bool = False,         # subset-robust terminal filter at alpha/m
-    terminal_max_size: Optional[int] = None,  # refuse to enumerate beyond this |S~|
+    terminal_max_size: int | None = None,  # refuse to enumerate beyond this |S~|
     verbose: bool = False,
 ) -> SelectionResult:
     """Forward(-backward) selection (NEXIS — Neural Exposure Interaction Search).
@@ -291,10 +302,9 @@ def nexis(
 
     test:
       "linear"  — parametric interaction t-test; fast, assumes linear effects.
-                  Supports controls / main_controls / interaction_only.
-      "gcm"     — GCM-hybrid test (nonparametric φ̂, linear Z^j residualisation).
+      "GCM: quadratic" / "GCM: lgbm"
+                — GCM-hybrid test (nonparametric φ̂, linear Z^j residualisation).
                   Speed: ~1.2× (poly2), ~3× (lgbm), ~27× (rf) vs linear.
-                  controls / main_controls / interaction_only are ignored.
       "PCM: quadratic" / "PCM: lgbm"
                 — modified Projected Covariance Measure (Lundborg, Kim, Shah &
                   Samworth, 2024): a one-sided conditional-MEAN-independence test
@@ -391,7 +401,7 @@ def nexis(
         raise ValueError("backward_gate must be 'standard' or 'pathwise'")
     _weight_fn = (resolve_alpha_spending(alpha_spending, max_depth=max_rounds)
                   if _bwd == "pathwise" else None)
-    backward_log: List[Dict[str, float]] = []
+    backward_log: list[dict[str, float]] = []
 
     y_arr = np.asarray(y, dtype=float).reshape(-1)
     t_arr = np.asarray(t, dtype=float).reshape(-1)
@@ -425,14 +435,14 @@ def nexis(
             return_tstats=return_tstats, cluster=cluster, hc1=hc1,
         )
 
-    selected: List[int] = []
+    selected: list[int] = []
     last_pvals = np.ones(total, dtype=float)
     selected_pvals = np.ones(total, dtype=float)
-    t_selected: List[float] = []
+    t_selected: list[float] = []
 
     need_tstats = rho is not None
 
-    S_prev: List[int] = [-1]  # sentinel
+    S_prev: list[int] = [-1]  # sentinel
     round_num = 0
     _gate2_stop = False
     n_rejections = 0
@@ -580,7 +590,7 @@ def nexis(
         round_num += 1
 
     # ── Terminal filter ───────────────────────────────────────────────────────
-    terminal_log: List[Dict[str, object]] = []
+    terminal_log: list[dict[str, object]] = []
     terminal_candidates = list(selected)
     terminal_tests = 0
     gate_terminal = alpha / total
@@ -588,7 +598,7 @@ def nexis(
         if terminal_max_size is not None and len(selected) > terminal_max_size:
             raise ValueError(f"terminal filter: |S~|={len(selected)} exceeds "
                              f"terminal_max_size={terminal_max_size}")
-        keep: List[int] = []
+        keep: list[int] = []
         for j in terminal_candidates:
             others = [s for s in terminal_candidates if s != j]
             worst_p, worst_A = 0.0, []
@@ -642,7 +652,7 @@ def nexis(
     elif _adj == "FDR":
         method_str += "_fdr"
 
-    meta: Dict[str, object] = {
+    meta: dict[str, object] = {
         "m": float(total),
         "steps": float(len(selected)),
         "rejections": float(n_rejections),

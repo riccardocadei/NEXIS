@@ -14,7 +14,8 @@ with return_tstats=True; any function with that signature can be passed to nexis
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
+
 import numpy as np
 from scipy import stats
 
@@ -45,10 +46,10 @@ def conditional_interaction_pvalues(
     y: np.ndarray,
     t: np.ndarray,
     z: np.ndarray,
-    S: Optional[Sequence[int]] = None,
-    candidates: Optional[Sequence[int]] = None,
+    S: Sequence[int] | None = None,
+    candidates: Sequence[int] | None = None,
     return_tstats: bool = False,
-    cluster: Optional[np.ndarray] = None,
+    cluster: np.ndarray | None = None,
     hc1: bool = False,
 ):
     """
@@ -192,7 +193,7 @@ def conditional_interaction_pvalues(
 
 # ── GCM helpers ───────────────────────────────────────────────────────────────
 
-def _make_nuisance_model(nuisance: str, n_estimators: int, max_depth: Optional[int],
+def _make_nuisance_model(nuisance: str, n_estimators: int, max_depth: int | None,
                          random_state: int):
     """Return a fitted-model factory for the chosen nuisance estimator.
 
@@ -270,12 +271,12 @@ def conditional_interaction_pvalues_gcm(
     y: np.ndarray,
     t: np.ndarray,
     z: np.ndarray,
-    S: Optional[Sequence[int]] = None,
-    candidates: Optional[Sequence[int]] = None,
+    S: Sequence[int] | None = None,
+    candidates: Sequence[int] | None = None,
     nuisance: str = "poly2",
     n_splits: int = 5,
     n_estimators: int = 100,
-    max_depth: Optional[int] = None,
+    max_depth: int | None = None,
     return_tstats: bool = False,
 ) -> np.ndarray:
     """GCM-hybrid p-values for H0(j|S) over j in candidates.
@@ -373,7 +374,7 @@ def conditional_interaction_pvalues_gcm(
 #
 # which is exactly PCM's null with V = φ, X = Z^j and Z = Z^S.
 
-def _pcm_basis(x: np.ndarray, order: int) -> List[np.ndarray]:
+def _pcm_basis(x: np.ndarray, order: int) -> list[np.ndarray]:
     """Polynomial basis {x, x², …} applied column-wise to an (n, c) block."""
     return [x ** k for k in range(1, order + 1)]
 
@@ -402,7 +403,7 @@ def _pcm_fit_projection(
     B = _pcm_basis(Zc_tr, order)                       # order × (n_tr, c)
 
     mu = np.empty((order, c)); sd = np.empty((order, c))
-    Bt: List[np.ndarray] = []
+    Bt: list[np.ndarray] = []
     for k, b in enumerate(B):
         mu[k] = b.mean(axis=0)
         s = b.std(axis=0)
@@ -480,12 +481,12 @@ def conditional_interaction_pvalues_pcm(
     y: np.ndarray,
     t: np.ndarray,
     z: np.ndarray,
-    S: Optional[Sequence[int]] = None,
-    candidates: Optional[Sequence[int]] = None,
+    S: Sequence[int] | None = None,
+    candidates: Sequence[int] | None = None,
     nuisance: str = "poly2",
     n_splits: int = 3,
     n_estimators: int = 100,
-    max_depth: Optional[int] = None,
+    max_depth: int | None = None,
     order: int = 2,
     projection: str = "poly",       # "poly" | "lgbm"
     screen_top: int = 32,           # lgbm only: candidates given an ML projection
@@ -614,7 +615,7 @@ def conditional_interaction_pvalues_pcm(
 
         # ML projection for the training-half top candidates (selection is
         # train-measurable, so the held-out statistic stays valid).
-        ml_cols: Dict[int, np.ndarray] = {}
+        ml_cols: dict[int, np.ndarray] = {}
         if projection == "lgbm" and screen_top > 0:
             k_top = int(min(screen_top, cand.size))
             top = np.argsort(-ess_all)[:k_top]
