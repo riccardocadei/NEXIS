@@ -161,9 +161,9 @@ def test_source_support():
 
 
 def test_declared_support_rule():
-    """The support rule applies to columns declared binary, count or sparse even without
-    a data mass point (the union with the data rule); declared continuous columns with a
-    mass point get it from the data, with a warning."""
+    """The support rule applies to columns declared binary or sparse even without a data
+    mass point (the union with the data rule), and to count columns only with one;
+    declared continuous columns with a mass point get it from the data, with a warning."""
     rng = np.random.default_rng(5)
     # sparse village atom: zero is its most frequent value but holds only 3 of 40 villages
     atom = rng.exponential(size=40)
@@ -179,6 +179,11 @@ def test_declared_support_rule():
     assert t_sp.loc["atom", "status"].startswith("dropped: support")
     # every other candidate is unchanged
     assert t_sp.drop(index="atom").drop(columns="p_value").equals(t_nn.drop(index="atom").drop(columns="p_value"))
+    # declared count without a data mass point: no support rule
+    cnt = pd.DataFrame({"n": np.arange(40, dtype=float) * 7 % 41}, index=pd.Index(np.arange(40), name="village"))
+    t_ct = discover(village_study(pre_extra=Source(cnt, level="village", time="pre", support="count"))[0],
+                    "y").table().set_index("covariate")
+    assert pd.isna(t_ct.loc["n", "support"]) and not t_ct.loc["n", "status"].startswith("dropped")
     # declared continuous with a mass point: the data rule applies, with a warning
     dummy = pd.DataFrame({"dummy": (np.arange(40) % 3 == 0).astype(float)},
                          index=pd.Index(np.arange(40), name="village"))

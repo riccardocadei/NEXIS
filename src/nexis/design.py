@@ -24,7 +24,7 @@ further parts of the rule:
   * Support.  A clustered t-test on T x Z_j is identified by the clusters that hold
     each (side of Z_j) x (arm) cell.  For a candidate with a mass point (its modal
     value holds >= 10% of the rows: binary or sparse; or, optionally, one declared
-    binary, count or sparse), the support is the smallest number of distinct L_j
+    binary or sparse), the support is the smallest number of distinct L_j
     clusters over the four cells (Z_j = mode, Z_j != mode) x (T = 1, T = 0); rows
     count as clusters under HC1.  A candidate with support below
     `min_support` is not testable at L_j (the few-treated-clusters failure, MacKinnon
@@ -222,9 +222,9 @@ def build_rule(d: dict, min_support: int = MIN_SUPPORT, mass_point=None):
     `testable` when it has no missing value and its support is None or >= min_support.
 
     mass_point: optional booleans, one per candidate; True gives the candidate the
-        support rule even when its data show no mass point (nexis.discover passes the
-        columns declared binary, count or sparse).  None (the default) uses the data
-        rule alone.
+        support rule even when its data show no mass point, with the cells split at zero
+        (active vs inactive) when zero occurs (nexis.discover passes the columns declared
+        binary or sparse).  None (the default) uses the data rule alone.
 
     Returns (keys, parts, info): the partition key of every candidate, the partitions
     by key (None = HC1), and per candidate a dict with its level, cluster, G, support
@@ -253,8 +253,11 @@ def build_rule(d: dict, min_support: int = MIN_SUPPORT, mass_point=None):
         fin = np.isfinite(col)
         vals, cnt = np.unique(col[fin], return_counts=True)
         mode = vals[cnt.argmax()]
+        declared = mass_point is not None and mass_point[j]
+        if declared and (vals == 0).any():      # declared binary / sparse: active vs zero
+            mode = 0.0
         support = None
-        if cnt.max() >= 0.1 * fin.sum() or (mass_point is not None and mass_point[j]):
+        if cnt.max() >= 0.1 * fin.sum() or declared:
             gg = g if g is not None else np.arange(len(t))
             side = fin & (col != mode)
             other = fin & (col == mode)

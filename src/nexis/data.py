@@ -62,7 +62,7 @@ TIMES = ("pre", "during", "post")
 ORIGINS = ("measured", "predicted", "learned")
 ACCESS = ("public", "restricted", "proprietary")
 SUPPORTS = ("binary", "count", "nonnegative", "sparse", "continuous")
-MASS_SUPPORTS = ("binary", "count", "sparse")      # always get the support rule
+MASS_SUPPORTS = ("binary", "sparse")      # always get the support rule, split at zero
 
 
 class Interpreter(Protocol):
@@ -295,11 +295,11 @@ class Dataset:
         for s in self.sources:                        # at the source's own level, its ids in use
             rows_ = s.data.loc[pd.Index(self.levels[s.level].unique())]
             flat += [f"{c} ({s.support[c]})" for c in s.data.columns if c in cand
-                     and s.support[c] not in MASS_SUPPORTS and _repeated_mode(rows_[c])]
+                     and s.support[c] in ("continuous", "nonnegative") and _repeated_mode(rows_[c])]
         if flat:
             warnings.warn(f"{len(flat)} columns declared without a mass point repeat a value over >= 10% "
                           f"of their ids, so they get the support rule from the data: {', '.join(flat[:10])}"
-                          f"{', ...' if len(flat) > 10 else ''}; declare them binary, count or sparse",
+                          f"{', ...' if len(flat) > 10 else ''}; declare them binary or sparse if they are",
                           stacklevel=2)
 
     # ── columns by role ──────────────────────────────────────────────────────

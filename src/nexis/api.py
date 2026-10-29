@@ -7,9 +7,10 @@ level-aware by the design (nexis.design.LevelAwareTest):
   * candidate j is clustered at the coarsest of the assignment level, the sampling level
     and the level where Z_j varies (HC1 when that is the unit itself);
   * strata of a stratified randomization enter as fixed effects;
-  * support rule (nexis.design.build_rule): a candidate declared binary, count or
-    sparse, or whose modal value holds >= 10% of the units, is dropped before the
-    search when one of the four cells (Z_j at / off its mode) x (treated / control)
+  * support rule (nexis.design.build_rule): a candidate declared binary or sparse
+    (cells split at zero: active / inactive), or whose modal value holds >= 10% of the
+    units, is dropped before the search when one of the four cells (Z_j at / off its
+    mode) x (treated / control)
     spans fewer than `min_support` clusters; candidates with missing values are
     excluded too.  Bonferroni counts the rest (m).
 """

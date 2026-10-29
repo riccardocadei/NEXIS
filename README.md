@@ -104,8 +104,8 @@ because they change the analysis:
 - `support`: one kind for every column, or a dict giving one per column: `binary`
   ({0, 1}), `count` (integers >= 0), `nonnegative` (reals >= 0), `sparse` (>= 0, zero the
   most frequent value, e.g. SAE activations) or `continuous` (any finite real). Values
-  violating it are an error (NaN is ignored). Binary, count and sparse columns always get
-  the support rule (below).
+  violating it are an error (NaN is ignored). Binary and sparse columns always get
+  the support rule (below); a count column gets it when the data show a mass point.
 
 The data check support and level when the `Source` and the `Dataset` are built; `time`
 is a declaration only (the data cannot tell when a variable was measured). Optional
@@ -132,10 +132,10 @@ the assignment level, the sampling level and the level where the candidate varie
 effects.
 
 **Support rule.** A clustered test is identified by the clusters behind each (side of the
-candidate) x (arm) cell. For a candidate declared `binary`, `count` or `sparse`, or with a
-mass point in the data (its most frequent value holds at least 10% of the units), the
-support is the smallest number of distinct clusters over the four cells (at the mode, off
-the mode) x (treated, control); a column declared `continuous` or `nonnegative` that
+candidate) x (arm) cell. For a candidate declared `binary` or `sparse` (cells: zero vs
+nonzero), or with a mass point in the data (its most frequent value holds at least 10% of
+the units; cells: at the mode vs off it), the support is the smallest number of distinct
+clusters over the four cells x (treated, control); a column declared `continuous` or `nonnegative` that
 repeats a value over 10% of its ids gets the rule from the data, with a warning.
 Candidates with support below `min_support` (default 4) are dropped before the search. The
 rule uses only the candidates, the treatment and the clusters, never the outcome, so the
