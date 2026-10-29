@@ -23,9 +23,10 @@ further parts of the rule:
     fixed effects enter the nuisance design (`d["block"]`).
   * Support.  A clustered t-test on T x Z_j is identified by the clusters that hold
     each (side of Z_j) x (arm) cell.  For a candidate with a mass point (its modal
-    value holds >= 10% of the rows: binary or sparse), the support is the smallest
-    number of distinct L_j clusters over the four cells (Z_j = mode, Z_j != mode) x
-    (T = 1, T = 0); rows count as clusters under HC1.  A candidate with support below
+    value holds >= 10% of the rows: binary or sparse; or, optionally, one declared
+    binary, count or sparse), the support is the smallest number of distinct L_j
+    clusters over the four cells (Z_j = mode, Z_j != mode) x (T = 1, T = 0); rows
+    count as clusters under HC1.  A candidate with support below
     `min_support` is not testable at L_j (the few-treated-clusters failure, MacKinnon
     & Webb 2017) and is removed from the pool before the search; candidates without a
     mass point (continuous) have no support requirement.  The gate uses only Z, T and
@@ -211,7 +212,7 @@ def block_fe(block) -> np.ndarray:
     return np.column_stack([(c == b).astype(float) for b in range(1, c.max() + 1)])
 
 
-def build_rule(d: dict, min_support: int = MIN_SUPPORT):
+def build_rule(d: dict, min_support: int = MIN_SUPPORT, mass_point=None):
     """Per-candidate level, cluster partition L_j, G_j and support at L_j.
 
     Uses d["t"], d["z"], d["names"], d["levels"], d["order"] and d["assign"].  The
@@ -219,6 +220,11 @@ def build_rule(d: dict, min_support: int = MIN_SUPPORT):
     clusters (rows under HC1) over the four cells (Z_j = mode, Z_j != mode) x
     (T = 1, T = 0); it is None for a candidate without a mass point.  A candidate is
     `testable` when it has no missing value and its support is None or >= min_support.
+
+    mass_point: optional booleans, one per candidate; True gives the candidate the
+        support rule even when its data show no mass point (nexis.discover passes the
+        columns declared binary, count or sparse).  None (the default) uses the data
+        rule alone.
 
     Returns (keys, parts, info): the partition key of every candidate, the partitions
     by key (None = HC1), and per candidate a dict with its level, cluster, G, support
@@ -248,7 +254,7 @@ def build_rule(d: dict, min_support: int = MIN_SUPPORT):
         vals, cnt = np.unique(col[fin], return_counts=True)
         mode = vals[cnt.argmax()]
         support = None
-        if cnt.max() >= 0.1 * fin.sum():        # mass point: binary or sparse
+        if cnt.max() >= 0.1 * fin.sum() or (mass_point is not None and mass_point[j]):
             gg = g if g is not None else np.arange(len(t))
             side = fin & (col != mode)
             other = fin & (col == mode)
