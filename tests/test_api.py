@@ -75,15 +75,17 @@ def village_study(during=False, pre_extra=None, y=None):
                              index=pd.Index(np.arange(8), name="district"))
     rows = pd.DataFrame(z[:, 4:], columns=["r1", "r2"], index=units.index)
     outcome = pd.DataFrame({"y": d["y"] if y is None else y}, index=units.index)
-    sources = [Source(villages, "pre", origin="learned", raw={v: f"tile_{v}" for v in range(40)},
-                      interpreter=Echo()),
-               Source(districts, "pre"), Source(rows, "pre", name="survey"),
-               Source(outcome, "post")]
+    sources = [Source(villages, level="village", time="pre", support={"v1": "continuous", "v2": "continuous", "v3": "binary"}, origin="learned",
+                      raw={v: f"tile_{v}" for v in range(40)}, interpreter=Echo()),
+               Source(districts, level="district", time="pre", support="continuous"),
+               Source(rows, level="row", time="pre", support="continuous", name="survey"),
+               Source(outcome, level="row", time="post", support="continuous")]
     if during:
         sources.append(Source(pd.DataFrame({"rain": np.random.default_rng(0).normal(size=8)},
-                                           index=districts.index), "during"))
+                                           index=districts.index), level="district", time="during",
+                              support="continuous"))
     if pre_extra is not None:
-        sources.append(Source(pre_extra, "pre"))
+        sources.append(pre_extra)
     design = Randomized(treatment="T", assigned_at="village", stratified_by="district")
     return Dataset(units, sources, design), d
 
@@ -93,8 +95,10 @@ def rdd_units(n=200, seed=0):
     score = rng.uniform(0, 10, n)
     units = pd.DataFrame({"village": np.arange(n) // 5, "score": score, "T": (score <= 4.0).astype(float)},
                          index=pd.Index(np.arange(n), name="hh"))
-    src = [Source(pd.DataFrame({"x": rng.normal(size=n)}, index=units.index), "pre"),
-           Source(pd.DataFrame({"y": rng.normal(size=n)}, index=units.index), "post")]
+    src = [Source(pd.DataFrame({"x": rng.normal(size=n)}, index=units.index), level="hh", time="pre",
+                  support="continuous"),
+           Source(pd.DataFrame({"y": rng.normal(size=n)}, index=units.index), level="hh", time="post",
+                  support="continuous")]
     return units, src, score
 
 
@@ -102,17 +106,119 @@ def rdd_units(n=200, seed=0):
 
 def test_source_validation():
     df = pd.DataFrame({"a": [1.0, 2.0]}, index=pd.Index([0, 1], name="village"))
-    _raises(lambda: Source(df, "before"), "time")
-    _raises(lambda: Source(df, "pre", origin="guessed"), "origin")
-    _raises(lambda: Source(df.reset_index(drop=True), "pre"), "named index")
-    _raises(lambda: Source(df, "pre", origin="learned"), "raw=", "interpreter=")
-    _raises(lambda: Source(df, "pre", origin="learned", raw={}, interpreter=object()), "describe")
-    _raises(lambda: Source(df.assign(b=["x", "y"]), "pre"), "numeric", "b")
-    _raises(lambda: Source(df.assign(b=[np.inf, 0.0]), "pre"), "infinite")
+    kw = dict(level="village", support="continuous")
+    _raises(lambda: Source(df, time="before", **kw), "time")
+    _raises(lambda: Source(df, time="pre", origin="guessed", **kw), "origin")
+    _raises(lambda: Source(df, time="pre", origin="learned", **kw), "raw=", "interpreter=")
+    _raises(lambda: Source(df, time="pre", origin="learned", raw={}, interpreter=object(), **kw), "describe")
+    _raises(lambda: Source(df.assign(b=["x", "y"]), time="pre", **kw), "numeric", "b")
+    _raises(lambda: Source(df.assign(b=[np.inf, 0.0]), time="pre", **kw), "infinite")
     dup = pd.DataFrame({"a": [1.0, 2.0]}, index=pd.Index([0, 0], name="village"))
-    _raises(lambda: Source(dup, "pre"), "repeats ids")
+    _raises(lambda: Source(dup, time="pre", **kw), "repeats ids")
     nan_id = pd.DataFrame({"a": [1.0, 2.0]}, index=pd.Index([0.0, np.nan], name="village"))
-    _raises(lambda: Source(nan_id, "pre"), "1 missing ids")
+    _raises(lambda: Source(nan_id, time="pre", **kw), "1 missing ids")
+    # level, time and support are required keywords
+    _raises(lambda: Source(df, "pre"), "positional")
+    _raises(lambda: Source(df, level="village", time="pre"), "support")
+    _raises(lambda: Source(df, time="pre", support="continuous"), "level")
+
+
+def test_source_level():
+    df = pd.DataFrame({"a": [1.0, 2.0]}, index=pd.Index([0, 1], name="village"))
+    # an index named otherwise is an error; an unnamed one is named after the level
+    _raises(lambda: Source(df, level="district", time="pre", support="continuous"),
+            "indexed by 'village'", "level='district'")
+    s = Source(df.reset_index(drop=True), level="district", time="pre", support="continuous")
+    assert s.level == "district" and s.data.index.name == "district" and s.name == "district_pre"
+
+
+def test_source_support():
+    idx = pd.Index(range(6), name="v")
+    ok = {"binary": [0, 1, 1, np.nan, 0, 0], "count": [0, 3, 7, 2, 0, np.nan],
+          "nonnegative": [0.0, 0.5, 2.3, 9.0, 0.1, 1.0], "sparse": [0, 0, 0.7, 0, 2.5, np.nan],
+          "continuous": [-1.5, 0.0, 2.0, 3.3, -7.0, np.nan]}
+    for kind, vals in ok.items():                          # NaN is ignored
+        Source(pd.DataFrame({"x": vals}, index=idx), level="v", time="pre", support=kind)
+    bad = {"binary": ([0, 1, 2, 0.5, 0, 1], "2 values", "0.5"), "count": ([0, 1, 2.5, -1, 0, 0], "2 values", "-1.0"),
+           "nonnegative": ([0, 1, -0.2, 3, 4, 5], "1 values", "-0.2"),
+           "sparse": ([0, 1, 1, 1, 0, 2], "zero (2 rows)", "most frequent"),
+           }
+    for kind, (vals, *words) in bad.items():
+        _raises(lambda: Source(pd.DataFrame({"x": vals}, index=idx), level="v", time="pre", support=kind),
+                "'x'", f"declared {kind}", *words)
+    _raises(lambda: Source(pd.DataFrame({"x": [-1.0] * 6}, index=idx), level="v", time="pre",
+                           support="sparse"), "declared sparse", "-1.0")
+    _raises(lambda: Source(pd.DataFrame({"x": [1.0] * 6}, index=idx), level="v", time="pre",
+                           support="real"), "support of 'x'", "'real'")
+    # one kind per column: a dict covering every column exactly
+    two = pd.DataFrame({"a": [0, 1] * 3, "b": np.arange(6.0) - 2}, index=idx)
+    s = Source(two, level="v", time="pre", support={"b": "continuous", "a": "binary"})
+    assert s.support == {"a": "binary", "b": "continuous"}
+    _raises(lambda: Source(two, level="v", time="pre", support={"a": "binary"}), "every column", "['b']")
+    _raises(lambda: Source(two, level="v", time="pre", support={"a": "binary", "b": "continuous", "c": "count"}),
+            "every column", "['c']")
+    _raises(lambda: Source(two, level="v", time="pre", support="binary"), "'b'", "declared binary")
+
+
+def test_declared_support_rule():
+    """The support rule applies to columns declared binary, count or sparse even without
+    a data mass point (the union with the data rule); declared continuous columns with a
+    mass point get it from the data, with a warning."""
+    rng = np.random.default_rng(5)
+    # sparse village atom: zero is its most frequent value but holds only 3 of 40 villages
+    atom = rng.exponential(size=40)
+    atom[[0, 1, 2]] = 0.0
+    extra = pd.DataFrame({"atom": atom}, index=pd.Index(np.arange(40), name="village"))
+    sparse, _ = village_study(pre_extra=Source(extra, level="village", time="pre", support="sparse"))
+    nonneg, _ = village_study(pre_extra=Source(extra, level="village", time="pre", support="nonnegative"))
+    t_sp = discover(sparse, "y").table().set_index("covariate")
+    t_nn = discover(nonneg, "y").table().set_index("covariate")
+    assert t_sp.loc["atom", "kind"] == "sparse" and t_nn.loc["atom", "kind"] == "nonnegative"
+    assert pd.isna(t_nn.loc["atom", "support"]) and not t_nn.loc["atom", "status"].startswith("dropped")
+    assert t_sp.loc["atom", "support"] <= 3
+    assert t_sp.loc["atom", "status"].startswith("dropped: support")
+    # every other candidate is unchanged
+    assert t_sp.drop(index="atom").drop(columns="p_value").equals(t_nn.drop(index="atom").drop(columns="p_value"))
+    # declared continuous with a mass point: the data rule applies, with a warning
+    dummy = pd.DataFrame({"dummy": (np.arange(40) % 3 == 0).astype(float)},
+                         index=pd.Index(np.arange(40), name="village"))
+    data = _warns(lambda: village_study(pre_extra=Source(dummy, level="village", time="pre",
+                                                         support="continuous"))[0],
+                  "1 columns declared without a mass point repeat a value", "dummy (continuous)")
+    assert not pd.isna(discover(data, "y").table().set_index("covariate").loc["dummy", "support"])
+
+
+def test_descriptive_attributes():
+    data, _ = village_study()
+    src = data.sources[0]
+    kw = dict(level="village", time="pre", support=src.support)
+    sat = Source(src.data, origin="learned", raw=src.raw, interpreter=src.interpreter, name="satellite",
+                 modality="image", access="public", reference="data/README.md#satellite", **kw)
+    _raises(lambda: Source(src.data, access="open", **kw), "access", "'open'")
+    _raises(lambda: Source(src.data, modality="", **kw), "modality")
+    data2 = Dataset(data.units, [sat] + data.sources[1:], data.design)
+    text = _printed(data2.info)
+    assert "[modality image, access public, ref data/README.md#satellite]" in text
+    tab = discover(data2, "y").table().set_index("covariate")
+    assert list(tab.columns[-3:]) == ["modality", "access", "reference"]
+    assert tab.loc["v1", "modality"] == "image" and tab.loc["v1", "access"] == "public"
+    assert pd.isna(tab.loc["r1", "modality"]) and pd.isna(tab.loc["r1", "access"])
+    # the search ignores them
+    assert np.array_equal(discover(data, "y").selection.pvalues, discover(data2, "y").selection.pvalues)
+
+
+def test_declared_vs_detected_level():
+    """A household column constant within villages is reported and clustered at the village."""
+    data, d = village_study()
+    vil = data.units["village"].to_numpy()
+    rows = pd.DataFrame({"hh_v": np.random.default_rng(2).normal(size=40)[vil]}, index=data.units.index)
+    data2 = Dataset(data.units, data.sources + [Source(rows, level="row", time="pre", support="continuous")],
+                    data.design)
+    assert data2.varies_at()["hh_v"] == "village" and data2.varies_at()["r1"] == "row"
+    assert "1: hh_v (row -> village)" in _printed(data2.info)
+    tab = discover(data2, "y").table().set_index("covariate")
+    assert (tab.loc["hh_v", "level"], tab.loc["hh_v", "varies_at"]) == ("row", "village")
+    assert tab.loc["hh_v", "clustered_at"] == "village"
 
 
 def test_dataset_validation():
@@ -120,13 +226,14 @@ def test_dataset_validation():
     units, srcs = data.units, data.sources
     # a unit id without a row in the source
     short = srcs[0].data.iloc[1:]
-    _raises(lambda: Dataset(units, [Source(short, "pre")] + srcs[1:], data.design), "no row", "village")
+    short_src = Source(short, level="village", time="pre", support=srcs[0].support)
+    _raises(lambda: Dataset(units, [short_src] + srcs[1:], data.design), "no row", "village")
     # duplicate names across sources
     clash = pd.DataFrame({"v1": 0.0}, index=pd.Index(range(8), name="district"))
-    _raises(lambda: Dataset(units, srcs + [Source(clash, "pre")], data.design), "'v1'")
+    _raises(lambda: Dataset(units, srcs + [Source(clash, level="district", time="pre", support="continuous")], data.design), "'v1'")
     # a level that is not in units
     other = pd.DataFrame({"x": 0.0}, index=pd.Index(range(3), name="county"))
-    _raises(lambda: Dataset(units, srcs + [Source(other, "pre")], data.design), "county")
+    _raises(lambda: Dataset(units, srcs + [Source(other, level="county", time="pre", support="continuous")], data.design), "county")
     # missing ids in units: the unit index or a level column
     _raises(lambda: Dataset(units.set_axis(pd.Index([np.nan] + list(range(1, len(units))), name="row")),
                             srcs, data.design), "missing ids")
@@ -198,7 +305,8 @@ def test_discontinuity_checks():
     _raises(lambda: Dataset(units.assign(score=units["score"].replace(score[3], np.inf)), src,
                             Discontinuity("T", "score", "hh")), "infinite", "3")
     # the running variable is a design variable, never a candidate: it may live in a source
-    src2 = [Source(pd.DataFrame({"x": src[0].data["x"], "pmt": score}, index=units.index), "pre"), src[1]]
+    src2 = [Source(pd.DataFrame({"x": src[0].data["x"], "pmt": score}, index=units.index), level="hh",
+                   time="pre", support="continuous"), src[1]]
     data2 = Dataset(units.drop(columns="score"), src2, Discontinuity("T", "pmt", "hh"))
     assert data2.removed == ["pmt"] and data2.candidates() == ["x"] and data2.outcomes == ["y"]
 
@@ -253,7 +361,7 @@ def test_min_support_default():
     on = list(t_vil.index[t_vil == 1][:4]) + list(t_vil.index[t_vil == 0][:4])
     extra = pd.DataFrame({"s4": np.isin(np.arange(40), on).astype(float)},
                          index=pd.Index(np.arange(40), name="village"))
-    data, _ = village_study(pre_extra=extra)
+    data, _ = village_study(pre_extra=Source(extra, level="village", time="pre", support="binary"))
     res = discover(data, "y")
     assert res.min_support == 4 and "s4" in res.tested
     assert res.table().set_index("covariate").loc["s4", "support"] == 4
@@ -303,7 +411,7 @@ def test_missing_outcome_dropped():
     assert res.n == 315 and list(res.units) == list(range(5, 320))
     # the same as building the Dataset on the units with an outcome
     keep = data.units.index[5:]
-    srcs = [s if s.level != "row" else Source(s.data.loc[keep], s.time, name=s.name) for s in data_na.sources]
+    srcs = [s if s.level != "row" else Source(s.data.loc[keep], level="row", time=s.time, support=s.support, name=s.name) for s in data_na.sources]
     ref = discover(Dataset(data.units.loc[keep], srcs, data.design), "y")
     assert res.modifiers == ref.modifiers and np.array_equal(res.selection.pvalues, ref.selection.pvalues)
     assert "outcome y missing for 5 units" in _printed(data_na.info)
@@ -313,7 +421,7 @@ def test_missing_candidate_excluded():
     data, d = village_study()
     rows = data.sources[2].data.copy()
     rows.iloc[[3, 7], 1] = np.nan                           # r2 missing for 2 units
-    srcs = data.sources[:2] + [Source(rows, "pre", name="survey")] + data.sources[3:]
+    srcs = data.sources[:2] + [Source(rows, level="row", time="pre", support="continuous", name="survey")] + data.sources[3:]
     data_na = Dataset(data.units, srcs, data.design)
     assert data_na.missing.to_dict() == {"r2": 2}
     assert "candidates with missing values (excluded from the pool): r2 (2)" in _printed(data_na.info)
@@ -322,14 +430,15 @@ def test_missing_candidate_excluded():
     assert tab.loc["r2", "status"] == "excluded: 2 missing values" and tab.loc["r2", "missing"] == 2
     assert "r2" not in res.tested
     # the same as without the column
-    srcs_wo = data.sources[:2] + [Source(rows[["r1"]], "pre", name="survey")] + data.sources[3:]
+    srcs_wo = data.sources[:2] + [Source(rows[["r1"]], level="row", time="pre", support="continuous",
+                                                    name="survey")] + data.sources[3:]
     ref = discover(Dataset(data.units, srcs_wo, data.design), "y")
     assert res.tested == ref.tested and res.modifiers == ref.modifiers
     assert np.array_equal(res.selection.pvalues, ref.selection.pvalues)
     # missing only where the outcome is missing too: the column stays in the pool
     y = d["y"].copy()
     y[[3, 7]] = np.nan
-    out = Source(pd.DataFrame({"y": y}, index=data.units.index), "post")
+    out = Source(pd.DataFrame({"y": y}, index=data.units.index), level="row", time="post", support="continuous")
     res2 = _warns(lambda: discover(Dataset(data.units, srcs[:3] + [out], data.design), "y"), "2 of 320 units")
     assert "r2" in res2.tested
 
@@ -369,7 +478,8 @@ def test_interpret_ties_at_random():
 def test_interpret_nothing_learned():
     data, _ = village_study()
     # the same study with the village table declared measured: nothing to interpret
-    srcs = [Source(data.sources[0].data, "pre")] + data.sources[1:]
+    srcs = [Source(data.sources[0].data, level="village", time="pre", support=data.sources[0].support)]
+    srcs += data.sources[1:]
     res = discover(Dataset(data.units, srcs, data.design), "y")
     assert res.modifiers == ["v1"]
     out = res.interpret()
@@ -384,7 +494,8 @@ def test_interpret_show():
     matplotlib.use("Agg")
     data, d = village_study()
     imgs = {v: np.full((4, 4), float(v)) for v in range(40)}
-    srcs = [Source(data.sources[0].data, "pre", origin="learned", raw=imgs, interpreter=Echo())] + data.sources[1:]
+    srcs = [Source(data.sources[0].data, level="village", time="pre", support=data.sources[0].support,
+                   origin="learned", raw=imgs, interpreter=Echo())] + data.sources[1:]
     out = discover(Dataset(data.units, srcs, data.design), "y").interpret(k=3)
     fig = out.show()
     assert len(fig.axes) == 2 * 3

@@ -60,11 +60,13 @@ import nexis
 data = nexis.Dataset(
     units=units,          # one row per household (index household_id): village_id, district_id, grant
     sources=[
-        nexis.Source(survey, time="pre", name="survey"),           # indexed by household_id
-        nexis.Source(atoms, time="pre", origin="learned",          # indexed by village_id
-                     raw=tiles, interpreter=MyInterpreter(), name="satellite"),
-        nexis.Source(rain, time="during", name="rainfall"),        # indexed by district_id
-        nexis.Source(endline, time="post", name="endline"),        # the outcomes
+        nexis.Source(survey, level="household_id", time="pre", name="survey",
+                     support={"head_female": "binary", "hh_size": "count"}),
+        nexis.Source(atoms, level="village_id", time="pre", support="sparse",
+                     origin="learned", raw=tiles, interpreter=MyInterpreter(),
+                     name="satellite", modality="image", access="public"),
+        nexis.Source(rain, level="district_id", time="during", support="continuous"),
+        nexis.Source(endline, level="household_id", time="post", support="continuous"),
     ],
     design=nexis.Randomized(treatment="grant", assigned_at="village_id",
                             stratified_by="district_id"),
@@ -73,7 +75,8 @@ data.info()                  # levels, sources, candidates, missing values, desi
 
 result = nexis.discover(data, outcome="consumption")
 result.modifiers             # ['atom_3']
-result.table()               # every candidate: level, clustering, support, p-value, status
+result.table()               # every candidate: declared and detected level, clustering,
+                             # support, p-value, status
 interpretation = result.interpret(k=4)
 interpretation               # label, most and least active ids of each learned modifier
 interpretation.show()        # image grid per modifier (matplotlib)
@@ -84,14 +87,35 @@ items (here image arrays; paths work too) of the most and the least active ids.
 
 ## Concepts
 
-**Sources.** A `Source` is a table indexed by the ids of one level; its index name (e.g.
-`village_id`) is the level and must be the index name or a column of `units`. Each source
-is broadcast onto the units. Its `time` decides its role: `pre` columns are candidates,
-`during` columns are excluded unless `discover(..., include_during=True)` (include them
-only if the treatment cannot have changed them), `post` columns are outcomes. Its
-`origin` (`measured`, `predicted`, `learned`) is metadata only: every candidate competes
-in one pool and the Bonferroni gates count all of them. Learned sources carry `raw`
-(id -> raw item, read lazily) and an `interpreter`.
+**Sources.** A `Source` is a table of numeric columns with three required attributes,
+because they change the analysis:
+
+- `level`: the ids its rows are indexed by (e.g. `village_id`). The table's index must be
+  named so (or unnamed), and `level` must be the index name or a column of `units`: the
+  source is broadcast onto the units through it. The level where each candidate actually
+  varies is detected from the data and shown next to the declared one (`varies_at` in
+  `result.table()`, and in `data.info()` when they differ); the clustering uses the
+  coarser. A covariate shared by groups that are not an existing level (a market
+  catchment, a raster cell) gets its own level: an id column in `units` and a Source
+  indexed by it.
+- `time`: `pre` columns are candidates, `during` columns are excluded unless
+  `discover(..., include_during=True)` (include them only if the treatment cannot have
+  changed them), `post` columns are outcomes.
+- `support`: one kind for every column, or a dict giving one per column: `binary`
+  ({0, 1}), `count` (integers >= 0), `nonnegative` (reals >= 0), `sparse` (>= 0, zero the
+  most frequent value, e.g. SAE activations) or `continuous` (any finite real). Values
+  violating it are an error (NaN is ignored). Binary, count and sparse columns always get
+  the support rule (below).
+
+The data check support and level when the `Source` and the `Dataset` are built; `time`
+is a declaration only (the data cannot tell when a variable was measured). Optional
+descriptive attributes never change the search: `origin` (`measured`, `predicted`,
+`learned`; every candidate competes in one pool and the Bonferroni gates count all of
+them), `modality` (e.g. `survey`, `image`, `raster`, `tabular`), `access` (`public`,
+`restricted`, `proprietary`) and `reference` (where the source is documented); they are
+shown in `data.info()` and `result.table()`. Learned sources carry `raw` (id -> raw item,
+read lazily) and an `interpreter`. A list of `Source`s is thus the one declaration of a
+study's data, from which the `Dataset` is built.
 
 **Designs.** `Randomized(treatment, assigned_at, stratified_by=None, sampled_by=None)`
 and `Discontinuity(treatment, running_variable, assigned_at, sampled_by=None,
@@ -108,9 +132,11 @@ the assignment level, the sampling level and the level where the candidate varie
 effects.
 
 **Support rule.** A clustered test is identified by the clusters behind each (side of the
-candidate) x (arm) cell. For a candidate with a mass point (its most frequent value holds
-at least 10% of the units: binary or sparse), the support is the smallest number of
-distinct clusters over the four cells (at the mode, off the mode) x (treated, control).
+candidate) x (arm) cell. For a candidate declared `binary`, `count` or `sparse`, or with a
+mass point in the data (its most frequent value holds at least 10% of the units), the
+support is the smallest number of distinct clusters over the four cells (at the mode, off
+the mode) x (treated, control); a column declared `continuous` or `nonnegative` that
+repeats a value over 10% of its ids gets the rule from the data, with a warning.
 Candidates with support below `min_support` (default 4) are dropped before the search. The
 rule uses only the candidates, the treatment and the clusters, never the outcome, so the
 Bonferroni count over the remaining pool stays valid.

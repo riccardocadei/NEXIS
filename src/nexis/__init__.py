@@ -2,7 +2,8 @@
 pool of candidates (e.g. sparse-autoencoder atoms of images), with family-wise error control.
 
     import nexis
-    data = nexis.Dataset(units, sources=[nexis.Source(table, time="pre"), ...],
+    data = nexis.Dataset(units, sources=[nexis.Source(table, level="village", time="pre",
+                                                      support="continuous"), ...],
                          design=nexis.Randomized(treatment="T", assigned_at="village"))
     data.info()
     result = nexis.discover(data, outcome="y")
@@ -10,8 +11,9 @@ pool of candidates (e.g. sparse-autoencoder atoms of images), with family-wise e
 
 Architecture.  The public layer describes a study and runs the search on it:
 
-    data.py        Source (one table: level, time, origin) and Dataset (the units, the
-                   sources broadcast onto them, the design; missing-value policy)
+    data.py        Source (one table: level, time, support; origin, modality, access,
+                   reference) and Dataset (the units, the sources broadcast onto them,
+                   the design; missing-value policy)
     assignment.py  Design, Randomized, Discontinuity: treatment, assignment / sampling
                    / strata levels, and their checks
     api.py         discover() -> Result (modifiers, table(), interpret())

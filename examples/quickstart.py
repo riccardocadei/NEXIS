@@ -21,7 +21,7 @@ for d in range(6):                                     # half of each district's
 units = pd.DataFrame({"village_id": village, "district_id": district[village],
                       "grant": treated[village]}, index=households)
 
-# Sources: one table per level and time.
+# Sources: one table per level and time, indexed by the ids of its level.
 survey = pd.DataFrame({"head_female": rng.integers(0, 2, len(households)),
                        "hh_size": rng.poisson(5, len(households))}, index=households)
 atoms = pd.DataFrame(rng.exponential(size=(n_villages, 20)) * (rng.random((n_villages, 20)) < 0.5),
@@ -43,13 +43,21 @@ class MeanBrightness:
         return f"brightness {np.mean(top):.2f} (top) vs {np.mean(bottom):.2f} (bottom)"
 
 
+# Each source declares its level (the ids its rows are indexed by), its time relative to
+# treatment and the support of its columns; modality, access and reference are optional
+# descriptions shown in the tables.
 data = nexis.Dataset(
     units=units,
-    sources=[nexis.Source(survey, time="pre", name="survey"),
-             nexis.Source(atoms, time="pre", origin="learned", raw=tiles,
-                          interpreter=MeanBrightness(), name="satellite"),
-             nexis.Source(rain, time="during", name="rainfall"),
-             nexis.Source(endline, time="post", name="endline")],
+    sources=[nexis.Source(survey, level="household_id", time="pre", name="survey",
+                          support={"head_female": "binary", "hh_size": "count"},
+                          modality="survey", access="restricted"),
+             nexis.Source(atoms, level="village_id", time="pre", support="sparse",
+                          origin="learned", raw=tiles, interpreter=MeanBrightness(),
+                          name="satellite", modality="image", access="public"),
+             nexis.Source(rain, level="district_id", time="during", support="continuous",
+                          name="rainfall"),
+             nexis.Source(endline, level="household_id", time="post", support="continuous",
+                          name="endline")],
     design=nexis.Randomized(treatment="grant", assigned_at="village_id",
                             stratified_by="district_id"),
 )

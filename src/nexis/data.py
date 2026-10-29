@@ -1,15 +1,38 @@
 """Sources of covariates and the Dataset that joins them onto the units of a study.
 
-A Source is a table indexed by the ids of one level (its index name, e.g. household_id
-or village_id) and measured at one time relative to treatment:
+A Source is a table of variables at one level, measured at one time relative to
+treatment, with a declared support.  These three attributes change the analysis:
 
-  pre      before treatment: candidate effect modifiers
-  during   while treatment ran: excluded unless discover(..., include_during=True)
-  post     after treatment: outcomes, never searched
+  level    the ids its rows are indexed by (e.g. village_id): it is joined onto the
+           units through the column of that name in `units` (or their index).  The
+           level where each candidate actually varies is detected from the data and
+           reported (Dataset.info(), Result.table() `varies_at`); the clustering uses
+           the coarsest one.  A covariate shared by groups that are not an existing
+           level (a market catchment, a raster cell) gets its own level: an id column
+           in `units` and a Source indexed by it.
+  time     pre      before treatment: candidate effect modifiers
+           during   while treatment ran: excluded unless discover(..., include_during=True)
+           post     after treatment: outcomes, never searched
+  support  the values a column can take, checked at construction (NaN ignored):
+           binary {0, 1}, count (integers >= 0), nonnegative (reals >= 0), sparse
+           (>= 0, zero the most frequent value, e.g. SAE activations), continuous
+           (any finite real).  Binary, count and sparse columns always get the
+           support rule of nexis.discover; the others get it when the data show a
+           mass point.
 
-Its origin (measured | predicted | learned) is metadata and never changes the search;
-learned features (e.g. sparse-autoencoder atoms of satellite images) carry the raw items
-behind each id and an interpreter that describes a selected feature.
+Its origin (measured | predicted | learned), modality, access and reference are
+descriptive and never change the search; learned features (e.g. sparse-autoencoder
+atoms of satellite images) carry the raw items behind each id and an interpreter that
+describes a selected feature.
+
+What is checked against the data at construction: support (against the values), level
+(against the index name here, against the id column of the units in Dataset) and
+origin="learned" (needs raw and interpreter).  Time, modality and access are
+declarations only: the data cannot tell when a variable was measured, so declare it
+with care (a "pre" column caused by treatment biases the search).
+
+A list of Sources is the single declaration of a study's data: an application keeps
+one Source per source and builds the Dataset from that list.
 
 Missing values never change the analysis silently:
 
@@ -33,9 +56,13 @@ import numpy as np
 import pandas as pd
 
 from .assignment import Design
+from .design import codes, variation_level
 
 TIMES = ("pre", "during", "post")
 ORIGINS = ("measured", "predicted", "learned")
+ACCESS = ("public", "restricted", "proprietary")
+SUPPORTS = ("binary", "count", "nonnegative", "sparse", "continuous")
+MASS_SUPPORTS = ("binary", "count", "sparse")      # always get the support rule
 
 
 class Interpreter(Protocol):
@@ -49,36 +76,49 @@ class Interpreter(Protocol):
 class Source:
     """One table of variables at one level and one time.
 
-    data: DataFrame indexed by the ids of its level; the index name is the level and
-        must be the index name or a column of the Dataset's units.  Numeric columns;
-        NaN marks a missing value.
+    data: DataFrame indexed by the ids of `level`, numeric columns; NaN marks a missing
+        value.  Its index must be named `level` or be unnamed (it is then named so).
+    level: the level of the rows; the index name or a column of the Dataset's units.
     time: "pre" | "during" | "post".
+    support: one of SUPPORTS for every column, or a dict giving one per column (every
+        column exactly); a column whose values violate it is an error.
     origin: "measured" | "predicted" | "learned"; learned needs `raw` (a mapping or
         callable id -> raw item, e.g. an image path, read lazily) and `interpreter`
         (an object with describe(top, bottom) -> str).
+    modality: what the raw data are, e.g. "survey", "image", "raster", "tabular" (an
+        open vocabulary, any non-empty str), or None.
+    access: "public" | "restricted" | "proprietary", or None (unknown).
+    reference: where the source is documented (e.g. a section of a data README), or None.
+        modality, access and reference are shown by Dataset.info() and Result.table()
+        and never used by the search.
     name: shown in tables; defaults to "<level>_<time>".
     """
 
-    def __init__(self, data: pd.DataFrame | pd.Series, time: str, origin: str = "measured",
+    def __init__(self, data: pd.DataFrame | pd.Series, *, level: str, time: str,
+                 support: str | Mapping[str, str], origin: str = "measured",
+                 modality: str | None = None, access: str | None = None, reference: str | None = None,
                  raw: Mapping | Callable[[Any], Any] | None = None, interpreter: Interpreter | None = None,
                  name: str | None = None):
         if isinstance(data, pd.Series):
             data = data.to_frame()
         if not isinstance(data, pd.DataFrame):
             raise TypeError(f"Source data must be a pandas DataFrame, got {type(data).__name__}")
+        if not isinstance(level, str) or not level:
+            raise TypeError(f"level must be a level name (str), got {level!r}")
         if time not in TIMES:
             raise ValueError(f"time must be one of {TIMES}, got {time!r}")
         if origin not in ORIGINS:
             raise ValueError(f"origin must be one of {ORIGINS}, got {origin!r}")
         if data.index.name is None:
-            raise ValueError("Source data needs a named index: its name is the level of the "
-                             "source (e.g. data.index.name = 'village_id')")
+            data = data.rename_axis(level)
+        elif data.index.name != level:
+            raise ValueError(f"source data is indexed by {data.index.name!r} but level={level!r}: "
+                             "index the table by the ids of its level (or leave the index unnamed)")
         if data.index.hasnans:
-            raise ValueError(f"source indexed by {data.index.name!r} has {int(data.index.isna().sum())} "
-                             "missing ids")
+            raise ValueError(f"source indexed by {level!r} has {int(data.index.isna().sum())} missing ids")
         if data.index.has_duplicates:
             dup = data.index[data.index.duplicated()].unique()[:5]
-            raise ValueError(f"source indexed by {data.index.name!r} repeats ids {list(dup)}")
+            raise ValueError(f"source indexed by {level!r} repeats ids {list(dup)}")
         if data.columns.has_duplicates:
             raise ValueError(f"duplicate columns {list(data.columns[data.columns.duplicated()])}")
         nonnum = [c for c in data.columns if not (pd.api.types.is_numeric_dtype(data[c])
@@ -89,6 +129,24 @@ class Source:
         inf = [c for c in data.columns if np.isinf(data[c]).any()]
         if inf:
             raise ValueError(f"infinite values in {inf}")
+        if isinstance(support, str):
+            support = dict.fromkeys(data.columns, support)
+        elif isinstance(support, Mapping):
+            extra, lack = set(support) - set(data.columns), [c for c in data.columns if c not in support]
+            if extra or lack:
+                raise ValueError(f"support must cover every column exactly: missing {lack[:10]}, "
+                                 f"unknown {sorted(map(str, extra))[:10]}")
+            support = {c: support[c] for c in data.columns}
+        else:
+            raise TypeError(f"support must be a str or a dict column -> str, got {type(support).__name__}")
+        for c, kind in support.items():
+            _check_support(data[c], kind)
+        if modality is not None and not (isinstance(modality, str) and modality):
+            raise ValueError(f"modality must be a non-empty str (e.g. 'survey', 'image'), got {modality!r}")
+        if access is not None and access not in ACCESS:
+            raise ValueError(f"access must be one of {ACCESS} or None, got {access!r}")
+        if reference is not None and not isinstance(reference, str):
+            raise TypeError(f"reference must be a str, got {type(reference).__name__}")
         if origin == "learned":
             if raw is None or interpreter is None:
                 raise ValueError("a learned source needs raw= (id -> raw item) and interpreter=")
@@ -96,10 +154,11 @@ class Source:
                 raise TypeError("interpreter must have a describe(top, bottom) -> str method")
         elif raw is not None or interpreter is not None:
             raise ValueError("raw= and interpreter= apply to learned sources only")
-        self.data, self.time, self.origin = data, time, origin
+        self.data, self.level, self.time, self.origin = data, level, time, origin
+        self.support: dict[str, str] = support
+        self.modality, self.access, self.reference = modality, access, reference
         self.raw, self.interpreter = raw, interpreter
-        self.level: str = data.index.name
-        self.name = name or f"{self.level}_{time}"
+        self.name = name or f"{level}_{time}"
 
     def raw_items(self, ids) -> list:
         """The raw items behind `ids` (learned sources only)."""
@@ -107,8 +166,33 @@ class Source:
         return [get(i) for i in ids]
 
     def __repr__(self) -> str:
+        kinds = ", ".join(sorted(set(self.support.values())))
         return (f"Source({self.name!r}: {self.data.shape[1]} columns x {len(self.data)} "
-                f"{self.level}, time={self.time!r}, origin={self.origin!r})")
+                f"{self.level}, time={self.time!r}, support={kinds!r}, origin={self.origin!r})")
+
+
+def _check_support(col: pd.Series, kind: str) -> None:
+    """Raise ValueError when the non-missing values of col violate the support `kind`."""
+    if kind not in SUPPORTS:
+        raise ValueError(f"support of {col.name!r} must be one of {SUPPORTS}, got {kind!r}")
+    x = col.dropna()
+    if kind == "binary":
+        bad = ~x.isin([0, 1])
+    elif kind == "count":
+        bad = (x < 0) | (x != np.round(x))
+    elif kind in ("nonnegative", "sparse"):
+        bad = x < 0
+    else:
+        return
+    if bad.any():
+        vals = sorted(x[bad].unique())[:5]
+        raise ValueError(f"column {col.name!r} is declared {kind} but {int(bad.sum())} values are not "
+                         f"(e.g. {vals})")
+    if kind == "sparse" and len(x):
+        freq = x.value_counts()
+        if freq.get(0.0, 0) < freq.iloc[0]:
+            raise ValueError(f"column {col.name!r} is declared sparse but zero ({freq.get(0.0, 0)} rows) "
+                             f"is not its most frequent value ({freq.index[0]:g}: {freq.iloc[0]} rows)")
 
 
 class Dataset:
@@ -206,6 +290,17 @@ class Dataset:
         self.levels: dict[str, pd.Series] = {k: ids[k] for k in order}   # coarse -> fine
         self.removed = [v for v in design.variables if v in frame.columns]
         self.checks = design.check(design_frame)
+        cand = set(self._columns(("pre", "during")))
+        flat = []
+        for s in self.sources:                        # at the source's own level, its ids in use
+            rows_ = s.data.loc[pd.Index(self.levels[s.level].unique())]
+            flat += [f"{c} ({s.support[c]})" for c in s.data.columns if c in cand
+                     and s.support[c] not in MASS_SUPPORTS and _repeated_mode(rows_[c])]
+        if flat:
+            warnings.warn(f"{len(flat)} columns declared without a mass point repeat a value over >= 10% "
+                          f"of their ids, so they get the support rule from the data: {', '.join(flat[:10])}"
+                          f"{', ...' if len(flat) > 10 else ''}; declare them binary, count or sparse",
+                          stacklevel=2)
 
     # ── columns by role ──────────────────────────────────────────────────────
 
@@ -222,6 +317,14 @@ class Dataset:
         """The candidate pool: pre columns (and during ones if asked), minus design
         variables.  Columns with missing values are listed here; discover() excludes them."""
         return self._columns(("pre", "during") if include_during else ("pre",))
+
+    def varies_at(self, columns: list[str] | None = None) -> pd.Series:
+        """The coarsest level within which each column (default: every candidate,
+        during ones included) is constant, as discover() detects it."""
+        cols = self.candidates(True) if columns is None else columns
+        lv = {k: codes(v.to_numpy()) for k, v in self.levels.items()}
+        return pd.Series({c: variation_level(self.frame[c].to_numpy(), lv, list(lv)) for c in cols},
+                         dtype=object)
 
     @property
     def missing(self) -> pd.Series:
@@ -241,12 +344,23 @@ class Dataset:
         print("  sources:")
         w = max([len(s.name) for s in self.sources] + [4])
         for s in self.sources:
-            print(f"    {s.name:{w}s}  level {s.level:12s} {s.time:7s} {s.origin:9s} {s.data.shape[1]:5d} cols")
+            kinds = pd.Series(s.support).value_counts()
+            sup = ", ".join(k if len(kinds) == 1 else f"{k} {v}" for k, v in kinds.items())
+            meta = ", ".join(f"{k} {v}" for k, v in (("modality", s.modality), ("access", s.access),
+                                                       ("ref", s.reference)) if v is not None)
+            print(f"    {s.name:{w}s}  level {s.level:12s} {s.time:7s} {s.origin:9s} {s.data.shape[1]:5d} cols"
+                  f"  support {sup}" + (f"  [{meta}]" if meta else ""))
         for time in ("pre", "during"):
             cs = self._columns((time,))
             by = pd.Series([self.column_source[c].origin for c in cs], dtype=object).value_counts()
             note = "" if time == "pre" else " (excluded unless discover(include_during=True))"
             print(f"  candidates {time}: {len(cs)}" + (f" ({', '.join(f'{k} {v}' for k, v in by.items())})" if len(cs) else "") + note)
+        va = self.varies_at()
+        coarser = [f"{c} ({self.column_source[c].level} -> {v})" for c, v in va.items()
+                   if v != self.column_source[c].level]
+        if coarser:
+            print(f"  candidates varying at a coarser level than declared (detected; the clustering "
+                  f"uses it): {len(coarser)}: {', '.join(coarser[:10])}{', ...' if len(coarser) > 10 else ''}")
         print(f"  outcomes (post): {', '.join(self.outcomes) or 'none'}")
         miss = self.missing
         cand = [c for c in miss.index if c not in self.outcomes]
@@ -265,6 +379,12 @@ class Dataset:
     def __repr__(self) -> str:
         return (f"Dataset({len(self.units)} {self.unit}, {len(self.sources)} sources, "
                 f"{len(self.candidates())} candidates, {len(self.outcomes)} outcomes, {self.design!r})")
+
+
+def _repeated_mode(col: pd.Series) -> bool:
+    """True when the modal value of col (NaN ignored) is repeated and holds >= 10% of it."""
+    n = col.value_counts()
+    return len(n) > 0 and n.iloc[0] >= max(2, 0.1 * n.sum())
 
 
 def _arms(frame: pd.DataFrame, idx: pd.Index, treatment: str, missing: str) -> str:

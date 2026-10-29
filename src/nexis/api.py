@@ -7,11 +7,11 @@ level-aware by the design (nexis.design.LevelAwareTest):
   * candidate j is clustered at the coarsest of the assignment level, the sampling level
     and the level where Z_j varies (HC1 when that is the unit itself);
   * strata of a stratified randomization enter as fixed effects;
-  * support rule (nexis.design.build_rule): a candidate whose modal value holds >= 10%
-    of the units (binary or sparse) is dropped before the search when one of the four
-    cells (Z_j at / off its mode) x (treated / control) spans fewer than `min_support`
-    clusters; candidates with missing values are excluded too.  Bonferroni counts the
-    rest (m).
+  * support rule (nexis.design.build_rule): a candidate declared binary, count or
+    sparse, or whose modal value holds >= 10% of the units, is dropped before the
+    search when one of the four cells (Z_j at / off its mode) x (treated / control)
+    spans fewer than `min_support` clusters; candidates with missing values are
+    excluded too.  Bonferroni counts the rest (m).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 from .assignment import MIN_CLUSTERS
-from .data import Dataset
+from .data import MASS_SUPPORTS, Dataset
 from .design import LevelAwareTest, block_fe, build_rule, codes, is_coarser
 from .interpret import Interpretation, extremes
 from .search import SelectionResult, nexis
@@ -60,9 +60,11 @@ class Result:
         return len(self.units)
 
     def table(self) -> pd.DataFrame:
-        """One row per candidate: covariate, source, level, varies_at, origin, time,
-        clustered_at, n_clusters, support, missing, p_value (given the selected set, or
-        given the other modifiers for a modifier) and status."""
+        """One row per candidate: covariate, source, level (declared), varies_at
+        (detected), declared support kind (`kind`), origin, time, clustered_at,
+        n_clusters, support (clusters in the smallest cell, if the support rule
+        applies), missing, p_value (given the selected set, or given the other modifiers
+        for a modifier), status, and the source's modality, access and reference."""
         return self._table.copy()
 
     def interpret(self, k: int = 5, seed: int = 0) -> Interpretation:
@@ -146,7 +148,8 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
         assign = des.sampled_by
     d = dict(y=y_all[rows], t=t_all[rows], z=z_all, names=names, levels=levels,
              order=list(levels), assign=assign)
-    keys, parts, info = build_rule(d, min_support)
+    declared = [data.column_source[c].support[c] in MASS_SUPPORTS for c in names]
+    keys, parts, info = build_rule(d, min_support, mass_point=declared)
     pool = [j for j, i in enumerate(info) if i["testable"]]
     if not pool:
         raise ValueError("no candidate passes the support rule")
@@ -189,7 +192,7 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
         else:
             status = f"dropped: support {i['support']} < {min_support} clusters"
         recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=i["level"],
-                         origin=src.origin, time=src.time,
+                         kind=src.support[c], origin=src.origin, time=src.time,
                          clustered_at="none (HC1)" if hc1 else keys[j].replace("+", " + "),
                          n_clusters=int(len(y)) if hc1 else i["G"], support=i["support"],
                          missing=int(n_miss[j]), p_value=p[j], status=status))
@@ -197,9 +200,12 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
         for c in during:
             src = data.column_source[c]
             recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=None,
-                             origin=src.origin, time=src.time, clustered_at=None, n_clusters=None,
-                             support=None, missing=int(data.frame.loc[rows, c].isna().sum()),
+                             kind=src.support[c], origin=src.origin, time=src.time, clustered_at=None,
+                             n_clusters=None, support=None, missing=int(data.frame.loc[rows, c].isna().sum()),
                              p_value=np.nan, status="excluded: measured during treatment"))
+    for r in recs:
+        src = data.column_source[r["covariate"]]
+        r.update(modality=src.modality, access=src.access, reference=src.reference)
     tab = pd.DataFrame(recs).astype({"n_clusters": "Int64", "support": "Int64"})
     return Result(data=data, outcome=outcome, alpha=alpha, min_support=min_support,
                   modifiers=[names[pool[j]] for j in S], selection=sel,
