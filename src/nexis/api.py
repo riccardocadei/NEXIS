@@ -109,6 +109,10 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
 
     Units with a missing outcome are dropped and candidates with a missing value are
     excluded, each with a warning; Result.table() lists every candidate and its status.
+    The tested candidates are standardised over the analysed units before the search
+    (the support rule sees the raw values): p-values are those of the raw columns up to
+    round-off, and a column in the span of the selected ones gets p = 1 whatever its
+    scale.
     """
     if outcome not in data.outcomes:
         if outcome in data.frame.columns:
@@ -177,7 +181,11 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
 
     fe = block_fe(levels[des.stratified_by]) if des.stratified_by else None
     fn = LevelAwareTest(keys, parts, fe=fe).subset(pool)
+    # standardised over the analysed units: OLS t-statistics are invariant to an affine
+    # change of a column, and the tolerances of the test become scale-free (a column in
+    # the span of the conditioning set then reliably gets p = 1 whatever its units)
     y, t, z = d["y"], d["t"], d["z"][:, pool]
+    z = (z - z.mean(axis=0)) / z.std(axis=0)
     sel = nexis(y, t, z, alpha=alpha, max_rounds=MAX_ROUNDS, rho=RHO, adjust="FWER",
                 backward=False, terminal_filter=True, pvalue_fn=fn)
     sel.feature_names = [names[j] for j in pool]

@@ -500,7 +500,8 @@ def test_pool_checks():
 
 def test_rank_check():
     """An exact linear dependence among candidates (with an intercept, over the units) is
-    an error naming a minimal dependent set; columns with missing values are left out."""
+    a warning naming a minimal dependent set; the columns stay in the pool, and columns
+    with missing values are left out of the check."""
     data, _ = village_study()
     units, srcs, des = data.units, data.sources, data.design
     vidx = srcs[0].data.index
@@ -511,25 +512,26 @@ def test_rank_check():
         frame = pd.DataFrame(dict(cols), index=vidx)
         return Dataset(units, srcs + [src(frame, "extra", "village", time)], des)
 
-    # a = b + c: the set is {a, b, c}, not the unrelated e
-    _raises(lambda: add(("a", b + c), ("b", b), ("c", c), ("e", e)), "1 candidate columns are exact linear",
-            "{a (extra), b (extra), c (extra)}")
+    # a = b + c: the set is {a, b, c}, not the unrelated e; every column stays a candidate
+    d = _warns(lambda: add(("a", b + c), ("b", b), ("c", c), ("e", e)), "1 candidate columns are exact linear",
+               "{a (extra), b (extra), c (extra)}", "p = 1")
+    assert {"a", "b", "c", "e"} <= set(d.candidates())
     # the intercept counts: 2 b - 3 = a
-    _raises(lambda: add(("a", 2 * b - 3), ("b", b), ("e", e)), "{a (extra), b (extra)}")
+    _warns(lambda: add(("a", 2 * b - 3), ("b", b), ("e", e)), "{a (extra), b (extra)}")
     # a total of counts in another source (household size = children + adults + elderly)
     hh = units.index
     kids, adults, old = (rng.integers(0, 4, len(hh)).astype(float) for _ in range(3))
     cnt = pd.DataFrame({"children": kids, "adults": adults, "elderly": old, "size": kids + adults + old,
                         "noise": rng.normal(size=len(hh))}, index=hh)
-    _raises(lambda: Dataset(units, srcs + [src(cnt, "roster", hh.name, "pre", support={
+    _warns(lambda: Dataset(units, srcs + [src(cnt, "roster", hh.name, "pre", support={
         "children": "count", "adults": "count", "elderly": "count", "size": "count", "noise": "continuous"})], des),
         "{children (roster), adults (roster), elderly (roster), size (roster)}")
     # dummies of every category sum to the intercept
     cat = rng.integers(0, 3, 40)
-    _raises(lambda: add(*[(f"g{k}", (cat == k).astype(float)) for k in range(3)], ("e", e)),
-            "{g0 (extra), g1 (extra), g2 (extra)}")
+    _warns(lambda: add(*[(f"g{k}", (cat == k).astype(float)) for k in range(3)], ("e", e)),
+           "{g0 (extra), g1 (extra), g2 (extra)}")
     # two independent dependencies: two sets
-    _raises(lambda: add(("a", b + c), ("b", b), ("c", c), ("f", e - b), ("e", e)), "2 candidate columns")
+    _warns(lambda: add(("a", b + c), ("b", b), ("c", c), ("f", e - b), ("e", e)), "2 candidate columns")
     # a column with a missing value is out of the pool, so not part of a dependence
     a = b + c
     a[0] = np.nan
@@ -537,17 +539,43 @@ def test_rank_check():
     # a dependence involving a during column counts (during columns are candidates)...
     d = add(("b", b), ("c", c))
     dur = pd.DataFrame({"s": b + c}, index=vidx)
-    _raises(lambda: Dataset(units, d.sources + [src(dur, "rain", "village", "during")], des), "s (rain)")
+    _warns(lambda: Dataset(units, d.sources + [src(dur, "rain", "village", "during")], des), "s (rain)")
     # ...but not one through an outcome
     out = pd.DataFrame({"s": b + c}, index=vidx)
     _quiet(lambda: Dataset(units, d.sources + [src(out, "outcome", "village", "post")], des))
-    # near-dependence is not exact: no error
+    # near-dependence is not exact: no warning
     _quiet(lambda: add(("a", b + c + 1e-3 * e), ("b", b), ("c", c)))
     # the minimal set is found when other columns are also involved elsewhere
     from nexis.data import dependent_sets
     x = np.column_stack([b, c, e, b + c, rng.normal(size=40)])
     assert dependent_sets(x, list("bcexy")) == [["b", "c", "x"]]
     assert dependent_sets(np.column_stack([b, c, e]), list("bce")) == []
+
+
+def test_dependent_column_not_selected():
+    """A total and its parts all stay in the pool.  With y = T (b - 0.6 c) b enters first;
+    given it, c and the total have the same residual (total = b + c), so one of them
+    enters and the third column of the set, now in the span of the selected ones, gets
+    p = 1 -- also when the total is on a large scale (discover standardises the
+    candidates).  Which of c and the total enters is a tie decided by round-off."""
+    rng = np.random.default_rng(5)
+    n = 20000
+    units = pd.DataFrame({"T": rng.integers(0, 2, n).astype(float)}, index=pd.Index(np.arange(n), name="hh"))
+    b, c, e = rng.normal(size=(3, n))
+    t = units["T"].to_numpy()
+    y = t * (b - 0.6 * c) + rng.normal(size=n)
+    out = pd.DataFrame({"y": y}, index=units.index)
+    for scale in (1.0, 1e4):
+        hh = pd.DataFrame({"b": b, "c": c, "total": scale * (b + c) + 3.0, "e": e}, index=units.index)
+        data = _warns(lambda: Dataset(units, [src(hh, "survey", "hh", "pre"), src(out, "endline", "hh", "post")],
+                                      Randomized("T", "hh")), "{b (survey), c (survey), total (survey)}")
+        res = discover(data, "y")
+        tab = res.table().set_index("covariate")
+        assert len(res.modifiers) == 2 and "b" in res.modifiers, (scale, res.modifiers)
+        rest = ({"c", "total"} - set(res.modifiers)).pop()
+        assert tab.loc[rest, "status"] == "not selected" and tab.loc[rest, "p_value"] == 1.0, scale
+        assert tab.loc["e", "status"] == "not selected"
+        assert len(res.tested) == 4                                   # m counts every column of the set
 
 
 def test_pool_checks_cost():
@@ -664,7 +692,9 @@ def test_discover_matches_direct_call():
     keys, parts, info = build_rule(d)                       # build_rule's own default: 5
     pool = [j for j, i in enumerate(info) if i["testable"]]
     fn = LevelAwareTest(keys, parts, fe=block_fe(d["levels"]["district"])).subset(pool)
-    ref = nexis.nexis(d["y"], d["t"], d["z"][:, pool], alpha=0.05, max_rounds=20, rho=0.5,
+    z = d["z"][:, pool]
+    z = (z - z.mean(axis=0)) / z.std(axis=0)                   # discover standardises the candidates
+    ref = nexis.nexis(d["y"], d["t"], z, alpha=0.05, max_rounds=20, rho=0.5,
                       adjust="FWER", backward=False, terminal_filter=True, pvalue_fn=fn)
     assert res.selection.selected == ref.selected
     assert np.array_equal(res.selection.pvalues, ref.pvalues)
@@ -678,7 +708,12 @@ def test_discover_matches_direct_call():
     assert tab.loc["r1", "clustered_at"] == "village"      # assigned at the village
     S = list(ref.selected)
     j = pool.index(1)
-    assert np.isclose(tab.loc["v2", "p_value"], fn(d["y"], d["t"], d["z"][:, pool], S, [j])[j], rtol=1e-12)
+    assert np.isclose(tab.loc["v2", "p_value"], fn(d["y"], d["t"], z, S, [j])[j], rtol=1e-12)
+    # on the raw columns the p-values agree up to round-off
+    raw = nexis.nexis(d["y"], d["t"], d["z"][:, pool], alpha=0.05, max_rounds=20, rho=0.5,
+                      adjust="FWER", backward=False, terminal_filter=True, pvalue_fn=fn)
+    assert raw.selected == ref.selected
+    assert np.allclose(raw.pvalues, ref.pvalues, rtol=1e-9, atol=1e-14)
 
 
 def test_min_support_default():
