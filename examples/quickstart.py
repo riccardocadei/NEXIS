@@ -21,7 +21,7 @@ for d in range(6):                                     # half of each district's
 units = pd.DataFrame({"village_id": village, "district_id": district[village],
                       "grant": treated[village]}, index=households)
 
-# Sources: one table per level and time, indexed by the ids of its level.
+# Sources: one table per data source, indexed by the ids of its level.
 survey = pd.DataFrame({"head_female": rng.integers(0, 2, len(households)),
                        "hh_size": rng.poisson(5, len(households))}, index=households)
 atoms = pd.DataFrame(rng.exponential(size=(n_villages, 20)) * (rng.random((n_villages, 20)) < 0.5),
@@ -39,25 +39,29 @@ endline = pd.DataFrame({"consumption": consumption}, index=households)
 class MeanBrightness:
     """A stand-in interpreter; a real one would show the images to a vision-language model."""
 
-    def describe(self, top, bottom):
-        return f"brightness {np.mean(top):.2f} (top) vs {np.mean(bottom):.2f} (bottom)"
+    def describe(self, name, top, bottom):
+        return f"{name}: brightness {np.mean(top):.2f} (top) vs {np.mean(bottom):.2f} (bottom)"
 
 
 # Each source declares its level (the ids its rows are indexed by), its time relative to
-# treatment and the support of its columns; modality, access and reference are optional
-# descriptions shown in the tables.
+# treatment and the support of its columns (these change the search); its name, domain
+# and origin (these guide the interpretation); its access and, optionally, the modality
+# of its raw data (bookkeeping).
 data = nexis.Dataset(
     units=units,
-    sources=[nexis.Source(survey, level="household_id", time="pre", name="survey",
-                          support={"head_female": "binary", "hh_size": "count"},
-                          modality="survey", access="restricted"),
-             nexis.Source(atoms, level="village_id", time="pre", support="sparse",
-                          origin="learned", raw=tiles, interpreter=MeanBrightness(),
-                          name="satellite", modality="image", access="public"),
-             nexis.Source(rain, level="district_id", time="during", support="continuous",
-                          name="rainfall"),
-             nexis.Source(endline, level="household_id", time="post", support="continuous",
-                          name="endline")],
+    sources=[nexis.Source(survey, name="baseline survey", level="household_id", time="pre",
+                          support={"head_female": "binary", "hh_size": "count"}, origin="raw",
+                          domain="demographics", access="restricted", modality="survey"),
+             nexis.Source(atoms, name="satellite", level="village_id", time="pre",
+                          support="sparse", origin="learned", domain="environment",
+                          access="public", modality="image", raw=tiles,
+                          interpreter=MeanBrightness()),
+             nexis.Source(rain, name="rainfall", level="district_id", time="during",
+                          support="continuous", origin="raw", domain="environment",
+                          access="public", modality="raster"),
+             nexis.Source(endline, name="endline survey", level="household_id", time="post",
+                          support="continuous", origin="hand_crafted", domain="economy",
+                          access="restricted", modality="survey")],
     design=nexis.Randomized(treatment="grant", assigned_at="village_id",
                             stratified_by="district_id"),
 )

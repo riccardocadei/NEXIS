@@ -60,62 +60,107 @@ import nexis
 data = nexis.Dataset(
     units=units,          # one row per household (index household_id): village_id, district_id, grant
     sources=[
-        nexis.Source(survey, level="household_id", time="pre", name="survey",
-                     support={"head_female": "binary", "hh_size": "count"}),
-        nexis.Source(atoms, level="village_id", time="pre", support="sparse",
-                     origin="learned", raw=tiles, interpreter=MyInterpreter(),
-                     name="satellite", modality="image", access="public"),
-        nexis.Source(rain, level="district_id", time="during", support="continuous"),
-        nexis.Source(endline, level="household_id", time="post", support="continuous"),
+        nexis.Source(survey, name="baseline survey", level="household_id", time="pre",
+                     support={"head_female": "binary", "hh_size": "count"}, origin="raw",
+                     domain="demographics", access="restricted", modality="survey"),
+        nexis.Source(atoms, name="satellite", level="village_id", time="pre",
+                     support="sparse", origin="learned", domain="environment",
+                     access="public", modality="image", raw=tiles,
+                     interpreter=MyInterpreter()),
+        nexis.Source(rain, name="rainfall", level="district_id", time="during",
+                     support="continuous", origin="raw", domain="environment",
+                     access="public", modality="raster"),
+        nexis.Source(endline, name="endline survey", level="household_id", time="post",
+                     support="continuous", origin="hand_crafted", domain="economy",
+                     access="restricted", modality="survey"),
     ],
     design=nexis.Randomized(treatment="grant", assigned_at="village_id",
                             stratified_by="district_id"),
 )
-data.info()                  # levels, sources, candidates, missing values, design checks
+data.info()                  # levels, sources and their attributes, candidates, missing
+                             # values, design checks
 
 result = nexis.discover(data, outcome="consumption")
 result.modifiers             # ['atom_3']
-result.table()               # every candidate: declared and detected level, clustering,
-                             # support, p-value, status
+result.table()               # every candidate: its source and attributes, declared and
+                             # detected level, clustering, support, p-value, status
 interpretation = result.interpret(k=4)
 interpretation               # label, most and least active ids of each learned modifier
 interpretation.show()        # image grid per modifier (matplotlib)
 ```
 
-An interpreter is any object with `describe(top, bottom) -> str`, called with the raw
-items (here image arrays; paths work too) of the most and the least active ids.
+An interpreter is any object with `describe(name, top, bottom) -> str`, called with the
+covariate's name and the raw items (here image arrays; paths work too) of its most and
+least active ids.
 
 ## Concepts
 
-**Sources.** A `Source` is a table of numeric columns with three required attributes,
-because they change the analysis:
+**Sources.** A `Source` is one data source (a survey, a satellite product, a climate or
+conflict database): a table of numeric columns indexed by the ids of one level, measured
+at one time relative to treatment. Keep one `Source` per data source; a list of them is
+the single declaration of a study's data, from which the `Dataset` is built. Every
+attribute is a keyword; all are required except `modality` (and `raw`, `interpreter`,
+`render`, for learned columns only):
 
-- `level`: the ids its rows are indexed by (e.g. `village_id`). The table's index must be
-  named so (or unnamed), and `level` must be the index name or a column of `units`: the
-  source is broadcast onto the units through it. The level where each candidate actually
-  varies is detected from the data and shown next to the declared one (`varies_at` in
-  `result.table()`, and in `data.info()` when they differ); the clustering uses the
-  coarser. A covariate shared by groups that are not an existing level (a market
-  catchment, a raster cell) gets its own level: an id column in `units` and a Source
-  indexed by it.
-- `time`: `pre` columns are candidates, `during` columns are excluded unless
-  `discover(..., include_during=True)` (include them only if the treatment cannot have
-  changed them), `post` columns are outcomes.
-- `support`: one kind for every column, or a dict giving one per column: `binary`
-  ({0, 1}), `count` (integers >= 0), `nonnegative` (reals >= 0), `sparse` (>= 0, zero the
-  most frequent value, e.g. SAE activations) or `continuous` (any finite real). Values
-  violating it are an error (NaN is ignored). Binary and sparse columns always get
-  the support rule (below); a count column gets it when the data show a mass point.
+| Attribute | Values | Per | Role |
+|---|---|---|---|
+| `level` | the ids the rows are indexed by, e.g. `village_id` | source | **search**: joins the source onto the units; clustering |
+| `time` | `historic`, `pre`, `during`, `post` | source | **search**: which columns are candidates |
+| `support` | `binary`, `count`, `nonnegative`, `sparse`, `continuous` | column (or one for all) | **search**: support rule |
+| `name` | the data source, e.g. `"CHIRPS"`, `"UNICEF household survey"` | source (unique) | interpretation |
+| `domain` | a lowercase identifier: `demographics`, `housing`, `economy`, `accessibility`, `urbanization`, `environment`, `security`, `health`, ... | column (or one for all) | interpretation |
+| `origin` | `raw`, `hand_crafted`, `learned` | column (or one for all) | interpretation |
+| `access` | `public`, `restricted`, `proprietary` | source | bookkeeping |
+| `modality` | `survey`, `image`, `raster`, `events`, `time_series`, `text`, or `None` | source | bookkeeping |
 
-The data check support and level when the `Source` and the `Dataset` are built; `time`
-is a declaration only (the data cannot tell when a variable was measured). Optional
-descriptive attributes never change the search: `origin` (`measured`, `predicted`,
-`learned`; every candidate competes in one pool and the Bonferroni gates count all of
-them), `modality` (e.g. `survey`, `image`, `raster`, `tabular`), `access` (`public`,
-`restricted`, `proprietary`) and `reference` (where the source is documented); they are
-shown in `data.info()` and `result.table()`. Learned sources carry `raw` (id -> raw item,
-read lazily) and an `interpreter`. A list of `Source`s is thus the one declaration of a
-study's data, from which the `Dataset` is built.
+The three attributes that change the search:
+
+- `level`: the table's index must be named so (or unnamed), and `level` must be the
+  index name or a column of `units`: the source is broadcast onto the units through it.
+  The level where each candidate actually varies is detected from the data and shown
+  next to the declared one (`varies_at` in `data.info()` and `result.table()`); the
+  clustering uses it (see the clustering rule). A covariate shared by groups that are not
+  an existing level (a market catchment, a raster cell) gets its own level: an id column
+  in `units` and a `Source` indexed by it.
+- `time`: `historic` (long-run character predating the baseline, e.g. climate normals)
+  and `pre` columns are candidates; `during` columns (measured while treatment ran) are
+  excluded unless `discover(..., include_during=True)` (include them only if the
+  treatment cannot have changed them); `post` columns are outcomes, never searched.
+- `support`: `binary` ({0, 1}), `count` (integers >= 0), `nonnegative` (reals >= 0),
+  `sparse` (>= 0, zero the most frequent value, e.g. SAE activations) or `continuous`
+  (any finite real). Binary and sparse columns always get the support rule (below); the
+  others get it when the data show a mass point.
+
+The three that guide the interpretation of what is found, never the search: the source
+`name`, the `domain` (what the variable is about; an open vocabulary) and the `origin`:
+`raw` (as recorded by the source), `hand_crafted` (derived by the analyst from raw data,
+e.g. an index or a distance) or `learned` (learned by a model, e.g. an SAE atom of
+satellite images). Every candidate competes in one pool whatever its origin, and the
+Bonferroni gates count all of them. Learned columns need `raw` (a mapping covering every
+id, or a callable id -> raw item, read lazily) and an `interpreter`; `render` (optional)
+turns a raw item matplotlib cannot draw (e.g. a multi-band GeoTIFF tile) into an
+H x W x 3 image for `interpretation.show()`.
+
+The two that are bookkeeping, shown in the tables only: `access` (`public`: downloadable
+without an account; `restricted`: needs a registration, an account or a licence;
+`proprietary`: obtained directly from the data owner, not downloadable) and `modality`,
+the kind of raw data the columns are extracted from (`survey`: questionnaire or census
+answers; `image`: satellite or aerial tiles, photographs; `raster`: gridded geospatial
+layers such as climate, population or land cover, sampled at the units' locations;
+`events`: dated, geolocated event records such as conflicts, aggregated per id;
+`time_series`: regular series per id or station, such as prices; `text`: documents or
+free text).
+
+*Checked against the data*, with an error naming the columns: the support (against the
+values), the level (against the index name, and against the units' id column in the
+`Dataset`, where every unit must have a row), `raw` covering every id, the
+interpreter's signature, unique source names and column names, and, over the units, that
+no candidate is constant, identical to another candidate or identical to the treatment
+(two candidates with |correlation| > 0.999 give a warning). Every vocabulary is
+validated, and every per-column dict must cover the columns exactly. *Declared only*:
+time, domain, origin, access and modality. The data cannot tell when a variable was
+measured, so declare `time` with care: a `pre` column that the treatment caused biases
+the search.
 
 **Designs.** `Randomized(treatment, assigned_at, stratified_by=None, sampled_by=None)`
 and `Discontinuity(treatment, running_variable, assigned_at, sampled_by=None,
@@ -127,9 +172,18 @@ direction, and a given cutoff inside that interval. They warn on fewer than 20 c
 and on strata holding a single arm. Design variables never enter the candidate pool.
 
 **Clustering rule.** Each candidate's interaction test is clustered at the coarsest of
-the assignment level, the sampling level and the level where the candidate varies
-(detected from the data); HC1 when that is the unit itself. Strata enter as fixed
-effects.
+the assignment level, the sampling level and the level where the candidate varies; HC1
+when that is the unit itself. Strata enter as fixed effects. The level where a candidate
+varies is detected as the coarsest level within whose cells it is constant, among the
+levels nested with its declared level: coarser levels whose cells are unions of its
+cells, and finer ones. It is therefore never finer than the declared level. For example,
+with an extra level of 161 groups over 162 communities (two communities merged, the
+others alone), a community column that happens to take the same value in the two merged
+communities is detected at the group level and clustered by the 161 groups, which is
+coarser than (or as coarse as) the communities; a column that differs between them stays
+at the community. A level that cuts across the declared one (some community split
+between two groups) is never detected for its columns, even when a column happens to be
+constant within its cells, because clustering by it would split the declared clusters.
 
 **Support rule.** A clustered test is identified by the clusters behind each (side of the
 candidate) x (arm) cell. For a candidate declared `binary` or `sparse` (cells: zero vs

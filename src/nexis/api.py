@@ -5,7 +5,10 @@ the FWER (Bonferroni) gates, rho = 0.5 and the linear T x Z_j interaction test, 
 level-aware by the design (nexis.design.LevelAwareTest):
 
   * candidate j is clustered at the coarsest of the assignment level, the sampling level
-    and the level where Z_j varies (HC1 when that is the unit itself);
+    and the level where Z_j varies (HC1 when that is the unit itself), detected as the
+    coarsest level within which Z_j is constant among the levels nested with its declared
+    level (coarser or finer; nexis.data.nested_order), so a detected level is always at
+    least as coarse as the declared one;
   * strata of a stratified randomization enter as fixed effects;
   * support rule (nexis.design.build_rule): a candidate declared binary or sparse
     (cells split at zero: active / inactive), or whose modal value holds >= 10% of the
@@ -24,7 +27,7 @@ import numpy as np
 import pandas as pd
 
 from .assignment import MIN_CLUSTERS
-from .data import MASS_SUPPORTS, Dataset
+from .data import MASS_SUPPORTS, Dataset, nested_order
 from .design import LevelAwareTest, block_fe, build_rule, codes, is_coarser
 from .interpret import Interpretation, extremes
 from .search import SelectionResult, nexis
@@ -61,11 +64,11 @@ class Result:
         return len(self.units)
 
     def table(self) -> pd.DataFrame:
-        """One row per candidate: covariate, source, level (declared), varies_at
-        (detected), declared support kind (`kind`), origin, time, clustered_at,
-        n_clusters, support (clusters in the smallest cell, if the support rule
-        applies), missing, p_value (given the selected set, or given the other modifiers
-        for a modifier), status, and the source's modality, access and reference."""
+        """One row per candidate: covariate, source (its name), level (declared),
+        varies_at (detected), time, declared support kind (`kind`), origin, domain,
+        clustered_at, n_clusters, support (clusters in the smallest cell, if the support
+        rule applies), missing, p_value (given the selected set, or given the other
+        modifiers for a modifier), status, and the source's access and modality."""
         return self._table.copy()
 
     def interpret(self, k: int = 5, seed: int = 0) -> Interpretation:
@@ -73,20 +76,21 @@ class Result:
         the raw items of the k ids (at the source's level, among the units analysed)
         with the highest values and the k with the lowest (ties broken at random with
         `seed`).  Empty, with a message, when no learned modifier was selected."""
-        learned = [c for c in self.modifiers if self.data.column_source[c].origin == "learned"]
+        learned = [c for c in self.modifiers if self.data.column_source[c].origin[c] == "learned"]
         rows, items = [], {}
         for c in learned:
             src = self.data.column_source[c]
             ids = pd.Index(self.data.levels[src.level].loc[self.units].unique())
             top, bottom = extremes(src.data.loc[src.data.index.intersection(ids), c], k, seed)
             items[c] = (src.raw_items(top), src.raw_items(bottom))
-            rows.append(dict(covariate=c, source=src.name, label=src.interpreter.describe(*items[c]),
+            rows.append(dict(covariate=c, source=src.name, label=src.interpreter.describe(c, *items[c]),
                              top=top, bottom=bottom))
         frame = pd.DataFrame(rows, columns=["covariate", "source", "label", "top", "bottom"])
         message = "" if learned else (
             f"no learned modifier was selected (modifiers: {', '.join(self.modifiers) or 'none'}); "
             "nothing to interpret")
-        return Interpretation(frame, items, message)
+        render = {c: self.data.column_source[c].render for c in learned}
+        return Interpretation(frame, items, message, render=render)
 
     def __repr__(self) -> str:
         return (f"Result(outcome={self.outcome!r}, n={self.n} ({self.n_treated} treated), "
@@ -150,7 +154,17 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
     d = dict(y=y_all[rows], t=t_all[rows], z=z_all, names=names, levels=levels,
              order=list(levels), assign=assign)
     declared = [data.column_source[c].support[c] in MASS_SUPPORTS for c in names]
-    keys, parts, info = build_rule(d, min_support, mass_point=declared)
+    # the rule per declared level, each detecting among the levels nested with it
+    keys, parts, info = [None] * len(names), {}, [None] * len(names)
+    by_level: dict[str, list[int]] = {}
+    for j, c in enumerate(names):
+        by_level.setdefault(data.column_source[c].level, []).append(j)
+    for lv, js in by_level.items():
+        sub = dict(d, z=d["z"][:, js], names=[names[j] for j in js], order=nested_order(levels, lv))
+        k_, p_, i_ = build_rule(sub, min_support, mass_point=[declared[j] for j in js])
+        for jj, j in enumerate(js):
+            keys[j], info[j] = k_[jj], i_[jj]
+        parts.update(p_)
     pool = [j for j, i in enumerate(info) if i["testable"]]
     if not pool:
         raise ValueError("no candidate passes the support rule")
@@ -193,20 +207,21 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
         else:
             status = f"dropped: support {i['support']} < {min_support} clusters"
         recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=i["level"],
-                         kind=src.support[c], origin=src.origin, time=src.time,
+                         time=src.time, kind=src.support[c], origin=src.origin[c], domain=src.domain[c],
                          clustered_at="none (HC1)" if hc1 else keys[j].replace("+", " + "),
                          n_clusters=int(len(y)) if hc1 else i["G"], support=i["support"],
                          missing=int(n_miss[j]), p_value=p[j], status=status))
     if during and not include_during:
+        va = data.varies_at(during)
         for c in during:
             src = data.column_source[c]
-            recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=None,
-                             kind=src.support[c], origin=src.origin, time=src.time, clustered_at=None,
+            recs.append(dict(covariate=c, source=src.name, level=src.level, varies_at=va[c], time=src.time,
+                             kind=src.support[c], origin=src.origin[c], domain=src.domain[c], clustered_at=None,
                              n_clusters=None, support=None, missing=int(data.frame.loc[rows, c].isna().sum()),
                              p_value=np.nan, status="excluded: measured during treatment"))
     for r in recs:
         src = data.column_source[r["covariate"]]
-        r.update(modality=src.modality, access=src.access, reference=src.reference)
+        r.update(access=src.access, modality=src.modality)
     tab = pd.DataFrame(recs).astype({"n_clusters": "Int64", "support": "Int64"})
     return Result(data=data, outcome=outcome, alpha=alpha, min_support=min_support,
                   modifiers=[names[pool[j]] for j in S], selection=sel,

@@ -2,11 +2,13 @@
 
 For every selected covariate of a learned source, the ids (at the source's level) with
 the highest and the lowest values are fetched as raw items (e.g. image paths) and given
-to the source's interpreter, describe(top, bottom) -> str, which returns a label.
+to the source's interpreter, describe(name, top, bottom) -> str (name: the covariate),
+which returns a label.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from textwrap import shorten, wrap
 
@@ -34,10 +36,13 @@ class Interpretation:
         most active first), bottom (ids, least active first).
     items: covariate -> (raw items of top, raw items of bottom).
     message: why the interpretation is empty, if it is.
+    render: covariate -> its source's render (raw item -> image array) or None.
     """
 
-    def __init__(self, frame: pd.DataFrame, items: dict[str, tuple[list, list]], message: str = ""):
+    def __init__(self, frame: pd.DataFrame, items: dict[str, tuple[list, list]], message: str = "",
+                 render: dict[str, Callable | None] | None = None):
         self.frame, self.items, self.message = frame, items, message
+        self.render = dict(render or {})
 
     @property
     def labels(self) -> dict[str, str]:
@@ -59,9 +64,12 @@ class Interpretation:
 
     def show(self, covariates: list[str] | None = None, size: float = 1.6):
         """Draw, per covariate, a row of its most active raw items above a row of its
-        least active ones, titled by its label.  Raw items must be images: arrays
-        (H x W or H x W x C) or paths to image files readable by matplotlib.  Returns the
-        matplotlib Figure, or None (with a message) when there is nothing to draw."""
+        least active ones, titled by its label.  A source with a `render` draws
+        render(item), which must be an H x W or H x W x 3 array of floats in [0, 1] or
+        uint8; otherwise raw items must be images: arrays (H x W or H x W x C) or paths to
+        image files readable by matplotlib.  An item that cannot be drawn is an error
+        naming the covariate and its source.  Returns the matplotlib Figure, or None
+        (with a message) when there is nothing to draw."""
         if not len(self):
             print(f"Interpretation: {self.message}")
             return None
@@ -72,13 +80,14 @@ class Interpretation:
         fig, axes = plt.subplots(2 * len(covs), k, figsize=(size * k, 2.3 * size * len(covs)),
                                  squeeze=False)
         labels = self.labels
+        source = dict(zip(self.frame["covariate"], self.frame["source"]))
         for i, c in enumerate(covs):
             for row, (name, items) in enumerate(zip(("most active", "least active"), self.items[c])):
                 axs = axes[2 * i + row]
                 for j, ax in enumerate(axs):
                     ax.set_xticks([]), ax.set_yticks([])
                     if j < len(items):
-                        img = _image(items[j])
+                        img = _drawable(items[j], self.render.get(c), c, source.get(c))
                         ax.imshow(img, cmap="gray" if img.ndim == 2 else None)
                     else:
                         ax.axis("off")
@@ -89,11 +98,48 @@ class Interpretation:
         return fig
 
 
+def _drawable(item, render: Callable | None, covariate: str, source: str | None) -> np.ndarray:
+    """The image show() draws for a raw item, through the source's render if any."""
+    where = f"{covariate!r} (source {source!r})"
+    if render is None:
+        try:
+            return _image(item)
+        except TypeError as e:
+            raise TypeError(f"show() cannot draw a raw item of {where}: {e}; give the source a "
+                            "render= (raw item -> H x W x 3 array)") from None
+    try:
+        img = render(item)
+    except Exception as e:
+        raise ValueError(f"render of source {source!r} failed on a raw item of {covariate!r} "
+                         f"({shorten(repr(item), 60)}): {type(e).__name__}: {e}") from e
+    if not isinstance(img, np.ndarray):
+        raise TypeError(f"render of source {source!r} must return a numpy array, got {type(img).__name__}")
+    if not (img.ndim == 2 or (img.ndim == 3 and img.shape[2] == 3)) or 0 in img.shape:
+        raise ValueError(f"render of source {source!r} must return an H x W or H x W x 3 array, got "
+                         f"shape {img.shape}")
+    if img.dtype == np.uint8:
+        return img
+    if not np.issubdtype(img.dtype, np.floating):
+        raise ValueError(f"render of source {source!r} must return floats in [0, 1] or uint8, got dtype "
+                         f"{img.dtype}")
+    if not np.isfinite(img).all() or img.min() < 0 or img.max() > 1:
+        raise ValueError(f"render of source {source!r} must return floats in [0, 1], got values in "
+                         f"[{np.nanmin(img):g}, {np.nanmax(img):g}]" + (" with non-finite values"
+                                                                     if not np.isfinite(img).all() else ""))
+    return img
+
+
 def _image(item) -> np.ndarray:
-    if isinstance(item, np.ndarray) and item.ndim in (2, 3):
-        return item
+    if isinstance(item, np.ndarray):
+        if item.ndim == 2 or (item.ndim == 3 and item.shape[2] in (3, 4)):
+            return item
+        raise TypeError(f"an array of shape {item.shape} is not an image (H x W, H x W x 3 or 4)")
     if isinstance(item, (str, Path)) and Path(item).is_file():
         import matplotlib.image as mpimg
-        return mpimg.imread(item)
-    raise TypeError(f"show() draws images: raw items must be image arrays or paths to image "
-                    f"files, got {shorten(repr(item), 60)}")
+        try:
+            return mpimg.imread(item)
+        except Exception as e:      # e.g. a multi-band GeoTIFF matplotlib cannot read
+            raise TypeError(f"matplotlib cannot read {shorten(str(item), 60)} "
+                            f"({type(e).__name__}: {shorten(str(e), 80)})") from None
+    raise TypeError(f"raw items must be image arrays or paths to image files, got "
+                    f"{shorten(repr(item), 60)}")
