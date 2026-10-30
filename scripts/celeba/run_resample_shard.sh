@@ -42,8 +42,16 @@ esac
 SHARD="${FEATURE}_k${K}_${SWEEP}${FIXED}_${GROUP}_s${SEED_OFFSET}"
 OUT="results/celeba/experiment_resample_${TAG}/shards/${SHARD}"
 
+# Arm a0 is the original dictionary: its codes are the main pool in data/celeba itself.
+# Any other TAG reads the replica codes in data/celeba/resample_<TAG>/eval.
+if [[ "$TAG" == "a0" ]]; then
+    DATA_DIR="data/celeba"
+else
+    DATA_DIR="data/celeba/resample_${TAG}/eval"
+fi
+
 ARGS=(
-    --data-dir     "data/celeba_resample_${TAG}/eval"
+    --data-dir     "$DATA_DIR"
     --out-dir      "$OUT"
     --backbone     siglip
     --sae-top-k    "$K"

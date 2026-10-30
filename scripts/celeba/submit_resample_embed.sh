@@ -12,8 +12,8 @@
 # same size as the one the paper's SAEs were trained on (19,867 images), drawn from the
 # CelebA train split — identity-disjoint from the valid split used in every experiment.
 #
-# Writes:  data/celeba_resample_<TAG>/embeddings/siglip{,_patches}.npy
-#          data/celeba_resample_<TAG>/labels.parquet   (of the training corpus; unused downstream)
+# Writes:  data/celeba/resample_<TAG>/embeddings/siglip{,_patches}.npy
+#          data/celeba/resample_<TAG>/labels.parquet   (of the training corpus; unused downstream)
 #
 # The experiment data itself is NOT touched: the SAEs trained on this corpus are later
 # used to encode the original valid-split embeddings (see submit_resample_sae.sh).
@@ -40,11 +40,11 @@ export HF_HUB_OFFLINE=1
 echo "============================================================"
 echo " SAE resample ${TAG}: embed ${SAMPLE_N} train-split images"
 echo " sample seed  : ${SAMPLE_SEED}   backbone: ${BACKBONE}"
-echo " out          : data/celeba_resample_${TAG}"
+echo " out          : data/celeba/resample_${TAG}"
 echo "============================================================"
 
 $PYTHON src/apps/celeba/embed.py \
-    --data-dir     "data/celeba_resample_${TAG}" \
+    --data-dir     "data/celeba/resample_${TAG}" \
     --backbone     "$BACKBONE" \
     --split        train \
     --sample-n     "$SAMPLE_N" \

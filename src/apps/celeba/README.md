@@ -41,7 +41,7 @@ the replica below checks that this does not drive the results.
 19,867 train-split images (seed 1; the CelebA splits share no identities), then used to
 encode the same validation pool (`scripts/celeba/submit_resample_{embed,sae}.sh b1`;
 `results/celeba/resample_b1/sae_siglip_k20.pt`, codes in
-`data/celeba_resample_b1/eval/embeddings/`). Trained on one H100 (the others on an
+`data/celeba/resample_b1/eval/embeddings/`). Trained on one H100 (the others on an
 RTX 2080 Ti). Background: Section 8.
 
 **Principal coordinates (ground truth S\*).** For each attribute, argmax over j of the
@@ -58,7 +58,7 @@ These indices exist only for the original checkpoints (not in the repo): GPU tra
 not bit-reproducible and a retrained SAE has other indices. To run the benchmark package
 (`src/apps/celeba/benchmark/`) on the original artefacts, link them into its data layout:
 `data/celeba/embeddings/{siglip.npy, siglip_patches.npy → siglip_patches.f16, sae*_k*.npy}`,
-`data/celeba_resample_b1/eval/embeddings/sae[_precode]_k20.npy → sae[_precode]_replica_k20.npy`,
+`data/celeba/resample_b1/eval/embeddings/sae[_precode]_k20.npy → sae[_precode]_replica_k20.npy`,
 `results/celeba/sae_siglip_k{5,20}.pt → models/sae_main_k{5,20}.pt`,
 `results/celeba/resample_b1/sae_siglip_k20.pt → models/sae_replica_k20.pt`,
 plus `labels.parquet` and `images.npy`; `prepare` then only writes the ground-truth files.

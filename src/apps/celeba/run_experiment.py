@@ -17,9 +17,9 @@ the results tree are tagged, e.g. data/celeba/embeddings/sae_dinov2_k20.npy and
 results/celeba/experiment/dinov2/k20/sae/.
 
 Feature modes for SAE (--precode controls NEXIS regression features):
-  default  — sparse post-topk codes (sae.npy): features are ~orthogonal by design;
+  default  — sparse post-topk codes (sae_k{K}.npy): features are ~orthogonal by design;
              NEXIS ≈ Bonferroni because conditioning on orthogonal features adds no power.
-  --precode — continuous pre-activations (sae_precode.npy): features are dense and
+  --precode — continuous pre-activations (sae_precode_k{K}.npy): features are dense and
              correlated; NEXIS conditioning removes false positives that Bonferroni misses.
 
 Two sweeps are produced (mimicking Fig. 5 of the ECI paper):

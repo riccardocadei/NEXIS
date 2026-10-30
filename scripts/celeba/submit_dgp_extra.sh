@@ -10,7 +10,7 @@
 # Appendix C extras for the NEXIS-v2 default (CPU only, existing SAE features only):
 #
 #   rep  reproducibility: the main experiment on the independently trained k=20 SAE
-#        (data/celeba_resample_b1/eval; src/apps/celeba/README.md, Section 8), ground truth
+#        (data/celeba/resample_b1/eval; src/apps/celeba/README.md, Section 8), ground truth
 #        from results/celeba/experiment_resample_b1/k20/sae/ground_truth.json
 #   r3   three direct modifiers: Wearing_Hat (+1), Eyeglasses (-1), Sideburns (+1),
 #        the convention of results/celeba/experiment_r3 (an earlier r sweep)
@@ -83,7 +83,7 @@ echo "set=$SET sweep=$SWEEP host=$(hostname) cpus=${SLURM_CPUS_PER_TASK:-?} out=
 case "$SET" in
   rep)
     exec "$PYTHON" src/apps/celeba/run_experiment.py --sae-top-k 20 \
-        --data-dir data/celeba_resample_b1/eval --out-dir "$OUT" \
+        --data-dir data/celeba/resample_b1/eval --out-dir "$OUT" \
         --gt-json results/celeba/experiment_resample_b1/k20/sae/ground_truth.json \
         --w1-attr Wearing_Hat --w2-attr Eyeglasses --top-k 1 "${GRID[@]}" \
         --methods "${BASELINES[@]}" NEXIS-v2 "${FORCE[@]}" ;;

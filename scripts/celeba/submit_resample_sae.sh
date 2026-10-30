@@ -12,11 +12,11 @@
 # with *exactly* the hyperparameters of the paper's SigLIP SAEs (hidden 9216, 20 epochs,
 # batch 20 images, lr 5e-4), then encode the ORIGINAL valid-split embeddings with it.
 #
-#   training data  : data/celeba_resample_<TAG>/embeddings/siglip_patches.npy   (different sample)
-#   encoding data  : data/celeba_resample_<TAG>/eval/embeddings/siglip.npy      (symlink → the
+#   training data  : data/celeba/resample_<TAG>/embeddings/siglip_patches.npy   (different sample)
+#   encoding data  : data/celeba/resample_<TAG>/eval/embeddings/siglip.npy      (symlink → the
 #                    original data/celeba embeddings, so the experiment data is unchanged)
 #   checkpoint     : results/celeba/resample_<TAG>/sae_siglip_k<K>.pt
-#   codes          : data/celeba_resample_<TAG>/eval/embeddings/sae_k<K>.npy, sae_precode_k<K>.npy
+#   codes          : data/celeba/resample_<TAG>/eval/embeddings/sae_k<K>.npy, sae_precode_k<K>.npy
 #
 # One job per k so both k values train concurrently on separate H100s.
 #
@@ -35,7 +35,7 @@ mkdir -p "$PROJECT_ROOT/logs"
 PYTHON="${PYTHON:-/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 
-DATA="data/celeba_resample_${TAG}"
+DATA="data/celeba/resample_${TAG}"
 
 echo "============================================================"
 echo " SAE resample ${TAG}: train_sae  backbone=${BACKBONE}  top-k=${K}"
