@@ -10,7 +10,7 @@ Layout on disk:
 Grid spec:
   - 5×5 km tiles at 30 m resolution (identical to LEAP tiles)
   - 5 km centre-to-centre spacing → edge-to-edge, full national coverage
-  - 2015 annual cloud-free Landsat 8 SR median composite
+  - 2015 annual cloud-filtered Landsat 8 SR median composite (see below)
   - 6 bands: SR_B4, SR_B3, SR_B2, SR_B5, SR_B6, SR_B7
 
 Speed design:
@@ -19,6 +19,17 @@ Speed design:
   clips that image to its tile region and calls getDownloadURL — no redundant
   collection filtering or compositing per tile.  Combined with 32 parallel
   workers (well within GEE's 40-request limit) this typically achieves <1h.
+
+Known limitations of the stored tiles (kept on purpose: the tiles in
+data/ghana/satellite/tif/ and tif_national/, the SAE trained on them and the
+coordinate indices it reports were produced with these filters, so changing them
+would mean re-downloading and retraining, and the indices would no longer match):
+  - Date filter: filterDate('<year>-01-01', '<year>-12-31') has an exclusive end,
+    so scenes acquired on 31 December are left out of the annual composite.
+  - Cloud filter: scenes are kept when their scene-level CLOUD_COVER is below
+    MAX_CLOUD (70%); there is no per-pixel cloud or shadow mask (QA_PIXEL is not
+    used), so cloudy pixels of the kept scenes enter the median composite (the
+    median over the year's scenes damps, but does not remove, them).
 
 GEE cost: none — free for non-commercial research.
 
@@ -151,8 +162,8 @@ def download_one(
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--out-dir',  default='../../data/ghana/satellite/tif_national')
-    p.add_argument('--data-dir', default='../../data/ghana')
+    p.add_argument('--out-dir',  default='../../../data/ghana/satellite/tif_national')  # relative to this script
+    p.add_argument('--data-dir', default='../../../data/ghana')
     p.add_argument('--workers',  type=int, default=32,
                    help='Parallel workers (default 32; GEE limit is 40)')
     p.add_argument('--scale',    type=int, default=SCALE)

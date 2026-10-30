@@ -1,7 +1,18 @@
 """Download Landsat 8 satellite images for Ghana LEAP 1000 community centroids.
 
-For each community, builds a 5×5 km cloud-free annual composite (2015) on
+For each community, builds a 5×5 km cloud-filtered annual composite (2015) on
 GEE and downloads it directly as a multi-band GeoTIFF — no Google Drive needed.
+
+Known limitations of the stored tiles (kept on purpose: the tiles in
+data/ghana/satellite/tif/ and tif_national/, the SAE trained on them and the
+coordinate indices it reports were produced with these filters, so changing them
+would mean re-downloading and retraining, and the indices would no longer match):
+  - Date filter: filterDate('<year>-01-01', '<year>-12-31') has an exclusive end,
+    so scenes acquired on 31 December are left out of the annual composite.
+  - Cloud filter: scenes are kept when their scene-level CLOUD_COVER is below
+    --max-cloud (70%); there is no per-pixel cloud or shadow mask (QA_PIXEL is not
+    used), so cloudy pixels of the kept scenes enter the median composite (the
+    median over the year's scenes damps, but does not remove, them).
 
 Setup (one-time):
     pip install earthengine-api requests
@@ -9,7 +20,7 @@ Setup (one-time):
     earthengine set_project <your-project-id>
 
 Usage:
-    python download_satellite_images.py [--out-dir ../../data/ghana/satellite]
+    python download_satellite_images.py [--out-dir ../../../data/ghana/satellite/tif]
                                         [--tile-km 5]
                                         [--year 2015]
                                         [--bands B4 B3 B2 B5 B6 B7]
@@ -46,8 +57,9 @@ def log(msg: str):
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--out-dir', default='../../data/ghana/satellite',
-                   help='Local directory to save GeoTIFFs (default: ../../data/ghana/satellite)')
+    p.add_argument('--out-dir', default='../../../data/ghana/satellite/tif',
+                   help='Directory to save GeoTIFFs, relative to this script '
+                        '(default: %(default)s, i.e. the repo\'s data/ghana/satellite/tif)')
     p.add_argument('--tile-km', type=float, default=5.0,
                    help='Tile side length in km (default: 5)')
     p.add_argument('--year', type=int, default=2015,
@@ -62,7 +74,7 @@ def parse_args():
     p.add_argument('--dry-run', action='store_true',
                    help='Print plan without downloading anything')
     p.add_argument('--data-path',
-                   default='../../data/ghana/LEAP1000 2015-2017 household data++.dta',
+                   default='../../../data/ghana/LEAP1000 2015-2017 household data++.dta',
                    help='Path to household .dta file')
     return p.parse_args()
 
