@@ -155,14 +155,13 @@ free text).
 values), the level (against the index name, and against the units' id column in the
 `Dataset`, where every unit must have a row), `raw` covering every id, the
 interpreter's signature, unique source names and column names, and, over the units, that
-no candidate is constant, identical to another candidate or identical to the treatment.
-A candidate that is an exact linear combination of other candidates and an intercept
-(e.g. a household size next to its age-group counts) gives a warning naming a minimal
-dependent set: every column stays in the pool, so the search can pick the total or its
-parts, and once the rest of a set is selected the remaining column is in the span of the
-conditioning set and gets p = 1 (`discover()` standardises the candidates over the
-analysed units, so this does not depend on their scale). Two candidates with
-|correlation| > 0.999 also give a warning. Every vocabulary is
+no candidate is constant, identical to another candidate or identical to the treatment,
+and none is an exact linear combination of other candidates and an intercept (the error
+names a minimal dependent set, e.g. a household size next to its age-group counts: such
+a pool violates faithfulness, so keep one level of abstraction per concept; columns with
+missing values are out of the pool and of this check). Two candidates with
+|correlation| > 0.999 give a warning. `discover()` standardises the tested candidates over
+the analysed units, so the test's tolerances do not depend on their units. Every vocabulary is
 validated, and every per-column dict must cover the columns exactly. *Declared only*:
 time, domain, origin, access and modality. The data cannot tell when a variable was
 measured, so declare `time` with care: a `pre` column that the treatment caused biases

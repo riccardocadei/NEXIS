@@ -53,11 +53,10 @@ MODALITIES).
 What is checked against the data: support (against the values), level (against the
 index name here, against the id column of the units in Dataset), raw (covers every id of
 the source when it is a mapping), and, at Dataset construction and over the units, that
-no candidate is constant or identical to another (errors), and warnings when a
-candidate is an exact linear combination of others (with an intercept, over the columns
-without missing values: e.g. a household size that is the sum of its age-group counts;
-such a column gets p = 1 once the others are selected) or when two candidates correlate
-above 0.999.  Time, domain, origin, access and modality are declarations
+no candidate is constant, identical to another, or an exact linear combination of
+others (with an intercept, over the columns without missing values: e.g. a household
+size next to its age-group counts) -- errors -- and a warning when two candidates
+correlate above 0.999.  Time, domain, origin, access and modality are declarations
 only: the data cannot tell when a variable was measured, so declare it with care (a
 "pre" column caused by treatment biases the search).
 
@@ -327,10 +326,10 @@ class Dataset:
     are ignored.  Units with a missing design variable are dropped with a warning
     (`dropped_units`); the design checks then run on the rest (`checks`).  Design
     variables are taken out of the candidate pool (`removed`).  Over the remaining
-    units, a candidate (historic, pre or during column) that is constant or identical to
-    another candidate is an error; a candidate that is an exact linear combination of
-    other candidates and an intercept (among those without missing values), and two
-    candidates with |correlation| above 0.999, give warnings.
+    units, a candidate (historic, pre or during column) that is constant, identical to
+    another candidate, or an exact linear combination of other candidates and an
+    intercept (among those without missing values) is an error; two candidates with
+    |correlation| above 0.999 give a warning.
     """
 
     def __init__(self, units: pd.DataFrame, sources: list[Source], design: Design):
@@ -444,7 +443,7 @@ class Dataset:
 
     def _check_pool(self) -> None:
         """Over the units: no constant candidate, no two identical ones, none identical
-        to the treatment (errors); warnings for exact linear dependences and for pairs with
+        to the treatment, no exact linear dependence (errors), and a warning for pairs with
         |correlation| > CORRELATION_WARNING."""
         cand = self._columns(CANDIDATE_TIMES)
         if not cand:
@@ -481,14 +480,12 @@ class Dataset:
         full = ~nan.any(axis=0)
         sets = dependent_sets(x[:, full], [c for c, f in zip(cand, full) if f])
         if sets:
-            warnings.warn(f"{len(sets)} candidate columns are exact linear combinations of other candidates "
-                          f"and an intercept over the {len(x):,} units; minimal dependent sets: "
-                          f"{'; '.join('{' + ', '.join(map(where, g)) + '}' for g in sets[:5])}"
-                          f"{'; ...' if len(sets) > 5 else ''}.  They all stay in the pool and count in "
-                          "the number of tested candidates m: once the other columns of a set are "
-                          "selected, the remaining one is in the span of the conditioning set, so "
-                          "nexis treats it as uninformative (p = 1); which column of a set enters "
-                          "first is left to the search", stacklevel=3)
+            raise ValueError(f"{len(sets)} candidate columns are exact linear combinations of other candidates "
+                             f"and an intercept over the {len(x):,} units; minimal dependent sets: "
+                             f"{'; '.join('{' + ', '.join(map(where, g)) + '}' for g in sets[:5])}"
+                             f"{'; ...' if len(sets) > 5 else ''}.  Such a pool violates faithfulness (adding a "
+                             "column of a set to the others cannot change the conditional effect): keep one "
+                             "level of abstraction per concept, e.g. a total or its components, not both")
         if nan.any():
             r = pd.DataFrame(x, columns=cand).corr().to_numpy()
         else:
