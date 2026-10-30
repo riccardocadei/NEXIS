@@ -515,43 +515,43 @@ footer{padding:1.8rem 2rem;text-align:center;
     <span class="an-full">Francesco </span><span class="an-short">F. </span>Locatello<sup>1</sup>
   </div>
   <div class="affiliations">
-    <span class="aff-item"><sup>1</sup><a href="https://ista.ac.at" target="_blank" rel="noopener"><img src="assets/affiliations/ista.svg" alt="ISTA" class="aff-logo aff-logo-ista"></a></span>
-    <span class="aff-item"><sup>2</sup><a href="https://www.unicef.org" target="_blank" rel="noopener"><img src="assets/affiliations/unicef.png" alt="UNICEF" class="aff-logo"></a></span>
-    <span class="aff-item"><sup>3</sup><a href="https://www.ucla.edu" target="_blank" rel="noopener"><img src="assets/affiliations/ucla.png" alt="UCLA" class="aff-logo"></a></span>
+    <span class="aff-item"><sup>1</sup><a href="https://ista.ac.at" target="_blank" rel="noopener"><img src="assets/img/affiliations/ista.svg" alt="ISTA" class="aff-logo aff-logo-ista"></a></span>
+    <span class="aff-item"><sup>2</sup><a href="https://www.unicef.org" target="_blank" rel="noopener"><img src="assets/img/affiliations/unicef.png" alt="UNICEF" class="aff-logo"></a></span>
+    <span class="aff-item"><sup>3</sup><a href="https://www.ucla.edu" target="_blank" rel="noopener"><img src="assets/img/affiliations/ucla.png" alt="UCLA" class="aff-logo"></a></span>
   </div>
 
   <p class="sat-intro">Satellite imagery surfaces candidate environmental drivers of anti-poverty program impact, unmeasured in surveys. <em>Click to explore.</em></p>
   <div class="sat-strip" id="sat-strip">
     <div class="sat-tile">
-      <img src="assets/tiles/tile_uganda_river.png" alt="Apac, Uganda (2007)">
+      <img src="assets/img/tiles/tile_uganda_river.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Perennial river presence</span>
         <span class="sat-country">Uganda · YOP<br>skilled employment<br>candidate modifier</span>
       </div>
     </div>
     <div class="sat-tile">
-      <img src="assets/tiles/tile_uganda_veg_heterogeneity.png" alt="Apac, Uganda (2007)">
+      <img src="assets/img/tiles/tile_uganda_veg_heterogeneity.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Vegetation spatial heterogeneity</span>
         <span class="sat-country">Uganda · YOP<br>skilled employment<br>certified modifier</span>
       </div>
     </div>
     <div class="sat-tile">
-      <img src="assets/tiles/tile_uganda_structured_ag.png" alt="Apac, Uganda (2007)">
+      <img src="assets/img/tiles/tile_uganda_structured_ag.png" alt="Apac, Uganda (2007)">
       <div class="sat-overlay">
         <span class="sat-feature">Structured agricultural landscape</span>
         <span class="sat-country">Uganda · YOP<br>business assets<br>candidate modifier</span>
       </div>
     </div>
     <div class="sat-tile">
-      <img src="assets/tiles/tile_ghana_waterways.png" alt="Bongo, Ghana (2015)">
+      <img src="assets/img/tiles/tile_ghana_waterways.png" alt="Bongo, Ghana (2015)">
       <div class="sat-overlay">
         <span class="sat-feature">Ephemeral waterways</span>
         <span class="sat-country">Ghana · LEAP 1000<br>expenditure<br>certified modifier</span>
       </div>
     </div>
     <div class="sat-tile">
-      <img src="assets/tiles/tile_ghana_forest.png" alt="Karaga, Ghana (2015)">
+      <img src="assets/img/tiles/tile_ghana_forest.png" alt="Karaga, Ghana (2015)">
       <div class="sat-overlay">
         <span class="sat-feature">Closed-canopy forest</span>
         <span class="sat-country">Ghana · LEAP 1000<br>expenditure<br>certified modifier</span>
@@ -712,7 +712,7 @@ footer{padding:1.8rem 2rem;text-align:center;
   <div class="wrap">
     <h2>Method</h2>
     <h3>From Tokens to Policy explaining the effect heterogeneity</h3>
-    <video src="assets/s01_pipeline.mp4" autoplay loop muted playsinline controls
+    <video src="assets/media/s01_pipeline.mp4" autoplay loop muted playsinline controls
            style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
     </video>
     <p style="margin:1.2rem 0 0.4rem;"><strong>Procedure:</strong></p>
@@ -745,7 +745,7 @@ footer{padding:1.8rem 2rem;text-align:center;
         variants discussed in the paper&#8217;s appendix; neither is part of Algorithm 1, animated below.
         Interpret the selected coordinates <em>a posteriori</em>, e.g., by querying a VLM on
         the most and least activating observations.
-        <video src="assets/nexis_method.mp4" autoplay loop muted playsinline controls
+        <video src="assets/media/nexis_method.mp4" autoplay loop muted playsinline controls
                style="width:100%;border-radius:4px;border:1px solid var(--border);margin-top:0.8rem;display:block;">
         </video>
         <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border);">
@@ -1919,9 +1919,9 @@ function drawUganda(){
 }
 
 Promise.all([
-  fetch('assets/uganda_country.json').then(r=>r.json()),
-  fetch('assets/uganda_regions.json').then(r=>r.json()),
-  fetch('assets/uganda_communities.json').then(r=>r.json())
+  fetch('assets/json/uganda_country.json').then(r=>r.json()),
+  fetch('assets/json/uganda_regions.json').then(r=>r.json()),
+  fetch('assets/json/uganda_communities.json').then(r=>r.json())
 ]).then(([country,regions,communities])=>{
   const gb=boundsFromGeoJSON(country);
   ugData={country,regions,communities,bounds:{
@@ -2105,9 +2105,9 @@ function drawGhana(){
 }
 
 Promise.all([
-  fetch('assets/ghana_country.json').then(r=>r.json()),
-  fetch('assets/ghana_regions.json').then(r=>r.json()),
-  fetch('assets/ghana_communities.json').then(r=>r.json()),
+  fetch('assets/json/ghana_country.json').then(r=>r.json()),
+  fetch('assets/json/ghana_regions.json').then(r=>r.json()),
+  fetch('assets/json/ghana_communities.json').then(r=>r.json()),
 ]).then(([country,regions,communities])=>{
   communities.forEach(c=>{
     c.region_idx=communityRegion(c.lat,c.lon,regions);
@@ -2208,7 +2208,7 @@ function renderTiles(rowId, ids, prefix, actDict, maxAct){
     const t=maxAct>0?Math.min(1,v/maxAct):0;
     const div=document.createElement('div');div.className='ni-tile';
     const img=document.createElement('img');
-    img.src=`assets/tiles/${prefix}_${id}.png`;
+    img.src=`assets/img/tiles/${prefix}_${id}.png`;
     img.alt=`Community ${id}`;
     img.loading='lazy';
     img.onerror=function(){this.style.display='none';const ph=document.createElement('div');ph.className='ni-no-img';ph.textContent='N/A';div.appendChild(ph);};
@@ -2299,7 +2299,7 @@ function updateGhInterp(){
 }
 
 // Selected modifiers, in table order; display names and certified/candidate status
-// come from assets/nexis_activations.json and match the results tables.
+// come from assets/json/nexis_activations.json and match the results tables.
 const DISC={
   ghana:['3821','2095'],
   uganda_skilled:['lang_4','lang_7','533','lang_2','339'],
@@ -2343,7 +2343,7 @@ function initGhInterp(){
   updateGhInterp();
 }
 
-fetch('assets/nexis_activations.json').then(r=>r.json()).then(data=>{
+fetch('assets/json/nexis_activations.json').then(r=>r.json()).then(data=>{
   nexisData=data;
   if(ugData.communities)initUgInterp();
   if(ghData.communities)initGhInterp();
@@ -2398,7 +2398,7 @@ document.getElementById('ug-outcome-tabs').addEventListener('click',e=>{
    ══════════════════════════════════════════════ */
 /* ══════════════════════════════════════════════
    PRINCIPAL ALIGNMENT PANELS (CelebA)
-   assets/celeba_alignment.json, written by
+   assets/json/celeba_alignment.json, written by
    src/apps/celeba/export_website_alignment.py
    ══════════════════════════════════════════════ */
 const ALIGN_ATTR={
@@ -2439,7 +2439,7 @@ function alignTiles(row,I,which,n,col,label){
     const t=document.createElement('div');
     t.className='align-thumb'+(attr[k]?' has-attr':'');
     t.style.setProperty('--attr-col',col);t.style.setProperty('--thumb',px+'px');
-    t.style.backgroundImage=`url(assets/${I.sprite})`;
+    t.style.backgroundImage=`url(assets/img/${I.sprite})`;
     t.style.backgroundSize=`${I.n*100}% 200%`;
     t.style.backgroundPosition=`${I.n>1?k/(I.n-1)*100:0}% ${r*100}%`;
     t.title=(attr[k]?'labelled ':'not labelled ')+label;
@@ -2500,12 +2500,12 @@ function alignRender(id){
   alignTiles(root.querySelector('.align-tiles-bot'),I,'bottom',n,col,lbl);
 }
 
-fetch('assets/celeba_alignment.json').then(r=>r.json()).then(d=>{
+fetch('assets/json/celeba_alignment.json').then(r=>r.json()).then(d=>{
   alignData=d;
   Object.keys(alignState).forEach(alignRender);
 });
 
-fetch('assets/celeba_data.json').then(r=>r.json()).then(DATA=>{
+fetch('assets/json/celeba_data.json').then(r=>r.json()).then(DATA=>{
   const PALETTE={
     'NEXIS':                        {c:'#1a56a0'},
     'Marginal Testing':             {c:'#e05c1a'},

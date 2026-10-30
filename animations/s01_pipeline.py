@@ -1,6 +1,6 @@
 # Render (preview):  cd animations && conda run -n manim manim -pql s01_pipeline.py Pipeline
 # Render (website):  cd animations && conda run -n manim manim -qh  s01_pipeline.py Pipeline
-#                    cp media/videos/s01_pipeline/1080p30/Pipeline.mp4 ../docs/assets/s01_pipeline.mp4
+#                    cp media/videos/s01_pipeline/1080p30/Pipeline.mp4 ../docs/assets/media/s01_pipeline.mp4
 # Duration: ~30s
 #
 # The selected set mirrors the certified YOP skilled-employment modifiers of the paper

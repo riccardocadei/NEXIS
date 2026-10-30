@@ -13,7 +13,8 @@ from matplotlib.path import Path as MPath
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS = ROOT / "docs" / "assets"
+DOCS = ROOT / "docs" / "assets" / "json"
+MAPS = ROOT / "animations" / "assets"
 DATA = ROOT / "data"
 
 # Exact website colors (from index.html canvas rendering)
@@ -171,7 +172,7 @@ if __name__ == "__main__":
         plt.close(fig)
 
     print("Uganda treatment map …")
-    _save(uganda_map(), DOCS / "uganda_treatment_map.png")
+    _save(uganda_map(), MAPS / "uganda_treatment_map.png")
     print("Ghana treatment map …")
-    _save(ghana_map(), DOCS / "ghana_treatment_map.png")
+    _save(ghana_map(), MAPS / "ghana_treatment_map.png")
     print("Done.")

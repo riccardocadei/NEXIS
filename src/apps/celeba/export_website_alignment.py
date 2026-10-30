@@ -23,15 +23,15 @@ the site's curves (results/celeba/experiment_v2/<k>/<view>/ and, for Sideburns,
 experiment_v2_r3/k20/sae/, experiment_v2_resample_b1/k20/sae/ for the replica); on the
 main dictionary they are 5348, 5537 and 1683.
 
-Outputs (docs/assets/):
-  celeba_alignment.json
+Outputs (under --out-dir, default docs/assets/):
+  json/celeba_alignment.json
       {"<dict>": {"label", "codes", "m",
                   "concepts": {"<attr>": {"principal", "rank", "auc", "runner_up",
                                "auc_runner_up", "gap", "prevalence", "top100_purity",
                                "spectrum": [[rank, auc], ...],
                                "images": {"sprite", "size", "n", "top", "bottom",
                                           "top_attr", "bottom_attr"}}}}}
-  celeba_alignment/<dict>_<attr>.jpg   2 x N_IMG sprite: most / least activating images
+  img/celeba_alignment/<dict>_<attr>.jpg   2 x N_IMG sprite: most / least activating images
 
 Usage (CPU, a few minutes):
     PYTHONPATH=src python src/apps/celeba/export_website_alignment.py
@@ -61,7 +61,7 @@ DICTS = {
     "k5_sae":      ("TopK SAE, k = 5, sparse codes Z", "celeba/embeddings/sae_k5.npy",
                     "experiment_v2/k5/sae"),
     "k20_sae_rep": ("Replica TopK SAE, k = 20, sparse codes Z",
-                    "celeba_resample_b1/eval/embeddings/sae_k20.npy",
+                    "celeba/resample_b1/eval/embeddings/sae_k20.npy",
                     "experiment_v2_resample_b1/k20/sae"),
 }
 R3_GT = "experiment_v2_r3/k20/sae/ground_truth.json"   # adds Sideburns on the main dictionary
@@ -120,7 +120,8 @@ def main():
     root, res, out = (p if p.is_absolute() else ROOT / p
                       for p in (args.data_root, args.results_dir, args.out_dir))
     data = root / "celeba"
-    (out / "celeba_alignment").mkdir(parents=True, exist_ok=True)
+    (out / "img" / "celeba_alignment").mkdir(parents=True, exist_ok=True)
+    (out / "json").mkdir(parents=True, exist_ok=True)
 
     labels = pd.read_parquet(data / "labels.parquet")
     imgs = np.load(data / "images.npy", mmap_mode="r")
@@ -144,7 +145,7 @@ def main():
             spec, rank_p = decimated_spectrum(auc, j)
             top, bot = extremes(Z[:, j])
             fname = f"celeba_alignment/{key}_{attr}.jpg"
-            sprite(imgs, [top, bot], out / fname)
+            sprite(imgs, [top, bot], out / "img" / fname)
             entry["concepts"][attr] = {
                 "principal": j, "rank": rank_p, "auc": round(float(auc[j]), 3),
                 "runner_up": runner, "auc_runner_up": round(float(auc[runner]), 3),
@@ -165,7 +166,7 @@ def main():
         result[key] = entry
         del Z
 
-    path = out / "celeba_alignment.json"
+    path = out / "json" / "celeba_alignment.json"
     path.write_text(json.dumps(result, separators=(",", ":")))
     print(f"wrote {path}")
 

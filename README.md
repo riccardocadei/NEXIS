@@ -15,7 +15,7 @@ others. Learned features are then interpreted from their most and least active r
 (for example by a vision-language model), and the result can guide how the treatment is
 targeted next time.
 
-![NEXIS pipeline](docs/assets/pipeline.gif)
+![NEXIS pipeline](animations/assets/pipeline.gif)
 
 This repository holds the `nexis` Python library (`src/nexis`) and, separately, the code
 that reproduces the paper's three case studies (`src/apps`).

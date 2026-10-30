@@ -14,10 +14,10 @@ from config import (
     SMALL_SCALE, LABEL_SCALE,
 )
 
-DOCS = Path(__file__).parent.parent / "docs" / "assets"
+ASSETS = Path(__file__).parent / "assets"
 
-UGA_MAP = DOCS / "uganda_treatment_map.png"
-GHA_MAP = DOCS / "ghana_treatment_map.png"
+UGA_MAP = ASSETS / "uganda_treatment_map.png"
+GHA_MAP = ASSETS / "ghana_treatment_map.png"
 
 LX    = -3.55
 RX    = +3.55

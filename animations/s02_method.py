@@ -6,7 +6,7 @@
 #
 # Render (preview):  cd animations && conda run -n manim manim -pql s02_method.py Selection
 # Render (website):  cd animations && conda run -n manim manim -qh --fps 30 s02_method.py Selection
-#                    cp media/videos/s02_method/1080p30/Selection.mp4 ../docs/assets/nexis_method.mp4
+#                    cp media/videos/s02_method/1080p30/Selection.mp4 ../docs/assets/media/nexis_method.mp4
 # Duration: ~35s
 
 from manim import *

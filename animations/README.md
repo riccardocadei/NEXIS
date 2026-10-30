@@ -19,11 +19,11 @@ Renders go to `animations/media/` (git-ignored, regenerable). `-qh` alone render
 
 | File | Scene | What it shows | Website asset |
 |---|---|---|---|
-| `s01_pipeline.py` | `Pipeline` | From Tokens to Policy: satellite tile → Prithvi-EO → SAE atoms, plus survey features; NEXIS selects one atom and two language dummies, labelled with the certified YOP skilled-employment modifiers. | `docs/assets/s01_pipeline.mp4` (Method section) and `docs/assets/pipeline.gif` (README) |
-| `s02_method.py` | `Selection` | NEXIS (paper Algorithm 1) on three candidate neurons: forward steps with gates α/\|S̄\| = 0.05/3, 0.05/2, 0.05/1 until the forward step stops, then one terminal backward step at α/m = 0.05/3. | `docs/assets/nexis_method.mp4` (Method section) |
+| `s01_pipeline.py` | `Pipeline` | From Tokens to Policy: satellite tile → Prithvi-EO → SAE atoms, plus survey features; NEXIS selects one atom and two language dummies, labelled with the certified YOP skilled-employment modifiers. | `docs/assets/media/s01_pipeline.mp4` (Method section) and `animations/assets/pipeline.gif` (README) |
+| `s02_method.py` | `Selection` | NEXIS (paper Algorithm 1) on three candidate neurons: forward steps with gates α/\|S̄\| = 0.05/3, 0.05/2, 0.05/1 until the forward step stops, then one terminal backward step at α/m = 0.05/3. | `docs/assets/media/nexis_method.mp4` (Method section) |
 | `s02_snapshots.py` | `Snapshot1`–`Snapshot4` | Still frames of `Selection`: forward steps 1–3 and the terminal backward step. | none |
 | `s03_results.py` | `Results` | Summary of the two applications (YOP, LEAP 1000). Reads the treatment maps below. | none |
-| `gen_treatment_maps.py` | (matplotlib) | Treatment-assignment maps used by `s03_results.py`. | `docs/assets/{uganda,ghana}_treatment_map.png` |
+| `gen_treatment_maps.py` | (matplotlib) | Treatment-assignment maps used by `s03_results.py`. | `animations/assets/{uganda,ghana}_treatment_map.png` |
 
 ## Render commands
 
@@ -32,22 +32,22 @@ From the repo root:
 ```bash
 cd animations
 
-# Method animation -> docs/assets/nexis_method.mp4
+# Method animation -> docs/assets/media/nexis_method.mp4
 $MANIM/manim -qh --fps 30 s02_method.py Selection
-cp media/videos/s02_method/1080p30/Selection.mp4 ../docs/assets/nexis_method.mp4
+cp media/videos/s02_method/1080p30/Selection.mp4 ../docs/assets/media/nexis_method.mp4
 
-# Pipeline animation -> docs/assets/s01_pipeline.mp4 and docs/assets/pipeline.gif
+# Pipeline animation -> docs/assets/media/s01_pipeline.mp4 and animations/assets/pipeline.gif
 $MANIM/manim -qh --fps 30 s01_pipeline.py Pipeline
-cp media/videos/s01_pipeline/1080p30/Pipeline.mp4 ../docs/assets/s01_pipeline.mp4
-ffmpeg -y -i ../docs/assets/s01_pipeline.mp4 \
+cp media/videos/s01_pipeline/1080p30/Pipeline.mp4 ../docs/assets/media/s01_pipeline.mp4
+ffmpeg -y -i ../docs/assets/media/s01_pipeline.mp4 \
   -vf "fps=12,scale=860:-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5" \
-  ../docs/assets/pipeline.gif
+  assets/pipeline.gif
 
 # Snapshots (PNG, media/images/s02_snapshots/)
 $MANIM/manim -sqh s02_snapshots.py Snapshot1 Snapshot2 Snapshot3 Snapshot4
 
 # Results summary (not used on the site)
-python3 gen_treatment_maps.py          # needs data/uganda/UgandaDataProcessed.csv; writes docs/assets/*_treatment_map.png
+python3 gen_treatment_maps.py          # needs data/uganda/UgandaDataProcessed.csv; writes animations/assets/*_treatment_map.png
 $MANIM/manim -qh --fps 30 s03_results.py Results
 ```
 

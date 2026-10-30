@@ -1,15 +1,15 @@
-"""Uganda data of the project website (docs/assets/).
+"""Uganda data of the project website (docs/assets/json/).
 
 Rebuilds uganda_communities.json (one record per RCT site with Prithvi features: location,
 language group, district, site means of the survey variables, spectral indices) and the
 `act` dicts of the Uganda modifiers in nexis_activations.json, keyed by RCT site key
 (geo_long_lat_key 1-331) instead of the UgandaGeocodes keys.  nexis_activations.json is
-read from docs/assets/ and written, with only those `act` dicts replaced, to --out-dir.
+read from docs/assets/json/ and written, with only those `act` dicts replaced, to --out-dir.
 
 Reads data/uganda/UgandaDataProcessed.csv, data/uganda/satellite/rct/spectral_indices.csv
 and results/uganda/prithvi_l5_1024/site_features.npz.
 
-    python src/apps/uganda/export_website_data.py [--out-dir docs/assets]
+    python src/apps/uganda/export_website_data.py [--out-dir docs/assets/json]
 """
 
 import argparse
@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[3]
-ASSETS = ROOT / "docs" / "assets"
+ASSETS = ROOT / "docs" / "assets" / "json"
 
 # Language-group labels (matching UG_COL in docs/index.html; group 7 is Pallisa district)
 LANG_LABELS = {

@@ -277,8 +277,8 @@ estimates carried over from the June brief; not re-measured.
 - VLM labels: `src/apps/uganda/interpret.py` via `scripts/uganda/submit_interpret.sh`
   (Section 6); add `--extra-atoms 261` for an atom outside the selected sets.
 - Website data: `src/apps/uganda/export_website_data.py` rebuilds
-  `docs/assets/uganda_communities.json` and the Uganda `act` dicts of
-  `docs/assets/nexis_activations.json` (`--out-dir` writes elsewhere).
+  `docs/assets/json/uganda_communities.json` and the Uganda `act` dicts of
+  `docs/assets/json/nexis_activations.json` (`--out-dir` writes elsewhere).
 - The older multi-backbone pipeline that wrote the published sets (the launcher
   `scripts/uganda/run.sh` and the steps `train.py`, `summarize.py`, `plot_features.py`)
   is not needed for the paper numbers and was removed from the tree; it is at git tag

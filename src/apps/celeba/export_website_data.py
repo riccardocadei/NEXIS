@@ -27,7 +27,7 @@ Method names drop the "-v2" tag, so the paper default is "NEXIS" and its ablatio
 are "NEXIS (test=...)", "NEXIS (adjust=...)", "NEXIS (rho=...)",
 "NEXIS (terminal=False)", "NEXIS (interleaved=True)", ...
 
-Output: docs/assets/celeba_data.json
+Output: docs/assets/json/celeba_data.json
   {"k20_sae" | "k20_precode" | "k5_sae" | "k20_sae_rep" | "dgp_r1" | "dgp_r3":
       {"n_sweep":      [{method, n, fixed_effect, <metric>_mean, <metric>_se}, ...],
        "effect_sweep": [{method, effect_scale, fixed_n, <metric>_mean, <metric>_se}, ...]},
@@ -107,7 +107,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--results-dir", type=Path, default=Path("results/celeba"))
-    p.add_argument("--out", type=Path, default=Path("docs/assets/celeba_data.json"))
+    p.add_argument("--out", type=Path, default=Path("docs/assets/json/celeba_data.json"))
     args = p.parse_args()
     res = args.results_dir if args.results_dir.is_absolute() else ROOT / args.results_dir
     out = args.out if args.out.is_absolute() else ROOT / args.out
