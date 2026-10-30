@@ -498,6 +498,58 @@ def test_pool_checks():
         Discontinuity("T", "pmt", "hh")), "identical to the treatment 'T'", "t_copy (b)")
 
 
+def test_rank_check():
+    """An exact linear dependence among candidates (with an intercept, over the units) is
+    an error naming a minimal dependent set; columns with missing values are left out."""
+    data, _ = village_study()
+    units, srcs, des = data.units, data.sources, data.design
+    vidx = srcs[0].data.index
+    rng = np.random.default_rng(2)
+    b, c, e = rng.normal(size=(3, 40))
+
+    def add(*cols, time="pre"):
+        frame = pd.DataFrame(dict(cols), index=vidx)
+        return Dataset(units, srcs + [src(frame, "extra", "village", time)], des)
+
+    # a = b + c: the set is {a, b, c}, not the unrelated e
+    _raises(lambda: add(("a", b + c), ("b", b), ("c", c), ("e", e)), "1 candidate columns are exact linear",
+            "{a (extra), b (extra), c (extra)}")
+    # the intercept counts: 2 b - 3 = a
+    _raises(lambda: add(("a", 2 * b - 3), ("b", b), ("e", e)), "{a (extra), b (extra)}")
+    # a total of counts in another source (household size = children + adults + elderly)
+    hh = units.index
+    kids, adults, old = (rng.integers(0, 4, len(hh)).astype(float) for _ in range(3))
+    cnt = pd.DataFrame({"children": kids, "adults": adults, "elderly": old, "size": kids + adults + old,
+                        "noise": rng.normal(size=len(hh))}, index=hh)
+    _raises(lambda: Dataset(units, srcs + [src(cnt, "roster", hh.name, "pre", support={
+        "children": "count", "adults": "count", "elderly": "count", "size": "count", "noise": "continuous"})], des),
+        "{children (roster), adults (roster), elderly (roster), size (roster)}")
+    # dummies of every category sum to the intercept
+    cat = rng.integers(0, 3, 40)
+    _raises(lambda: add(*[(f"g{k}", (cat == k).astype(float)) for k in range(3)], ("e", e)),
+            "{g0 (extra), g1 (extra), g2 (extra)}")
+    # two independent dependencies: two sets
+    _raises(lambda: add(("a", b + c), ("b", b), ("c", c), ("f", e - b), ("e", e)), "2 candidate columns")
+    # a column with a missing value is out of the pool, so not part of a dependence
+    a = b + c
+    a[0] = np.nan
+    _quiet(lambda: add(("a", a), ("b", b), ("c", c)))
+    # a dependence involving a during column counts (during columns are candidates)...
+    d = add(("b", b), ("c", c))
+    dur = pd.DataFrame({"s": b + c}, index=vidx)
+    _raises(lambda: Dataset(units, d.sources + [src(dur, "rain", "village", "during")], des), "s (rain)")
+    # ...but not one through an outcome
+    out = pd.DataFrame({"s": b + c}, index=vidx)
+    _quiet(lambda: Dataset(units, d.sources + [src(out, "outcome", "village", "post")], des))
+    # near-dependence is not exact: no error
+    _quiet(lambda: add(("a", b + c + 1e-3 * e), ("b", b), ("c", c)))
+    # the minimal set is found when other columns are also involved elsewhere
+    from nexis.data import dependent_sets
+    x = np.column_stack([b, c, e, b + c, rng.normal(size=40)])
+    assert dependent_sets(x, list("bcexy")) == [["b", "c", "x"]]
+    assert dependent_sets(np.column_stack([b, c, e]), list("bce")) == []
+
+
 def test_pool_checks_cost():
     """The pool checks on 200 candidates x 2,000 units take well under a second."""
     import time

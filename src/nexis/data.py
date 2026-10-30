@@ -53,8 +53,10 @@ MODALITIES).
 What is checked against the data: support (against the values), level (against the
 index name here, against the id column of the units in Dataset), raw (covers every id of
 the source when it is a mapping), and, at Dataset construction and over the units, that
-no candidate is constant or identical to another (a warning when two candidates
-correlate above 0.999).  Time, domain, origin, access and modality are declarations
+no candidate is constant or identical to another, and that none is an exact linear
+combination of others (with an intercept, over the columns without missing values: e.g.
+a household size that is the sum of its age-group counts); a warning when two
+candidates correlate above 0.999.  Time, domain, origin, access and modality are declarations
 only: the data cannot tell when a variable was measured, so declare it with care (a
 "pre" column caused by treatment biases the search).
 
@@ -83,6 +85,7 @@ from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
+import scipy.linalg
 
 from .assignment import Design
 from .design import codes, is_coarser, variation_level
@@ -103,6 +106,7 @@ MODALITIES = {
     "text": "documents or free text (reports, transcripts, news)",
 }
 CORRELATION_WARNING = 0.999
+RANK_TOLERANCE = 1e-9   # a pivot of the standardised pool below this fraction of the largest is zero
 _DOMAIN = re.compile(r"[a-z][a-z0-9_]*")
 
 
@@ -322,9 +326,10 @@ class Dataset:
     are ignored.  Units with a missing design variable are dropped with a warning
     (`dropped_units`); the design checks then run on the rest (`checks`).  Design
     variables are taken out of the candidate pool (`removed`).  Over the remaining
-    units, a candidate (historic, pre or during column) that is constant, or identical
-    to another candidate, is an error; two candidates with |correlation| above 0.999
-    give a warning.
+    units, a candidate (historic, pre or during column) that is constant, identical to
+    another candidate, or an exact linear combination of other candidates and an
+    intercept (among the candidates without missing values) is an error; two candidates
+    with |correlation| above 0.999 give a warning.
     """
 
     def __init__(self, units: pd.DataFrame, sources: list[Source], design: Design):
@@ -438,7 +443,8 @@ class Dataset:
 
     def _check_pool(self) -> None:
         """Over the units: no constant candidate, no two identical ones, none identical
-        to the treatment (errors), and a warning for pairs with |correlation| > CORRELATION_WARNING."""
+        to the treatment, no exact linear dependence (errors), and a warning for pairs with
+        |correlation| > CORRELATION_WARNING."""
         cand = self._columns(CANDIDATE_TIMES)
         if not cand:
             return
@@ -471,6 +477,15 @@ class Dataset:
             raise ValueError(f"{len(same)} groups of candidate columns are identical over the {len(x):,} "
                              f"units: {'; '.join(' = '.join(map(where, g)) for g in same[:10])}"
                              f"{'; ...' if len(same) > 10 else ''}; keep one of each")
+        full = ~nan.any(axis=0)
+        sets = dependent_sets(x[:, full], [c for c, f in zip(cand, full) if f])
+        if sets:
+            raise ValueError(f"{len(sets)} candidate columns are exact linear combinations of other candidates "
+                             f"and an intercept over the {len(x):,} units (their interactions with the "
+                             f"treatment are collinear); minimal dependent sets: "
+                             f"{'; '.join('{' + ', '.join(map(where, g)) + '}' for g in sets[:5])}"
+                             f"{'; ...' if len(sets) > 5 else ''}; drop one column of each set "
+                             "(e.g. a total of components that are in the pool)")
         if nan.any():
             r = pd.DataFrame(x, columns=cand).corr().to_numpy()
         else:
@@ -582,6 +597,40 @@ class Dataset:
     def __repr__(self) -> str:
         return (f"Dataset({len(self.units)} {self.unit}, {len(self.sources)} sources, "
                 f"{len(self.candidates())} candidates, {len(self.outcomes)} outcomes, {self.design!r})")
+
+
+def dependent_sets(x: np.ndarray, names: list[str], tol: float = RANK_TOLERANCE) -> list[list[str]]:
+    """Minimal sets of columns of x (n x p, no NaN, none constant) that are linearly
+    dependent together with an intercept, one set per redundant column.
+
+    The columns are centred (the intercept) and scaled to unit norm, then a QR
+    decomposition with column pivoting picks a basis: pivots below tol times the largest
+    are zero, and the columns behind them redundant.  Each redundant column is regressed
+    on the basis; it and the basis columns with a nonzero coefficient form its set (the
+    fundamental circuit: minimal, no column of it can be left out).  [] when the columns
+    are linearly independent."""
+    n, p = x.shape
+    if p == 0 or n == 0:
+        return []
+    z = x - x.mean(axis=0)
+    z = z / np.linalg.norm(z, axis=0)
+    _, r, piv = scipy.linalg.qr(z, mode="economic", pivoting=True)
+    d = np.abs(np.diag(r))
+    rank = int((d > tol * d[0]).sum()) if len(d) else 0
+    if rank == p:
+        return []
+    basis = piv[:rank]
+    coef, *_ = np.linalg.lstsq(z[:, basis], z[:, piv[rank:]], rcond=None)
+    coef = np.atleast_2d(coef.reshape(rank, -1))
+    resid = z[:, piv[rank:]] - z[:, basis] @ coef
+    sets = []
+    for k, j in enumerate(piv[rank:]):
+        if np.linalg.norm(resid[:, k]) > 1e-6:                # not an exact dependence after all
+            continue
+        c = np.abs(coef[:, k])
+        members = sorted([int(j)] + [int(b) for b, v in zip(basis, c) if v > 1e-6 * max(1.0, c.max())])
+        sets.append([names[i] for i in members])
+    return sets
 
 
 def nested_order(levels: dict[str, np.ndarray], declared: str) -> list[str]:
