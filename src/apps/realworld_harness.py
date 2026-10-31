@@ -3,7 +3,7 @@
 The run configurations (alpha, rho, the two NEXIS variants), one reported NEXIS run
 with per-coordinate p-values (`run`) and the cluster-count reporting helpers.  Used by
 src/apps/realworld_final_runs.py, src/apps/{uganda,ghana}/final_runs.py,
-src/apps/uganda/multilevel_groupcluster.py and src/apps/uganda/district_sensitivity.py.
+src/apps/uganda/tables.py (multilevel, districts).
 The statistics live in the library: nexis.design (level-aware test, support rule) and
 nexis.checks (post-hoc checks).
 """

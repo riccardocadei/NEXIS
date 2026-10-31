@@ -250,7 +250,11 @@ run on synthetic data, with or without pytest.
 | Ghana LEAP 1000 (Livelihood Empowerment Against Poverty) | restricted survey | [`src/apps/ghana/README.md`](src/apps/ghana/README.md) |
 
 Each application README lists every number the paper quotes, its source file and script,
-and the design choices behind it. Scripts in `scripts/<app>/` target SLURM but also run
+and the design choices behind it. In each `src/apps/<app>/`, `figures.py` and (for Uganda
+and Ghana) `tables.py` make the paper's figures and tables, one subcommand each
+(`python src/apps/<app>/figures.py` lists them), and `pipeline/` holds the GPU and
+download steps; `src/apps/realworld_final_runs.py` runs NEXIS for both real-world
+applications. Scripts in `scripts/<app>/` target SLURM but also run
 with `bash` from the repo root; logs go to `logs/`, outputs to the untracked `data/` and
 `results/`. GPUs are needed for embeddings, SAE training and VLM interpretation; NEXIS
 itself runs on CPU in minutes. GPU training is not bit-reproducible, so a retrained SAE
@@ -277,14 +281,14 @@ bash scripts/celeba/submit_dgp_extra.sh           # replica, r = 3, 1, 0
 bash scripts/celeba/submit_per_modifier_recall.sh
 bash scripts/celeba/submit_alignment_appendix.sh  # Principal Alignment check
 # Figures and tables -> results/celeba/figures_v2/
-python src/apps/celeba/figure_main.py --data-dir results/celeba/experiment_v2/k20/sae \
+python src/apps/celeba/figures.py main --data-dir results/celeba/experiment_v2/k20/sae \
     --out-path results/celeba/figures_v2/figure_main.pdf --nexis-key NEXIS-v2
-python src/apps/celeba/figure_appendix.py --experiment-dir results/celeba/experiment_v2 \
-    --out-dir results/celeba/figures_v2 --variant v2
-python src/apps/celeba/figure_dgp_extra.py
-python src/apps/celeba/figure_test_story_v2.py
-python src/apps/celeba/interleaved_backward_align.py sae_precode_k20 && \
-    python src/apps/celeba/third_modifier_candidates.py
+python src/apps/celeba/figures.py appendix --experiment-dir results/celeba/experiment_v2 \
+    --out-dir results/celeba/figures_v2
+python src/apps/celeba/alignment.py f1 sae_precode_k20 && \
+    python src/apps/celeba/alignment.py third-modifier   # choice of the r = 3 modifier
+python src/apps/celeba/figures.py dgp-extra
+python src/apps/celeba/figures.py test-story
 python src/apps/celeba/run_statistics.py
 (cd src/apps/celeba/benchmark && python run.py violation)   # the controlled-violation figure
 ```
@@ -298,19 +302,19 @@ package for every CelebA experiment (`python run.py <block>` from that folder); 
 Compute: SAE ~1 h on one GPU, VLM ~30 min on one H100.
 
 ```bash
-python src/apps/uganda/download_tiles.py --mode rct        # 331 trial sites
-python src/apps/uganda/download_tiles.py --mode national   # national grid (SAE corpus)
-python src/apps/uganda/extract_satellite_features.py --tif-dir data/uganda/satellite/tif_rct --out-dir data/uganda/satellite/rct
-python src/apps/uganda/extract_satellite_features.py --tif-dir data/uganda/satellite/tif_national --out-dir data/uganda/satellite/national
+python src/apps/uganda/pipeline/download_tiles.py --mode rct        # 331 trial sites
+python src/apps/uganda/pipeline/download_tiles.py --mode national   # national grid (SAE corpus)
+python src/apps/uganda/pipeline/extract_satellite_features.py --tif-dir data/uganda/satellite/tif_rct --out-dir data/uganda/satellite/rct
+python src/apps/uganda/pipeline/extract_satellite_features.py --tif-dir data/uganda/satellite/tif_national --out-dir data/uganda/satellite/national
 sbatch scripts/uganda/submit_train_sae.sh                  # -> results/uganda/prithvi_l5_1024/
 python src/apps/realworld_final_runs.py --only uganda      # paper numbers
-python src/apps/uganda/multilevel_groupcluster.py          # multilevel limitation
-python src/apps/uganda/district_sensitivity.py             # district-dummy sensitivity
-python src/apps/uganda/table_gate.py                       # GATE columns
+python src/apps/uganda/tables.py multilevel                # multilevel limitation
+python src/apps/uganda/tables.py districts                 # district-dummy sensitivity
+python src/apps/uganda/tables.py gate                      # GATE columns
 sbatch scripts/uganda/submit_interpret.sh                  # VLM labels (Qwen2.5-VL-72B)
-python src/apps/uganda/figure_neural.py
-python src/apps/uganda/figure_maps.py
-python src/apps/figure1_tiles.py                           # Figure 1 tiles
+python src/apps/uganda/figures.py neural
+python src/apps/uganda/figures.py maps
+python src/apps/uganda/figures.py tile                     # Figure 1, Uganda tile
 ```
 
 ### Ghana LEAP 1000
@@ -319,18 +323,23 @@ Compute: SAE ~2 h and VLM ~45 min on one H100. Run notes: Section 11 of
 [`src/apps/ghana/README.md`](src/apps/ghana/README.md).
 
 ```bash
-python src/apps/ghana/download_satellite_images.py --year 2015   # 162 communities
-python src/apps/ghana/download_national_grid.py                  # national grid (SAE corpus)
-python src/apps/ghana/extract_satellite_features.py
-python src/apps/ghana/train_sae.py --d-hidden 4096 --k 25 --epochs 2000 --batch-size 256 \
+python src/apps/ghana/pipeline/download_satellite_images.py --year 2015   # 162 communities
+python src/apps/ghana/pipeline/download_national_grid.py                  # national grid (SAE corpus)
+python src/apps/ghana/pipeline/download_waterway_2017.py                 # 2017 tiles (temporal check)
+python src/apps/ghana/pipeline/extract_satellite_features.py
+python src/apps/ghana/pipeline/train_sae.py --d-hidden 4096 --k 25 --epochs 2000 --batch-size 256 \
     --train-embeddings data/ghana/satellite/national/prithvi_embeddings.npy \
     --eval-embeddings data/ghana/satellite/prithvi_embeddings.npy \
     --eval-ids data/ghana/satellite/prithvi_comm_ids.npy --out-dir data/ghana/satellite
 python src/apps/realworld_final_runs.py --only ghana             # paper numbers
-python src/apps/ghana/table_gate.py                              # GATEs
-bash scripts/ghana/run_figure_neural.sh                          # VLM temporal step (GPU) and figure
-python src/apps/ghana/figure_neural_1777.py                      # exploratory figure
-python src/apps/ghana/figure_maps.py
+python src/apps/ghana/tables.py gate                             # GATEs
+python src/apps/ghana/tables.py exploratory                      # exploratory run
+python src/apps/ghana/tables.py gate-neurons                     # GATE signs for the figure titles
+bash scripts/ghana/run_figure_neural.sh                          # VLM temporal step (GPU) and Figure 5
+python src/apps/ghana/tables.py temporal --paper                 # temporal table
+python src/apps/ghana/figures.py neural-1777                     # exploratory figure
+python src/apps/ghana/figures.py maps
+python src/apps/ghana/figures.py tile                            # Figure 1, Ghana tile
 ```
 
 ## Data
