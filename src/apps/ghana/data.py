@@ -13,6 +13,20 @@ NUMERIC_W = [
     'adults', 'elderly', 'head_age', 'rooms',
 ]
 
+# The survey's analysis file: the household panel UNICEF prepared for this project
+# (delivered as "LEAP1000 2015-2017 household data++.dta"), under data/ghana/survey/.
+SURVEY_FILE = 'LEAP1000_main.dta'
+
+
+def survey_path(data_dir: Path | str = DATA_DIR) -> Path:
+    """The analysis file under <data_dir>/survey/ (or, in older checkouts, <data_dir>/)."""
+    root = Path(data_dir)
+    for cand in (root / 'survey' / SURVEY_FILE, root / SURVEY_FILE):
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(f"{SURVEY_FILE!r} not found under {root} or {root / 'survey'}")
+
+
 BINARY_W = [
     'head_married', 'head_female', 'head_schooled', 'head_formal',
     'no_electricity', 'mud_walls', 'thatch_roof', 'mud_floor',
@@ -102,17 +116,7 @@ def load_data(data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
     All Yes/No covariates are binarised (1/0) and given readable names.
     Continuous covariates are renamed for clarity.
     """
-    # The survey extract lives under data/ghana/survey/; older checkouts kept it at
-    # the top of data/ghana/.  Accept either so the pipeline runs from a fresh clone.
-    _stata = 'LEAP1000 2015-2017 household data++.dta'
-    _root = Path(data_dir)
-    for _cand in (_root / 'survey' / _stata, _root / _stata):
-        if _cand.exists():
-            break
-    else:
-        raise FileNotFoundError(
-            f"{_stata!r} not found under {_root} or {_root / 'survey'}")
-    df = pd.read_stata(_cand)
+    df = pd.read_stata(survey_path(data_dir))
 
     # Core identifiers
     df['T']    = (df['tac'] == 'Treatment').astype(int)

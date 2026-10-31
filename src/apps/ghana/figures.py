@@ -61,7 +61,7 @@ RES_DIR  = ROOT / "results" / "ghana"
 OUT_DIR  = RES_DIR  / "figures"
 
 sys.path.insert(0, str(ROOT / "src"))
-from apps.ghana.data import load_data  # noqa: E402
+from apps.ghana.data import load_data, survey_path  # noqa: E402
 from apps.ghana.ndvi_change import largest_patches  # noqa: E402
 
 
@@ -429,7 +429,7 @@ def cmd_neural(argv: list[str]) -> None:
     else:
         print("WARNING: neuron_3821_temporal_neutral.json not found — arrows will be omitted.")
 
-    df = pd.read_stata(DATA_DIR / "survey" / "LEAP1000 2015-2017 household data++.dta")
+    df = pd.read_stata(survey_path(DATA_DIR))
     comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
                  .mean().reset_index().set_index("comm"))
 
@@ -714,7 +714,7 @@ def cmd_neural_1777(argv: list[str]) -> None:
     sign = "+" if direction_map.get(NEURON_1777, 0) >= 0 else "-"
 
     # Community GPS centroids
-    df = pd.read_stata(DATA_DIR / "LEAP1000 2015-2017 household data++.dta")
+    df = pd.read_stata(survey_path(DATA_DIR))
     comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
                  .mean().reset_index().set_index("comm"))
 
@@ -824,7 +824,7 @@ TILE_OUT = ROOT / "results" / "figures" / "figure1"
 
 def district_of(name: str) -> str:
     """Look the district label up in the survey data rather than hard-coding it."""
-    df = pd.read_stata(ROOT / "data/ghana/survey/LEAP1000 2015-2017 household data++.dta",
+    df = pd.read_stata(survey_path(DATA_DIR),
                        columns=["comm", "district"])
     d = df.loc[df.comm == 1265, "district"].dropna().astype(str).unique()
     assert len(d) == 1, f"ambiguous district for {name}: {d}"

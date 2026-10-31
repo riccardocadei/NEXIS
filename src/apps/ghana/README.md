@@ -35,6 +35,13 @@ Baseline adult-equivalent expenditure 120.9 GH₵/month (treated 117.8, comparis
 Source: `src/apps/ghana/tables.py gate` (n, communities); treated count, shares and
 baseline means recomputed 2026-09-26 from `load_data("data/ghana")` on the balanced panel.
 
+**Survey files** (`data/ghana/survey/`, restricted). `LEAP1000_main.dta` is the analysis
+file UNICEF prepared for this project (delivered as `LEAP1000 2015-2017 household
+data++.dta`); every number of the paper is derived from it (`data.py::load_data`, through
+the constant `data.py::SURVEY_FILE`). The `*_append.dta` files are the raw survey modules,
+the source for new covariates. The questionnaires are `LEAP1000_baseline_survey_2015.pdf`
+and `LEAP1000_endline_survey_2017.pdf`.
+
 **Outcome.** Adult-equivalent household consumption expenditure per month (`aeexp_r`),
 constant Greater Accra August-2017 prices; NEXIS uses the first difference
 ΔY = Y₂₀₁₇ − Y₂₀₁₅.
