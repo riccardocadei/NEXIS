@@ -326,9 +326,7 @@ loading the model). The other estimates are carried over from the June brief; no
   published set {Z_3821, Z_2095} on the 155 pool. That set is fixed in `pool.py`, not read
   from `results/ghana/codes/nexis_fwer_crve/result.json`: the June run behind that file
   searched the 131 neurons alone (see the `pool.py` docstring).
-- The download, extraction and training scripts in `pipeline/` resolve their relative
-  default paths against `src/apps/ghana/`, wherever they are run from: the defaults of
-  `download_satellite_images.py` and `download_national_grid.py` (`../../../data/ghana/...`)
-  reach the repo's `data/ghana/`, those of `extract_satellite_features.py` and
-  `train_sae.py` (`../../data/ghana/...`) do not, so pass `--tif-dir`/`--out-dir` and
-  explicit embedding paths to them (as in `README.md` and `scripts/ghana/submit_train_sae.sh`).
+- Default paths: `download_satellite_images.py` and `download_national_grid.py` resolve
+  theirs against `src/apps/ghana/` (`../../../data/ghana/...`, the repo's `data/ghana/`);
+  `extract_satellite_features.py` and `train_sae.py` resolve relative paths against the
+  repo root (`data/ghana/...`). All four write to the repo's `data/ghana/` by default.

@@ -170,8 +170,8 @@ def parse_args():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--mode',     choices=['rct', 'national'], required=True,
                    help='rct → 331 experimental sites; national → full Uganda grid')
-    p.add_argument('--data-dir', default='../../data/uganda',
-                   help='Path to data/uganda (default: relative to this script)')
+    p.add_argument('--data-dir', default='data/uganda',
+                   help='Path to data/uganda (relative paths start at the repo root)')
     p.add_argument('--out-dir',  default=None,
                    help='Override output directory (default: data/uganda/satellite/tif_{mode})')
     p.add_argument('--workers',  type=int, default=32,
@@ -186,8 +186,8 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent.parent   # src/apps/uganda: the relative defaults start here
-    data_dir   = (script_dir / args.data_dir).resolve()
+    repo_root  = Path(__file__).resolve().parents[4]
+    data_dir   = (repo_root / args.data_dir).resolve()
 
     if args.out_dir:
         out_dir = Path(args.out_dir).resolve()

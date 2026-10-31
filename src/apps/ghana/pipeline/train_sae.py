@@ -11,16 +11,17 @@ Data roles — kept strictly separate:
   EXPERIMENT data  → the 162 LEAP community embeddings, NEVER seen during
                      training; the SAE is applied to them after training
 
-Recommended workflow (after running download_national_grid.py):
+Recommended workflow (after running download_national_grid.py; relative paths start at
+the repo root):
   1. Extract Prithvi embeddings from the national grid tiles:
-       python extract_satellite_features.py \\
-         --tif-dir ../../data/ghana/satellite/tif_national \\
-         --out-dir ../../data/ghana/satellite/national
+       python src/apps/ghana/pipeline/extract_satellite_features.py \\
+         --tif-dir data/ghana/satellite/tif_national \\
+         --out-dir data/ghana/satellite/national
   2. Train SAE on the national corpus, evaluate on LEAP communities:
-       python train_sae.py \\
-         --train-embeddings ../../data/ghana/satellite/national/prithvi_embeddings.npy \\
-         --eval-embeddings  ../../data/ghana/satellite/prithvi_embeddings.npy \\
-         --eval-ids         ../../data/ghana/satellite/prithvi_comm_ids.npy
+       python src/apps/ghana/pipeline/train_sae.py \\
+         --train-embeddings data/ghana/satellite/national/prithvi_embeddings.npy \\
+         --eval-embeddings  data/ghana/satellite/prithvi_embeddings.npy \\
+         --eval-ids         data/ghana/satellite/prithvi_comm_ids.npy
 
 Fallback (national data not yet downloaded):
   Run without --train-embeddings; the script trains on the 162 LEAP embeddings
@@ -253,12 +254,12 @@ def parse_args():
                    help='(N_train, D) .npy — training corpus (national grid). '
                         'LEAP experiment embeddings must NEVER appear here.')
     p.add_argument('--eval-embeddings',
-                   default='../../data/ghana/satellite/prithvi_embeddings.npy',
+                   default='data/ghana/satellite/prithvi_embeddings.npy',
                    help='(N_eval, D) .npy — LEAP experiment embeddings (never used for training)')
     p.add_argument('--eval-ids',
-                   default='../../data/ghana/satellite/prithvi_comm_ids.npy',
+                   default='data/ghana/satellite/prithvi_comm_ids.npy',
                    help='(N_eval,) .npy — community IDs for eval embeddings')
-    p.add_argument('--out-dir', default='../../data/ghana/satellite')
+    p.add_argument('--out-dir', default='data/ghana/satellite')   # relative paths start at the repo root
 
     # Architecture
     p.add_argument('--d-hidden',  type=int,   default=4096,
@@ -282,18 +283,18 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent.parent   # src/apps/ghana: the relative defaults start here
-    out_dir    = (script_dir / args.out_dir).resolve()
+    repo_root  = Path(__file__).resolve().parents[4]   # relative paths start here
+    out_dir    = (repo_root / args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     device     = torch.device(args.device)
 
     # ── Load embeddings ───────────────────────────────────────────────────────
-    eval_embs = np.load((script_dir / args.eval_embeddings).resolve()).astype(np.float32)
-    eval_ids  = np.load((script_dir / args.eval_ids).resolve())
+    eval_embs = np.load((repo_root / args.eval_embeddings).resolve()).astype(np.float32)
+    eval_ids  = np.load((repo_root / args.eval_ids).resolve())
     d_in      = eval_embs.shape[1]
     print(f"Eval (LEAP experiment) embeddings: {eval_embs.shape}")
 
-    train_embs = np.load((script_dir / args.train_embeddings).resolve()).astype(np.float32)
+    train_embs = np.load((repo_root / args.train_embeddings).resolve()).astype(np.float32)
     print(f"Train (national grid) embeddings:  {train_embs.shape}")
 
     # ── Whitening — fit on training corpus only ───────────────────────────────

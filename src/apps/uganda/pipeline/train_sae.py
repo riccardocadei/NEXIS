@@ -180,16 +180,16 @@ def parse_args():
 
     # Embedding paths
     p.add_argument('--train-embeddings',
-                   default='../../data/uganda/satellite/national/prithvi_embeddings.npy',
+                   default='data/uganda/satellite/national/prithvi_embeddings.npy',
                    help='(N_train, 768) .npy — national grid embeddings (training corpus)')
     p.add_argument('--rct-embeddings',
-                   default='../../data/uganda/satellite/rct/prithvi_embeddings.npy',
+                   default='data/uganda/satellite/rct/prithvi_embeddings.npy',
                    help='(N_rct, 768) .npy — RCT site embeddings (held out during training)')
     p.add_argument('--rct-keys',
-                   default='../../data/uganda/satellite/rct/prithvi_site_keys.npy',
+                   default='data/uganda/satellite/rct/prithvi_site_keys.npy',
                    help='(N_rct,) .npy — geo_long_lat_key values for RCT sites')
     p.add_argument('--data-csv',
-                   default='../../data/uganda/UgandaDataProcessed.csv',
+                   default='data/uganda/UgandaDataProcessed.csv',
                    help='UgandaDataProcessed.csv (for individual-level feature join)')
     p.add_argument('--out-dir', default=None,
                    help='Output directory (default: results/uganda/prithvi_l5_{d_hidden})')
@@ -215,8 +215,7 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent.parent   # src/apps/uganda: the relative defaults start here
-    repo_root  = (script_dir / '../..').resolve()
+    repo_root  = Path(__file__).resolve().parents[4]
 
     out_dir = (Path(args.out_dir).resolve() if args.out_dir
                else repo_root / 'results' / 'uganda' / f'prithvi_l5_{args.d_hidden}')

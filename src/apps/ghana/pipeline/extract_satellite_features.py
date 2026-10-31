@@ -157,8 +157,8 @@ def spectral_indices(bands: np.ndarray) -> dict[str, float]:
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--tif-dir',  default='../../data/ghana/satellite/tif')
-    p.add_argument('--out-dir',  default='../../data/ghana/satellite')
+    p.add_argument('--tif-dir',  default='data/ghana/satellite/tif')   # relative to the repo root
+    p.add_argument('--out-dir',  default='data/ghana/satellite')
     p.add_argument('--no-embed', action='store_true',
                    help='Skip Prithvi embedding extraction (spectral indices only)')
     p.add_argument('--device',   default='cuda' if torch.cuda.is_available() else 'cpu')
@@ -167,9 +167,9 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent.parent   # src/apps/ghana: the relative defaults start here
-    tif_dir    = (script_dir / args.tif_dir).resolve()
-    out_dir    = (script_dir / args.out_dir).resolve()
+    repo_root  = Path(__file__).resolve().parents[4]   # relative paths start here
+    tif_dir    = (repo_root / args.tif_dir).resolve()
+    out_dir    = (repo_root / args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     device     = torch.device(args.device)
 
