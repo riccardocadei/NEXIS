@@ -160,8 +160,9 @@ and none is an exact linear combination of other candidates and an intercept (th
 names a minimal dependent set, e.g. a household size next to its age-group counts: such
 a pool violates faithfulness, so keep one level of abstraction per concept; columns with
 missing values are out of the pool and of this check). Two candidates with
-|correlation| > 0.999 give a warning. `discover()` standardises the tested candidates over
-the analysed units, so the test's tolerances do not depend on their units. Every vocabulary is
+|correlation| > 0.999 give a warning. `discover(..., standardize=True)` standardises the
+tested candidates over the analysed units, so the test's tolerances do not depend on their
+units (off by default, as in the paper's runs). Every vocabulary is
 validated, and every per-column dict must cover the columns exactly. *Declared only*:
 time, domain, origin, access and modality. The data cannot tell when a variable was
 measured, so declare `time` with care: a `pre` column that the treatment caused biases

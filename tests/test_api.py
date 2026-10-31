@@ -551,8 +551,8 @@ def test_rank_check():
 
 
 def test_discover_scale_free():
-    """discover standardises the candidates: rescaling a column (here by 1e4 and 1e-4,
-    plus a shift) leaves the selection unchanged and the p-values equal up to round-off."""
+    """With standardize=True, rescaling a column (here by 1e4 and 1e-4, plus a shift)
+    leaves the selection unchanged and the p-values equal up to round-off."""
     rng = np.random.default_rng(5)
     n = 2000
     units = pd.DataFrame({"T": rng.integers(0, 2, n).astype(float)}, index=pd.Index(np.arange(n), name="hh"))
@@ -564,7 +564,7 @@ def test_discover_scale_free():
         hh = pd.DataFrame({"b": sb * b + 7.0, "c": sc * c, "e": e}, index=units.index)
         data = Dataset(units, [src(hh, "survey", "hh", "pre"), src(out, "endline", "hh", "post")],
                        Randomized("T", "hh"))
-        return discover(data, "y").table().set_index("covariate")
+        return discover(data, "y", standardize=True).table().set_index("covariate")
 
     ref = run(1.0, 1.0)
     assert list(ref.index[ref["status"] == "selected"]) == ["b", "c"]
@@ -688,8 +688,7 @@ def test_discover_matches_direct_call():
     keys, parts, info = build_rule(d)                       # build_rule's own default: 5
     pool = [j for j, i in enumerate(info) if i["testable"]]
     fn = LevelAwareTest(keys, parts, fe=block_fe(d["levels"]["district"])).subset(pool)
-    z = d["z"][:, pool]
-    z = (z - z.mean(axis=0)) / z.std(axis=0)                   # discover standardises the candidates
+    z = d["z"][:, pool]                                         # raw columns: the default
     ref = nexis.nexis(d["y"], d["t"], z, alpha=0.05, max_rounds=20, rho=0.5,
                       adjust="FWER", backward=False, terminal_filter=True, pvalue_fn=fn)
     assert res.selection.selected == ref.selected
@@ -705,11 +704,16 @@ def test_discover_matches_direct_call():
     S = list(ref.selected)
     j = pool.index(1)
     assert np.isclose(tab.loc["v2", "p_value"], fn(d["y"], d["t"], z, S, [j])[j], rtol=1e-12)
-    # on the raw columns the p-values agree up to round-off
-    raw = nexis.nexis(d["y"], d["t"], d["z"][:, pool], alpha=0.05, max_rounds=20, rho=0.5,
+    # standardize=True is the direct call on the standardised columns, and its p-values
+    # agree with the raw ones up to round-off
+    zs = (z - z.mean(axis=0)) / z.std(axis=0)
+    std = nexis.nexis(d["y"], d["t"], zs, alpha=0.05, max_rounds=20, rho=0.5,
                       adjust="FWER", backward=False, terminal_filter=True, pvalue_fn=fn)
-    assert raw.selected == ref.selected
-    assert np.allclose(raw.pvalues, ref.pvalues, rtol=1e-9, atol=1e-14)
+    res_std = _quiet(lambda: discover(data, "y", min_support=5, standardize=True))
+    assert res_std.selection.selected == std.selected
+    assert np.array_equal(res_std.selection.pvalues, std.pvalues)
+    assert std.selected == ref.selected
+    assert np.allclose(std.pvalues, ref.pvalues, rtol=1e-9, atol=1e-14)
 
 
 def test_min_support_default():

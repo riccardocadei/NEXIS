@@ -98,7 +98,7 @@ class Result:
 
 
 def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int = MIN_SUPPORT,
-             include_during: bool = False) -> Result:
+             include_during: bool = False, standardize: bool = False) -> Result:
     """Select the effect modifiers of the design's treatment on `outcome` (a post column),
     with family-wise error rate `alpha` over the tested pool.
 
@@ -106,12 +106,15 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
         candidate) x (arm) cell (see the module docstring).
     include_during: also search the columns measured during treatment; do it only if
         treatment cannot have changed them (excluded with a warning otherwise).
+    standardize: standardise the tested candidates over the analysed units before the
+        search (the support rule always sees the raw values).  The OLS t-statistics are
+        invariant to an affine change of a column, so the p-values are those of the raw
+        columns up to round-off; standardising makes the test's absolute tolerances
+        independent of the columns' units (useful for columns of very different scales).
+        Off by default, as in the paper's runs, which search the raw columns.
 
     Units with a missing outcome are dropped and candidates with a missing value are
     excluded, each with a warning; Result.table() lists every candidate and its status.
-    The tested candidates are standardised over the analysed units before the search
-    (the support rule sees the raw values): p-values are those of the raw columns up to
-    round-off, and the test's tolerances do not depend on the columns' units.
     """
     if outcome not in data.outcomes:
         if outcome in data.frame.columns:
@@ -180,10 +183,11 @@ def discover(data: Dataset, outcome: str, alpha: float = 0.05, min_support: int 
 
     fe = block_fe(levels[des.stratified_by]) if des.stratified_by else None
     fn = LevelAwareTest(keys, parts, fe=fe).subset(pool)
-    # standardised over the analysed units: OLS t-statistics are invariant to an affine
+    # standardize: over the analysed units; OLS t-statistics are invariant to an affine
     # change of a column, and the absolute tolerances of the test become scale-free
     y, t, z = d["y"], d["t"], d["z"][:, pool]
-    z = (z - z.mean(axis=0)) / z.std(axis=0)
+    if standardize:
+        z = (z - z.mean(axis=0)) / z.std(axis=0)
     sel = nexis(y, t, z, alpha=alpha, max_rounds=MAX_ROUNDS, rho=RHO, adjust="FWER",
                 backward=False, terminal_filter=True, pvalue_fn=fn)
     sel.feature_names = [names[j] for j in pool]
