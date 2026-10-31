@@ -32,7 +32,7 @@ unit.
 communities with GPS centroids, 5 districts (East Mamprusi, Karaga, Yendi, Bongo,
 Garu-Tempane), Northern and Upper East regions; 1,185 treated (50.8 %), 1,146 comparison.
 Baseline adult-equivalent expenditure 120.9 GH₵/month (treated 117.8, comparison 124.0).
-Source: `src/apps/ghana/table_gate.py` (n, communities); treated count, shares and
+Source: `src/apps/ghana/tables.py gate` (n, communities); treated count, shares and
 baseline means recomputed 2026-09-26 from `load_data("data/ghana")` on the balanced panel.
 
 **Outcome.** Adult-equivalent household consumption expenditure per month (`aeexp_r`),
@@ -41,7 +41,7 @@ constant Greater Accra August-2017 prices; NEXIS uses the first difference
 
 **Estimand.** Local ATT for the marginal eligible population near the PMT cutoff,
 assuming ignorable noncompliance; balanced-panel selection is a limitation.
-DiD estimate **+7.35 GH₵/month** (CR1S s.e. 3.84): `src/apps/ghana/table_gate.py` →
+DiD estimate **+7.35 GH₵/month** (CR1S s.e. 3.84): `src/apps/ghana/tables.py gate` →
 `results/ghana/paper_numbers/table_gate.md`. Both arms fall in nominal terms from 2015 to
 2017 because 2017 values are in constant 2017 prices; the DiD is the causal estimate.
 *Why NEXIS applies:* Appendix E.2 extends Theorem 1 under local as-if randomization and a
@@ -79,12 +79,12 @@ business, livelihood diversity, dependency ratio), housing-deprivation index
 ## 3. Satellite pipeline
 
 **Imagery.** Landsat 8 OLI surface reflectance, 2015 cloud-free median composite, 30 m,
-5×5 km tiles at the 162 community centroids (`src/apps/ghana/download_satellite_images.py`)
-and a national 5 km grid for the SAE corpus (`download_national_grid.py`), bands SR_B4,
+5×5 km tiles at the 162 community centroids (`src/apps/ghana/pipeline/download_satellite_images.py`)
+and a national 5 km grid for the SAE corpus (`pipeline/download_national_grid.py`), bands SR_B4,
 B3, B2, B5, B6, B7. VLM images: false colour NIR/Green/SWIR2, 2–98 percentile stretch.
 
 **Embeddings.** Prithvi-EO-1.0-100M, 768-d mean of patch tokens
-(`src/apps/ghana/extract_satellite_features.py`, which reorders the bands to Prithvi's
+(`src/apps/ghana/pipeline/extract_satellite_features.py`, which reorders the bands to Prithvi's
 blue-to-SWIR2 order and repeats the tile over the 3 time steps). As for Uganda, the
 appendix now says the embedding averages the patch tokens of the last (12th) encoder
 layer, matching the code (fixed; see `src/apps/uganda/README.md`, Section 3).
@@ -95,7 +95,7 @@ Outputs `data/ghana/satellite/{sae_model.pt, sae_activations.npy, sae_comm_ids.n
 (not in the repo; GPU training is not bit-reproducible, restore the original rather than
 retrain).
 *Why 4,096 atoms (vs 1,024 for Uganda):* a larger and more diverse national corpus.
-The SLURM wrapper `scripts/ghana/submit_train_sae.sh` runs `src/apps/ghana/train_sae.py`
+The SLURM wrapper `scripts/ghana/submit_train_sae.sh` runs `src/apps/ghana/pipeline/train_sae.py`
 with these settings; it refuses to overwrite the original SAE unless `OVERWRITE=1` (or pass
 another `OUT_DIR`).
 
@@ -128,7 +128,7 @@ S̃ = {Z_3821, Z_2095}; both pass the terminal step, so both are certified and t
 candidates. p-values: `results/realworld_final/report.json` → `ghana/consumption` →
 `runs` → `pool 167 | published test | new default` → `coords` (`p_marginal`,
 `worst_subset_p`). GATEs (GH₵/month): OLS of ΔY on (1, T) within active (Z_j > 0) and
-inactive households, CR1S s.e. by community, from `src/apps/ghana/table_gate.py` →
+inactive households, CR1S s.e. by community, from `src/apps/ghana/tables.py gate` →
 `results/ghana/paper_numbers/table_gate.{md,tex,json}`.
 
 | Modifier | Coord | Active communities / households | GATE active | GATE inactive | Δ | Marginal p | Cert. p |
@@ -145,14 +145,14 @@ rather than demographic; "this does not establish invariance".
 
 **Marginal screening (main text).** 18 of the 167 candidates pass an uncorrected marginal
 test (CR1S by community, p ≤ 0.05): 17 SAE atoms, 1 survey covariate (farming household),
-0 spectral indices. Source: `src/apps/ghana/table_gate.py` →
+0 spectral indices. Source: `src/apps/ghana/tables.py gate` →
 `results/ghana/paper_numbers/table_gate.md`.
 
 ---
 
 ## 6. Interpretation
 
-**VLM protocol** (`src/apps/ghana/interpret.py`, `scripts/ghana/submit_interpret.sh`):
+**VLM protocol** (`src/apps/ghana/pipeline/interpret.py`, `scripts/ghana/submit_interpret.sh`):
 Qwen2.5-VL-72B-Instruct, 4-bit, one H100; rank the national-grid tiles (not only the 162
 LEAP tiles, for a larger contrast pool) by Z_j, show the top 12 and bottom 12 side by
 side with the prompt quoted in the appendix, record a short label and a confidence.
@@ -167,7 +167,7 @@ side with the prompt quoted in the appendix, record a short label and a confiden
 **Temporal check (Table `tab:ghana_temporal`).** Paired 2015/2017 false-colour composites
 of the six communities where neuron 3821 is active (951, 675, 395, 1265, 655, 624; 83
 households) shown side by side to the VLM with a **neutral prompt**
-(`src/apps/ghana/interpret_temporal_changes.py`, `sbatch scripts/ghana/submit_temporal_changes.sh`,
+(`src/apps/ghana/pipeline/interpret_temporal_changes.py`, `sbatch scripts/ghana/submit_temporal_changes.sh`,
 Qwen2.5-VL-72B-Instruct 4-bit, greedy decoding, one H100, ~21 min of which ~18 min model
 loading): list every land-cover change as "+/− category" with the colour key of the
 composite, plus a 1–2 sentence description; the model is not told the feature label. Output
@@ -175,7 +175,7 @@ composite, plus a 1–2 sentence description; the model is not told the feature 
 Result: "+ cropland" in 5 of 6 (951, 675, 395, 1265, 624), "+ bare soil" in 655; "− vegetation"
 in all 6. The descriptions attribute the cropland increase to more bright red/magenta
 (the colour key's "dense healthy vegetation or crops") in 951, 675, 395 and 624, and to
-"bright green regions expanding" in 1265. Table from `src/apps/ghana/table_temporal.py
+"bright green regions expanding" in 1265. Table from `src/apps/ghana/tables.py temporal
 --paper` → `results/ghana/paper_numbers/table_temporal.{md,tex}` (columns: cropland change and
 local NDVI increase, % area; the vegetation calls and descriptions are printed as a note, not
 tabulated).
@@ -201,29 +201,30 @@ reproduced by the rerun: identical outputs for 951, 675 and 1265, and for 395 th
 change list with a reworded description.
 
 Superseded: `results/ghana/temporal/neuron_3821_temporal.json`
-(`interpret_temporal_waterways.py`, 6 May 2026) told the model the tiles contain ephemeral
-waterways and asked about changes near them (a leading prompt). It reported cropland
-expansion with denser vegetation next to the waterway in 3 of 6 (951, 1265, 624) and
+(`interpret_temporal_waterways.py`, 6 May 2026; the script, its launcher and the plot
+`plot_waterway_temporal.py` were removed on 2026-10-31 and are in the git history) told
+the model the tiles contain ephemeral waterways and asked about changes near them (a
+leading prompt). It reported cropland expansion with denser vegetation next to the
+waterway in 3 of 6 (951, 1265, 624) and
 waterways unchanged in 6 of 6, which is what the paper's table and Figure 5 labels
 (+ vegetation, + cropland) were built from. Under the neutral prompt the vegetation call
 flips to a decrease everywhere, so it is not used.
 
-Figure: `bash scripts/ghana/run_figure_neural.sh` (runs the neutral interpretation if its
-JSON is missing, then `figure_neural_combined.py` →
-`results/ghana/figures/figure_neural_ghana_combined.pdf`; alone:
-`python src/apps/ghana/figure_neural_combined.py`). The temporal panel shows 951, 675, 395
+Figure: `bash scripts/ghana/run_figure_neural.sh` (runs the neutral interpretation, then
+`figures.py neural` → `results/ghana/figures/figure_neural_ghana_combined.pdf`; alone:
+`python src/apps/ghana/figures.py neural`). The temporal panel shows 951, 675, 395
 and 624 (395 replaced 1265 on 2026-09-29, since 1265 has almost no local NDVI increase);
 each gets "+ cropland". On each tile a white box (1 pt, thin black halo) marks the
 bounding box, plus a 2-pixel margin, of the largest local-NDVI-increase patch, and of the
 second largest when it is at least 75% of the largest's area; the same boxes are drawn on
 both years. Boxed: 951 79.0 ha (local ΔNDVI +0.079), 675 22.5 ha (+0.069), 395 29.7 ha
 (+0.075), 624 34.2 ha (+0.085) and 29.8 ha (+0.079). The colour cues are left out of the
-figure and table because the colour key does not separate crops from other vegetation. Teaser tile `src/apps/figure1_tiles.py` → `results/figures/figure1/waterways.pdf`;
-districts map `src/apps/ghana/figure_maps.py`.
+figure and table because the colour key does not separate crops from other vegetation. Teaser tile (Figure 1) `src/apps/ghana/figures.py tile` →
+`results/figures/figure1/waterways.pdf`; districts map `src/apps/ghana/figures.py maps`.
 
-The three `figure_neural*.py` scripts read the sign of each neuron's GATE contrast (the
-"(+impact)" in the titles) from `results/ghana/gate/gate_Z.csv`. Build it first with
-`python3 src/apps/ghana/gate_neurons.py` (CPU, seconds): marginal GATE of every
+`figures.py neural` and `figures.py neural-1777` read the sign of each neuron's GATE
+contrast (the "(+impact)" in the titles) from `results/ghana/gate/gate_Z.csv`. Build it
+first with `python3 src/apps/ghana/tables.py gate-neurons` (CPU, seconds): marginal GATE of every
 community-level candidate on the balanced panel (2,331 households), SAE neurons active in
 ≥ 5 communities binarized at > 0, interaction s.e. CR1S by community. It gives GATE +42.9
 vs +6.0 (3821), +56.2 vs +6.4 (2095) and +26.3 vs +5.6 (1777, contrast p = 0.30), the
@@ -231,13 +232,15 @@ paper's numbers. Regenerated 2026-09-28: text, titles, maps, active tiles and th
 panel match the paper PDFs; the inactive example tiles do not (paper: 1613/1604,
 1624/1583 and 1624/1604/1576; now 1635/534, 1635/506 and 562/483/506). All of them have
 z = 0, and the scripts pick among these ties with an unstable `np.argsort`, so the paper's
-choice is not recoverable from the code. On `main` these scripts still read the survey
-and basemap files from the old flat `data/ghana/` layout, not `survey/` and `geo/`. Since
-2026-09-29 `figure_neural_combined.py` (Figure 5) reads `survey/` and `geo/` and pins the
-paper's inactive tiles (1613/1604, 1624/1583); its left part matches the paper's earlier
-PDF, while the temporal panel now shows 395 instead of 1265, the labels from the neutral
-run and the NDVI-increase boxes.
-`figure_neural.py` and `figure_neural_1777.py` are not fixed yet.
+choice is not recoverable from the code. On `main`, `figures.py maps` and `figures.py
+neural-1777` still read the survey and basemap files from the old flat `data/ghana/`
+layout, not `survey/` and `geo/`. Since 2026-09-29 `figures.py neural` (Figure 5, then
+`figure_neural_combined.py`) reads `survey/` and `geo/` and pins the paper's inactive
+tiles (1613/1604, 1624/1583); its left part matches the paper's earlier PDF, while the
+temporal panel now shows 395 instead of 1265, the labels from the neutral run and the
+NDVI-increase boxes. `figures.py neural-1777` is not fixed yet. The earlier single-figure
+version of Figure 5 (`figure_neural.py`, `figure_neural_ghana.pdf`, not in the paper) was
+removed on 2026-10-31.
 
 ---
 
@@ -261,7 +264,7 @@ NEXIS without multiple-testing correction on an earlier, smaller pool (72 atoms 
 ≥ 10 communities, 24 survey covariates and 6 spectral `*_mean`
 indices; the two certified atoms are not in it), in the configuration of 6 May 2026
 (the earlier defaults: interleaved backward step, `adjust=None`, CR1S by community). Source:
-`src/apps/ghana/exploratory_run.py` → `results/ghana/paper_numbers/exploratory_run.md`,
+`src/apps/ghana/tables.py exploratory` → `results/ghana/paper_numbers/exploratory_run.md`,
 which reproduces `results/ghana/mact10/codes/nexis_no_adj/result.json` exactly.
 
 Selected: atoms 2252 (p = 0.0014), 1777 (0.0085), 3331 (0.0044), 1046 (0.0066),
@@ -269,7 +272,7 @@ Selected: atoms 2252 (p = 0.0014), 1777 (0.0085), 3331 (0.0044), 1046 (0.0066),
 *sparse burn scar presence* (confidence medium): active in 12 communities (228 households)
 concentrated in East Mamprusi and Karaga; GATE +26.3 vs +5.6 GH₵/month; conditional
 p = 0.0085; GATE contrast +20.7 (s.e. 19.9), p = 0.30. Figure:
-`src/apps/ghana/figure_neural_1777.py` → `results/ghana/figures/figure_neural_1777.pdf`.
+`src/apps/ghana/figures.py neural-1777` → `results/ghana/figures/figure_neural_1777.pdf`.
 Hypothesis: transfers act as insurance after fire shocks; too local to generalise.
 
 **External anchor: citation verified.** The June brief supported the burn-scar reading
@@ -307,6 +310,14 @@ loading the model). The other estimates are carried over from the June brief; no
 
 ## 11. Run notes
 
+- Code (`src/apps/ghana/`): `data.py` (survey loading), `pool.py` (the candidate pools),
+  `final_runs.py` (run grid of `src/apps/realworld_final_runs.py`), `analysis.py` (GATE
+  helpers), `ndvi_change.py` (local NDVI increase), `tables.py` (`gate`, `temporal`,
+  `exploratory`, `gate-neurons`), `figures.py` (`maps`, `neural`, `neural-1777`, `tile`),
+  and the GPU / Earth Engine steps in `pipeline/` (`download_satellite_images.py`,
+  `download_national_grid.py`, `download_waterway_2017.py` (the 2017 tiles of the
+  temporal check), `extract_satellite_features.py`, `train_sae.py`, `interpret.py`,
+  `interpret_temporal_changes.py`).
 - `src/apps/realworld_final_runs.py` without `--only` runs both applications and writes
   `results/realworld_final/report.json` (`--out-dir` writes elsewhere). The Ghana grid is
   in `src/apps/ghana/final_runs.py`, the pools in `src/apps/ghana/pool.py`. The paper's
@@ -315,8 +326,9 @@ loading the model). The other estimates are carried over from the June brief; no
   published set {Z_3821, Z_2095} on the 155 pool. That set is fixed in `pool.py`, not read
   from `results/ghana/codes/nexis_fwer_crve/result.json`: the June run behind that file
   searched the 131 neurons alone (see the `pool.py` docstring).
-- The download, extraction and training scripts default to paths relative to
-  `src/apps/ghana/` (`../../data/ghana/...`): run `download_satellite_images.py`,
-  `download_national_grid.py` and `extract_satellite_features.py` from that folder, or pass
-  `--out-dir`/`--tif-dir`; pass explicit paths to `train_sae.py` (as in `README.md` and
-  `scripts/ghana/submit_train_sae.sh`).
+- The download, extraction and training scripts in `pipeline/` resolve their relative
+  default paths against `src/apps/ghana/`, wherever they are run from: the defaults of
+  `download_satellite_images.py` and `download_national_grid.py` (`../../../data/ghana/...`)
+  reach the repo's `data/ghana/`, those of `extract_satellite_features.py` and
+  `train_sae.py` (`../../data/ghana/...`) do not, so pass `--tif-dir`/`--out-dir` and
+  explicit embedding paths to them (as in `README.md` and `scripts/ghana/submit_train_sae.sh`).

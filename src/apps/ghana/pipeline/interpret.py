@@ -34,11 +34,11 @@ Pipelines
 
 Usage
 -----
-  python src/apps/ghana/interpret.py --quantize
-  python src/apps/ghana/interpret.py --mode codes --no-interpret
-  python src/apps/ghana/interpret.py --overwrite   # redo VLM even if files exist
-  python src/apps/ghana/interpret.py --pipeline geochat_llm --quantize
-  python src/apps/ghana/interpret.py --pipeline geochat_llm \\
+  python src/apps/ghana/pipeline/interpret.py --quantize
+  python src/apps/ghana/pipeline/interpret.py --mode codes --no-interpret
+  python src/apps/ghana/pipeline/interpret.py --overwrite   # redo VLM even if files exist
+  python src/apps/ghana/pipeline/interpret.py --pipeline geochat_llm --quantize
+  python src/apps/ghana/pipeline/interpret.py --pipeline geochat_llm \\
       --geochat-model MBZUAI/geochat-7B \\
       --synthesis-model Qwen/Qwen2.5-7B-Instruct
 """
@@ -52,7 +52,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-ROOT     = Path(__file__).resolve().parents[3]
+ROOT     = Path(__file__).resolve().parents[4]
 DATA_DIR = ROOT / "data" / "ghana"
 SAT_DIR  = DATA_DIR / "satellite"
 TIF_DIR  = SAT_DIR / "tif"

@@ -167,7 +167,7 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.parent   # src/apps/ghana: the relative defaults start here
     tif_dir    = (script_dir / args.tif_dir).resolve()
     out_dir    = (script_dir / args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)

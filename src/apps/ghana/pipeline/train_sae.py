@@ -282,7 +282,7 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.parent   # src/apps/ghana: the relative defaults start here
     out_dir    = (script_dir / args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     device     = torch.device(args.device)

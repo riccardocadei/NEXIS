@@ -1,56 +1,231 @@
+#!/usr/bin/env python3
+"""Ghana LEAP 1000 figures of the paper, one subcommand each.
+
+  maps         figure_districts.pdf (Appendix E): the 162 LEAP communities coloured by
+               district on the full national map with neighbours; labels next to the
+               clusters with thin leader lines, no legend
+  neural       figure_neural_ghana_combined.pdf (Figure 5): neural discoveries (left,
+               one row per certified neuron: [map | 2 active | 2 inactive tiles]) and the
+               2015 / 2017 temporal grid of neuron 3821 (right)
+  neural-1777  figure_neural_1777.pdf (Appendix E, exploratory analysis): neuron 1777
+  tile         waterways.pdf, the Ghana panel of Figure 1: community 1265 (Bongo
+               district), one of the 6 LEAP communities where SAE neuron 3821
+               ("ephemeral waterways") is active (4th highest), Landsat 8 2015 median
+               composite (the Uganda panel is `src/apps/uganda/figures.py tile`)
+
+`neural` and `neural-1777` read the sign of each neuron's GATE contrast (the "(+impact)"
+in the titles) from results/ghana/gate/gate_Z.csv: run `tables.py gate-neurons` first.
+`neural` also reads the neutral-prompt VLM run
+results/ghana/temporal/neuron_3821_temporal_neutral.json (pipeline/interpret_temporal_changes.py)
+and boxes the local NDVI increase (ndvi_change.py).
+
+Outputs go to results/ghana/figures/ (maps, neural, neural-1777) and
+results/figures/figure1/ (tile), or to --out-dir.
+
+    python src/apps/ghana/figures.py maps
+    python src/apps/ghana/figures.py neural
+    python src/apps/ghana/figures.py neural-1777
+    python src/apps/ghana/figures.py tile
 """
-Combined figure: neural discovery (left) + neuron 3821 temporal grid (right).
 
-Layout
-------
-Row 0 ── Neuron 3821: [map | act×2 | div | inact×2] ─┐
-                                                        V── [2015 grid × 4 communities]
-Row 1 ── Neuron 2095: [map | act×2 | div | inact×2] ─┘    [2017 grid × 4 communities]
-
-A V-shaped dashed connector runs from the last inactive tile of the 3821 row
-to the left edge of both temporal rows.
-
-The temporal panel shows communities 951, 675, 395 and 624 in 2015 and 2017,
-labelled with the neutral-prompt VLM call ("+ cropland"). On each tile, white
-boxes mark the largest patch(es) where NDVI rose locally between the two
-composites (rule in ndvi_change.py); the same boxes are drawn on both years.
-
-Usage:
-    python src/apps/ghana/figure_neural_combined.py
-"""
-
+import argparse
+import io
 import json
 import sys
+import urllib.request
+import zipfile
 from pathlib import Path
 
 import geopandas as gpd
+import matplotlib.cm as cm
+import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
+import tifffile
 from matplotlib.patches import FancyArrowPatch
+from PIL import Image
 from PIL import Image as PILImage
+from shapely.geometry import box
 
-ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT))
-from src.apps.ghana.ndvi_change import largest_patches  # noqa: E402
-
-plt.rcParams.update({
-    "text.usetex":      False,
-    "font.family":      "serif",
-    "font.serif":       ["Computer Modern Roman", "DejaVu Serif", "Times New Roman"],
-    "mathtext.fontset": "cm",
-})
-
+ROOT     = Path(__file__).resolve().parents[3]
 DATA_DIR = ROOT / "data"    / "ghana"
 SAT_DIR  = DATA_DIR / "satellite"
 TIF_NAT  = SAT_DIR  / "tif_national"
 TIF_2015 = SAT_DIR  / "tif"
 TIF_2017 = SAT_DIR  / "tif_2017"
+TIF_DIR  = TIF_2015
 RES_DIR  = ROOT / "results" / "ghana"
 OUT_DIR  = RES_DIR  / "figures"
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+sys.path.insert(0, str(ROOT / "src"))
+from apps.ghana.data import load_data  # noqa: E402
+from apps.ghana.ndvi_change import largest_patches  # noqa: E402
+
+
+def _paper_style() -> None:
+    """Serif fonts of the maps and the neural figures (the tile keeps the defaults)."""
+    plt.rcParams.update({
+        "text.usetex":      False,
+        "font.family":      "serif",
+        "font.serif":       ["Computer Modern Roman", "DejaVu Serif", "Times New Roman"],
+        "mathtext.fontset": "cm",
+    })
+
+
+def _out_dir(argv: list[str], cmd: str, doc: str, default: Path = OUT_DIR) -> Path:
+    ap = argparse.ArgumentParser(prog=f"figures.py {cmd}", description=doc)
+    ap.add_argument("--out-dir", type=Path, default=default,
+                    help="where to write the figures (default: %(default)s)")
+    out_dir = ap.parse_args(argv).out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+# ===========================================================================
+# maps
+# ===========================================================================
+
+# map extents (full Ghana + padding): xlim (-3.4, 1.4), ylim (4.5, 11.4)
+
+# ── District anchors — placed so no lines cross ────────────────────────────────
+# Centroids (lon,lat): Bongo(-0.822,10.922) GaruTempane(-0.148,10.838)
+#            EastMamprusi(-0.306,10.407) Karaga(-0.469,10.064) Yendi(0.011,9.439)
+DIST_ANCHOR = {
+    "Bongo":         (-2.0, 10.7),   # left       from (-0.822, 10.922)
+    "Garu-Tempane":  ( 0.9, 10.7),   # right      from (-0.148, 10.838)
+    "East Mamprusi": ( 1.1, 10.3),   # right      from (-0.306, 10.407)
+    "Karaga":        (-2.0, 10.0),   # left-down  from (-0.469, 10.064)
+    "Yendi":         ( 0.9,  9.3),   # right-down from ( 0.011,  9.439)
+}
+
+
+def _load_basemap(bbox=(-3.5, 4.3, 1.5, 11.5)):
+    """Return (ghana_gdf, neighbors, lakes_c, gdf1) for draw_base."""
+    # Natural Earth admin-0 (Ghana outline + neighbours)
+    ne_shp = DATA_DIR / 'ne_10m_admin_0_countries.shp'
+    if not ne_shp.exists():
+        url  = 'https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip'
+        data = urllib.request.urlopen(url, timeout=60).read()
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for name in z.namelist():
+                if Path(name).suffix in ('.shp', '.shx', '.dbf', '.prj', '.cpg'):
+                    (DATA_DIR / Path(name).name).write_bytes(z.read(name))
+
+    world     = gpd.read_file(ne_shp).to_crs('EPSG:4326')
+    ghana_gdf = world[world['NAME'] == 'Ghana']
+    neighbors = world[world.geometry.intersects(
+                    ghana_gdf.union_all().buffer(0.3)) & (world['NAME'] != 'Ghana')]
+
+    # Lakes clipped to full Ghana bbox
+    bbox_gdf = gpd.GeoDataFrame({'geometry': [box(*bbox)]}, crs='EPSG:4326')
+    lakes_c  = gpd.read_file(DATA_DIR / 'ne_10m_lakes.shp').to_crs('EPSG:4326').clip(bbox_gdf)
+
+    # GADM level-1 regions (sub-national, same role as Uganda's regions_gdf)
+    gdf1 = gpd.read_file(DATA_DIR / 'gadm41_GHA_1.json').to_crs('EPSG:4326')
+
+    return ghana_gdf, neighbors, lakes_c, gdf1
+
+
+def _draw_base(ax, ghana_gdf, neighbors, lakes_c, regions_gdf,
+               xlim=(-3.4, 1.4), ylim=(4.5, 11.4)):
+    ax.set_facecolor('white')
+    ax.figure.set_facecolor('white')
+    # Explicit grey rectangle covering the full map extent (ocean + any gaps)
+    ax.add_patch(mpatches.Rectangle(
+        (xlim[0], ylim[0]), xlim[1] - xlim[0], ylim[1] - ylim[0],
+        facecolor='#e8e4dc', edgecolor='none', zorder=0,
+    ))
+    neighbors.plot(ax=ax, color='#e8e4dc', edgecolor='#bbb', lw=0.6, zorder=1)
+    regions_gdf.plot(ax=ax, color='#f5f0e8', edgecolor='#aaa', lw=0.4, zorder=2)
+    ghana_gdf.plot(ax=ax, color='none', edgecolor='#444', lw=1.4, zorder=3)
+    if not lakes_c.empty:
+        lakes_c.plot(ax=ax, color='#a8d0e6', edgecolor='#7ab0cb', lw=0.5, zorder=4)
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_aspect('equal')
+
+
+def _thin_border(ax, ghana_gdf, regions_gdf):
+    regions_gdf.plot(ax=ax, color='none', edgecolor='#ccc', lw=0.3, zorder=10)
+    ghana_gdf.plot(ax=ax, color='none', edgecolor='#888', lw=0.6, zorder=11)
+
+
+def _leader(ax, cx, cy, ax_t, ay_t, text, fontsize=9):
+    ax.annotate(
+        text,
+        xy=(cx, cy),
+        xytext=(ax_t, ay_t),
+        fontsize=fontsize,
+        ha='center', va='center',
+        color='black',
+        fontweight='normal',
+        zorder=12,
+        arrowprops=dict(
+            arrowstyle='-',
+            color='#888',
+            lw=0.7,
+            shrinkA=0,
+            shrinkB=3,
+        ),
+    )
+
+
+def figure_districts(df, ghana_gdf, neighbors, lakes_c, regions_gdf):
+    # One point per community (baseline wave only to avoid duplicate GPS)
+    sites = (
+        df[df['wave'] == 0]
+        .dropna(subset=['gps_longitude', 'gps_latitude', 'district'])
+        .groupby('comm', as_index=False)
+        .agg(lon=('gps_longitude', 'first'),
+             lat=('gps_latitude', 'first'),
+             district=('district', 'first'))
+    )
+
+    districts = sorted(sites['district'].unique())
+    cmap    = cm.get_cmap('tab20', len(districts))
+    d_color = {d: cmap(i) for i, d in enumerate(districts)}
+
+    fig, ax = plt.subplots(figsize=(6, 7), dpi=150)
+    fig.patch.set_facecolor('white')
+    _draw_base(ax, ghana_gdf, neighbors, lakes_c, regions_gdf)
+    ax.axis('off')
+    ax.figure.set_facecolor('white')
+    _thin_border(ax, ghana_gdf, regions_gdf)
+
+    for d, grp in sites.groupby('district'):
+        color = d_color[d]
+        cx = grp['lon'].mean()
+        cy = grp['lat'].mean()
+        ax.scatter(grp['lon'], grp['lat'],
+                   color=color, s=20, zorder=6,
+                   edgecolors='white', linewidths=0.3, alpha=0.92)
+        ax_t, ay_t = DIST_ANCHOR.get(d, (cx + 0.4, cy + 0.4))
+        _leader(ax, cx, cy, ax_t, ay_t, d, fontsize=9)
+
+    fig.tight_layout(pad=0.1)
+    return fig
+
+
+def cmd_maps(argv: list[str]) -> None:
+    """figure_districts.pdf (Appendix E): LEAP communities coloured by district."""
+    _paper_style()
+    out_dir = _out_dir(argv, "maps", cmd_maps.__doc__)
+    df = load_data(DATA_DIR)
+    ghana_gdf, neighbors, lakes_c, regions_gdf = _load_basemap()
+
+    fig_d = figure_districts(df, ghana_gdf, neighbors, lakes_c, regions_gdf)
+    fig_d.savefig(out_dir / "figure_districts.pdf", bbox_inches='tight', facecolor='white')
+    fig_d.savefig(out_dir / "figure_districts.png", bbox_inches='tight', facecolor='white')
+    print(f"Saved → {out_dir / 'figure_districts.pdf'}")
+    plt.close(fig_d)
+
+
+# ===========================================================================
+# neural (Figure 5)
+# ===========================================================================
 
 C_MAP_BG = "#D5D8DC"
 C_LBL    = "#222222"
@@ -238,7 +413,10 @@ def _row_y(row_i: int):
 
 # ── main ───────────────────────────────────────────────────────────────────────
 
-def main():
+def cmd_neural(argv: list[str]) -> None:
+    """figure_neural_ghana_combined.pdf (Figure 5)."""
+    _paper_style()
+    out_dir = _out_dir(argv, "neural", cmd_neural.__doc__)
     ndvi_patches = {c["comm_id"]: largest_patches(c["comm_id"]) for c in TEMPORAL_COMMUNITIES}
     for cid, patches in ndvi_patches.items():
         for p in patches:
@@ -458,13 +636,246 @@ def main():
         ))
 
     # ── save ──────────────────────────────────────────────────────────────────
-    out_pdf = OUT_DIR / "figure_neural_ghana_combined.pdf"
-    out_png = OUT_DIR / "figure_neural_ghana_combined.png"
+    out_pdf = out_dir / "figure_neural_ghana_combined.pdf"
+    out_png = out_dir / "figure_neural_ghana_combined.png"
     fig.savefig(out_pdf, bbox_inches="tight", facecolor="white")
     fig.savefig(out_png, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"Saved → {out_pdf}")
     print(f"Saved → {out_png}")
+
+
+# ===========================================================================
+# neural-1777
+# ===========================================================================
+
+NEURON_1777    = 1777
+N_TILES_1777   = 3
+C_RED_1777     = "#C0392B"   # burn scar
+
+
+
+
+def load_leap_tile(comm_id: int, size: int = 112) -> np.ndarray | None:
+    path = TIF_DIR / f"ghana_comm{int(comm_id):04d}.tif"
+    if not path.exists():
+        return None
+    with rasterio.open(path) as src:
+        green = src.read(2).astype(np.float32)
+        nir   = src.read(4).astype(np.float32)
+        swir2 = src.read(6).astype(np.float32)
+    arr = (np.stack([_norm(nir), _norm(green), _norm(swir2)], axis=-1) * 255).astype(np.uint8)
+    return np.asarray(Image.fromarray(arr).resize((size, size), Image.BICUBIC))
+
+
+def _basemap_1777():
+    ghana = gpd.read_file(DATA_DIR / "gadm41_GHA_1.json").to_crs("EPSG:4326")
+    lakes = gpd.read_file(DATA_DIR / "ne_10m_lakes.shp").to_crs("EPSG:4326")
+    lakes = lakes.clip(ghana.total_bounds)
+    return ghana, lakes
+
+
+def _draw_map_1777(ax, comm_df, acts, ghana, lakes):
+    ghana.plot(ax=ax, color="#F0F0F0", edgecolor="#AAAAAA", linewidth=0.4)
+    lakes.plot(ax=ax, color="#AED6F1", edgecolor="none")
+    ax.scatter(comm_df["gps_longitude"], comm_df["gps_latitude"],
+               c=C_MAP_BG, s=5, linewidths=0, zorder=2)
+    mask = acts > 0
+    if mask.any():
+        ax.scatter(comm_df.loc[mask, "gps_longitude"],
+                   comm_df.loc[mask, "gps_latitude"],
+                   c=C_RED_1777, s=8, linewidths=0, zorder=3, alpha=0.9)
+    ax.set_axis_off()
+    ax.set_aspect("equal")
+
+
+
+
+def cmd_neural_1777(argv: list[str]) -> None:
+    """figure_neural_1777.pdf (Appendix E, exploratory analysis): neuron 1777, sparse burn
+    scar presence: map | 3 active LEAP tiles | 3 inactive LEAP tiles."""
+    _paper_style()
+    out_dir = _out_dir(argv, "neural-1777", cmd_neural_1777.__doc__)
+    # Load interpretation label
+    interp_path = RES_DIR / "codes" / "nexis_no_adj" / "qwen25_72b" / "interpretations.json"
+    with open(interp_path) as f:
+        interps = json.load(f)
+    entry = next(e for e in interps if e.get("neuron_idx") == NEURON_1777)
+    label = entry["label"]
+    pval  = entry["pvalue"]
+
+    # Load effect direction
+    gate_df = pd.read_csv(RES_DIR / "gate" / "gate_Z.csv")
+    gate_df["neuron_idx"] = gate_df["feature"].str.extract(r"neuron (\d+)").astype(float)
+    direction_map = dict(zip(
+        gate_df["neuron_idx"].dropna().astype(int),
+        gate_df.loc[gate_df["neuron_idx"].notna(), "diff"],
+    ))
+    sign = "+" if direction_map.get(NEURON_1777, 0) >= 0 else "-"
+
+    # Community GPS centroids
+    df = pd.read_stata(DATA_DIR / "LEAP1000 2015-2017 household data++.dta")
+    comm_df = (df.groupby("comm")[["gps_latitude", "gps_longitude"]]
+                 .mean().reset_index().set_index("comm"))
+
+    # SAE activations
+    sae_acts = np.load(SAT_DIR / "sae_activations.npy")
+    comm_ids = np.load(SAT_DIR / "prithvi_comm_ids.npy")
+    comm_df_aligned = comm_df.reindex(comm_ids).reset_index()
+
+    all_acts    = sae_acts[:, NEURON_1777]
+    sorted_idx  = np.argsort(all_acts)[::-1]
+    nonzero_idx = sorted_idx[all_acts[sorted_idx] > 0]
+    zero_idx    = sorted_idx[all_acts[sorted_idx] == 0]
+
+    top_keys = comm_ids[nonzero_idx[:N_TILES_1777]].tolist()
+    top_acts = all_acts[nonzero_idx[:N_TILES_1777]].tolist()
+    bot_keys = comm_ids[zero_idx[:N_TILES_1777]].tolist()
+    bot_acts = all_acts[zero_idx[:N_TILES_1777]].tolist()
+
+    ghana, lakes = _basemap_1777()
+
+    # ── layout (inches) ───────────────────────────────────────────────────────
+    map_w   = 1.15
+    img_w   = 1.1
+    div_w   = 0.05
+    pad_w   = 0.08
+    row_h   = 1.28
+    title_h = 0.22
+    top_pad = 0.03
+    bot_pad = 0.05
+
+    total_w = pad_w + map_w + pad_w + N_TILES_1777*img_w + div_w + N_TILES_1777*img_w + pad_w
+    total_h = row_h + title_h + top_pad + bot_pad
+
+    fig = plt.figure(figsize=(total_w, total_h), dpi=150)
+    fig.patch.set_facecolor("white")
+
+    def xf(x): return x / total_w
+    def yf(y): return 1.0 - y / total_h
+
+    # Title
+    y_title_top = top_pad
+    ax_t = fig.add_axes([0, yf(y_title_top + title_h), 1, title_h / total_h])
+    ax_t.set_axis_off()
+    title_str = f"Neuron {NEURON_1777}: {label[0].upper() + label[1:]} ({sign}impact)"
+    ax_t.text(0.01, 0.72, title_str, ha="left", va="center",
+              fontsize=9, fontweight="normal", transform=ax_t.transAxes)
+
+    y_img_top = yf(top_pad + title_h)
+    h_img     = row_h / total_h
+    w_map     = map_w / total_w
+    w_img     = img_w / total_w
+    w_div     = div_w / total_w
+
+    # Map
+    ax_map = fig.add_axes([xf(pad_w), y_img_top - h_img, w_map, h_img])
+    _draw_map_1777(ax_map, comm_df_aligned, all_acts, ghana, lakes)
+
+    # Active tiles
+    x0_act = pad_w + map_w + pad_w
+    for j, (key, act) in enumerate(zip(top_keys, top_acts)):
+        ax = fig.add_axes([xf(x0_act + j*img_w), y_img_top - h_img, w_img, h_img])
+        arr = load_leap_tile(int(key))
+        if arr is not None:
+            ax.imshow(arr)
+        ax.set_axis_off()
+        ax.set_title(f"Active ($z={_fmt_z(act)}$)", fontsize=8, color=C_LBL,
+                     pad=2, fontweight="normal")
+        ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=6.5, color="#666666",
+                ha="center", va="top", transform=ax.transAxes, clip_on=False)
+
+    # Divider
+    x_div = x0_act + N_TILES_1777 * img_w
+    ax_div = fig.add_axes([xf(x_div), y_img_top - h_img, w_div, h_img])
+    ax_div.set_axis_off()
+    ax_div.axvline(0.5, color="#BBBBBB", linewidth=0.6, ymin=0.04, ymax=0.96)
+
+    # Inactive tiles
+    x0_bot = x_div + div_w
+    for j, (key, act) in enumerate(zip(bot_keys, bot_acts)):
+        ax = fig.add_axes([xf(x0_bot + j*img_w), y_img_top - h_img, w_img, h_img])
+        arr = load_leap_tile(int(key))
+        if arr is not None:
+            ax.imshow(arr)
+        ax.set_axis_off()
+        ax.set_title(f"Inactive ($z={_fmt_z(act)}$)", fontsize=8, color=C_LBL,
+                     pad=2, fontweight="normal")
+        ax.text(0.5, -0.03, f"Community {int(key)}", fontsize=6.5, color="#666666",
+                ha="center", va="top", transform=ax.transAxes, clip_on=False)
+
+    for ext in ("pdf", "png"):
+        out = out_dir / f"figure_neural_1777.{ext}"
+        fig.savefig(out, bbox_inches="tight", facecolor="white")
+        print(f"Saved → {out}")
+    plt.close(fig)
+
+
+# ===========================================================================
+# tile (Figure 1, Ghana panel)
+# ===========================================================================
+
+# Bands of the Ghana Landsat 8 tiles: B4,B3,B2,B5,B6,B7 -> 1=Green 3=NIR 5=SWIR2.
+TILE = dict(name="waterways",
+            tif=ROOT / "data/ghana/satellite/tif/ghana_comm1265.tif",
+            swir_idx=5, country="Ghana", year=2015)
+TILE_OUT = ROOT / "results" / "figures" / "figure1"
+
+
+def district_of(name: str) -> str:
+    """Look the district label up in the survey data rather than hard-coding it."""
+    df = pd.read_stata(ROOT / "data/ghana/survey/LEAP1000 2015-2017 household data++.dta",
+                       columns=["comm", "district"])
+    d = df.loc[df.comm == 1265, "district"].dropna().astype(str).unique()
+    assert len(d) == 1, f"ambiguous district for {name}: {d}"
+    return str(d[0]).title()
+
+
+def composite(path: Path, swir_idx: int) -> np.ndarray:
+    """NIR / Green / SWIR false-colour composite, uint8, native resolution, every band
+    stretched to its 2-98th percentile."""
+    data = tifffile.imread(str(path)).astype(np.float32)  # (H, W, bands)
+    rgb = np.stack([_norm(data[:, :, 3]), _norm(data[:, :, 1]),
+                    _norm(data[:, :, swir_idx])], axis=-1)
+    return (rgb * 255).astype(np.uint8)
+
+
+def make_tile(spec: dict, out_dir: Path) -> None:
+    img = composite(spec["tif"], spec["swir_idx"])
+    label = f"{district_of(spec['name'])}, {spec['country']} ({spec['year']})"
+
+    fig = plt.figure(figsize=(3, 3), dpi=200)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.imshow(img)
+    ax.axis("off")
+    ax.text(0.97, 0.97, label, transform=ax.transAxes, ha="right", va="top",
+            fontsize=14, family="DejaVu Serif", color="white",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="black",
+                      alpha=0.5, edgecolor="none"))
+
+    for ext in ("pdf", "png"):
+        out = out_dir / f"{spec['name']}.{ext}"
+        fig.savefig(out, bbox_inches="tight", pad_inches=0, dpi=200)
+        print(f"Saved -> {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
+    plt.close(fig)
+
+
+def cmd_tile(argv: list[str]) -> None:
+    """waterways.{pdf,png}: the Ghana tile of Figure 1, drawn at native resolution in a
+    3x3 inch canvas with a "<district>, Ghana (2015)" label at the top right."""
+    make_tile(TILE, _out_dir(argv, "tile", cmd_tile.__doc__, TILE_OUT))
+
+
+COMMANDS = {"maps": cmd_maps, "neural": cmd_neural, "neural-1777": cmd_neural_1777,
+            "tile": cmd_tile}
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv or argv[0] not in COMMANDS:
+        print(__doc__)
+        sys.exit(0 if argv and argv[0] in ("-h", "--help") else 2)
+    COMMANDS[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":

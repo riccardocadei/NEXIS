@@ -2,7 +2,7 @@
 by SAE neuron 3821 (ephemeral waterways).
 
 Usage:
-    python download_waterway_2017.py [--dry-run]
+    python src/apps/ghana/pipeline/download_waterway_2017.py [--dry-run]
 
 Output:
     data/ghana/satellite/tif_2017/ghana_comm{id:04d}.tif
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import requests
 
-ROOT     = Path(__file__).resolve().parents[3]
+ROOT     = Path(__file__).resolve().parents[4]
 OUT_DIR  = ROOT / "data" / "ghana" / "satellite" / "tif_2017"
 YEAR     = 2017
 BANDS    = ['SR_B4', 'SR_B3', 'SR_B2', 'SR_B5', 'SR_B6', 'SR_B7']

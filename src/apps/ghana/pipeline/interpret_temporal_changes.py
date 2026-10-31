@@ -19,8 +19,8 @@ Format
 }
 
 Usage:
-    python src/apps/ghana/interpret_temporal_changes.py --quantize
-    python src/apps/ghana/interpret_temporal_changes.py --quantize \
+    python src/apps/ghana/pipeline/interpret_temporal_changes.py --quantize
+    python src/apps/ghana/pipeline/interpret_temporal_changes.py --quantize \
         --communities 951,675,395,1265 --out results/ghana/temporal_changes.json
 """
 
@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-ROOT     = Path(__file__).resolve().parents[3]
+ROOT     = Path(__file__).resolve().parents[4]
 DATA_DIR = ROOT / "data" / "ghana"
 SAT_DIR  = DATA_DIR / "satellite"
 TIF_2015 = SAT_DIR / "tif"
@@ -39,8 +39,8 @@ TIF_2017 = SAT_DIR / "tif_2017"
 RES_DIR  = ROOT / "results" / "ghana"
 
 import sys
-sys.path.insert(0, str(ROOT))
-from src.apps.ghana.interpret import load_vlm, _load_composite
+sys.path.insert(0, str(ROOT / "src"))
+from apps.ghana.pipeline.interpret import load_vlm, _load_composite
 
 # Communities ranked by neuron-3821 activation (derived from sae_activations.npy)
 NEURON = 3821

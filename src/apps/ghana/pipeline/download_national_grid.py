@@ -34,7 +34,7 @@ would mean re-downloading and retraining, and the indices would no longer match)
 GEE cost: none — free for non-commercial research.
 
 Usage:
-  python download_national_grid.py [--workers 32] [--dry-run]
+  python src/apps/ghana/pipeline/download_national_grid.py [--workers 32] [--dry-run]
 """
 
 import argparse
@@ -162,7 +162,7 @@ def download_one(
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--out-dir',  default='../../../data/ghana/satellite/tif_national')  # relative to this script
+    p.add_argument('--out-dir',  default='../../../data/ghana/satellite/tif_national')  # relative to src/apps/ghana/
     p.add_argument('--data-dir', default='../../../data/ghana')
     p.add_argument('--workers',  type=int, default=32,
                    help='Parallel workers (default 32; GEE limit is 40)')
@@ -174,7 +174,7 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.parent   # src/apps/ghana: the relative defaults start here
     out_dir    = (script_dir / args.out_dir).resolve()
     data_dir   = (script_dir / args.data_dir).resolve()
 

@@ -17,7 +17,7 @@ PYTHON=/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3
 mkdir -p "$ROOT/logs"
 cd "$ROOT"
 
-$PYTHON src/apps/ghana/interpret.py \
+$PYTHON src/apps/ghana/pipeline/interpret.py \
     --mode codes \
     --min-activations 5 \
     --method nexis_fdr \

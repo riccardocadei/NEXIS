@@ -1,7 +1,7 @@
 """Local NDVI increase between the 2015 and 2017 community composites.
 
-Used by `figure_neural_combined.py` (boxes on the temporal panel of Figure 5)
-and `table_temporal.py` (column "Local NDVI increase (% area)").
+Used by `figures.py neural` (boxes on the temporal panel of Figure 5) and
+`tables.py temporal` (column "Local NDVI increase (% area)").
 
 Rule
 ----

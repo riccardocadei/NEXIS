@@ -30,7 +30,7 @@ fi
 mkdir -p "$ROOT/logs"
 cd "$ROOT"
 
-$PYTHON -u src/apps/ghana/train_sae.py \
+$PYTHON -u src/apps/ghana/pipeline/train_sae.py \
   --train-embeddings "$SAT/national/prithvi_embeddings.npy" \
   --eval-embeddings  "$SAT/prithvi_embeddings.npy" \
   --eval-ids         "$SAT/prithvi_comm_ids.npy" \

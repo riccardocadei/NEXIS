@@ -20,13 +20,13 @@ Setup (one-time):
     earthengine set_project <your-project-id>
 
 Usage:
-    python download_satellite_images.py [--out-dir ../../../data/ghana/satellite/tif]
-                                        [--tile-km 5]
-                                        [--year 2015]
-                                        [--bands B4 B3 B2 B5 B6 B7]
-                                        [--scale 30]
-                                        [--max-cloud 70]
-                                        [--dry-run]
+    python src/apps/ghana/pipeline/download_satellite_images.py [--out-dir ../../../data/ghana/satellite/tif]
+                                                                [--tile-km 5]
+                                                                [--year 2015]
+                                                                [--bands B4 B3 B2 B5 B6 B7]
+                                                                [--scale 30]
+                                                                [--max-cloud 70]
+                                                                [--dry-run]
 
 Bands (Landsat 8 SR):
     B2  Blue              482 nm
@@ -58,7 +58,7 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--out-dir', default='../../../data/ghana/satellite/tif',
-                   help='Directory to save GeoTIFFs, relative to this script '
+                   help='Directory to save GeoTIFFs, relative to src/apps/ghana/ '
                         '(default: %(default)s, i.e. the repo\'s data/ghana/satellite/tif)')
     p.add_argument('--tile-km', type=float, default=5.0,
                    help='Tile side length in km (default: 5)')
@@ -158,7 +158,7 @@ def download_tile(composite, tile, comm_id: int, scale: int,
 def main():
     args = parse_args()
 
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.parent   # src/apps/ghana: the relative defaults start here
     data_path  = (script_dir / args.data_path).resolve()
     out_dir    = (script_dir / args.out_dir).resolve()
 

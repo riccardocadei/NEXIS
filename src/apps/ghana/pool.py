@@ -16,7 +16,7 @@ former two-phase form of nexis() whose W-only phase selected nothing, so it sear
 131 neurons alone (m = 131); its looser gates also admitted Z_3318.  nexis() no longer
 has that form, so that file is not the reference here.
 
-Imported by src/apps/ghana/{final_runs,table_gate}.py; needs src/ on sys.path.
+Imported by src/apps/ghana/{final_runs,tables}.py; needs src/ on sys.path.
 """
 
 from __future__ import annotations
