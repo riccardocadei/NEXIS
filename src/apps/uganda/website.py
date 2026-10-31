@@ -9,7 +9,7 @@ read from docs/assets/json/ and written, with only those `act` dicts replaced, t
 Reads data/uganda/UgandaDataProcessed.csv, data/uganda/satellite/rct/spectral_indices.csv
 and results/uganda/prithvi_l5_1024/site_features.npz.
 
-    python src/apps/uganda/export_website_data.py [--out-dir docs/assets/json]
+    python src/apps/uganda/website.py [--out-dir docs/assets/json]
 """
 
 import argparse

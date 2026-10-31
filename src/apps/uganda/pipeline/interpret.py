@@ -9,8 +9,8 @@ find the actual difference between high- and low-activation sites.
 
 Usage
 -----
-    python src/apps/uganda/interpret.py [options]
-    python src/apps/uganda/interpret.py --vlm-model Qwen/Qwen2-VL-7B-Instruct --quantize
+    python src/apps/uganda/pipeline/interpret.py [options]
+    python src/apps/uganda/pipeline/interpret.py --vlm-model Qwen/Qwen2-VL-7B-Instruct --quantize
 
 Requires:  pip install transformers accelerate bitsandbytes torch pillow
            (no external API key needed – model runs locally on GPU)
@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-ROOT    = Path(__file__).parent.parent.parent.parent   # repo root
+ROOT    = Path(__file__).resolve().parents[4]   # repo root
 TIF_DIR = ROOT / "data" / "uganda" / "satellite" / "tif_rct"
 
 # ── Image loading ──────────────────────────────────────────────────────────────

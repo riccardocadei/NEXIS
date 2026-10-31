@@ -23,7 +23,7 @@ endline 2–4 years later.
 **Sample.** 2,082 individuals, 439 groups, 327 distinct communities (331 RCT sites), 825
 treated (39.6 %). Sub-regions: Karamoja, Teso, Lango, West Nile.
 Source: `results/realworld_final/report.json` (`uganda/<outcome>` → `n`, `pool`) and
-`src/apps/uganda/multilevel_groupcluster.py` log (`groups=439 districts=14 communities=327`,
+`src/apps/uganda/tables.py multilevel` log (`groups=439 districts=14 communities=327`,
 `results/realworld_uganda_groupcluster/run.log`); treated count and rate recomputed from
 `src/apps/uganda/pool.py::uganda` (`t.sum() = 825`, mean 0.396).
 
@@ -45,7 +45,7 @@ runs T = assigned (intent-to-treat) for reference; the paper reports `Wobs`.
 
 Both measure productive capacity (labour market and capital). Difference in means:
 +0.32 (skilled employment), +0.61 (log business assets), replicating the positive
-headline effect of Blattman et al. Source: `src/apps/uganda/table_gate.py` →
+headline effect of Blattman et al. Source: `src/apps/uganda/tables.py gate` →
 `results/uganda/paper_numbers/table_gate.md` (+0.321, +0.610).
 
 ---
@@ -70,7 +70,7 @@ Karamojong (`W_lang_4`), Pallisa (`W_lang_7`). Pallisa is geographic rather than
 linguistic: all communities of Pallisa district, a mix of Iteso and Bagwere/Banyole.
 *Why clusters and not districts:* ≈47 communities per cluster against ≈24 per district,
 so enough support for an interaction. District-dummy sensitivity
-(`src/apps/uganda/district_sensitivity.py` → `results/realworld_final/uganda_districts.json`;
+(`src/apps/uganda/tables.py districts` → `results/realworld_final/uganda_districts.json`;
 the 7 language dummies replaced in place by 14 district dummies, m = 177, skilled
 employment): Pallisa survives at the single-district level, while Karamojong and Lugbara
 span several small districts and lose significance, so the cluster representation is
@@ -89,7 +89,7 @@ district enters S̃; given the final set their p-values are 2.7×10⁻³ (Arua) 
 
 ## 3. Satellite pipeline
 
-**Imagery** (`src/apps/uganda/download_tiles.py`): Landsat 7 ETM+ Collection 2 Level 2
+**Imagery** (`src/apps/uganda/pipeline/download_tiles.py`): Landsat 7 ETM+ Collection 2 Level 2
 surface reflectance, 2005–2007 cloud-free median composite, 30 m, 5×5 km tiles centred on
 each site (`TILE_KM = 5.0`), bands SR_B1, B2, B3, B4, B5, B7 (blue, green, red, NIR,
 SWIR1, SWIR2). VLM images: false colour NIR/Green/SWIR1, 2–98 percentile stretch.
@@ -99,13 +99,13 @@ coverage of Uganda in 2003–2007.
 *Why not the prior imagery:* Jerzak et al. (2023) used images ~7 years before the
 programme with 3 bands and a binary clustering of embeddings.
 
-**Embeddings** (`src/apps/uganda/extract_satellite_features.py`): Prithvi-EO-1.0-100M,
+**Embeddings** (`src/apps/uganda/pipeline/extract_satellite_features.py`): Prithvi-EO-1.0-100M,
 mean over the patch tokens, 768-d. **Fixed:** the appendix now says the embedding
 averages the patch tokens of the last (12th) encoder layer, matching
 `forward_features(x)[-1]` in the code. The `l5` in `prithvi_l5` refers to Landsat, not to
 a layer; the extractor's docstring and comments now say Landsat 7.
 
-**SAE** (`src/apps/uganda/train_sae.py` via `scripts/uganda/submit_train_sae.sh`,
+**SAE** (`src/apps/uganda/pipeline/train_sae.py` via `scripts/uganda/submit_train_sae.sh`,
 output `results/uganda/prithvi_l5_1024/`): TopK SAE, 768 → 1,024, k = 25, unit-norm
 decoder, 2,000 epochs, lr 2×10⁻⁴, 5-fold CV, trained on the national grid with the 331
 RCT sites held out; whitening fit on the national corpus. *Why a national corpus:*
@@ -161,7 +161,7 @@ p-values: `results/realworld_final/report.json` → `uganda/<outcome>` → `runs
 `Wobs | published test | new default` → `coords`. GATEs (s.e.): difference in means within
 active/inactive subgroups, HC1 s.e., Δ s.e. = √(se_a² + se_i²); active = Z_j > 0 for atoms,
 dummy = 1 for language groups, above the sample median for NDVI; from
-`src/apps/uganda/table_gate.py` → `results/uganda/paper_numbers/table_gate.{md,tex,json}`.
+`src/apps/uganda/tables.py gate` → `results/uganda/paper_numbers/table_gate.{md,tex,json}`.
 
 **Panel A: skilled employment.** S̃ = {Karamojong, Lugbara, Z_339, Z_533, Pallisa}.
 
@@ -181,7 +181,7 @@ dummy = 1 for language groups, above the sample median for NDVI; from
 | Candidate | Structured agricultural landscape | `Z_820` | +0.368 (0.094) | +0.649 (0.051) | −0.282 (0.107) | 1.7×10⁻² | 1.7×10⁻² |
 
 The June brief's s.e. 0.098 for Z_339 was the unpooled Neyman s.e.; the paper's 0.097 is
-HC1 (`table_gate.py` docstring). No individual demographic (age, sex, parental
+HC1 (`tables.py gate --help`). No individual demographic (age, sex, parental
 education) enters S̃ for either outcome.
 
 **Marginal screening (Table `tab:uganda_marginal`, main text).** Uncorrected marginal
@@ -196,7 +196,7 @@ correlated SAE atoms that proxy the same few modifiers, the experimental power p
 
 ## 6. VLM interpretation
 
-Qwen2.5-VL-72B-Instruct, 4-bit, one H100 (`src/apps/uganda/interpret.py`, wrapper
+Qwen2.5-VL-72B-Instruct, 4-bit, one H100 (`src/apps/uganda/pipeline/interpret.py`, wrapper
 `scripts/uganda/submit_interpret.sh`, pipeline `qwen72b`). Direct contrast: rank the 331
 sites by Z_j, show the top 12 and bottom 12 tiles side by side with the prompt quoted in
 the appendix, post-process into a short label. *Why contrast:* describing top tiles alone
@@ -212,17 +212,17 @@ The `feature` field of the per-outcome `interpretations.json` indexes the 146 ac
 | 820 | structured agricultural landscape | `results/uganda/prithvi_l5_1024/log_biz_assets/qwen72b/interpretations.json` |
 | 261 | perennial water presence (confidence high) | `results/uganda/prithvi_l5_1024/extra_atoms/qwen72b/interpretations.json` (`--extra-atoms 261`) |
 
-Figures: `src/apps/uganda/figure_neural.py` →
+Figures: `src/apps/uganda/figures.py neural` →
 `results/uganda/figures/figure_neural_{skilled_employed,log_biz_assets}.pdf` (map plus two
-top and two bottom tiles per atom); `figure_maps.py` → `figure_districts.pdf`,
-`figure_languages.pdf`; teaser tile `src/apps/figure1_tiles.py` →
+top and two bottom tiles per atom); `figures.py maps` → `figure_districts.pdf`,
+`figure_languages.pdf`; teaser tile (Figure 1) `figures.py tile` →
 `results/figures/figure1/river.pdf`.
 
 ---
 
 ## 7. Limitations as reported
 
-**Multilevel inference** (`src/apps/uganda/multilevel_groupcluster.py`, run 2, →
+**Multilevel inference** (`src/apps/uganda/tables.py multilevel`, run 2, →
 `results/realworld_uganda_groupcluster/{report.json,summary.csv,run.log}`). Same algorithm
 with the test clustered by treatment-assignment group (CR1S, G = 439, t(G−1)) and 14
 district fixed effects, as in Blattman et al., after a support gate that keeps the 128
@@ -264,6 +264,12 @@ estimates carried over from the June brief; not re-measured.
 
 ## 10. Run notes
 
+- Code (`src/apps/uganda/`): `data.py` (survey and basemap loading), `analyze.py`
+  (covariates; the step that wrote the published sets), `pool.py` (the candidate pool),
+  `final_runs.py` (run grid of `src/apps/realworld_final_runs.py`), `tables.py` (`gate`,
+  `districts`, `multilevel`), `figures.py` (`maps`, `neural`, `tile`), `website.py`, and
+  the GPU / Earth Engine steps in `pipeline/` (`download_tiles.py`,
+  `extract_satellite_features.py`, `train_sae.py`, `interpret.py`).
 - `src/apps/realworld_final_runs.py` without `--only` runs both applications and writes
   `results/realworld_final/report.json`, the file the paper numbers were read from
   (`--out-dir` writes elsewhere). The paper's Uganda rows are the runs
@@ -274,9 +280,9 @@ estimates carried over from the June brief; not re-measured.
   reproduces the published sets, read from
   `results/uganda/prithvi_l5_1024/<outcome>/nexis_result.json` (untracked; comes with the
   original SAE outputs).
-- VLM labels: `src/apps/uganda/interpret.py` via `scripts/uganda/submit_interpret.sh`
+- VLM labels: `src/apps/uganda/pipeline/interpret.py` via `scripts/uganda/submit_interpret.sh`
   (Section 6); add `--extra-atoms 261` for an atom outside the selected sets.
-- Website data: `src/apps/uganda/export_website_data.py` rebuilds
+- Website data: `src/apps/uganda/website.py` rebuilds
   `docs/assets/json/uganda_communities.json` and the Uganda `act` dicts of
   `docs/assets/json/nexis_activations.json` (`--out-dir` writes elsewhere).
 - The older multi-backbone pipeline that wrote the published sets (the launcher
@@ -291,7 +297,7 @@ estimates carried over from the June brief; not re-measured.
 > **Status.** An earlier, broader robustness analysis of the June results (the
 > interleaved-backward algorithm and its seven published modifiers), made before the
 > paper's final configuration. The paper's multilevel limitation is Section 7
-> (`src/apps/uganda/multilevel_groupcluster.py`). "Brief" and "appendix" below refer to the
+> (`src/apps/uganda/tables.py multilevel`). "Brief" and "appendix" below refer to the
 > June versions; § references point inside this section.
 
 The code of this analysis (`robustness_clustering.py`: variance-estimator sweep and nested

@@ -1,28 +1,37 @@
+#!/usr/bin/env python3
+"""Uganda YOP figures of the paper, one subcommand each.
+
+  maps    figure_districts.pdf and figure_languages.pdf (Appendix D): RCT sites coloured
+          by district and by language group; labels next to the clusters with thin
+          leader lines, no legend, thin country border
+  neural  figure_neural_skilled_employed.pdf and figure_neural_log_biz_assets.pdf
+          (Figure 4): one row per modifier, [map] | [2 most active tiles] | [2 inactive
+          tiles], the sign of the GATE contrast in the title
+  tile    river.pdf, the Uganda panel of Figure 1: RCT site 92 (Kamdini parish, Apac
+          district), the top-activating site of SAE neuron 339 ("perennial river
+          presence"), Landsat 7 2005-2007 median composite (the Ghana panel is
+          `src/apps/ghana/figures.py tile`)
+
+Outputs go to results/uganda/figures/ (maps, neural) and results/figures/figure1/ (tile),
+or to --out-dir.
+
+    python src/apps/uganda/figures.py maps
+    python src/apps/uganda/figures.py neural
+    python src/apps/uganda/figures.py tile
 """
-Neural discovery figures for Uganda (skilled_employed & log_biz_assets).
 
-Each figure has one row per neural discovery:
-  [map] | [top-3 satellite images] | [divider] | [bottom-3 satellite images]
-
-Usage:
-    python src/apps/uganda/figure_neural.py
-"""
-
+import argparse
+import sys
 from pathlib import Path
 
 import geopandas as gpd
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
+import tifffile
 from PIL import Image
-
-plt.rcParams.update({
-    "text.usetex":        False,
-    "font.family":        "serif",
-    "font.serif":         ["Computer Modern Roman", "DejaVu Serif", "Times New Roman"],
-    "mathtext.fontset":   "cm",
-})
 
 ROOT      = Path(__file__).resolve().parents[3]
 DATA_DIR  = ROOT / "data" / "uganda"
@@ -31,7 +40,200 @@ MAP_DIR   = DATA_DIR / "map"
 SPEC_PATH = DATA_DIR / "satellite" / "rct" / "spectral_indices.csv"
 RES_DIR   = ROOT / "results" / "uganda" / "prithvi_l5_1024"
 OUT_DIR   = ROOT / "results" / "uganda" / "figures"
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+sys.path.insert(0, str(ROOT / "src"))
+from apps.uganda.data import load_basemap, draw_base, LANG_NAMES  # noqa: E402
+
+
+def _paper_style() -> None:
+    """Serif fonts of the maps and the neural figures (the tile keeps the defaults)."""
+    plt.rcParams.update({
+        "text.usetex":      False,
+        "font.family":      "serif",
+        "font.serif":       ["Computer Modern Roman", "DejaVu Serif", "Times New Roman"],
+        "mathtext.fontset": "cm",
+    })
+
+
+def _out_dir(argv: list[str], cmd: str, doc: str, default: Path = OUT_DIR) -> Path:
+    ap = argparse.ArgumentParser(prog=f"figures.py {cmd}", description=doc)
+    ap.add_argument("--out-dir", type=Path, default=default,
+                    help="where to write the figures (default: %(default)s)")
+    out_dir = ap.parse_args(argv).out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+# ===========================================================================
+# maps
+# ===========================================================================
+
+# map extents: xlim (29.1, 35.4), ylim (-1.65, 4.45)
+
+# ── Language anchors — placed so no lines cross ───────────────────────────────
+# Centroids (lon,lat): Alur(31.20,2.47) Lugbara(31.11,3.12) Madi(31.73,3.48)
+#            Karamojong(34.35,2.72) Teso(33.74,1.56) Langi(32.74,2.10) Other(33.73,1.19)
+LANG_ANCHOR = {
+    "Alur":       (29.7, 2.3),    # left      from (31.12, 2.45)
+    "Lugbara":    (29.7, 3.6),    # left-up   from (31.07, 3.17)
+    "Madi":       (32.5, 4.2),    # up-right  from (31.68, 3.40)
+    "Karamojong": (33.8, 4.0),    # up-left   from (34.44, 2.60)
+    "Teso":       (34.8, 2.1),    # right     from (33.66, 1.58)
+    "Langi":      (31.3, 1.1),    # left-down from (32.74, 2.13)
+    "Pallisa":    (34.8, 0.4),    # right-down from (33.79, 1.18)
+}
+
+# ── District anchors — title-cased, short lines, no crossings ─────────────────
+# Centroids (approx): YUMBE(31.22,3.46) MOYO(31.62,3.52) ADJUMANI(31.73,3.32)
+# KOTIDO(34.08,3.36) ARUA(31.02,3.10) NEBBI(31.15,2.46) APAC(32.57,2.08)
+# LIRA(32.95,2.11) KABERAMAIDO(33.19,1.74) SOROTI(33.58,1.65)
+# MOROTO(34.49,2.46) NAKAPIRIPIRIT(34.71,1.98) KUMI(33.93,1.43) PALLISA(33.75,1.19)
+DIST_ANCHOR = {
+    "Yumbe":         (30.3, 4.2),   # top-left
+    "Moyo":          (31.5, 4.2),   # top
+    "Adjumani":      (32.5, 4.1),   # top-right
+    "Kotido":        (34.7, 4.0),   # top-right
+    "Arua":          (29.6, 3.1),   # left
+    "Nebbi":         (29.6, 2.5),   # left-lower
+    "Apac":          (31.5, 2.8),   # left-up  (diverges from Lira)
+    "Lira":          (33.8, 2.8),   # right-up (diverges from Apac)
+    "Kaberamaido":   (32.4, 0.8),   # down-left
+    "Soroti":        (34.3, 0.9),   # down-right (opposite Kaberamaido)
+    "Moroto":        (34.8, 3.1),   # right-up  — stays inside
+    "Nakapiripirit": (34.1, 1.9),   # between Moroto and Kumi — avoids overlap
+    "Kumi":          (35.1, 1.0),   # right-down
+    "Pallisa":       (34.8, 0.1),   # right-down lower
+}
+
+
+def _thin_border(ax, uganda_gdf, regions_gdf):
+    if regions_gdf is not None:
+        regions_gdf.plot(ax=ax, color='none', edgecolor='#ccc', lw=0.3, zorder=10)
+    uganda_gdf.plot(ax=ax, color='none', edgecolor='#888', lw=0.6, zorder=11)
+
+
+def _leader(ax, cx, cy, ax_t, ay_t, text, fontsize=10):
+    ax.annotate(
+        text,
+        xy=(cx, cy),
+        xytext=(ax_t, ay_t),
+        fontsize=fontsize,
+        ha='center', va='center',
+        color='black',
+        fontweight='normal',
+        zorder=12,
+        arrowprops=dict(
+            arrowstyle='-',
+            color='#888',
+            lw=0.7,
+            shrinkA=0,
+            shrinkB=3,
+        ),
+    )
+
+
+def figure_districts(df, uganda_gdf, neighbors, lakes_c, regions_gdf):
+    need_cols = ['geo_long_center', 'geo_lat_center', 'district']
+    sites = (
+        df.dropna(subset=need_cols)
+          .drop_duplicates('geo_long_lat_key')
+          [['geo_long_lat_key', 'geo_long_center', 'geo_lat_center', 'district']]
+          .copy()
+    )
+    districts = sorted(sites['district'].unique())
+    cmap    = cm.get_cmap('tab20', len(districts))
+    d_color = {d: cmap(i) for i, d in enumerate(districts)}
+
+    fig, ax = plt.subplots(figsize=(6, 7), dpi=150)
+    fig.patch.set_facecolor('white')
+    draw_base(ax, uganda_gdf, neighbors, lakes_c, cities=regions_gdf, paper=False)
+    ax.axis('off')
+    ax.set_facecolor('white')
+    ax.figure.set_facecolor('white')
+    _thin_border(ax, uganda_gdf, regions_gdf)
+
+    for d, grp in sites.groupby('district'):
+        color  = d_color[d]
+        label  = d.title()
+        cx = grp['geo_long_center'].mean()
+        cy = grp['geo_lat_center'].mean()
+        ax.scatter(grp['geo_long_center'], grp['geo_lat_center'],
+                   color=color, s=20, zorder=6,
+                   edgecolors='white', linewidths=0.3, alpha=0.92)
+        ax_t, ay_t = DIST_ANCHOR.get(label, (cx + 0.4, cy + 0.4))
+        _leader(ax, cx, cy, ax_t, ay_t, label, fontsize=9)
+
+    fig.tight_layout(pad=0.1)
+    return fig
+
+
+def figure_languages(df, uganda_gdf, neighbors, lakes_c, regions_gdf):
+    need_cols = ['geo_long_center', 'geo_lat_center', 'lang_group']
+    sites_all = df.dropna(subset=need_cols).copy()
+    sites_all['lang_group'] = sites_all['lang_group'].astype(float)
+
+    modal = (
+        sites_all.groupby('geo_long_lat_key')['lang_group']
+        .agg(lambda x: x.mode().iloc[0])
+        .reset_index()
+        .rename(columns={'lang_group': 'lang_modal'})
+    )
+    sites = (
+        sites_all.drop_duplicates('geo_long_lat_key')
+        [['geo_long_lat_key', 'geo_long_center', 'geo_lat_center']]
+        .merge(modal, on='geo_long_lat_key')
+    )
+    sites['lang_name'] = sites['lang_modal'].map(LANG_NAMES).fillna('Unknown')
+
+    lang_order = [LANG_NAMES[k] for k in sorted(LANG_NAMES)]
+    cmap    = cm.get_cmap('Set2', len(lang_order))
+    l_color = {name: cmap(i) for i, name in enumerate(lang_order)}
+
+    fig, ax = plt.subplots(figsize=(6, 7), dpi=150)
+    fig.patch.set_facecolor('white')
+    draw_base(ax, uganda_gdf, neighbors, lakes_c, cities=regions_gdf, paper=False)
+    ax.axis('off')
+    ax.set_facecolor('white')
+    ax.figure.set_facecolor('white')
+    _thin_border(ax, uganda_gdf, regions_gdf)
+
+    for lang, grp in sites.groupby('lang_name'):
+        color = l_color.get(lang, 'grey')
+        cx = grp['geo_long_center'].mean()
+        cy = grp['geo_lat_center'].mean()
+        ax.scatter(grp['geo_long_center'], grp['geo_lat_center'],
+                   color=color, s=20, zorder=6,
+                   edgecolors='white', linewidths=0.3, alpha=0.92)
+        ax_t, ay_t = LANG_ANCHOR.get(lang, (cx + 0.5, cy + 0.5))
+        _leader(ax, cx, cy, ax_t, ay_t, lang, fontsize=10)
+
+    fig.tight_layout(pad=0.1)
+    return fig
+
+
+def cmd_maps(argv: list[str]) -> None:
+    """figure_districts and figure_languages (Appendix D maps)."""
+    _paper_style()
+    out_dir = _out_dir(argv, "maps", cmd_maps.__doc__)
+    df = pd.read_csv(DATA_DIR / "UgandaDataProcessed.csv", low_memory=False)
+    uganda_gdf, neighbors, lakes_c, regions_gdf = load_basemap(MAP_DIR)
+
+    fig_d = figure_districts(df, uganda_gdf, neighbors, lakes_c, regions_gdf)
+    fig_d.savefig(out_dir / "figure_districts.pdf", bbox_inches='tight', facecolor='white')
+    fig_d.savefig(out_dir / "figure_districts.png", bbox_inches='tight', facecolor='white')
+    print(f"Saved → {out_dir / 'figure_districts.pdf'}")
+    plt.close(fig_d)
+
+    fig_l = figure_languages(df, uganda_gdf, neighbors, lakes_c, regions_gdf)
+    fig_l.savefig(out_dir / "figure_languages.pdf", bbox_inches='tight', facecolor='white')
+    fig_l.savefig(out_dir / "figure_languages.png", bbox_inches='tight', facecolor='white')
+    print(f"Saved → {out_dir / 'figure_languages.pdf'}")
+    plt.close(fig_l)
+
+
+# ===========================================================================
+# neural
+# ===========================================================================
 
 # ── colours ───────────────────────────────────────────────────────────────────
 C_ACTIVE   = "#C0392B"   # terracotta red — default activated (unused in current rows)
@@ -52,7 +254,7 @@ def _norm(arr: np.ndarray) -> np.ndarray:
     return out
 
 
-def load_tile(key: int, size: int = 112) -> np.ndarray | None:
+def _neural_tile(key: int, size: int = 112) -> np.ndarray | None:
     """Return false-colour (NIR/Green/SWIR1) uint8 array (size, size, 3)."""
     path = TIF_DIR / f"uganda_rct{int(key):06d}.tif"
     if not path.exists():
@@ -68,7 +270,7 @@ def load_tile(key: int, size: int = 112) -> np.ndarray | None:
 
 # ── basemap ───────────────────────────────────────────────────────────────────
 
-def load_basemap():
+def _neural_basemap():
     uganda = gpd.read_file(MAP_DIR / "gadm41_UGA_1.json").to_crs("EPSG:4326")
     lakes  = gpd.read_file(MAP_DIR / "ne_10m_lakes.shp").to_crs("EPSG:4326")
     lakes  = lakes.clip(uganda.total_bounds)
@@ -195,7 +397,7 @@ def build_figure(rows: list[dict], out_path: Path,
         # Top-2 images (high activation)
         for j, (key, act) in enumerate(zip(row["top_keys"], row["top_acts"])):
             ax = fig.add_axes([x_starts[2+j], y_img_top - img_frac, img_frac_w, img_frac])
-            img_arr = load_tile(int(key))
+            img_arr = _neural_tile(int(key))
             if img_arr is not None:
                 ax.imshow(img_arr)
             ax.set_axis_off()
@@ -212,7 +414,7 @@ def build_figure(rows: list[dict], out_path: Path,
         # Bottom-2 images (low / inactive)
         for j, (key, act) in enumerate(zip(row["bot_keys"], row["bot_acts"])):
             ax = fig.add_axes([x_starts[5+j], y_img_top - img_frac, img_frac_w, img_frac])
-            img_arr = load_tile(int(key))
+            img_arr = _neural_tile(int(key))
             if img_arr is not None:
                 ax.imshow(img_arr)
             ax.set_axis_off()
@@ -228,7 +430,10 @@ def build_figure(rows: list[dict], out_path: Path,
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def main():
+def cmd_neural(argv: list[str]) -> None:
+    """figure_neural_{skilled_employed,log_biz_assets} (Figure 4)."""
+    _paper_style()
+    out_dir = _out_dir(argv, "neural", cmd_neural.__doc__)
     # Shared data
     d = np.load(RES_DIR / "site_features.npz")
     site_feats = d["site_features"]   # (331, 1024)
@@ -243,7 +448,7 @@ def main():
     # Align coords to site_keys order
     site_df = coords.loc[site_keys].reset_index()
 
-    uganda, lakes = load_basemap()
+    uganda, lakes = _neural_basemap()
 
     def get_acts(raw_col):
         return site_feats[:, raw_col]
@@ -313,9 +518,9 @@ def main():
         map_color = C_GREEN,
     ))
 
-    build_figure(rows_se, OUT_DIR / "figure_neural_skilled_employed.pdf",
+    build_figure(rows_se, out_dir / "figure_neural_skilled_employed.pdf",
                  uganda=uganda, lakes=lakes)
-    build_figure(rows_se, OUT_DIR / "figure_neural_skilled_employed.png",
+    build_figure(rows_se, out_dir / "figure_neural_skilled_employed.png",
                  uganda=uganda, lakes=lakes)
 
     # ── Figure 2: log_biz_assets ───────────────────────────────────────────────
@@ -350,10 +555,76 @@ def main():
         map_color = C_GREEN,
     ))
 
-    build_figure(rows_ba, OUT_DIR / "figure_neural_log_biz_assets.pdf",
+    build_figure(rows_ba, out_dir / "figure_neural_log_biz_assets.pdf",
                  uganda=uganda, lakes=lakes)
-    build_figure(rows_ba, OUT_DIR / "figure_neural_log_biz_assets.png",
+    build_figure(rows_ba, out_dir / "figure_neural_log_biz_assets.png",
                  uganda=uganda, lakes=lakes)
+
+
+# ===========================================================================
+# tile (Figure 1, Uganda panel)
+# ===========================================================================
+
+# Bands of the Uganda Landsat 7 tiles: SR_B1,B2,B3,B4,B5,B7 -> 1=Green 3=NIR 4=SWIR1.
+TILE = dict(name="river",
+            tif=ROOT / "data/uganda/satellite/tif_rct/uganda_rct000092.tif",
+            swir_idx=4, country="Uganda", year=2007)
+TILE_OUT = ROOT / "results" / "figures" / "figure1"
+
+
+def district_of(name: str) -> str:
+    """Look the district label up in the survey data rather than hard-coding it."""
+    df = pd.read_csv(ROOT / "data/uganda/UgandaDataProcessed.csv",
+                     usecols=["geo_long_lat_key", "district"])
+    d = df.loc[df.geo_long_lat_key == 92, "district"].dropna().unique()
+    assert len(d) == 1, f"ambiguous district for {name}: {d}"
+    return str(d[0]).title()
+
+
+def composite(path: Path, swir_idx: int) -> np.ndarray:
+    """NIR / Green / SWIR false-colour composite, uint8, native resolution, every band
+    stretched to its 2-98th percentile."""
+    data = tifffile.imread(str(path)).astype(np.float32)  # (H, W, bands)
+    rgb = np.stack([_norm(data[:, :, 3]), _norm(data[:, :, 1]),
+                    _norm(data[:, :, swir_idx])], axis=-1)
+    return (rgb * 255).astype(np.uint8)
+
+
+def make_tile(spec: dict, out_dir: Path) -> None:
+    img = composite(spec["tif"], spec["swir_idx"])
+    label = f"{district_of(spec['name'])}, {spec['country']} ({spec['year']})"
+
+    fig = plt.figure(figsize=(3, 3), dpi=200)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.imshow(img)
+    ax.axis("off")
+    ax.text(0.97, 0.97, label, transform=ax.transAxes, ha="right", va="top",
+            fontsize=14, family="DejaVu Serif", color="white",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="black",
+                      alpha=0.5, edgecolor="none"))
+
+    for ext in ("pdf", "png"):
+        out = out_dir / f"{spec['name']}.{ext}"
+        fig.savefig(out, bbox_inches="tight", pad_inches=0, dpi=200)
+        print(f"Saved -> {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
+    plt.close(fig)
+
+
+def cmd_tile(argv: list[str]) -> None:
+    """river.{pdf,png}: the Uganda tile of Figure 1, drawn at native resolution in a
+    3x3 inch canvas with a "<district>, Uganda (2007)" label at the top right."""
+    make_tile(TILE, _out_dir(argv, "tile", cmd_tile.__doc__, TILE_OUT))
+
+
+COMMANDS = {"maps": cmd_maps, "neural": cmd_neural, "tile": cmd_tile}
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv or argv[0] not in COMMANDS:
+        print(__doc__)
+        sys.exit(0 if argv and argv[0] in ("-h", "--help") else 2)
+    COMMANDS[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":

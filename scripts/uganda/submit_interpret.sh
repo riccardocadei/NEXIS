@@ -16,7 +16,7 @@ PYTHON=/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3
 mkdir -p "$ROOT/logs"
 cd "$ROOT"
 
-$PYTHON src/apps/uganda/interpret.py \
+$PYTHON src/apps/uganda/pipeline/interpret.py \
     --embed-model prithvi_l5 \
     --sae-dim 1024 \
     --outcomes skilled_employed,log_biz_assets \

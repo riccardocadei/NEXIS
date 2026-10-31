@@ -186,7 +186,7 @@ def parse_args():
 
 def main():
     args       = parse_args()
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.parent   # src/apps/uganda: the relative defaults start here
     data_dir   = (script_dir / args.data_dir).resolve()
 
     if args.out_dir:

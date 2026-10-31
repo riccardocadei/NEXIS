@@ -6,8 +6,7 @@ language-group dummies, the 12 spectral indices), in one matrix.  T = grant rece
 (Wobs).  The published sets are read from
 results/uganda/prithvi_l5_1024/<outcome>/nexis_result.json (`nexis_fwer`).
 
-Imported by src/apps/uganda/{final_runs,multilevel_groupcluster,district_sensitivity,
-table_gate}.py; needs src/ on sys.path.
+Imported by src/apps/uganda/{final_runs,tables}.py; needs src/ on sys.path.
 """
 
 from __future__ import annotations

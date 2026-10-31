@@ -2,11 +2,11 @@
 
 Run once on the RCT tiles and once on the national grid tiles:
 
-  python src/apps/uganda/extract_satellite_features.py \\
+  python src/apps/uganda/pipeline/extract_satellite_features.py \\
     --tif-dir data/uganda/satellite/tif_rct \\
     --out-dir data/uganda/satellite/rct
 
-  python src/apps/uganda/extract_satellite_features.py \\
+  python src/apps/uganda/pipeline/extract_satellite_features.py \\
     --tif-dir data/uganda/satellite/tif_national \\
     --out-dir data/uganda/satellite/national
 
