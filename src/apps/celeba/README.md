@@ -15,7 +15,7 @@
 
 **Pool.** The 19,867 images of the official CelebA validation split (aligned and
 cropped), streamed from the Hugging Face mirror `flwrlabs/celeba`
-(`src/apps/celeba/embed.py` and `benchmark/config.py` both pin revision
+(`src/apps/celeba/pipeline/embed.py` and `benchmark/config.py` both pin revision
 `2d738f56e0e7f925ea36ae7c808ea925264aacec`, the revision behind the paper's embeddings). The same images train the SAE, define the ground truth
 and are the units the benchmark samples from.
 
@@ -28,7 +28,7 @@ individual patch tokens (timm `forward_features`, as `backbones.py` notes).
 **Dictionary.** TopK SAE (`overcomplete` 0.3.0: linear encoder, ReLU, TopK, unit-norm
 dictionary), m = 9,216 = 12 × 768, trained on the 19,867 × 196 ≈ 3.89×10⁶ patch tokens:
 20 epochs, batches of 20 images, Adam lr 5×10⁻⁴, gradient-norm clip 1, seed 0, MSE loss
-(`src/apps/celeba/train_sae.py` via `scripts/celeba/submit_sae.sh`; checkpoints
+(`src/apps/celeba/pipeline/train_sae.py` via `scripts/celeba/submit_sae.sh`; checkpoints
 `results/celeba/sae_siglip_k{5,20}.pt`). Each image is encoded from its mean patch token
 into two views:
 - **Z**: sparse post-TopK codes (near-orthogonal, L0 ≤ k), `data/celeba/embeddings/sae_k{5,20}.npy`;
@@ -93,7 +93,7 @@ a coordinate carrying only prognostic signal satisfies the null; r = 1 and r = 0
 τ₀ leaves the interaction statistics unchanged, so the four DGP rows collapse to one; 200
 seeds make the per-n false-discovery share readable against α (seeds 0–49 draw the main
 setting's units). An earlier variant where η scales β is not used.
-*Why Sideburns as the third modifier:* `src/apps/celeba/third_modifier_candidates.py` →
+*Why Sideburns as the third modifier:* `src/apps/celeba/alignment.py third-modifier` →
 `results/celeba/figures_v2/third_modifier_candidates.md`. Attributes with a higher F1 are
 high-prevalence labels whose sparse code almost never fires (e.g. Male, code recall 0.03)
 or are weakly separated from the runner-up (Smiling); the better-aligned Blond_Hair and
@@ -157,7 +157,7 @@ same concepts and count as false discoveries against the coordinate-level S\*.
 ### 4.3 Principal Alignment (Table `tab:celeba_pa_screening`, `pa_spectrum.pdf`, `pa_top_images.pdf`)
 
 Source: `results/celeba/figures_v2/principal_alignment/pa_summary.json`,
-`pa_screening.{md,tex}`, `pa_screening_splits.csv` (`src/apps/celeba/alignment_appendix.py`).
+`pa_screening.{md,tex}`, `pa_screening_splits.csv` (`src/apps/celeba/alignment.py check`).
 
 - Sign-free AUC of the principal: 0.969 (hat), 0.956 (glasses); runner-up 0.755 (coord.
   2815), 0.714 (coord. 7706); gaps 0.21, 0.24.
@@ -257,6 +257,14 @@ tests minutes on CPU; all sweeps ~400 CPU-h (~10 h on 40 cores). Measured per bl
 
 ## 7. Commands and figure map
 
+**Code** (`src/apps/celeba/`): `scm.py` (data-generating process), `experiment.py`
+(methods, ground truth, metrics, sweep loop) and `backbones.py`; the sweeps
+`run_experiment.py`, `run_experiment_dgp.py` (r = 0, 1, 3), `per_modifier_recall.py`,
+`ablation_rho_filter.py` and `merge_shards.py` (sharded replica rerun); the paper outputs
+`figures.py` (subcommands `main`, `appendix`, `dgp-extra`, `test-story`), `alignment.py`
+(`check`, `f1`, `third-modifier`) and `run_statistics.py`; the website data `website.py`
+(`curves`, `alignment`); the GPU steps `pipeline/embed.py` and `pipeline/train_sae.py`.
+
 The commands are in `README.md` (section CelebA). The paper's CelebA numbers and figures
 come from the `src/` chain ("NEXIS-v2" = `nexis(rho=0.5, backward=False,
 terminal_filter=True)`), except `violation.pdf`, which comes from `benchmark/`. Of
@@ -266,12 +274,12 @@ figures are copied under the same name into the paper's figure folder.
 
 | Paper item | File in `results/celeba/` | Made by |
 |---|---|---|
-| Figure 3 | `figures_v2/figure_main.pdf` | `figure_main.py --nexis-key NEXIS-v2` |
-| `dgp`, `model_k5`, `model_precode`, `method_{test,adjust,rho,backward}` | `figures_v2/*.pdf` | `figure_appendix.py --variant v2` |
-| `replica_k20`, `dgp_r1`, `dgp_r3`, r = 0 table | `figures_v2/` (`dgp_r0_table.tex`, `dgp_extra.md`) | `figure_dgp_extra.py` |
-| Test comparison table | `figures_v2/test_story.tex` | `figure_test_story_v2.py` |
-| `pa_spectrum`, `pa_top_images`, screening table | `figures_v2/principal_alignment/` | `alignment_appendix.py` |
-| Choice of the r = 3 modifier | | `interleaved_backward_align.py sae_precode_k20`, then `third_modifier_candidates.py` |
+| Figure 3 | `figures_v2/figure_main.pdf` | `figures.py main --nexis-key NEXIS-v2` |
+| `dgp`, `model_k5`, `model_precode`, `method_{test,adjust,rho,backward}` | `figures_v2/*.pdf` | `figures.py appendix` |
+| `replica_k20`, `dgp_r1`, `dgp_r3`, r = 0 table | `figures_v2/` (`dgp_r0_table.tex`, `dgp_extra.md`) | `figures.py dgp-extra` |
+| Test comparison table | `figures_v2/test_story.tex` | `figures.py test-story` |
+| `pa_spectrum`, `pa_top_images`, screening table | `figures_v2/principal_alignment/` | `alignment.py check` |
+| Choice of the r = 3 modifier | `figures_v2/third_modifier_candidates.md` | `alignment.py f1 sae_precode_k20`, then `alignment.py third-modifier` |
 | Run statistics (Appendix B) | `paper_numbers/run_statistics.md` | `run_statistics.py` |
 | `violation` | `benchmark/results/figures/violation.pdf` | `python run.py violation` in `src/apps/celeba/benchmark/` (`--data-dir`/`--results-dir` point it at `results/celeba/benchmark/`) |
 
@@ -293,7 +301,7 @@ comparison script `compare_backbones.py` were removed from the tree; they are at
 > **Status.** An earlier, more extensive analysis than the paper's replica figure. The
 > replica dictionary built here (steps 1-3 of §8.7) and its ground truth feed the
 > reproducibility figure `replica_k20.pdf` (`scripts/celeba/submit_dgp_extra.sh`, then
-> `src/apps/celeba/figure_dgp_extra.py`).
+> `src/apps/celeba/figures.py dgp-extra`).
 > The agreement analyses (§8.1, §8.4-§8.6: `sae_agreement.py`, `agreement_rates.py`,
 > `concept_agreement.py`, `submit_concept_agreement.sh`) are not in the paper and were
 > removed from the tree; they are at git tag `pre-cleanup-2026-09`.
@@ -476,7 +484,9 @@ In arm B, coordinate **2608** is a second Eyeglasses feature: 99% of its top-100
 glasses (lift 14.2). NEXIS selects it in 12/50 runs at k=20 and 45/50 at k=5. It is a
 correct discovery of a real modifier, but S\* names only the F1-argmax coordinate, so it
 scores as a false positive. That is exactly the "target misspecification, not algorithmic
-error" case discussed under Principal Alignment (Section 4.3, `principal_alignment.py`).
+error" case discussed under Principal Alignment (Section 4.3; the diagnostic script
+`principal_alignment.py`, which also computes ε̂ below, was removed from the tree on
+2026-10-31 and is in the git history).
 
 The leakage diagnostic ε̂ = max_{j∉S\*} c_j / min_k c_{j_k} identifies this **before** any
 experiment is run, and orders the four dictionaries exactly as their precision does:
@@ -511,7 +521,8 @@ python src/apps/celeba/sae_agreement.py --tag b1                             # s
 sbatch scripts/celeba/submit_concept_agreement.sh 20 b1 2000 5.0             # concept + CATE, k=20
 sbatch scripts/celeba/submit_concept_agreement.sh  5 b1 2000 5.0             # concept + CATE, k=5
 
-# 5. paper figures on the resampled dictionaries
+# 5. appendix figures on the resampled dictionaries (published NEXIS, the "v1" variant of
+#    figure_appendix.py; removed on 2026-10-31, in the git history)
 python src/apps/celeba/figure_appendix.py \
     --experiment-dir results/celeba/experiment_resample_b1 \
     --out-dir        results/celeba/appendix_resample_b1

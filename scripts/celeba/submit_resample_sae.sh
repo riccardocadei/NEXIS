@@ -43,7 +43,7 @@ echo " train on : ${DATA}/embeddings/${BACKBONE}_patches.npy"
 echo " encode   : ${DATA}/eval/embeddings/${BACKBONE}.npy  (= original valid split)"
 echo "============================================================"
 
-$PYTHON src/apps/celeba/train_sae.py \
+$PYTHON src/apps/celeba/pipeline/train_sae.py \
     --data-dir       "${DATA}/eval" \
     --train-data-dir "${DATA}" \
     --backbone       "$BACKBONE" \

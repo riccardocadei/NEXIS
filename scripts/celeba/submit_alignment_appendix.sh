@@ -8,7 +8,7 @@
 #SBATCH --time=02:00:00
 #
 # Supervised check of Principal Alignment on the main CelebA dictionary (appendix panel,
-# src/apps/celeba/alignment_appendix.py): alignment spectrum, top-activating images of
+# src/apps/celeba/alignment.py check): alignment spectrum, top-activating images of
 # the principals, screening-off probe.  CPU only.
 # Results: results/celeba/figures_v2/principal_alignment/pa_*.
 #
@@ -20,4 +20,4 @@ mkdir -p logs
 export PYTHONPATH="$REPO/src:${PYTHONPATH:-}"
 PYTHON=/nfs/scistore19/locatgrp/rcadei/.conda/envs/crl/bin/python3
 echo "host=$(hostname) cpus=${SLURM_CPUS_PER_TASK:-?}"
-exec "$PYTHON" src/apps/celeba/alignment_appendix.py "$@"
+exec "$PYTHON" src/apps/celeba/alignment.py check "$@"

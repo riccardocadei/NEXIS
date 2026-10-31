@@ -25,7 +25,7 @@ echo "============================================================"
 echo " CelebA: save image thumbnails"
 echo "============================================================"
 
-$PYTHON src/apps/celeba/embed.py \
+$PYTHON src/apps/celeba/pipeline/embed.py \
     --data-dir   data/celeba \
     --split      valid       \
     --save-images

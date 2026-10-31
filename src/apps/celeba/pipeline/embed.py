@@ -14,9 +14,9 @@ Both are 768-d, so downstream SAE settings are directly comparable.
 
 Usage
 -----
-    python src/apps/celeba/embed.py --split valid
-    python src/apps/celeba/embed.py --split valid --backbone dinov2 --save-patches
-    python src/apps/celeba/embed.py --list-attrs
+    python src/apps/celeba/pipeline/embed.py --split valid
+    python src/apps/celeba/pipeline/embed.py --split valid --backbone dinov2 --save-patches
+    python src/apps/celeba/pipeline/embed.py --list-attrs
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from torch.utils.data import DataLoader, IterableDataset
 from torchvision import transforms
 from PIL import Image
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parents[4]
 
 from apps.celeba.backbones import (
     BACKBONES, DEFAULT_BACKBONE, BackboneSpec, get_backbone,

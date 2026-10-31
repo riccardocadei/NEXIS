@@ -40,7 +40,7 @@ echo "============================================================"
 # No --force: existing artefacts are skipped, and labels.parquet (shared by every
 # backbone, and the row-alignment reference for the SAE features) is left untouched.
 # Pass --force explicitly to embed.py to recompute from scratch.
-$PYTHON src/apps/celeba/embed.py \
+$PYTHON src/apps/celeba/pipeline/embed.py \
     --data-dir    data/celeba \
     --backbone    "$BACKBONE" \
     --split       valid       \

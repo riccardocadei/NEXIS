@@ -43,7 +43,7 @@ echo " sample seed  : ${SAMPLE_SEED}   backbone: ${BACKBONE}"
 echo " out          : data/celeba/resample_${TAG}"
 echo "============================================================"
 
-$PYTHON src/apps/celeba/embed.py \
+$PYTHON src/apps/celeba/pipeline/embed.py \
     --data-dir     "data/celeba/resample_${TAG}" \
     --backbone     "$BACKBONE" \
     --split        train \

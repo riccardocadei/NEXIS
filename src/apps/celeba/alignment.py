@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
-"""
-Supervised check of Principal Alignment on the main CelebA dictionary (appendix panel).
+"""Principal Alignment on CelebA (Appendix C), one subcommand each.
+
+  check           supervised check of Principal Alignment on the main dictionary (TopK
+                  SAE, k = 20, codes Z): alignment spectrum (pa_spectrum.pdf), top
+                  activating images of the principals (pa_top_images.pdf) and the
+                  screening-off probe (Table tab:celeba_pa_screening), written to
+                  results/celeba/figures_v2/principal_alignment/
+  f1              attribute-to-coordinate F1 matrix of a dictionary (the ground-truth
+                  rule, experiment.compute_f1_scores, for every CelebA attribute), written
+                  to results/celeba/interleaved_backward/align/f1_<dict>.npz
+  third-modifier  ranks the CelebA attributes as the third direct modifier of the r = 3
+                  DGP from the F1 matrix of sae_precode_k20
+                  (results/celeba/figures_v2/third_modifier_candidates.md)
 
 Principal Alignment (Assumption 3): for each direct modifier W^k there is one principal
 coordinate j_k with  W^k  indep  Z^{[m] minus j_k}  |  Z^{j_k}.  It does not require
 monosemanticity, and it is testable only with supervision.  On CelebA the modifiers
-(Wearing_Hat, Eyeglasses) are observed labels, so we check it on the main dictionary
-(TopK SAE, k = 20, codes of mean-pooled SigLIP-2 patch tokens, 19,867 x 9,216), with the
-principals of results/celeba/experiment/k20/sae/ground_truth.json (Hat 5348,
-Eyeglasses 5537).  CPU only; no retraining, no re-embedding.
+(Wearing_Hat, Eyeglasses) are observed labels, so `check` tests it on the main dictionary
+(19,867 x 9,216 codes of mean-pooled SigLIP-2 patch tokens), with the principals of
+results/celeba/experiment/k20/sae/ground_truth.json (Hat 5348, Eyeglasses 5537).
 
-Outputs (results/celeba/figures_v2/principal_alignment/):
+`check` outputs:
 
   pa_spectrum.{pdf,png}     alignment spectrum: the AUC of every coordinate's
                             activation for the label, sorted; principal and runner-up
@@ -24,30 +34,107 @@ Outputs (results/celeba/figures_v2/principal_alignment/):
                             likelihood-ratio test of the K extra coordinates
   pa_summary.json           every number above
 
-The probe is the original probe (principal_alignment.ci_probe: quantile-bin expansion of
-the principal, companions selected on the training half by partial correlation with W
-given the principal, L2-logistic with C = 1); ``probe_path`` runs it for several K from
-one selection and reproduces ci_probe exactly at K = 200 (checked in ``main``).
+The probe is ci_probe below (quantile-bin expansion of the principal, companions selected
+on the training half by partial correlation with W given the principal, L2-logistic with
+C = 1); ``probe_path`` runs it for several K from one selection and reproduces ci_probe
+exactly at K = 200 (checked in ``check``).
 
-    PYTHONPATH=src python src/apps/celeba/alignment_appendix.py            # all
-    PYTHONPATH=src python src/apps/celeba/alignment_appendix.py --figures-only
+Usage (repo root, CPU):
+    python src/apps/celeba/alignment.py check [--figures-only]
+    python src/apps/celeba/alignment.py f1 sae_precode_k20
+    python src/apps/celeba/alignment.py third-modifier
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2, rankdata
+from scipy.stats import binom, chi2, rankdata
+from sklearn.metrics import roc_auc_score
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "src"))
 
-import apps.celeba.figure_appendix as fa          # noqa: F401  (global rcParams)
-from apps.celeba.principal_alignment import _residualize, ci_probe
-from apps.celeba.visualize import METHOD_STYLES, _OI_ORANGE, _OI_GREEN
+from apps.celeba.figures import METHOD_STYLES, _OI_ORANGE, _OI_GREEN  # noqa: E402  (also the rcParams)
+
+F1_DIR = ROOT / "results/celeba/interleaved_backward/align"
+
+
+# ── linear residualisation and the original conditional-independence probe ───
+
+def _residualize(M: np.ndarray, A: np.ndarray) -> np.ndarray:
+    """Residualize the columns of M on the columns of A (intercept included)."""
+    A1 = np.column_stack([np.ones(len(A)), A])
+    coef, *_ = np.linalg.lstsq(A1, M, rcond=None)
+    return M - A1 @ coef
+
+
+def ci_probe(
+    Z: np.ndarray,
+    w: np.ndarray,
+    principal: int,
+    n_extra: int = 200,
+    n_bins: int = 10,
+    seed: int = 0,
+) -> dict[str, float]:
+    """Held-out test of  W  indep  Z^{-j}  |  Z^{j}  (Assumption 3 as stated).
+
+    Probe 1: W ~ binned(Z^j)                     (the principal alone)
+    Probe 2: W ~ binned(Z^j) + top-n_extra other coordinates
+    The extra coordinates are selected on the training half only.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score, log_loss
+
+    rng = np.random.default_rng(seed)
+    n = len(w)
+    perm = rng.permutation(n)
+    tr, te = perm[: n // 2], perm[n // 2:]
+
+    zj = Z[:, principal].astype(np.float64)
+
+    # flexible 1-d expansion of the principal: quantile-bin dummies + linear term
+    qs = np.quantile(zj[tr][zj[tr] > 0], np.linspace(0, 1, n_bins + 1)[1:-1]) \
+        if (zj[tr] > 0).sum() > n_bins else np.array([])
+    edges = np.unique(np.concatenate([[0.0], qs]))
+    B = np.column_stack(
+        [zj] + [(zj > t).astype(np.float64) for t in edges]
+    )
+
+    # Candidate companions: strongest partial correlation with the residual of W
+    # given the principal.  Everything here is computed on the TRAINING half only
+    # -- the residualisation of W included -- so the held-out AUC below is not
+    # contaminated by the coordinate-selection step.
+    r_w_tr = _residualize(w[tr].reshape(-1, 1).astype(np.float64), B[tr]).ravel()
+    others = np.setdiff1d(np.arange(Z.shape[1]), [principal])
+    score = np.zeros(len(others))
+    for s in range(0, len(others), 2048):
+        e = min(s + 2048, len(others))
+        Rj = _residualize(Z[np.ix_(tr, others[s:e])].astype(np.float64), B[tr])
+        sd = Rj.std(axis=0)
+        cov = (Rj * r_w_tr[:, None]).mean(axis=0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            score[s:e] = np.where(sd > 1e-10, np.abs(cov) / sd, 0.0)
+    extra = others[np.argsort(-score)[:n_extra]]
+
+    out = {}
+    for name, X in [("principal", B), ("principal+rest", np.column_stack([B, Z[:, extra]]))]:
+        mdl = LogisticRegression(max_iter=2000, C=1.0)
+        mdl.fit(X[tr], w[tr])
+        p = mdl.predict_proba(X[te])[:, 1]
+        out[f"auc_{name}"] = float(roc_auc_score(w[te], p))
+        out[f"logloss_{name}"] = float(log_loss(w[te], p))
+    out["delta_auc"] = out["auc_principal+rest"] - out["auc_principal"]
+    out["delta_logloss"] = out["logloss_principal"] - out["logloss_principal+rest"]
+    out["n_extra"] = float(n_extra)
+    return out
+
 
 CODES = ROOT / "data/celeba/embeddings/sae_k20.npy"
 LABELS = ROOT / "data/celeba/labels.parquet"
@@ -310,15 +397,23 @@ def figure_top_images(Z: np.ndarray, labels: pd.DataFrame, reps: dict,
     print(f"wrote {OUT / 'pa_top_images.pdf'}")
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
+# ── check: the appendix check ──────────────────────────────────────────────────
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__,
+def cmd_check(argv: list[str]) -> None:
+    """Supervised check of Principal Alignment on the main dictionary (Appendix C):
+    alignment spectrum (pa_spectrum), top-activating images of the principals
+    (pa_top_images), screening-off probe (pa_screening.{md,tex}, pa_screening_splits.csv)
+    and pa_summary.json, in --out-dir (default
+    results/celeba/figures_v2/principal_alignment/).  CPU, a few minutes."""
+    global OUT
+    ap = argparse.ArgumentParser(prog="alignment.py check", description=cmd_check.__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--n-splits", type=int, default=20)
     ap.add_argument("--figures-only", action="store_true",
                     help="skip the screening-off probe (spectrum + images only)")
-    args = ap.parse_args()
+    ap.add_argument("--out-dir", type=Path, default=OUT)
+    args = ap.parse_args(argv)
+    OUT = args.out_dir if args.out_dir.is_absolute() else ROOT / args.out_dir
     OUT.mkdir(parents=True, exist_ok=True)
 
     gt = json.loads(GT.read_text())
@@ -368,6 +463,168 @@ def main():
         summary.update({k: v for k, v in old.items() if k.startswith("screening")})
     (OUT / "pa_summary.json").write_text(json.dumps(summary, indent=1))
     print(f"wrote {OUT / 'pa_summary.json'}")
+
+
+# ── f1: attribute-to-coordinate F1 matrix ─────────────────────────────────────
+
+def cmd_f1(argv: list[str]) -> None:
+    """Attribute-to-coordinate F1 matrix of CelebA dictionaries.
+
+    For every CelebA attribute, computes the best-threshold F1 of each coordinate
+    (experiment.compute_f1_scores, the ground-truth rule of the paper) and saves the full
+    (n_attrs, m) F1 matrix to <out-dir>/f1_<dict>.npz (f1, attrs); existing files are
+    skipped.  `third-modifier` reads f1_sae_precode_k20.npz.  (Written for an earlier
+    interleaved-backward experiment, hence the default output path.)  NJOBS (default 8)
+    sets the number of joblib workers.
+    """
+    from joblib import Parallel, delayed
+    from apps.celeba.experiment import compute_f1_scores
+
+    ap = argparse.ArgumentParser(prog="alignment.py f1", description=cmd_f1.__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("dicts", nargs="+",
+                    help="sae_k20, sae_k5, sae_precode_k20, sae_precode_k5, ... "
+                         "(data/celeba/embeddings/<dict>.npy)")
+    ap.add_argument("--out-dir", type=Path, default=F1_DIR)
+    args = ap.parse_args(argv)
+    out_dir = args.out_dir if args.out_dir.is_absolute() else ROOT / args.out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    labels = pd.read_parquet(ROOT / "data/celeba/labels.parquet")
+    attrs = [c for c in labels.columns if c != "celeb_id"]
+    nj = int(os.environ.get("NJOBS", "8"))
+
+    for d in args.dicts:
+        out = out_dir / f"f1_{d}.npz"
+        if out.exists():
+            print("exists", out); continue
+        F = np.load(ROOT / "data/celeba/embeddings" / f"{d}.npy", mmap_mode="r")
+        f1 = Parallel(n_jobs=nj)(delayed(compute_f1_scores)(
+            np.asarray(F), labels[a].values.astype(float)) for a in attrs)
+        np.savez(out, f1=np.stack(f1), attrs=np.array(attrs))
+        print("wrote", out, flush=True)
+
+
+# ── third-modifier: candidates for the third direct modifier at r = 3 ─────────
+
+N_GRID = [50, 100, 200, 350, 500, 750, 1000, 2000, 3500, 5000, 10000]
+PRINCIPALS = {"Wearing_Hat": 5348, "Eyeglasses": 5537}
+
+
+def cmd_third_modifier(argv: list[str]) -> None:
+    """Rank CelebA attributes as the third direct modifier of the r = 3 DGP.
+
+    For every attribute, on the main k = 20 SigLIP dictionary (19,867-image pool):
+
+      j*        best-threshold-F1 coordinate on the pre-activations (the ground-truth rule)
+      F1, gap   its F1 and the gap to the runner-up coordinate
+      F1 base   F1 of predicting every image positive, 2p/(1+p): best-threshold F1 is
+                inflated for high-prevalence labels, so F1 is read against this floor
+      AUC       of the pre-activation z_pre[:, j*], and of the sparse code z[:, j*] that
+                NEXIS actually regresses on (ties at 0 when the code does not fire)
+      code P/R  precision and recall of "code fires" (z[:, j*] > 0) for the label
+      lift      share of positives among the 100 images with the largest z_pre[:, j*],
+                over the prevalence (its maximum is 1/p)
+      distinct  j* differs from the hat and glasses principals 5348 and 5537
+      n_max     the independent sampler (scm.generate_celeba_rct) draws the three
+                attributes independently at CelebA prevalence and takes images without
+                replacement from the matching joint cell; n_max is the largest n of the
+                sweep grid for which all 50 seeds find every cell populated with
+                probability >= 0.99 (binomial cell counts); "(1,1,1)" is the number of
+                images with hat, glasses and the attribute.
+
+    Paper item: the r = 3 paragraph of Appendix C, "Sideburns [...] its principal
+    coordinate separates it with AUC 0.805 on Z" = column "AUC code" of the Sideburns
+    row.  The comparison values "0.969 and 0.956 for the other two" (Wearing_Hat 5348,
+    Eyeglasses 5537, excluded here) are auc_principal of `check` (pa_summary.json,
+    "spectrum"; --figures-only suffices).
+
+    Reads the F1 matrix of `f1 sae_precode_k20` and writes --out (default
+    results/celeba/figures_v2/third_modifier_candidates.md).
+    """
+    ap = argparse.ArgumentParser(prog="alignment.py third-modifier",
+                                 description=cmd_third_modifier.__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--f1", type=Path, default=F1_DIR / "f1_sae_precode_k20.npz")
+    ap.add_argument("--out", type=Path,
+                    default=ROOT / "results/celeba/figures_v2/third_modifier_candidates.md")
+    args = ap.parse_args(argv)
+    f1z = np.load(args.f1 if args.f1.is_absolute() else ROOT / args.f1,
+                  allow_pickle=True)
+    F1, attrs = f1z["f1"], [str(a) for a in f1z["attrs"]]
+    L = pd.read_parquet(ROOT / "data/celeba/labels.parquet")
+    P = np.load(ROOT / "data/celeba/embeddings/sae_precode_k20.npy", mmap_mode="r")
+    S = np.load(ROOT / "data/celeba/embeddings/sae_k20.npy", mmap_mode="r")
+    hat, gl = L.Wearing_Hat.values.astype(int), L.Eyeglasses.values.astype(int)
+    ph, pg = hat.mean(), gl.mean()
+
+    rows = []
+    for i, a in enumerate(attrs):
+        if a in PRINCIPALS:
+            continue
+        y = L[a].values.astype(int)
+        p = y.mean()
+        order = np.argsort(F1[i])[::-1]
+        j = int(order[0])
+        zp, zc = np.asarray(P[:, j]), np.asarray(S[:, j])
+        fires = zc > 0
+        top = np.argsort(zp)[::-1][:100]
+        p_ok = []
+        for n in N_GRID:
+            ok = 1.0
+            for h in (0, 1):
+                for g in (0, 1):
+                    for v in (0, 1):
+                        cnt = int(((hat == h) & (gl == g) & (y == v)).sum())
+                        pc = (ph if h else 1 - ph) * (pg if g else 1 - pg) * (p if v else 1 - p)
+                        ok *= binom.cdf(cnt, n, pc)
+            p_ok.append(ok ** 50)
+        feas = [n for n, q in zip(N_GRID, p_ok) if q >= 0.99]
+        rows.append({
+            "attribute": a, "prevalence": p, "j*": j, "F1": F1[i, j],
+            "gap": F1[i, j] - F1[i, order[1]], "F1 base": 2 * p / (1 + p),
+            "AUC z_pre": roc_auc_score(y, zp), "AUC code": roc_auc_score(y, zc),
+            "code P": y[fires].mean() if fires.any() else np.nan, "code R": fires[y == 1].mean(),
+            "lift": y[top].mean() / p, "max lift": 1 / p,
+            "distinct": j not in PRINCIPALS.values(),
+            "(1,1,1)": int(((hat == 1) & (gl == 1) & (y == 1)).sum()),
+            "n_max": max(feas) if feas else 0,
+        })
+    df = pd.DataFrame(rows).sort_values("F1", ascending=False)
+
+    def fmt(v):
+        if isinstance(v, (bool, np.bool_)):
+            return "yes" if v else "NO"
+        if isinstance(v, float):
+            return f"{v:.3f}" if abs(v) < 10 else f"{v:.1f}"
+        return str(v)
+
+    cols = list(df.columns)
+    # The column reference names the script under its earlier name, as in the
+    # published third_modifier_candidates.md (now `alignment.py third-modifier`).
+    md = ["# Third direct modifier for the r = 3 DGP: alignment and feasibility", "",
+          "Main k=20 SigLIP dictionary, 19,867-image pool; Wearing_Hat (5348) and "
+          "Eyeglasses (5537) excluded. Columns: see src/apps/celeba/third_modifier_candidates.py. "
+          "n_max = largest sweep n (grid 50..10,000) at which the independent sampler "
+          "populates every (hat, glasses, attribute) cell for all 50 seeds with "
+          "probability >= 0.99; 0 = not even n = 50.", "",
+          "| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
+    md += ["| " + " | ".join(fmt(v) for v in r) + " |" for r in df.itertuples(index=False)]
+    out = args.out if args.out.is_absolute() else ROOT / args.out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(md) + "\n")
+    print("\n".join(md))
+    print(f"Saved → {out}")
+
+
+COMMANDS = {"check": cmd_check, "f1": cmd_f1, "third-modifier": cmd_third_modifier}
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv or argv[0] not in COMMANDS:
+        print(__doc__)
+        sys.exit(0 if argv and argv[0] in ("-h", "--help") else 2)
+    COMMANDS[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":

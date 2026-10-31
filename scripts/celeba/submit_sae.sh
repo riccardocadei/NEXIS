@@ -46,7 +46,7 @@ for K in 5 20; do
     echo " CelebA Stage 2: train_sae  backbone=${BACKBONE}  top-k=${K}"
     echo "============================================================"
 
-    $PYTHON src/apps/celeba/train_sae.py \
+    $PYTHON src/apps/celeba/pipeline/train_sae.py \
         "${SAE_COMMON[@]}" \
         --top-k "${K}"
 

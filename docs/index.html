@@ -2399,7 +2399,7 @@ document.getElementById('ug-outcome-tabs').addEventListener('click',e=>{
 /* ══════════════════════════════════════════════
    PRINCIPAL ALIGNMENT PANELS (CelebA)
    assets/json/celeba_alignment.json, written by
-   src/apps/celeba/export_website_alignment.py
+   src/apps/celeba/website.py alignment
    ══════════════════════════════════════════════ */
 const ALIGN_ATTR={
   Wearing_Hat:{label:'Wearing Hat',c:'#E69F00'},
@@ -2605,7 +2605,7 @@ fetch('assets/json/celeba_data.json').then(r=>r.json()).then(DATA=>{
 
   // Same methods as paper Figure 3; 'NEXIS' is the default configuration
   // (forward step + terminal backward step), exported by
-  // src/apps/celeba/export_website_data.py
+  // src/apps/celeba/website.py curves
   const PM=[
     {key:'Marginal Testing',        label:'Marginal Testing',        c:'#e05c1a'},
     {key:'Marginal Testing (FDR)',  label:'Marginal Testing (FDR)',  c:'#f59e0b'},

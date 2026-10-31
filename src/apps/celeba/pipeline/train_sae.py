@@ -21,10 +21,10 @@ s4-sae_encoding.py which also encodes mean/CLS-pooled features through the SAE.
 
 Usage
 -----
-    python src/apps/celeba/train_sae.py
-    python src/apps/celeba/train_sae.py --backbone dinov2 --top-k 20
-    python src/apps/celeba/train_sae.py --hidden-dim 4608 --epochs 100
-    python src/apps/celeba/train_sae.py --out-dir results/celeba
+    python src/apps/celeba/pipeline/train_sae.py
+    python src/apps/celeba/pipeline/train_sae.py --backbone dinov2 --top-k 20
+    python src/apps/celeba/pipeline/train_sae.py --hidden-dim 4608 --epochs 100
+    python src/apps/celeba/pipeline/train_sae.py --out-dir results/celeba
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
+ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src"))
 
 from nexis.sae import TopKSAE, TopKSAETrainConfig, SAETrainResult, train_topk_sae, get_features, get_pre_features
@@ -110,7 +110,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    ROOT = Path(__file__).resolve().parents[3]
+    ROOT = Path(__file__).resolve().parents[4]
 
     data_dir = (ROOT / args.data_dir
                 if not args.data_dir.is_absolute() else args.data_dir)
